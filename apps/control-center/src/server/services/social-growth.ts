@@ -309,7 +309,8 @@ function buildExperiments(input: {
     );
     return {
       experimentKey,
-      kind: rows[0]?.kind ?? 'language',
+      // groups only gains keys by pushing a row, so every group is non-empty.
+      kind: rows[0]!.kind,
       paired,
       status: paired ? 'paired-cohort' : weakestStatus(arms),
       arms,
@@ -507,7 +508,9 @@ function sum(values: (number | undefined)[]): number | null {
 function median(values: number[]): number {
   const ordered = [...values].sort((left, right) => left - right);
   const midpoint = Math.floor(ordered.length / 2);
+  // Every median() caller guards with a length check, so indexed access into
+  // this dense non-empty array never misses.
   return ordered.length % 2
-    ? (ordered[midpoint] ?? 0)
-    : ((ordered[midpoint - 1] ?? 0) + (ordered[midpoint] ?? 0)) / 2;
+    ? ordered[midpoint]!
+    : (ordered[midpoint - 1]! + ordered[midpoint]!) / 2;
 }

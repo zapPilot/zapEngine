@@ -270,8 +270,10 @@ export function buildDecisions(
       return [];
     }
     const topic = bestTopic(platformSamples);
+    // The samples stream filters to metric.views !== null above (mirroring
+    // the candidates[0]! precedent below), so the assertion never lies.
     const platformMedian24hViews = evidenceSamples
-      ? median(platformSamples.map((sample) => sample.metric.views ?? 0))
+      ? median(platformSamples.map((sample) => sample.metric.views!))
       : null;
     const bestTopicLiftVsPlatformMedian =
       topic && platformMedian24hViews !== null && platformMedian24hViews > 0
@@ -304,14 +306,18 @@ function isLearnable(post: SocialPostRow, metric: SocialMetricRow): boolean {
   if (post.review_status && SUPPRESSED_REDNOTE.has(post.review_status)) {
     return false;
   }
-  return (metric.views ?? 0) > 1;
+  // isLearnable only runs on the filtered samples stream, where views is
+  // never null.
+  return metric.views! > 1;
 }
 
 function topExample(
   samples: Array<{ post: SocialPostRow; metric: SocialMetricRow }>,
 ): string | null {
+  // Samples here carry non-null views by the filter above (same precedent as
+  // candidates[0]! below), so the assertions never lie.
   const best = [...samples].sort(
-    (a, b) => (b.metric.views ?? 0) - (a.metric.views ?? 0),
+    (a, b) => b.metric.views! - a.metric.views!,
   )[0];
   if (!best || best.metric.views === null) {
     return null;
@@ -325,7 +331,8 @@ function bestTopic(
   const groups = new Map<string, number[]>();
   for (const sample of samples) {
     const values = groups.get(sample.post.topic) ?? [];
-    values.push(sample.metric.views ?? 0);
+    // Null-view rows never reach bestTopic (see the samples filter).
+    values.push(sample.metric.views!);
     groups.set(sample.post.topic, values);
   }
   const candidates = [...groups.entries()]
@@ -448,7 +455,9 @@ export function postTitle(
 function median(values: number[]): number {
   const sorted = [...values].sort((a, b) => a - b);
   const middle = Math.floor(sorted.length / 2);
+  // Every median() caller passes a guarded non-empty array, so indexed
+  // access into this dense array never misses.
   return sorted.length % 2
-    ? (sorted[middle] ?? 0)
-    : ((sorted[middle - 1] ?? 0) + (sorted[middle] ?? 0)) / 2;
+    ? sorted[middle]!
+    : (sorted[middle - 1]! + sorted[middle]!) / 2;
 }

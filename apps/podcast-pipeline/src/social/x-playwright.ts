@@ -115,8 +115,7 @@ async function publish(
 
   log('[x] Publishing native video');
   const response = await step('publish', async () => {
-    const button = await findActionablePostButton(page);
-    if (!button) throw new Error('X post button is disabled or not visible.');
+    const button = (await findActionablePostButton(page))!;
     const responsePromise = page.waitForResponse(
       (candidate) =>
         candidate.request().method() === 'POST' &&

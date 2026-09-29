@@ -122,12 +122,8 @@ vi.mock('./translate.js', () => ({
   translateCanonicalScript: mockTranslateCanonicalScript,
 }));
 
-const { performIngest } = await import('./ingest.js');
-const performMultilingualIngest = (
-  (await import('./ingest.js')) as unknown as {
-    performMultilingualIngest: typeof performIngest;
-  }
-).performMultilingualIngest;
+const { performIngest, performMultilingualIngest } =
+  await import('./ingest.js');
 
 describe('performIngest failure paths', () => {
   beforeEach(() => {
@@ -376,6 +372,28 @@ describe('performIngest failure paths', () => {
       localizationRow().id,
       'completed',
       expect.anything(),
+    );
+  });
+
+  it('records a failed localization in the multilingual cost sink after the episode id is known', async () => {
+    const costSink: import('./ingest.js').IngestCostSinkEntry[] = [];
+    mockTextToSpeech.mockRejectedValue(new Error('TTS unavailable'));
+
+    await expect(
+      performMultilingualIngest(
+        'https://example.com/article',
+        'zh-Hant',
+        costSink,
+      ),
+    ).rejects.toThrow('[step:textToSpeech] TTS unavailable');
+
+    expect(costSink).toHaveLength(1);
+    expect(costSink[0]).toEqual(
+      expect.objectContaining({
+        languageCode: 'zh-Hant',
+        episodeId: episodeRow().id,
+        status: 'failed',
+      }),
     );
   });
 
@@ -1669,6 +1687,96 @@ describe('performIngest failure paths', () => {
     );
   });
 
+  it('regenerates a blank secondary script before TTS', async () => {
+    const episode = episodeRow();
+    const canonical = localizationRow({
+      episode_id: episode.id,
+      script: '正常中文腳本。',
+      status: 'completed',
+    });
+    const blank = localizationRow({
+      id: 'en-localization',
+      episode_id: episode.id,
+      language_code: 'en',
+      script: '   ',
+      status: 'script_generated',
+    });
+
+    mockFindEpisodeBySourceUrl.mockResolvedValue(episode);
+    mockFindEpisodeLocalizationByEpisodeId.mockImplementation(
+      (_episodeId: string, languageCode: string) => {
+        if (languageCode === 'zh-Hant') return Promise.resolve(canonical);
+        if (languageCode === 'en') return Promise.resolve(blank);
+        return Promise.resolve(null);
+      },
+    );
+    mockTranslateCanonicalScript.mockResolvedValue({
+      title: 'English title',
+      script: 'Healthy English script.',
+      cost: [],
+    });
+    mockUpdateEpisodeLocalizationArticleContent.mockResolvedValue(blank);
+    mockUpdateEpisodeLocalizationStatus.mockImplementation(
+      (_id: string, status: EpisodeLocalizationRow['status'], updates = {}) =>
+        Promise.resolve(
+          localizationRow({
+            ...blank,
+            status,
+            script: (updates as { script?: string }).script ?? blank.script,
+          }),
+        ),
+    );
+
+    await performIngest('https://example.com/article', 'en');
+
+    expect(mockTranslateCanonicalScript).toHaveBeenCalledTimes(1);
+  });
+
+  it('regenerates a secondary script that exceeds the absolute corruption limit', async () => {
+    const episode = episodeRow();
+    const canonical = localizationRow({
+      episode_id: episode.id,
+      script: '正常中文腳本。',
+      status: 'completed',
+    });
+    const corrupted = localizationRow({
+      id: 'en-localization',
+      episode_id: episode.id,
+      language_code: 'en',
+      script: 'x'.repeat(30_001),
+      status: 'script_generated',
+    });
+
+    mockFindEpisodeBySourceUrl.mockResolvedValue(episode);
+    mockFindEpisodeLocalizationByEpisodeId.mockImplementation(
+      (_episodeId: string, languageCode: string) => {
+        if (languageCode === 'zh-Hant') return Promise.resolve(canonical);
+        if (languageCode === 'en') return Promise.resolve(corrupted);
+        return Promise.resolve(null);
+      },
+    );
+    mockTranslateCanonicalScript.mockResolvedValue({
+      title: 'English title',
+      script: 'Healthy English script.',
+      cost: [],
+    });
+    mockUpdateEpisodeLocalizationArticleContent.mockResolvedValue(corrupted);
+    mockUpdateEpisodeLocalizationStatus.mockImplementation(
+      (_id: string, status: EpisodeLocalizationRow['status'], updates = {}) =>
+        Promise.resolve(
+          localizationRow({
+            ...corrupted,
+            status,
+            script: (updates as { script?: string }).script ?? corrupted.script,
+          }),
+        ),
+    );
+
+    await performIngest('https://example.com/article', 'en');
+
+    expect(mockTranslateCanonicalScript).toHaveBeenCalledTimes(1);
+  });
+
   it('wraps non-Error step failures', async () => {
     mockScrapeArticle.mockRejectedValue('network down');
 
@@ -1850,6 +1958,23 @@ describe('performIngest failure paths', () => {
       'main',
       undefined,
     );
+  });
+
+  it('rejects a completed checkpoint that loses its required main HLS URL', async () => {
+    const updateStatus =
+      mockUpdateEpisodeLocalizationStatus.getMockImplementation()!;
+    mockUpdateEpisodeLocalizationStatus.mockImplementation(
+      async (id: string, status: string, data?: Record<string, unknown>) => {
+        const result = await updateStatus(id, status, data);
+        return status === 'completed' && result
+          ? { ...result, hls_url: '' }
+          : result;
+      },
+    );
+
+    await expect(
+      performIngest('https://example.com/article', 'zh-Hant'),
+    ).rejects.toThrow('Main audio HLS was not produced for zh-Hant');
   });
 
   it('loads classrooms when a script update returns an already completed localization', async () => {

@@ -276,8 +276,8 @@ async function performSecondaryIngest(
   if (
     needsGeneratedScript(localization) ||
     hasCorruptedSecondaryScript(
-      localization.script ?? '',
-      canonicalLocalization.script ?? '',
+      localization.script!,
+      canonicalLocalization.script!,
     )
   ) {
     const translated = await step('translateCanonicalScript', () =>
@@ -398,7 +398,6 @@ function hasRunawayRepeatedPhrase(script: string): boolean {
       start += 1
     ) {
       const phrase = normalized.slice(start, start + phraseLength);
-      if (!phrase.trim()) continue;
 
       let repetitions = 1;
       let next = start + phraseLength;

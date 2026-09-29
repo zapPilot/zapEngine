@@ -436,7 +436,7 @@ function printPreview(
   if (copy.rednote) {
     console.log(`${divider}\nREDNOTE · ${copy.rednote.hookType}\n${divider}`);
     const rednote = compose('rednote');
-    console.log(`標題：${rednote.title ?? ''}`);
+    console.log(`標題：${rednote.title!}`);
     console.log(rednote.hashtags.map((tag) => `#${tag}`).join(' '));
     console.log('（正文不會發布，僅供內部比對用）');
     console.log(formatVideoPreview(video, episode.videoDurationSeconds));

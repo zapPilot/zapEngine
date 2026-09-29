@@ -38,7 +38,7 @@ const ENGLISH_ABBREVIATIONS = new Set([
 
 function precedingAsciiWord(script: string, index: number): string {
   let start = index;
-  while (start > 0 && /[A-Za-z.]/.test(script[start - 1] ?? '')) {
+  while (start > 0 && /[A-Za-z.]/.test(script[start - 1]!)) {
     start -= 1;
   }
   return script.slice(start, index);
@@ -63,7 +63,7 @@ function isPeriodTerminator(script: string, index: number): boolean {
 }
 
 function isSentenceTerminator(script: string, index: number): boolean {
-  const character = script[index] ?? '';
+  const character = script[index]!;
   if (HARD_SENTENCE_TERMINATORS.has(character)) return true;
   return character === '.' && isPeriodTerminator(script, index);
 }
@@ -76,10 +76,10 @@ function pushSentence(
 ): void {
   let startOffset = rawStart;
   let endOffset = rawEnd;
-  while (startOffset < endOffset && /\s/u.test(script[startOffset] ?? '')) {
+  while (startOffset < endOffset && /\s/u.test(script[startOffset]!)) {
     startOffset += 1;
   }
-  while (endOffset > startOffset && /\s/u.test(script[endOffset - 1] ?? '')) {
+  while (endOffset > startOffset && /\s/u.test(script[endOffset - 1]!)) {
     endOffset -= 1;
   }
   if (endOffset <= startOffset) return;
@@ -100,7 +100,7 @@ export function splitCanonicalSentences(script: string): CanonicalSentence[] {
   let index = 0;
 
   while (index < script.length) {
-    const character = script[index] ?? '';
+    const character = script[index]!;
     if (character === '\r' || character === '\n') {
       pushSentence(script, sentences, sentenceStart, index);
       index += character === '\r' && script[index + 1] === '\n' ? 2 : 1;

@@ -746,4 +746,149 @@ describe('NON-NEGOTIABLE episode release cohort contract', () => {
     expect(mocks.prepareSocialBatchCopy).toHaveBeenCalledTimes(1);
     expect(mocks.publishSocialBatch).not.toHaveBeenCalled();
   });
+
+  it('keeps pre-multilingual back-catalogue episodes unscheduled', async () => {
+    const oldEpisode = readyEpisode(ARTICLE_A).map((row) => ({
+      ...row,
+      episode_created_at: '2026-08-01T00:00:00.000Z',
+    }));
+    mocks.listSocialPublishCandidates.mockResolvedValue(oldEpisode);
+    mocks.listSocialPublishCandidatesForEpisodes.mockResolvedValue(oldEpisode);
+
+    await runSocialDaemonTick({ now: NOW, firstStartedAt: FIRST_STARTED_AT });
+
+    expect(mocks.enqueueSocialPublishJob).not.toHaveBeenCalled();
+  });
+
+  it('does not schedule a release when every required lane has an invalid ready timestamp', async () => {
+    const invalidReady = readyEpisode(ARTICLE_A).map((row) => ({
+      ...row,
+      ready_at: 'not-a-date',
+    }));
+    mocks.listSocialPublishCandidates.mockResolvedValue(invalidReady);
+    mocks.listSocialPublishCandidatesForEpisodes.mockResolvedValue(
+      invalidReady,
+    );
+
+    await runSocialDaemonTick({ now: NOW, firstStartedAt: FIRST_STARTED_AT });
+
+    expect(mocks.enqueueSocialPublishJob).not.toHaveBeenCalled();
+  });
+
+  it('one-shot catch-up does not pull future-ready media forward', async () => {
+    const futureReady = readyEpisode(ARTICLE_A).map((row) => ({
+      ...row,
+      ready_at: '2026-09-02T15:00:00.000Z',
+    }));
+    mocks.listSocialPublishCandidates.mockResolvedValue(futureReady);
+    mocks.listSocialPublishCandidatesForEpisodes.mockResolvedValue(futureReady);
+
+    await expect(
+      runSocialCatchUpOnce({ now: () => NOW_AFTER_HOURS }),
+    ).resolves.toBe('idle');
+
+    expect(mocks.enqueueSocialPublishJob).not.toHaveBeenCalled();
+  });
+
+  it('records a singular queued lane when only one lane insert succeeds', async () => {
+    const candidates = readyEpisode(ARTICLE_A);
+    mocks.listSocialPublishCandidates.mockResolvedValue(candidates);
+    mocks.listSocialPublishCandidatesForEpisodes.mockResolvedValue(candidates);
+    mocks.enqueueSocialPublishJob
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(false);
+    const log = vi.fn();
+
+    await runSocialDaemonTick({
+      now: NOW,
+      firstStartedAt: FIRST_STARTED_AT,
+      log,
+    });
+
+    expect(log).toHaveBeenCalledWith(
+      expect.stringContaining('queued 1 lane ·'),
+    );
+  });
+
+  it('leaves an article discoverable when every lane insert loses its race', async () => {
+    const candidates = readyEpisode(ARTICLE_A);
+    mocks.listSocialPublishCandidates.mockResolvedValue(candidates);
+    mocks.listSocialPublishCandidatesForEpisodes.mockResolvedValue(candidates);
+    mocks.enqueueSocialPublishJob
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(false);
+
+    await runSocialDaemonTick({ now: NOW, firstStartedAt: FIRST_STARTED_AT });
+
+    expect(mocks.enqueueSocialPublishJob).toHaveBeenCalledTimes(4);
+  });
+
+  it('deduplicates durable lanes and ignores unrelated or ghost release-budget rows', async () => {
+    const scheduledAt = '2026-09-02T03:00:00.000Z';
+    mocks.listPendingSocialPublishSchedules.mockResolvedValue([
+      {
+        episode_id: ARTICLE_B,
+        platform: 'x',
+        language_code: 'ja',
+        scheduled_at: scheduledAt,
+        completed_at: null,
+        status: 'queued',
+      },
+      {
+        episode_id: ARTICLE_B,
+        platform: 'youtube',
+        language_code: 'en',
+        scheduled_at: scheduledAt,
+        completed_at: null,
+        status: 'queued',
+      },
+      {
+        episode_id: ARTICLE_C,
+        platform: 'x',
+        language_code: 'ja',
+        scheduled_at: '2026-09-01T03:00:00.000Z',
+        completed_at: '2026-09-02T03:00:00.000Z',
+        status: 'completed',
+      },
+      {
+        episode_id: ARTICLE_A,
+        platform: 'x',
+        language_code: 'ja',
+        scheduled_at: scheduledAt,
+        completed_at: null,
+        status: 'queued',
+      },
+      {
+        episode_id: ARTICLE_A,
+        platform: 'x',
+        language_code: 'ja',
+        scheduled_at: scheduledAt,
+        completed_at: null,
+        status: 'queued',
+      },
+    ]);
+    const candidates = readyEpisode(ARTICLE_A);
+    mocks.listSocialPublishCandidates.mockResolvedValue(candidates);
+    mocks.listSocialPublishCandidatesForEpisodes.mockResolvedValue(candidates);
+
+    await runSocialDaemonTick({ now: NOW, firstStartedAt: FIRST_STARTED_AT });
+
+    expect(mocks.enqueueSocialPublishJob).toHaveBeenCalled();
+    expect(
+      mocks.enqueueSocialPublishJob.mock.calls.map(
+        ([input]) => `${input.platform}|${input.languageCode}`,
+      ),
+    ).toEqual(
+      expect.arrayContaining([
+        'rednote|zh-Hant',
+        'threads|zh-Hant',
+        'x|ja',
+        'youtube|en',
+      ]),
+    );
+  });
 });

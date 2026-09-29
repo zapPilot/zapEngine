@@ -90,6 +90,21 @@ describe('searchBraveImages', () => {
     ]);
   });
 
+  it('uses the global fetch implementation when no fetch override is supplied', async () => {
+    const fetchJson = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(jsonResponse({ results: [braveResult()] }));
+
+    try {
+      await expect(
+        searchBraveImages('coldcard', API_KEY),
+      ).resolves.toHaveLength(1);
+      expect(fetchJson).toHaveBeenCalledOnce();
+    } finally {
+      fetchJson.mockRestore();
+    }
+  });
+
   it('drops results that carry no usable publisher image URL', async () => {
     const fetchJson = vi.fn().mockResolvedValue(
       jsonResponse({

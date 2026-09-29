@@ -59,7 +59,7 @@ export function buildHomeBorrowingRiskView(
     .sort((a, b) => a.liquidationBufferPct - b.liquidationBufferPct);
 
   return {
-    nearestLiquidationBufferPct: positions[0]?.liquidationBufferPct ?? 0,
+    nearestLiquidationBufferPct: positions[0]!.liquidationBufferPct,
     worstHealthRate: response.worst_health_rate,
     totalDebtUsd: response.total_debt_usd,
     positionCount: positions.length,

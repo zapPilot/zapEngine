@@ -20,6 +20,7 @@ vi.mock('../services/db.js', async (importOriginal) => ({
 import type { NewSocialPostMetric, SocialPostRow } from '../types.js';
 import {
   buildSocialPostMetric,
+  collectPostMetrics,
   formatMetricsSummary,
   parseMetricsCliOptions,
   runAutomaticSocialMetricsCollector,
@@ -311,6 +312,38 @@ describe('formatMetricsSummary', () => {
 });
 
 describe('runSocialMetricsCli', () => {
+  it('classifies invalid and explicitly unavailable collector results without recording metrics', async () => {
+    await expect(
+      collectPostMetrics(vi.fn().mockResolvedValue(42) as never, post()),
+    ).resolves.toEqual({
+      status: 'retryable',
+      reason: 'no metrics available yet',
+    });
+
+    const log = vi.fn();
+    const insertMetric = vi.fn();
+    await runAutomaticSocialMetricsCollector({
+      now: () => new Date('2026-08-16T00:00:00.000Z'),
+      log,
+      listRecentPosts: vi.fn().mockResolvedValue([post()]),
+      insertMetric,
+      collectors: {
+        x: vi.fn().mockResolvedValue({
+          status: 'unavailable',
+          reason: 'post removed',
+        }),
+        threads: vi.fn(),
+        rednote: vi.fn(),
+        youtube: vi.fn(),
+      },
+    });
+
+    expect(insertMetric).not.toHaveBeenCalled();
+    expect(log).toHaveBeenCalledWith(
+      expect.stringContaining('metrics unavailable (post removed)'),
+    );
+  });
+
   it('uses the automatic collector default dependencies without touching external services when there are no posts', async () => {
     dbMocks.listRecentSocialPosts.mockResolvedValue([]);
     const log = vi.fn();

@@ -112,8 +112,8 @@ function episodeWebUrl(
   return `${APP_WEB_ORIGIN}/podcast/${encodeURIComponent(localizationId)}?lang=${encodeURIComponent(languageCode)}`;
 }
 
-function isLinkPreviewCrawler(userAgent: string | undefined): boolean {
-  const normalized = userAgent?.toLowerCase() ?? '';
+function isLinkPreviewCrawler(userAgent: string): boolean {
+  const normalized = userAgent.toLowerCase();
   return LINK_PREVIEW_USER_AGENT_MARKERS.some((marker) =>
     normalized.includes(marker),
   );
@@ -139,7 +139,7 @@ export async function resolveEpisodeShare(input: {
   if (
     platform === 'desktop' &&
     Boolean(input.userAgent?.trim()) &&
-    !isLinkPreviewCrawler(input.userAgent) &&
+    !isLinkPreviewCrawler(input.userAgent!) &&
     input.accept?.toLowerCase().includes('text/html') === true
   ) {
     return { kind: 'redirect', location: webEpisodeUrl };

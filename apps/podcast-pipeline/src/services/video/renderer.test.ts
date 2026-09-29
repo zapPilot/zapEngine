@@ -299,6 +299,7 @@ describe('renderSlideVideo (vertical news manifests)', () => {
     } = stubVerticalPresentationDependencies();
     const renderVerticalVideo = vi.fn(
       async (videoOptions: Parameters<typeof renderVerticalSlideVideo>[0]) => {
+        videoOptions.onEncodeProgress?.(0.5);
         await writeFile(videoOptions.outputPath, 'mock-vertical-mp4', 'utf8');
         return { chunkEncodeMs: 1_200, finalEncodeMs: 3_400 };
       },
@@ -395,6 +396,7 @@ describe('renderSlideVideo (vertical news manifests)', () => {
       'Preparing media 3/3: scene-03',
       'Rendering brand frame and outro card',
       'Encoding vertical news video',
+      'Encoding vertical news video 50%',
     ]);
   });
 

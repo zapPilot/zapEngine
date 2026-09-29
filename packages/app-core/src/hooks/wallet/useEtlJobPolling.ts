@@ -80,10 +80,8 @@ function statusFromJob(
 }
 
 function deriveStatus(
-  jobId: string | null,
   jobStatus: EtlJobStatus | undefined,
   latestStatus: EtlJobPollingState['status'] | null,
-  triggerError: string | undefined,
 ): EtlJobPollingState['status'] {
   if (
     latestStatus === 'completed' ||
@@ -96,8 +94,7 @@ function deriveStatus(
   const remoteStatus = statusFromJob(jobStatus);
   if (remoteStatus) return remoteStatus;
   if (latestStatus) return latestStatus;
-  if (triggerError) return 'failed';
-  return jobId ? 'pending' : 'idle';
+  return 'idle';
 }
 
 /**
@@ -177,7 +174,7 @@ export function useEtlJobPolling(): UseEtlJobPollingReturn {
     setLatestStatus('failed');
   }, [isPollingError]);
 
-  const status = deriveStatus(jobId, jobStatus, latestStatus, triggerError);
+  const status = deriveStatus(jobStatus, latestStatus);
   const errorMessage =
     triggerError ||
     jobStatus?.error?.message ||

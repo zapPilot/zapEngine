@@ -6,6 +6,9 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('./supabase-client.js', () => ({
   getPipelineSupabase: mocks.getPipelineSupabase,
+  throwSupabaseError: (error: unknown) => {
+    throw error;
+  },
 }));
 
 import { createRenderWorkProbe } from './render-capacity.js';
@@ -23,6 +26,58 @@ function emptyQuery() {
 }
 
 describe('render work probe default wiring', () => {
+  it('returns an empty snapshot when deployment claims are explicitly closed', async () => {
+    const from = vi.fn();
+    const rpc = vi.fn().mockResolvedValue({ data: false, error: null });
+    const probe = createRenderWorkProbe({ from, rpc } as never);
+
+    await expect(probe.loadSnapshot()).resolves.toMatchObject({
+      videos: [],
+      visuals: [],
+      visualFailureNotices: [],
+      nowMs: expect.any(Number),
+    });
+
+    expect(from).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when the deployment gate RPC errors', async () => {
+    const error = new Error('gate unavailable');
+    const rpc = vi.fn().mockResolvedValue({ data: null, error });
+    const probe = createRenderWorkProbe({ from: vi.fn(), rpc } as never);
+
+    await expect(probe.loadSnapshot()).rejects.toBe(error);
+  });
+
+  it('fails when optional visual failure notices cannot be read', async () => {
+    const from = vi.fn(() => emptyQuery());
+    const rpc = vi
+      .fn()
+      .mockResolvedValueOnce({ data: true, error: null })
+      .mockResolvedValueOnce({
+        data: null,
+        error: new Error('notice read failed'),
+      });
+    const probe = createRenderWorkProbe({ from, rpc } as never);
+
+    await expect(probe.loadSnapshot()).rejects.toThrow('notice read failed');
+  });
+
+  it('normalizes a null visual failure notice payload to an empty list', async () => {
+    const from = vi.fn(() => emptyQuery());
+    const rpc = vi
+      .fn()
+      .mockResolvedValueOnce({ data: true, error: null })
+      .mockResolvedValueOnce({ data: null, error: null });
+    const probe = createRenderWorkProbe({ from, rpc } as never);
+
+    await expect(probe.loadSnapshot()).resolves.toMatchObject({
+      videos: [],
+      visuals: [],
+      visualFailureNotices: [],
+    });
+  });
+
   it('builds the pipeline Supabase client lazily when no client is injected', async () => {
     const from = vi.fn(() => emptyQuery());
     const rpc = vi.fn(async () => ({ data: [], error: null }));

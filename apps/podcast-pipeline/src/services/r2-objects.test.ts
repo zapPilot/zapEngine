@@ -45,4 +45,14 @@ describe('R2 pagination and deletion', () => {
       'did not confirm',
     );
   });
+  it('rejects a listing whose keys escape the requested prefix', async () => {
+    const send = vi.fn().mockResolvedValue({
+      Contents: [{ Key: 'other/a', Size: 12 }],
+      IsTruncated: false,
+    });
+    const r2 = { send } as unknown as S3Client;
+    await expect(listR2Objects(r2, 'bucket', 'episodes/')).rejects.toThrow(
+      'Invalid R2 listing',
+    );
+  });
 });

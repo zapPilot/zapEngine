@@ -1,3 +1,5 @@
+import { writeFileSync } from 'node:fs';
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -14,6 +16,12 @@ const mocks = vi.hoisted(() => ({
   question: vi.fn(),
   readPublishState: vi.fn(),
   resolvePackagingAssignments: vi.fn(),
+  spawnSync: vi.fn(),
+}));
+
+vi.mock('node:child_process', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('node:child_process')>()),
+  spawnSync: mocks.spawnSync,
 }));
 
 vi.mock('node:readline/promises', async (importOriginal) => ({
@@ -165,6 +173,19 @@ beforeEach(() => {
   );
   mocks.createSocialPostPersister.mockReturnValue(mocks.persistPublished);
   mocks.publishSocialPlatforms.mockResolvedValue([]);
+  mocks.spawnSync.mockImplementation(
+    (editor: string, args: readonly string[]) => {
+      if (editor === '/definitely/missing/editor') {
+        return { error: new Error('missing editor'), status: null };
+      }
+      if (editor === '/usr/bin/false') return { status: 1 };
+      if (editor === 'invalid-editor') {
+        writeFileSync(args[0]!, '{invalid json', 'utf8');
+        return { status: 0 };
+      }
+      return { status: 0 };
+    },
+  );
   process.exitCode = undefined;
 });
 
@@ -215,6 +236,27 @@ describe('parseCliOptions', () => {
     });
     expect(() => parseCliOptions(['--help'])).toThrow(/Usage:/);
     expect(() => parseCliOptions([])).toThrow(/Usage:/);
+  });
+
+  it('requires a language and rejects unsupported primary languages', () => {
+    expect(() => parseCliOptions([EPISODE_ID])).toThrow(
+      '--language is required',
+    );
+    expect(() => parseCliOptions([EPISODE_ID, '--language', 'fr'])).toThrow(
+      'Unsupported social language: fr.',
+    );
+  });
+
+  it('parses a multi-platform selection without duplicating lanes', () => {
+    expect(
+      parseCliOptions([
+        EPISODE_ID,
+        '--language',
+        'zh-Hant',
+        '--platform',
+        'x,threads,x',
+      ]),
+    ).toMatchObject({ platforms: ['x', 'threads'] });
   });
 
   it('parses unattended approval', () => {
@@ -282,6 +324,48 @@ describe('parseCliOptions', () => {
 });
 
 describe('runSocialCli media preparation', () => {
+  it('forwards both global and platform strategy guidance to copy generation', async () => {
+    await runSocialCli(
+      [
+        EPISODE_ID,
+        '--language',
+        'zh-Hant',
+        '--dry-run',
+        '--platform',
+        'threads',
+      ],
+      {
+        strategyGuidance: 'Prefer concise hooks',
+        strategyGuidanceByPlatform: { threads: 'Ask one question' },
+      },
+    );
+
+    expect(mocks.generateSocialCopy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        strategyGuidance: 'Prefer concise hooks',
+        strategyGuidanceByPlatform: { threads: 'Ask one question' },
+      }),
+    );
+  });
+
+  it('previews a copy payload with no optional platform lanes', async () => {
+    mocks.generateSocialCopy.mockResolvedValue({
+      copy: { topic: 'macro' },
+      model: 'test-model',
+    });
+
+    await runSocialCli([
+      EPISODE_ID,
+      '--language',
+      'zh-Hant',
+      '--dry-run',
+      '--platform',
+      'threads',
+    ]);
+
+    expect(console.log).toHaveBeenCalledWith('────────────────────────');
+  });
+
   it('downloads the full video and creates a teaser for X-only', async () => {
     await runSocialCli([
       EPISODE_ID,
@@ -556,6 +640,47 @@ describe('runSocialCli publishing', () => {
     }
   });
 
+  it('uses vi as the default editor when EDITOR is unset', async () => {
+    const previousEditor = process.env['EDITOR'];
+    delete process.env['EDITOR'];
+    try {
+      enableInteractiveReview('e', 't');
+      await runSocialCli([
+        EPISODE_ID,
+        '--language',
+        'zh-Hant',
+        '--platform',
+        'threads',
+      ]);
+      expect(mocks.spawnSync).toHaveBeenCalledWith('vi', expect.any(Array), {
+        stdio: 'inherit',
+      });
+    } finally {
+      if (previousEditor === undefined) delete process.env['EDITOR'];
+      else process.env['EDITOR'] = previousEditor;
+    }
+  });
+
+  it('wraps invalid edited JSON with an editor-specific validation error', async () => {
+    const previousEditor = process.env['EDITOR'];
+    process.env['EDITOR'] = 'invalid-editor';
+    try {
+      enableInteractiveReview('e');
+      await expect(
+        runSocialCli([
+          EPISODE_ID,
+          '--language',
+          'zh-Hant',
+          '--platform',
+          'threads',
+        ]),
+      ).rejects.toThrow('Edited social copy is invalid');
+    } finally {
+      if (previousEditor === undefined) delete process.env['EDITOR'];
+      else process.env['EDITOR'] = previousEditor;
+    }
+  });
+
   it('surfaces editor spawn and non-zero exit failures', async () => {
     const previousEditor = process.env['EDITOR'];
     try {
@@ -806,6 +931,41 @@ describe('runSocialCli publishing', () => {
     );
     expect(console.error).toHaveBeenCalledWith(
       expect.stringContaining('Untouched: threads'),
+    );
+  });
+
+  it('can report a generic publish failure without mutating process.exitCode', async () => {
+    mocks.publishSocialPlatforms.mockRejectedValue(
+      new Error('generic publish failure'),
+    );
+
+    const outcomes = await runSocialCli(
+      [EPISODE_ID, '--language', 'zh-Hant', '--yes'],
+      { setExitCodeOnFailure: false },
+    );
+
+    expect(outcomes).toEqual([]);
+    expect(process.exitCode).toBeUndefined();
+    expect(console.error).toHaveBeenCalledWith('generic publish failure');
+  });
+
+  it('reports empty published and untouched lane sets explicitly', async () => {
+    mocks.publishSocialPlatforms.mockRejectedValue(
+      new SocialReleaseFailureError({
+        episodeId: EPISODE_ID,
+        languageCode: 'zh-Hant',
+        platform: 'x',
+        phase: 'transport',
+        cause: new Error('x failed'),
+        publishedLanes: [],
+        untouchedLanes: [],
+      }),
+    );
+
+    await runSocialCli([EPISODE_ID, '--language', 'zh-Hant', '--yes']);
+
+    expect(console.error).toHaveBeenCalledWith(
+      expect.stringContaining('Untouched: (none)'),
     );
   });
 

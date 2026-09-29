@@ -21,6 +21,10 @@ import type { EpisodeRenderMetrics, PipelineRunInput } from './ops-ledger.js';
 import { RENDER_ADMISSION_MIN_FREE_BYTES } from './render-admission.js';
 import { buildTelegramVideoRetryReplyMarkup } from './telegram.js';
 import {
+  buildVisualFailureDiagnostics,
+  VisualPlanningError,
+} from './video/visual-diagnostics.js';
+import {
   EPISODE_VIDEO_VISUAL_VERSION,
   type EpisodeVideoCompletion,
   type EpisodeVideoJobRow,
@@ -315,10 +319,11 @@ describe('createVideoWorker', () => {
     const visualRepository = makeVisualRepository(visualJob());
     const processVisualJob: ProcessEpisodeVideoVisualJob = vi
       .fn()
-      .mockImplementation((_job, _source, context) => {
+      .mockImplementation(async (_job, _source, context) => {
         expect(context.signal.aborted).toBe(false);
         expect(context.runId).toMatch(/^[a-f0-9]{8}$/);
-        return Promise.resolve(visualCompletion);
+        await context.saveCheckpoint({ stage: 'storyboard' });
+        return visualCompletion;
       });
     const worker = createVideoWorker({
       repository,
@@ -341,7 +346,52 @@ describe('createVideoWorker', () => {
       'worker-1',
       visualCompletion,
     );
+    expect(visualRepository.saveCheckpoint).toHaveBeenCalledWith(
+      'episode-1',
+      'worker-1',
+      { stage: 'storyboard' },
+    );
     expect(repository.claim).not.toHaveBeenCalled();
+  });
+
+  it('logs a visual diagnostics persistence failure without hiding the job failure', async () => {
+    const visualRepository = makeVisualRepository(visualJob());
+    const logger = { info: vi.fn(), error: vi.fn() };
+    const diagnostics = buildVisualFailureDiagnostics({
+      visualVersion: 'visual-v1',
+      runId: 'run-1',
+      attempt: 1,
+      stage: 'storyboard',
+      error: new Error('storyboard failed'),
+    });
+    vi.mocked(visualRepository.recordFailureDiagnostics).mockRejectedValueOnce(
+      new Error('diagnostics unavailable'),
+    );
+    vi.mocked(visualRepository.fail).mockResolvedValue(
+      visualJob({
+        status: 'queued',
+        lease_owner: null,
+        lease_expires_at: null,
+      }),
+    );
+    const worker = createVideoWorker({
+      repository: makeRepository(null),
+      visualRepository,
+      processJob: vi.fn(),
+      processVisualJob: vi
+        .fn()
+        .mockRejectedValue(
+          new VisualPlanningError(new Error('storyboard failed'), diagnostics),
+        ),
+      leaseOwner: 'worker-1',
+      logger,
+    });
+
+    await expect(worker.runOnce()).resolves.toBe('failed');
+    expect(logger.error).toHaveBeenCalledWith(
+      '[video-worker] failed to persist visual failure diagnostics',
+      expect.objectContaining({ message: 'diagnostics unavailable' }),
+    );
   });
 
   it('reports an ordinary visual failure even when its message resembles worker shutdown', async () => {
@@ -697,6 +747,37 @@ describe('createVideoWorker', () => {
     );
     render.resolve(completion);
     await expect(first).resolves.toBe('completed');
+    await expect(worker.runOnce()).resolves.toBe('completed');
+  });
+
+  it('stops rescheduling progress flushes after the job controller is aborted', async () => {
+    vi.useFakeTimers();
+    const repository = makeRepository();
+    vi.mocked(repository.renewLease).mockResolvedValue(false);
+    vi.mocked(repository.fail).mockResolvedValue(
+      job({ status: 'queued', lease_owner: null, lease_expires_at: null }),
+    );
+    const render = createDeferred<EpisodeVideoCompletion>();
+    const processJob: ProcessEpisodeVideoJob = vi.fn(
+      (_job, _source, context) => {
+        context.reportProgress({ percent: 50, stage: 'encoding' });
+        return render.promise;
+      },
+    );
+    const worker = createVideoWorker({
+      repository,
+      processJob,
+      leaseOwner: 'worker-1',
+      heartbeatIntervalMs: 5_000,
+      progressFlushIntervalMs: 10_000,
+    });
+
+    const running = worker.runOnce();
+    await vi.advanceTimersByTimeAsync(10_000);
+    render.resolve(completion);
+
+    await expect(running).resolves.toBe('failed');
+    expect(repository.reportProgress).toHaveBeenCalledTimes(1);
   });
 
   it('runs a second job while the first is still rendering', async () => {
@@ -1321,6 +1402,19 @@ describe('createVideoWorker', () => {
     await worker.stop();
     worker.start();
     await vi.advanceTimersByTimeAsync(30_000);
+    expect(repository.claim).not.toHaveBeenCalled();
+  });
+
+  it('returns stopped when runOnce is called after stop', async () => {
+    const repository = makeRepository(null);
+    const worker = createVideoWorker({
+      repository,
+      processJob: vi.fn(),
+      leaseOwner: 'worker-1',
+    });
+
+    await worker.stop();
+    await expect(worker.runOnce()).resolves.toBe('stopped');
     expect(repository.claim).not.toHaveBeenCalled();
   });
 

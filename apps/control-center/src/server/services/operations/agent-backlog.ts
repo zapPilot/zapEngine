@@ -144,7 +144,9 @@ export function createAgentBacklogService(input: {
     const token = writeToken();
     const backlog = await cache.get(true);
     if (backlog.status !== 'ok') {
-      throw new Error(backlog.message ?? 'Agent backlog is unavailable.');
+      // Every non-ok snapshot comes from emptyResponse, whose message is
+      // always a string.
+      throw new Error(backlog.message!);
     }
     const areas = (inputValue.areas ?? []).flatMap((area) => {
       const normalized = normalizeArea(area);

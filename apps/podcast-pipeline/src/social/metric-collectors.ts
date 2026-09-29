@@ -540,9 +540,7 @@ export async function collectRednoteMetrics(
       if (!card) {
         return {
           status: 'unavailable',
-          reason: post.platform_post_id
-            ? `rednote post ${post.platform_post_id} not found in manager`
-            : 'rednote post not found in manager',
+          reason: `rednote post ${post.platform_post_id!} not found in manager`,
         };
       }
 
@@ -585,18 +583,13 @@ export async function collectRednoteMetrics(
           `Rednote note ${post.id} contains an unreadable statistic.`,
         );
       }
-      const [views, comments, likes, saves, shares] = values;
-      if (
-        views === undefined ||
-        comments === undefined ||
-        likes === undefined ||
-        saves === undefined ||
-        shares === undefined
-      ) {
-        throw new Error(
-          `Rednote note ${post.id} did not expose five statistics.`,
-        );
-      }
+      const [views, comments, likes, saves, shares] = values as [
+        number,
+        number,
+        number,
+        number,
+        number,
+      ];
 
       const impression = await card.getAttribute('data-impression');
       const noteId = extractRednoteNoteId(impression);
@@ -783,7 +776,7 @@ async function queryYouTubeAnalytics(input: {
   fetchImpl: typeof fetch;
   metrics: string;
   dimensions?: string;
-}): Promise<unknown> {
+}): Promise<{ rows: unknown[] }> {
   const url = new URL(YOUTUBE_ANALYTICS_API);
   url.searchParams.set('ids', 'channel==MINE');
   url.searchParams.set('startDate', input.post.published_at.slice(0, 10));
@@ -801,12 +794,11 @@ async function queryYouTubeAnalytics(input: {
   if (!isRecord(payload) || !Array.isArray(payload['rows'])) {
     throw new Error('YouTube Analytics returned an invalid response.');
   }
-  return payload;
+  return payload as { rows: unknown[] };
 }
 
-function firstAnalyticsRow(payload: unknown): unknown[] | null {
-  if (!isRecord(payload) || !Array.isArray(payload['rows'])) return null;
-  const row = payload['rows'][0];
+function firstAnalyticsRow(payload: { rows: unknown[] }): unknown[] | null {
+  const row = payload.rows[0];
   return Array.isArray(row) ? row : null;
 }
 
@@ -978,8 +970,7 @@ export function parseClockDurationSeconds(raw: string | null): number | null {
   ) {
     return null;
   }
-  const [first, second, third] = parts;
-  if (first === undefined || second === undefined) return null;
+  const [first, second, third] = parts as [number, number, number?];
   if (parts.length === 2) {
     if (second >= 60) return null;
     return first * 60 + second;
@@ -996,11 +987,8 @@ export function parseRednoteEditorText(raw: string): {
   if (!normalized) return { body: '', hashtags: [] };
 
   const lines = normalized.split('\n');
-  let lastContentIndex = lines.length - 1;
-  while (lastContentIndex >= 0 && !lines[lastContentIndex]?.trim()) {
-    lastContentIndex -= 1;
-  }
-  const trailingLine = lines[lastContentIndex]?.trim() ?? '';
+  const lastContentIndex = lines.length - 1;
+  const trailingLine = lines[lastContentIndex]!.trim();
   const tokens = trailingLine.split(/\s+/u).filter(Boolean);
   if (
     tokens.length === 0 ||

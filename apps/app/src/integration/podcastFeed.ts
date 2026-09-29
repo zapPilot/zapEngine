@@ -149,10 +149,9 @@ function readNullableString(
 function readNumber(
   record: Record<string, unknown>,
   camelKey: string,
-  snakeKey?: string,
+  snakeKey: string,
 ): number {
-  const value =
-    record[camelKey] ?? (snakeKey === undefined ? undefined : record[snakeKey]);
+  const value = record[camelKey] ?? record[snakeKey];
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
 
@@ -285,7 +284,7 @@ export function podcastVideoRefetchInterval(
   fetchFailureCount = 0,
 ): number | false {
   if (isPodcastVideoGenerationPending(detailEpisode)) {
-    return videoPollIntervalFor(detailEpisode?.videoGeneration ?? null);
+    return videoPollIntervalFor(detailEpisode!.videoGeneration!);
   }
   if (pendingFeedVideoGeneration === null) {
     return false;

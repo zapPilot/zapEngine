@@ -333,6 +333,18 @@ describe('suggestion evidence', () => {
     expect(deriveTriggerEvidence(garbled).kind).toBe('dma');
   });
 
+  it('treats an omitted cooldown list as empty', () => {
+    const data = fixture('cross_up');
+    delete (
+      data.context.strategy.details as { cooldown_skipped_rules?: unknown }
+    ).cooldown_skipped_rules;
+    expect(
+      deriveRuleTrace(data).every(
+        (entry) => entry.cooldownRemainingDays === null,
+      ),
+    ).toBe(true);
+  });
+
   it('reports cooldown without a day count when the backend omits it', () => {
     const data = fixture('dma_overextension_dca_sell');
     data.context.strategy.details.cooldown_skipped_rules = [

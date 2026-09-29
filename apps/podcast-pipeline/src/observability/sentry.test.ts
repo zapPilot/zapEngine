@@ -94,6 +94,23 @@ describe('podcast pipeline Sentry observability', () => {
     expect(sentryMocks.captureException).toHaveBeenCalledWith(error);
   });
 
+  it('attaches a valid ops correlation context when provided', () => {
+    const error = new Error('boom');
+    capturePipelineException(error, {
+      component: 'ingest',
+      correlation: {
+        gitSha: 'a'.repeat(40),
+        flyMachineId: 'machine1',
+      },
+    });
+
+    expect(sentryMocks.setContext).toHaveBeenCalledWith(
+      'opsCorrelation',
+      expect.objectContaining({ gitSha: 'a'.repeat(40) }),
+    );
+    expect(sentryMocks.captureException).toHaveBeenCalledWith(error);
+  });
+
   it('skips undefined tags rather than sending them empty', () => {
     capturePipelineException(new Error('boom'), {
       component: 'video-render',

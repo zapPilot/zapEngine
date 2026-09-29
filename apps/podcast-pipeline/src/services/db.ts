@@ -956,7 +956,7 @@ function normalizeLanguageClassroomRow(
 }
 
 function normalizeLanguageClassroomRows(
-  data: LanguageClassroomRow[] | null,
+  data: LanguageClassroomRow[],
 ): LanguageClassroomRow[] {
-  return (data ?? []).map(normalizeLanguageClassroomRow);
+  return data.map(normalizeLanguageClassroomRow);
 }

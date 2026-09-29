@@ -27,6 +27,7 @@ import {
   listLanguageClassroomsByLocalizationId,
   listPublishedEpisodeCatalog,
   listRecentSocialPosts,
+  listSocialPostIdentitiesByEpisodes,
   listSocialPostMetrics,
   listSocialPostsByEpisode,
   toClassroomAudioTracks,
@@ -1065,6 +1066,18 @@ describe('insertEpisode and insertEpisodeLocalization', () => {
     ).rejects.toThrow('insert episode failed');
   });
 
+  it('throws when a source episode insert returns no row', async () => {
+    state.query!.single.mockResolvedValue({ data: null, error: null });
+
+    await expect(
+      insertEpisode({
+        id: 'episode-1',
+        sourceUrl: 'https://example.com/article',
+        sourceTitle: 'Article',
+      }),
+    ).rejects.toThrow('Failed to insert episode');
+  });
+
   it('inserts a localized episode row', async () => {
     const row = localizationRow({ classroom_hls_url: null });
     state.query!.single.mockResolvedValue({ data: row, error: null });
@@ -1126,6 +1139,60 @@ describe('insertEpisode and insertEpisodeLocalization', () => {
         status: 'pending',
       }),
     ).rejects.toThrow('insert localization failed');
+  });
+
+  it('throws when a localized episode insert returns no row', async () => {
+    state.query!.single.mockResolvedValue({ data: null, error: null });
+
+    await expect(
+      insertEpisodeLocalization({
+        id: 'loc-1',
+        episodeId: 'episode-1',
+        languageCode: 'zh-Hant',
+        title: 'Title',
+        hlsUrl: '',
+        rawText: 'Raw text',
+        script: '',
+        llmModel: '',
+        llmThinkingModel: null,
+        llmProvider: '',
+        ttsLanguageCode: null,
+        ttsVoiceName: null,
+        r2Prefix: null,
+        status: 'pending',
+      }),
+    ).rejects.toThrow('Failed to insert episode localization');
+  });
+
+  it('persists explicit script packaging fields', async () => {
+    const row = localizationRow();
+    state.query!.single.mockResolvedValue({ data: row, error: null });
+
+    await insertEpisodeLocalization({
+      id: row.id,
+      episodeId: row.episode_id,
+      languageCode: row.language_code,
+      title: row.title,
+      hlsUrl: row.hls_url,
+      rawText: row.raw_text ?? '',
+      script: row.script ?? '',
+      scriptBody: 'editorial body',
+      packagingVersion: 'zap-pilot-v1',
+      llmModel: row.llm_model ?? '',
+      llmThinkingModel: row.llm_thinking_model,
+      llmProvider: row.llm_provider ?? '',
+      ttsLanguageCode: null,
+      ttsVoiceName: null,
+      r2Prefix: null,
+      status: row.status,
+    });
+
+    expect(state.query!.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        script_body: 'editorial body',
+        packaging_version: 'zap-pilot-v1',
+      }),
+    );
   });
 
   it('normalizes PostgREST error objects when localized episode insert fails', async () => {
@@ -1361,6 +1428,14 @@ describe('social post telemetry', () => {
     );
   });
 
+  it('throws when social post persistence returns no row', async () => {
+    state.query!.single.mockResolvedValue({ data: null, error: null });
+
+    await expect(insertSocialPost(newPost)).rejects.toThrow(
+      'Failed to insert social post',
+    );
+  });
+
   it('lists one episode-platform pair newest first', async () => {
     const rows = [{ id: 'social-post-2' }, { id: 'social-post-1' }];
     state.query!.returns.mockResolvedValue({ data: rows, error: null });
@@ -1374,6 +1449,34 @@ describe('social post telemetry', () => {
     expect(state.query!.order).toHaveBeenCalledWith('published_at', {
       ascending: false,
     });
+  });
+
+  it('filters one episode-platform pair by language when requested', async () => {
+    state.query!.returns.mockResolvedValue({ data: [], error: null });
+
+    await listSocialPostsByEpisode('episode-1', 'threads', 'ja');
+
+    expect(state.query!.eq).toHaveBeenCalledWith('language_code', 'ja');
+  });
+
+  it('short-circuits empty identity batches and queries non-empty batches once', async () => {
+    await expect(listSocialPostIdentitiesByEpisodes([])).resolves.toEqual([]);
+    expect(mockFrom).not.toHaveBeenCalled();
+
+    const rows = [
+      {
+        id: 'post-1',
+        episode_id: 'episode-1',
+        platform: 'threads' as const,
+        language_code: 'ja' as const,
+      },
+    ];
+    state.query!.returns.mockResolvedValue({ data: rows, error: null });
+
+    await expect(
+      listSocialPostIdentitiesByEpisodes(['episode-1']),
+    ).resolves.toEqual(rows);
+    expect(state.query!.in).toHaveBeenCalledWith('episode_id', ['episode-1']);
   });
 
   it('normalizes null social-post lists and surfaces list errors', async () => {
@@ -1541,10 +1644,12 @@ describe('social post metrics', () => {
       toSocialPostMetricInsertPayload({
         ...newMetric,
         measurementWindow: '24h',
+        collectionStatus: 'collected',
         details: { fiveSecondRetentionRate: 0.5 },
       }),
     ).toMatchObject({
       measurement_window: '24h',
+      collection_status: 'collected',
       details: { fiveSecondRetentionRate: 0.5 },
     });
   });
@@ -1582,6 +1687,14 @@ describe('social post metrics', () => {
 
     await expect(insertSocialPostMetric(newMetric)).rejects.toThrow(
       'insert social post metric failed',
+    );
+  });
+
+  it('throws when a metrics insert returns no row', async () => {
+    state.query!.single.mockResolvedValue({ data: null, error: null });
+
+    await expect(insertSocialPostMetric(newMetric)).rejects.toThrow(
+      'Failed to insert social post metric',
     );
   });
 });

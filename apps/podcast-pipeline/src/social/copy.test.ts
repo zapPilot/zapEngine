@@ -245,6 +245,28 @@ describe('generateSocialCopy', () => {
     ).toContain('Prefer a contrarian hook and #AI.');
   });
 
+  it('includes only non-empty platform guidance and can disable provider request logging', async () => {
+    llmMocks.createOpenRouterChatCompletion.mockResolvedValue(
+      socialCompletion(socialCopyJson('平台策略文案')),
+    );
+
+    await generateSocialCopy({
+      episode: ZH_EPISODE,
+      strategyGuidanceByPlatform: {
+        x: '  Prefer a question hook on X.  ',
+        threads: '   ',
+      },
+      logLlm: false,
+    });
+
+    const call = llmMocks.createOpenRouterChatCompletion.mock.calls[0];
+    const prompt = String(call?.[1]?.messages.at(-1)?.content);
+    expect(prompt).toContain('Performance guidance by platform:');
+    expect(prompt).toContain('### x\nPrefer a question hook on X.');
+    expect(prompt).not.toContain('### threads');
+    expect(call?.[3]).toEqual({});
+  });
+
   it('places persisted packaging instructions after strategy without weakening hard rules', async () => {
     llmMocks.createOpenRouterChatCompletion.mockResolvedValue(
       socialCompletion(socialCopyJson('策略文案')),
@@ -857,6 +879,35 @@ describe('parseGeneratedSocialCopy', () => {
         }),
       ),
     ).toThrow(/Latin letters; the maximum is 35%/);
+  });
+
+  it('rejects English copy whose visible content is mostly non-Latin punctuation and digits', () => {
+    expect(() =>
+      parseGeneratedSocialCopy(
+        JSON.stringify({
+          topic: 'macro',
+          x: { hookType: 'question', text: 'abc 1234567890 $$$$$$$$$$$$' },
+        }),
+        'en',
+        { x: true, threads: false, rednote: false, youtube: false },
+      ),
+    ).toThrow(/English copy is only .* Latin letters; the minimum is 50%/u);
+  });
+
+  it('rejects Threads text that cannot leave room for the fixed CTA', () => {
+    const payload = JSON.parse(socialCopyJson('有效文案'));
+    payload.threads.text = '中'.repeat(600);
+    expect(() => parseGeneratedSocialCopy(JSON.stringify(payload))).toThrow(
+      /Threads text is .* characters; the maximum is/u,
+    );
+  });
+
+  it('rejects identical X and Threads copy', () => {
+    const payload = JSON.parse(socialCopyJson('相同文案'));
+    payload.threads.text = payload.x.text;
+    expect(() => parseGeneratedSocialCopy(JSON.stringify(payload))).toThrow(
+      /Threads text must be native to Threads, not identical to X text/u,
+    );
   });
 
   it('rejects Rednote moderation-risk wording in the body or a hashtag', () => {

@@ -162,7 +162,7 @@ function consumeLines(
   onLine: (line: string) => void,
 ): string {
   const lines = (residual + chunk).split('\n');
-  const trailing = lines.pop() ?? '';
+  const trailing = lines.pop()!;
   for (const line of lines) onLine(line);
   return trailing;
 }
@@ -288,7 +288,7 @@ const KEN_BURNS_MOTIONS: readonly KenBurnsPan[] = [
 
 export function kenBurnsSeedForEpisode(episodeId: string): number {
   const digest = createHash('sha256').update(episodeId).digest();
-  return (digest[0] ?? 0) % KEN_BURNS_MOTIONS.length;
+  return digest[0]! % KEN_BURNS_MOTIONS.length;
 }
 
 export function kenBurnsPanForScene(index: number, seed = 0): KenBurnsPan {

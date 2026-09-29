@@ -369,6 +369,45 @@ describe('scene alignment', () => {
     );
   });
 
+  it('uses the configured OpenRouter provider when none is injected', async () => {
+    llmMocks.getOpenRouterConfig.mockReturnValue({
+      openai: llmMocks.openai,
+      model: 'test/default-alignment-model',
+      thinkingModel: null,
+      timeoutMs: 120_000,
+    });
+    llmMocks.createOpenRouterChatCompletion.mockResolvedValueOnce({
+      choices: [
+        {
+          message: {
+            content: '{"endSentenceIds":["s0002","s0004"]}',
+          },
+        },
+      ],
+      model: 'test/default-alignment-model',
+    });
+
+    await expect(
+      alignLocalizedScenes({
+        canonicalScript: '第一句。第二句。第三句。',
+        localizedScript: 'First. Second. Third. Fourth.',
+        languageCode: 'en',
+        scenes,
+      }),
+    ).resolves.toEqual([
+      {
+        sceneId: 'scene-01',
+        startSentenceId: 's0001',
+        endSentenceId: 's0002',
+      },
+      {
+        sceneId: 'scene-02',
+        startSentenceId: 's0003',
+        endSentenceId: 's0004',
+      },
+    ]);
+  });
+
   it('uses LLM_MODEL through the shared OpenRouter config', async () => {
     llmMocks.getOpenRouterConfig.mockReturnValue({
       openai: llmMocks.openai,
@@ -421,6 +460,27 @@ describe('scene alignment', () => {
         languageCode: 'en',
       }),
     ).rejects.toThrow('invalid JSON content');
+  });
+
+  it('wraps non-empty malformed JSON returned by OpenRouter', async () => {
+    llmMocks.getOpenRouterConfig.mockReturnValue({
+      openai: llmMocks.openai,
+      model: 'test/alignment-model',
+      thinkingModel: null,
+      timeoutMs: 120_000,
+    });
+    llmMocks.createOpenRouterChatCompletion.mockResolvedValueOnce({
+      choices: [{ message: { content: '{not json' } }],
+      model: 'test/alignment-model',
+    });
+
+    await expect(
+      createOpenRouterSceneAlignmentProvider().align({
+        canonicalScenes: [{ sceneId: 'scene-01', text: 'First.' }],
+        localizedSentences: 's0001\tLocalized.',
+        languageCode: 'en',
+      }),
+    ).rejects.toThrow('malformed JSON');
   });
 
   it('passes cancellation to the OpenRouter request', async () => {

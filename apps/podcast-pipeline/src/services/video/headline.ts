@@ -56,7 +56,7 @@ function splitOversizedToken(token: string, maxUnits: number): string[] {
     }
     piece += character;
   }
-  if (piece) pieces.push(piece);
+  pieces.push(piece);
   return pieces;
 }
 
@@ -65,7 +65,7 @@ export function wrapHeadlineTitle(
   options: { maxUnitsPerLine?: number; maxLines?: number } = {},
 ): string[] {
   const maxUnits = options.maxUnitsPerLine ?? HEADLINE_MAX_UNITS_PER_LINE;
-  const maxLines = options.maxLines ?? HEADLINE_MAX_TITLE_LINES;
+  const maxLines = Math.max(1, options.maxLines ?? HEADLINE_MAX_TITLE_LINES);
 
   const tokens = tokenize(title).flatMap((token) =>
     token !== ' ' && lineUnits(token) > maxUnits
@@ -88,7 +88,7 @@ export function wrapHeadlineTitle(
       current = candidate;
       continue;
     }
-    if (current) lines.push(current);
+    lines.push(current);
     current = token;
   }
   if (current) lines.push(current);
@@ -99,7 +99,7 @@ export function wrapHeadlineTitle(
   if (lines.length <= maxLines) return lines;
 
   const kept = lines.slice(0, maxLines);
-  let last = kept[maxLines - 1] ?? '';
+  let last = kept[maxLines - 1]!;
   while (last && lineUnits(last + ELLIPSIS) > maxUnits) {
     last = Array.from(last).slice(0, -1).join('').trimEnd();
   }

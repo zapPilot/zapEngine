@@ -70,7 +70,12 @@ export async function inspectOperationalSignal(input: {
 
   try {
     return await inspector({
-      sentry: options.success ? options.data : undefined,
+      // Reaching here implies `options.success`: either no sentry options were
+      // supplied (which parses `{}` successfully) or a valid sentry payload
+      // for a sentry fingerprint passed the guard above. Reading `.data`
+      // directly preserves the `undefined` fallback at runtime (a failed parse
+      // has no `data` property) without an unreachable ternary branch.
+      sentry: (options as { data?: SentryInspectionOptions }).data,
       config: input.config,
       fingerprint: input.fingerprint,
       parsed,

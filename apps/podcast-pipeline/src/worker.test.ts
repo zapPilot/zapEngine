@@ -8,8 +8,17 @@ vi.mock('./services/episode-video-visual-processor.js', () => ({
   processEpisodeVideoVisualJob: vi.fn(),
 }));
 
+vi.mock('./services/visual-cost.js', () => ({
+  recordVisualPipelineCost: vi.fn(),
+}));
+
 import { createDeferred } from './__fixtures__/index-test.js';
-import type { VideoWorkerPollResult } from './services/video-worker.js';
+import { processEpisodeVideoVisualJob } from './services/episode-video-visual-processor.js';
+import type {
+  CreateVideoWorkerOptions,
+  VideoWorkerPollResult,
+} from './services/video-worker.js';
+import { recordVisualPipelineCost } from './services/visual-cost.js';
 import {
   preflightVideoWorkerRuntime,
   startVideoWorkerProcess,
@@ -35,12 +44,14 @@ function makeHarness(overrides: Partial<VideoWorkerProcessOptions> = {}) {
     stop: vi.fn(),
   };
   let onPollResult: ((result: VideoWorkerPollResult) => void) | undefined;
+  let processVisualJob: CreateVideoWorkerOptions['processVisualJob'];
   const exit = vi.fn();
   const logger = { info: vi.fn() };
 
   const handle = startVideoWorkerProcess({
     createWorker: (options) => {
       onPollResult = options.onPollResult;
+      processVisualJob = options.processVisualJob;
       return videoWorker;
     },
     createVisualFailureNotifier: () => visualFailureNotifier,
@@ -57,6 +68,9 @@ function makeHarness(overrides: Partial<VideoWorkerProcessOptions> = {}) {
     exit,
     logger,
     poll: (result: VideoWorkerPollResult) => onPollResult?.(result),
+    processVisual: (
+      ...args: Parameters<NonNullable<typeof processVisualJob>>
+    ) => processVisualJob!(...args),
   };
 }
 
@@ -70,6 +84,56 @@ afterEach(async () => {
 });
 
 describe('startVideoWorkerProcess', () => {
+  it('records completed shared visual work before returning the processor result', async () => {
+    const completion = { status: 'completed' };
+    vi.mocked(processEpisodeVideoVisualJob).mockResolvedValueOnce(
+      completion as never,
+    );
+    vi.mocked(recordVisualPipelineCost).mockResolvedValueOnce(undefined);
+    const { processVisual } = makeHarness();
+    const job = { episode_id: 'episode-1', attempt_count: 2 };
+    const context = { runId: 'run-1' };
+
+    await expect(
+      processVisual(job as never, {} as never, context as never),
+    ).resolves.toBe(completion);
+
+    expect(recordVisualPipelineCost).toHaveBeenCalledWith(
+      expect.objectContaining({
+        episodeId: 'episode-1',
+        runRef: 'run-1',
+        attempt: 2,
+        status: 'completed',
+        startedAt: expect.any(Date),
+      }),
+    );
+  });
+
+  it('records failed shared visual work and rethrows the processor error', async () => {
+    const failure = new Error('visual planning failed');
+    vi.mocked(processEpisodeVideoVisualJob).mockRejectedValueOnce(failure);
+    vi.mocked(recordVisualPipelineCost).mockResolvedValueOnce(undefined);
+    const { processVisual } = makeHarness();
+
+    await expect(
+      processVisual(
+        { episode_id: 'episode-2', attempt_count: 3 } as never,
+        {} as never,
+        { runId: 'run-2' } as never,
+      ),
+    ).rejects.toBe(failure);
+
+    expect(recordVisualPipelineCost).toHaveBeenCalledWith(
+      expect.objectContaining({
+        episodeId: 'episode-2',
+        runRef: 'run-2',
+        attempt: 3,
+        status: 'failed',
+        startedAt: expect.any(Date),
+      }),
+    );
+  });
+
   it('starts the worker and visual failure notifier and stops both on shutdown', async () => {
     const { handle, videoWorker, visualFailureNotifier } = makeHarness();
 

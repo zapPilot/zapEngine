@@ -585,7 +585,7 @@ export function planFunding(
         kind: 'insufficient-single-source',
         positionId: p.id,
         requiredUsd6: shares[p.id],
-        bestAvailableUsd6: best.availableUsd6 ?? 0n,
+        bestAvailableUsd6: best.availableUsd6!,
         bestSource: best.candidate,
       });
     }
@@ -669,7 +669,7 @@ function hyperCoreWarnings(
   if (!offered) return [];
   if (input.supply.hyperCoreSpendableUsd6 === null)
     return [{ kind: 'hypercore-balance-unavailable' }];
-  const available = hyperCoreSupplyEntry(context.supply).spendableUsd6 ?? 0n;
+  const available = hyperCoreSupplyEntry(context.supply).spendableUsd6!;
   return available > 0n && available < required
     ? [
         {
@@ -726,8 +726,7 @@ export function fundingCapacityUsd6(input: CapacityInput): bigint | null {
     // assuming monotonicity. At most two rounding units per token are involved.
     let exact = bound;
     const fits = (total: bigint): boolean => {
-      const shares = targetUsd6Shares(total.toString(), input.allocations);
-      if (!shares) return true;
+      const shares = targetUsd6Shares(total.toString(), input.allocations)!;
       const spent = new Map<string, bigint>();
       combo.forEach((c, i) =>
         spent.set(

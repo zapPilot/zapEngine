@@ -90,11 +90,14 @@ export function composeGrowthLanes(input: {
   for (const reading of input.posthog ?? []) {
     const row = lane(reading.episodeId, reading.platform, reading.languageCode);
     if (row) {
+      // When `posthog` is non-null, `lane()` seeds counts with `0`; when it
+      // is null the loop above is empty. The `?? 0` fallback is dead, so the
+      // non-null assertion removes the unreachable branches.
       row.landingVisitors30d =
-        (row.landingVisitors30d ?? 0) + reading.landingVisitors30d;
-      row.ctaUsers30d = (row.ctaUsers30d ?? 0) + reading.ctaUsers30d;
+        row.landingVisitors30d! + reading.landingVisitors30d;
+      row.ctaUsers30d = row.ctaUsers30d! + reading.ctaUsers30d;
       row.discordCtaUsers30d =
-        (row.discordCtaUsers30d ?? 0) + reading.discordCtaUsers30d;
+        row.discordCtaUsers30d! + reading.discordCtaUsers30d;
     }
   }
   for (const post of input.posts ?? []) {
@@ -115,7 +118,9 @@ export function composeGrowthLanes(input: {
       conversion.languageCode,
     );
     if (row) {
-      row.waitlistSignups = (row.waitlistSignups ?? 0) + conversion.signups;
+      // `unavailable` waitlists carry `conversions: []` by type, so reaching
+      // here implies an `ok` waitlist whose seed is `0`. The fallback is dead.
+      row.waitlistSignups = row.waitlistSignups! + conversion.signups;
     }
   }
   return [...lanes.values()]

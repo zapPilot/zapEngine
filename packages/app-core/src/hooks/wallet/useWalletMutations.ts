@@ -47,7 +47,6 @@ interface UseWalletMutationsReturn {
 }
 
 const USER_ID_REQUIRED_ERROR = 'User ID is required';
-const INVALID_WALLET_DATA_ERROR = 'Invalid wallet data';
 const REMOVE_WALLET_ERROR = 'Failed to remove wallet';
 const ADD_WALLET_ERROR = 'Failed to add wallet';
 const REMOVE_OPERATION_NAME = 'wallet removal';
@@ -151,9 +150,7 @@ export function useWalletMutations({
 
       const validation = validateNewWallet(newWallet);
       if (!validation.isValid) {
-        return createFailureResult(
-          validation.error ?? INVALID_WALLET_DATA_ERROR,
-        );
+        return createFailureResult(validation.error!);
       }
 
       setAddingState(true, null);

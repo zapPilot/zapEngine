@@ -234,7 +234,7 @@ export function resolveRouteProtocols(
           ? formatSharePercent(BigInt(leg.fromAmount), totalFromAmount)
           : formatSharePercent(
               BigInt(leg.fromAmount) * BigInt(weightBps),
-              (totalByProtocol.get(leg.protocol) ?? 0n) * 10_000n,
+              totalByProtocol.get(leg.protocol)! * 10_000n,
             ),
     };
   });

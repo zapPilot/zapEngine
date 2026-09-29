@@ -96,10 +96,10 @@ export function QueueDrawer(
     }
   };
 
-  const runAbandon = async () => {
-    if (!episodeId || !canAbandon(props.selected) || !props.onAbandonEpisode) {
-      return;
-    }
+  const runAbandon = async (
+    targetEpisodeId: string,
+    abandonEpisode: (episodeId: string) => Promise<void>,
+  ) => {
     const confirmed = window.confirm(
       'Abandon this episode video job? It will leave the active render lanes, keep its failure history, and block retries.',
     );
@@ -110,7 +110,7 @@ export function QueueDrawer(
     setAbandoning(true);
     setAbandonError(null);
     try {
-      await props.onAbandonEpisode(episodeId);
+      await abandonEpisode(targetEpisodeId);
       props.onClose();
     } catch (cause) {
       setAbandonError(
@@ -169,7 +169,9 @@ export function QueueDrawer(
                     <button
                       className="refresh-button queue-retry queue-abandon"
                       disabled={restarting || abandoning}
-                      onClick={() => void runAbandon()}
+                      onClick={() =>
+                        void runAbandon(episodeId!, props.onAbandonEpisode!)
+                      }
                       type="button"
                     >
                       <ArchiveX aria-hidden="true" size={15} />
@@ -215,7 +217,9 @@ export function QueueDrawer(
                   }
                   error={restartError}
                   item={item as PipelineQueueItem}
-                  onAbandon={() => void runAbandon()}
+                  onAbandon={() =>
+                    void runAbandon(episodeId!, props.onAbandonEpisode!)
+                  }
                   onRestart={runRestart}
                 />
               )}
@@ -303,9 +307,8 @@ const TAB_LABELS: Record<DrawerTab, string> = {
  * completed, current one, which is the only case a plain restart cannot fix.
  */
 function canForceReplan(selected: SelectedQueueEntry): boolean {
-  if (!selected.item.episodeId) {
-    return false;
-  }
+  // The only call site sits behind `tab === 'scenes' && episodeId`, so the
+  // selected entry already has an episode id here.
   // A social item's episode has already rendered, so its video work is idle by
   // definition; an API work item has to say so itself. An aggregated render
   // episode is idle only when every durable child job is idle.
@@ -356,7 +359,7 @@ function RecoveryActions(props: {
   error: string | null;
   abandonError: string | null;
   onRestart: (action: PodcastPipelineRestartAction) => void;
-  onAbandon: () => void;
+  onAbandon?: () => void;
 }) {
   const { actions } = props.item;
   return (
@@ -482,7 +485,6 @@ function EpisodeVideoJobs(props: {
             canAbandon={false}
             error={null}
             item={job}
-            onAbandon={() => {}}
             onRestart={props.onRestart}
           />
         </div>

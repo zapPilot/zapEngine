@@ -70,6 +70,51 @@ it('does not report recovery when a concurrent completion or claim wins the CAS'
   expect(log).not.toHaveBeenCalled();
 });
 
+it('treats a null successful owner read as an empty set', async () => {
+  const { read, write } = fixture([]);
+  read.returns.mockResolvedValueOnce({ data: null, error: null });
+
+  await expect(
+    recoverOrphanedSocialLeases({
+      host: 'mac',
+      isProcessAlive: () => false,
+    }),
+  ).resolves.toBeUndefined();
+
+  expect(write.update).not.toHaveBeenCalled();
+});
+
+it('uses the default logger when a dead owner is recovered', async () => {
+  fixture(['mac:73977']);
+  const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+  try {
+    await recoverOrphanedSocialLeases({
+      host: 'mac',
+      isProcessAlive: () => false,
+    });
+    expect(log).toHaveBeenCalledWith(
+      expect.stringContaining('recovered 1 orphaned leases'),
+    );
+  } finally {
+    log.mockRestore();
+  }
+});
+
+it('fails closed when expiring an orphaned lease is rejected', async () => {
+  const { write } = fixture(['mac:73977']);
+  write.select.mockResolvedValueOnce({
+    data: null,
+    error: new Error('write offline'),
+  });
+
+  await expect(
+    recoverOrphanedSocialLeases({
+      host: 'mac',
+      isProcessAlive: () => false,
+    }),
+  ).rejects.toThrow('write offline');
+});
+
 it('fails closed if the database or process check fails', async () => {
   const { read, write } = fixture(['mac:73977']);
   read.returns.mockResolvedValueOnce({

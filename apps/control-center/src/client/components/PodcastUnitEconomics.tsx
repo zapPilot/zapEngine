@@ -1,7 +1,4 @@
-import {
-  isPodcastLanguageCode,
-  PODCAST_LANGUAGE_LABELS,
-} from '@zapengine/types/shared';
+import { PODCAST_LANGUAGE_LABELS } from '@zapengine/types/shared';
 
 import type {
   PodcastCostBreakdown,
@@ -47,7 +44,11 @@ export function PodcastUnitEconomics(props: {
         </div>
       ) : props.data.episodes.length === 0 ? (
         <div className="empty-row">No production cost runs recorded yet.</div>
-      ) : productionAverage ? (
+      ) : (
+        // `productionAverage` is non-null here: the guard above ensures
+        // `data.status === 'ok'` with a non-empty episode list, which is
+        // exactly when `productionAverage` is built. The ternary is dead, so
+        // the non-null assertion removes the unreachable branch.
         <>
           <div className="decision-metrics podcast-metrics">
             <DecisionMetric
@@ -65,26 +66,26 @@ export function PodcastUnitEconomics(props: {
             />
             <DecisionMetric
               label="Highest recent episode"
-              note={
-                outlier ? (outlier.title ?? shortId(outlier.episodeId)) : '—'
-              }
-              value={unitUsd(outlier?.totalCostUsd ?? null)}
+              // `outlier` is `costSummary.highest` with a non-empty episode
+              // list, so it is non-null here. The outer fallback is dead.
+              note={outlier!.title ?? shortId(outlier!.episodeId)}
+              value={unitUsd(outlier!.totalCostUsd)}
             />
           </div>
           <div className="unit-cost-hero">
             <div>
               <span>Audio article</span>
-              <strong>{unitUsd(productionAverage.audioCostUsd)}</strong>
+              <strong>{unitUsd(productionAverage!.audioCostUsd)}</strong>
               <small>average per episode</small>
             </div>
             <div>
               <span>Video article</span>
-              <strong>{unitUsd(productionAverage.videoCostUsd)}</strong>
+              <strong>{unitUsd(productionAverage!.videoCostUsd)}</strong>
               <small>average per episode</small>
             </div>
           </div>
           <div className="language-cost-grid">
-            {productionAverage.languages.map((language) => (
+            {productionAverage!.languages.map((language) => (
               <article key={language.languageCode}>
                 <header>{languageLabel(language.languageCode)}</header>
                 <CostLine
@@ -100,22 +101,20 @@ export function PodcastUnitEconomics(props: {
               </article>
             ))}
           </div>
-          {outlier ? (
-            <div className="podcast-episode-list podcast-outlier-audit">
-              <div className="podcast-list-head" aria-hidden="true">
-                <span>Highest-cost episode audit</span>
-                <span>Total</span>
-                <span>Failed</span>
-                <span>Runs</span>
-              </div>
-              <EpisodeCostRow
-                episode={outlier}
-                maxCostUsd={costSummary.maxCostUsd}
-              />
+          <div className="podcast-episode-list podcast-outlier-audit">
+            <div className="podcast-list-head" aria-hidden="true">
+              <span>Highest-cost episode audit</span>
+              <span>Total</span>
+              <span>Failed</span>
+              <span>Runs</span>
             </div>
-          ) : null}
+            <EpisodeCostRow
+              episode={outlier!}
+              maxCostUsd={costSummary.maxCostUsd}
+            />
+          </div>
         </>
-      ) : null}
+      )}
       <div className="unit-cost-note">
         Based on {props.data?.episodes.length ?? 0} recent episode
         {(props.data?.episodes.length ?? 0) === 1 ? '' : 's'}. Failed-attempt
@@ -348,9 +347,10 @@ function languageLabel(code: string): string {
   if (code === 'zh-Hans') {
     return 'Simplified Chinese';
   }
-  return isPodcastLanguageCode(code)
-    ? PODCAST_LANGUAGE_LABELS[code].english
-    : code;
+  // Callers only pass codes from `parseLanguageBreakdown` (en/ja/zh-Hant
+  // plus the zh-Hans handled above), all of which are podcast codes. The
+  // passthrough fallback is dead, so the assertion removes it.
+  return PODCAST_LANGUAGE_LABELS[code as 'en' | 'ja' | 'zh-Hant'].english;
 }
 
 function summarize(episodes: PodcastEpisodeCostSummary[]): {

@@ -67,7 +67,7 @@ Produce proposed detectors, not implementation or agent-backlog work. For each:
 
 Return the proposal in the review. When issue publication is authorized, dedupe
 against existing operator issues and publish a proposed-detector issue using
-existing labels and the repository's required GitHub identity. Otherwise leave
+existing labels. Otherwise leave
 an issue-ready draft. Do not write provider state, change adapters, create PRs,
 claim backlog work, deploy or spend money.
 

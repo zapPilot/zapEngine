@@ -12,6 +12,7 @@ vi.mock('../services/supabase-client.js', () => ({
 }));
 
 import {
+  deterministicBucket,
   deterministicVariant,
   getOrCreateExperimentAssignment,
 } from './experiments.js';
@@ -32,6 +33,47 @@ describe('social experiment assignment', () => {
     const english = variants.filter((variant) => variant === 'en').length;
     expect(english / variants.length).toBeGreaterThan(0.48);
     expect(english / variants.length).toBeLessThan(0.52);
+  });
+
+  it('rejects invalid bucket counts', () => {
+    expect(() => deterministicBucket('exp', 'episode', 0)).toThrow(
+      'bucketCount must be a positive integer',
+    );
+    expect(() => deterministicBucket('exp', 'episode', 1.5)).toThrow(
+      'bucketCount must be a positive integer',
+    );
+  });
+
+  it('surfaces insert and select failures', async () => {
+    const insertFailure = new Error('insert failed');
+    const failingUpsert = vi.fn().mockResolvedValue({ error: insertFailure });
+    supabaseMocks.from.mockReturnValueOnce({ upsert: failingUpsert });
+
+    await expect(
+      getOrCreateExperimentAssignment({
+        experimentKey: 'x-language-v1',
+        episodeId: 'episode-1',
+      }),
+    ).rejects.toBe(insertFailure);
+
+    const upsert = vi.fn().mockResolvedValue({ error: null });
+    const selectFailure = new Error('select failed');
+    const single = vi
+      .fn()
+      .mockResolvedValue({ data: null, error: selectFailure });
+    const secondEq = vi.fn(() => ({ single }));
+    const firstEq = vi.fn(() => ({ eq: secondEq }));
+    const select = vi.fn(() => ({ eq: firstEq }));
+    supabaseMocks.from
+      .mockReturnValueOnce({ upsert })
+      .mockReturnValueOnce({ select });
+
+    await expect(
+      getOrCreateExperimentAssignment({
+        experimentKey: 'x-language-v1',
+        episodeId: 'episode-2',
+      }),
+    ).rejects.toBe(selectFailure);
   });
 
   it('uses the persisted row as authority when it differs from the first hash', async () => {

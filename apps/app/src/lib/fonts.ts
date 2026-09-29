@@ -3,14 +3,24 @@
  * weight registers under its own family name; tailwind.config.js mirrors these
  * names as the font-sans-… and font-mono-… utilities.
  */
+import GeistBold from '../../assets/fonts/Geist-Bold.ttf';
+import GeistMedium from '../../assets/fonts/Geist-Medium.ttf';
+import GeistRegular from '../../assets/fonts/Geist-Regular.ttf';
+import GeistSemiBold from '../../assets/fonts/Geist-SemiBold.ttf';
+import InstrumentSerifRegular from '../../assets/fonts/InstrumentSerif-Regular.ttf';
+import JetBrainsMonoBold from '../../assets/fonts/JetBrainsMono-Bold.ttf';
+import JetBrainsMonoMedium from '../../assets/fonts/JetBrainsMono-Medium.ttf';
+import JetBrainsMonoRegular from '../../assets/fonts/JetBrainsMono-Regular.ttf';
+import JetBrainsMonoSemiBold from '../../assets/fonts/JetBrainsMono-SemiBold.ttf';
+
 export const APP_FONTS = {
-  InstrumentSerif: require('../../assets/fonts/InstrumentSerif-Regular.ttf'),
-  Geist: require('../../assets/fonts/Geist-Regular.ttf'),
-  'Geist-Medium': require('../../assets/fonts/Geist-Medium.ttf'),
-  'Geist-SemiBold': require('../../assets/fonts/Geist-SemiBold.ttf'),
-  'Geist-Bold': require('../../assets/fonts/Geist-Bold.ttf'),
-  JetBrainsMono: require('../../assets/fonts/JetBrainsMono-Regular.ttf'),
-  'JetBrainsMono-Medium': require('../../assets/fonts/JetBrainsMono-Medium.ttf'),
-  'JetBrainsMono-SemiBold': require('../../assets/fonts/JetBrainsMono-SemiBold.ttf'),
-  'JetBrainsMono-Bold': require('../../assets/fonts/JetBrainsMono-Bold.ttf'),
+  InstrumentSerif: InstrumentSerifRegular,
+  Geist: GeistRegular,
+  'Geist-Medium': GeistMedium,
+  'Geist-SemiBold': GeistSemiBold,
+  'Geist-Bold': GeistBold,
+  JetBrainsMono: JetBrainsMonoRegular,
+  'JetBrainsMono-Medium': JetBrainsMonoMedium,
+  'JetBrainsMono-SemiBold': JetBrainsMonoSemiBold,
+  'JetBrainsMono-Bold': JetBrainsMonoBold,
 } as const;

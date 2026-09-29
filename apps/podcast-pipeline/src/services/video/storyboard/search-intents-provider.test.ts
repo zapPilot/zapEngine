@@ -100,6 +100,18 @@ describe('OpenRouter search-intent provider', () => {
     );
   });
 
+  it('passes through a non-catalog JSON payload for the schema layer to diagnose', async () => {
+    llmMocks.createCompletionWithRetry.mockResolvedValue({
+      model: MODEL,
+      provider: 'Wafer',
+      choices: [{ finish_reason: 'stop', message: { content: '[]' } }],
+    });
+
+    await expect(
+      createOpenRouterSearchIntentProvider().catalog(REQUEST),
+    ).resolves.toEqual([]);
+  });
+
   it('renames compact scenes to sceneCues through the provider path', async () => {
     llmMocks.createCompletionWithRetry.mockResolvedValue({
       model: MODEL,
@@ -385,6 +397,67 @@ describe('named-entity-first subject materialization', () => {
       expect.objectContaining({ id: 'subject-capex', reason: 'type-other' }),
       expect.objectContaining({ id: 'subject-apollo', reason: 'invalid-type' }),
     ]);
+  });
+
+  it('keeps non-record subjects for schema diagnostics and normalizes malformed hints', async () => {
+    mockCatalog({
+      primarySubjectId: 'subject-nvidia',
+      subjects: [
+        compactSubject({
+          id: 'subject-nvidia',
+          canonicalName: 'NVIDIA',
+          aliases: ['輝達'],
+          storyRole: 'primary',
+          identityHints: [42, '   ', 'GPU company'],
+        }),
+        null,
+      ],
+    });
+
+    const catalog = (await createOpenRouterSearchIntentProvider().catalog(
+      NAMED_REQUEST,
+    )) as { subjects: unknown[] };
+
+    expect(catalog.subjects[0]).toEqual(
+      expect.objectContaining({
+        searchQueries: ['NVIDIA GPU company', 'NVIDIA'],
+      }),
+    );
+    expect(catalog.subjects[1]).toBeNull();
+  });
+
+  it('drops a subject with no usable canonical name and handles non-array aliases and hints', async () => {
+    mockCatalog({
+      primarySubjectId: 'subject-nvidia',
+      subjects: [
+        compactSubject({
+          id: 'subject-nvidia',
+          canonicalName: 'NVIDIA',
+          aliases: ['輝達'],
+          storyRole: 'primary',
+          identityHints: undefined,
+        }),
+        {
+          id: 'subject-empty',
+          canonicalName: 42,
+          type: 'company',
+          aliases: 'not-an-array',
+          storyRole: 'supporting',
+          identityHints: 'not-an-array',
+          negativeHints: [],
+        },
+      ],
+    });
+
+    const catalog = (await createOpenRouterSearchIntentProvider().catalog(
+      NAMED_REQUEST,
+    )) as { droppedSubjects: { id: string; reason: string }[] };
+    expect(catalog.droppedSubjects).toContainEqual(
+      expect.objectContaining({
+        id: 'subject-empty',
+        reason: 'missing-canonical-name',
+      }),
+    );
   });
 
   it('promotes the survivor with the most scene evidence when the primary was dropped', async () => {

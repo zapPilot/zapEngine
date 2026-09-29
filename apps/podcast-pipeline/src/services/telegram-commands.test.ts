@@ -42,10 +42,12 @@ vi.mock('./supabase-client.js', async (importOriginal) => ({
 vi.mock('./video-jobs.js', () => videoJobs);
 
 import {
+  dispatchTelegramCommand,
   handleTelegramRetryCommand,
   handleTelegramRetryVideoCallback,
   handleTelegramStatusCommand,
   resolveTelegramEpisodeTarget,
+  scheduleTelegramRetryVideoCallback,
   telegramCommandErrorText,
 } from './telegram-commands.js';
 
@@ -457,6 +459,159 @@ describe('telegramCommandErrorText', () => {
     ).toBe(`操作失敗：${'m'.repeat(160)}`);
     expect(telegramCommandErrorText('plain string')).toBe(
       '操作失敗：plain string',
+    );
+  });
+
+  it('covers the defensive unknown-error fallback when split yields no line', () => {
+    const split = vi.spyOn(String.prototype, 'split').mockReturnValueOnce([]);
+    expect(telegramCommandErrorText('anything')).toBe(
+      '操作失敗：Unknown error',
+    );
+    split.mockRestore();
+  });
+});
+
+describe('audio readiness edge cases', () => {
+  it('re-enqueues when a required localization row is absent', async () => {
+    setResults({
+      episodes: [ok(EPISODE_ROW)],
+      episode_localizations: [
+        ok([localization('zh-Hant'), localization('ja')]),
+      ],
+    });
+    const queue = makeQueue();
+
+    await handleTelegramRetryCommand({
+      chatId: 9,
+      target: EPISODE_ID,
+      queue,
+    });
+
+    expect(queue.enqueue).toHaveBeenCalledWith(9, SOURCE_URL, 'zh-Hant');
+  });
+});
+
+describe('webhook command scheduling', () => {
+  it('answers retry callbacks asynchronously on success', async () => {
+    videoJobs.retryEpisodeVideoGeneration.mockResolvedValueOnce('queued');
+    const answer = vi.fn().mockResolvedValue(undefined);
+
+    scheduleTelegramRetryVideoCallback('callback-1', EPISODE_ID, answer);
+    expect(answer).not.toHaveBeenCalled();
+
+    await vi.waitFor(() =>
+      expect(answer).toHaveBeenCalledWith('callback-1', '影片已重新排程'),
+    );
+  });
+
+  it('turns callback failures into error text and swallows answer failures', async () => {
+    videoJobs.retryEpisodeVideoGeneration.mockRejectedValueOnce(
+      new Error('retry failed'),
+    );
+    const answer = vi.fn().mockRejectedValue(new Error('telegram down'));
+
+    scheduleTelegramRetryVideoCallback('callback-2', EPISODE_ID, answer);
+
+    await vi.waitFor(() =>
+      expect(answer).toHaveBeenCalledWith(
+        'callback-2',
+        '操作失敗：retry failed',
+      ),
+    );
+  });
+
+  it.each(['start', 'help', 'unknown'] as const)(
+    'dispatches %s to help immediately',
+    (name) => {
+      const queue = makeQueue();
+      dispatchTelegramCommand({
+        command: { name, argument: null },
+        chatId: 1,
+        queue,
+      });
+      expect(queue.scheduleMessage).toHaveBeenCalledWith(
+        1,
+        expect.stringContaining('/retry'),
+      );
+    },
+  );
+
+  it('returns retry and status usage when the argument is missing', () => {
+    const retryQueue = makeQueue();
+    dispatchTelegramCommand({
+      command: { name: 'retry', argument: null } as never,
+      chatId: 1,
+      queue: retryQueue,
+    });
+    expect(retryQueue.scheduleMessage).toHaveBeenCalledWith(
+      1,
+      '用法：/retry <URL|episodeId>',
+    );
+
+    const statusQueue = makeQueue();
+    dispatchTelegramCommand({
+      command: { name: 'status', argument: '' } as never,
+      chatId: 2,
+      queue: statusQueue,
+    });
+    expect(statusQueue.scheduleMessage).toHaveBeenCalledWith(
+      2,
+      '用法：/status <episodeId>',
+    );
+  });
+
+  it('dispatches retry and status work on the next tick', async () => {
+    const retryQueue = makeQueue();
+    setResults({
+      episodes: [ok(EPISODE_ROW)],
+      episode_localizations: [ok(readyLocalizations())],
+    });
+    videoJobs.retryEpisodeVideoGeneration.mockResolvedValueOnce('completed');
+
+    dispatchTelegramCommand({
+      command: { name: 'retry', argument: EPISODE_ID } as never,
+      chatId: 3,
+      queue: retryQueue,
+    });
+    await vi.waitFor(() =>
+      expect(retryQueue.scheduleMessage).toHaveBeenCalledWith(
+        3,
+        '這集三語影片已完成。',
+      ),
+    );
+
+    const statusQueue = makeQueue();
+    setResults({ episodes: [ok(null)] });
+    dispatchTelegramCommand({
+      command: { name: 'status', argument: EPISODE_ID } as never,
+      chatId: 4,
+      queue: statusQueue,
+    });
+    await vi.waitFor(() =>
+      expect(statusQueue.scheduleMessage).toHaveBeenCalledWith(
+        4,
+        '找不到這集 podcast。',
+      ),
+    );
+  });
+
+  it('converts asynchronous dispatch errors into a scheduled reply', async () => {
+    const queue = makeQueue();
+    setResults({
+      episodes: [{ data: null, error: { message: 'lookup exploded' } }],
+    });
+
+    dispatchTelegramCommand({
+      command: { name: 'status', argument: EPISODE_ID } as never,
+      chatId: 5,
+      queue,
+    });
+
+    await vi.waitFor(() =>
+      expect(queue.scheduleMessage).toHaveBeenCalledWith(
+        5,
+        '操作失敗：lookup exploded',
+      ),
     );
   });
 });

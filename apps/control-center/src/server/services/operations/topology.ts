@@ -82,10 +82,13 @@ export function resolveOperationalTopology(
   }
 
   const workflow = service.githubWorkflows[0] ?? null;
+  // `service` non-null implies `parsed` non-null (service is null when parsed
+  // is null above), so the optional chain and empty-string fallback are dead.
+  // The non-null assertion removes the unreachable branches.
   const flyFingerprint = relatedFlyFingerprint(
     service,
-    parsed?.source ?? '',
-    parsed?.key ?? '',
+    parsed!.source,
+    parsed!.key,
   );
   return {
     service,

@@ -174,6 +174,72 @@ describe('useBridgeTest', () => {
     expect(result.current.quote?.estimate.tool).toBe('eco');
   });
 
+  it('ignores stale quote success and failure after a newer quote wins', async () => {
+    let resolveFirst!: (value: typeof quote) => void;
+    let rejectFirst!: (error: unknown) => void;
+    const firstSuccess = new Promise<typeof quote>((resolve, reject) => {
+      resolveFirst = resolve;
+      rejectFirst = reject;
+    });
+    mocks.buildBridge
+      .mockReturnValueOnce(firstSuccess)
+      .mockResolvedValueOnce(quote);
+    const { result } = renderHook(() => useBridgeTest());
+
+    let staleSuccess!: Promise<unknown>;
+    act(() => {
+      staleSuccess = result.current.prepare(request);
+    });
+    await act(async () => {
+      await result.current.prepare({ ...request, fromAmount: '20000000' });
+      resolveFirst(quote);
+      await staleSuccess;
+    });
+    expect(result.current.status).toBe('ready');
+
+    const firstFailure = new Promise<typeof quote>((_resolve, reject) => {
+      rejectFirst = reject;
+    });
+    mocks.buildBridge
+      .mockReturnValueOnce(firstFailure)
+      .mockResolvedValueOnce(quote);
+    let staleFailure!: Promise<unknown>;
+    act(() => {
+      staleFailure = result.current.prepare(request);
+    });
+    await act(async () => {
+      await result.current.prepare({ ...request, fromAmount: '30000000' });
+      rejectFirst(new Error('stale quote failed'));
+      await staleFailure;
+    });
+    expect(result.current.status).toBe('ready');
+    expect(result.current.error).toBeNull();
+  });
+
+  it('passes optional wallet execution metadata into the atomic executor', async () => {
+    const executeAtomicBatch = vi.fn();
+    mocks.useWalletProvider.mockReturnValue({
+      account: { address: USER },
+      chain: { id: 8453 },
+      switchChain: mocks.switchChain,
+      sendTransaction: mocks.sendTransaction,
+      getWalletClient: mocks.getWalletClient,
+      executionMode: 'eip7702',
+      externalWalletBrand: 'metamask',
+      executeAtomicBatch,
+    });
+    const { result } = renderHook(() => useBridgeTest());
+    await act(async () => {
+      await result.current.execute(request);
+    });
+    expect(mocks.executeDepositPlanWithWallet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        externalWalletBrand: 'metamask',
+        executeAtomicBatch,
+      }),
+    );
+  });
+
   it('executes the bridge through the atomic EIP-5792/EIP-7702 executor', async () => {
     const { result } = renderHook(() => useBridgeTest());
 

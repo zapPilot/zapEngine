@@ -162,7 +162,7 @@ export function PipelineQueuesBoard(
           title="Render queue"
         >
           <AbandonedSection
-            items={render.abandoned ?? []}
+            items={render.abandoned!}
             onSelect={setSelectedKey}
             renderItem={(item) => <EpisodeWorkCard item={item} />}
           />

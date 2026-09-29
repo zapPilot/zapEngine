@@ -437,6 +437,15 @@ describe('recordPipelineRun', () => {
     ]);
   });
 
+  it('records a run without an episode id as null', async () => {
+    await recordPipelineRun({
+      ...runInput([]),
+      episodeId: undefined,
+    });
+
+    expect(rpcPayload()['p_episode_id']).toBeNull();
+  });
+
   it('sends a rate-card stage as a quantity for the RPC to price', async () => {
     await recordPipelineRun(
       runInput([

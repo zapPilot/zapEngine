@@ -671,6 +671,21 @@ describe('confirmBatchExecution', () => {
     },
   );
 
+  it('normalizes a non-Error confirmation rejection', async () => {
+    mocks.sendPrivyAtomicBatch.mockRejectedValueOnce('primitive failure');
+    const hook = renderExecutionHook(makeDeps());
+    const held = await startExecution(hook);
+
+    await act(async () => {
+      await hook.result.current.confirmBatchExecution();
+      await flush();
+    });
+
+    expect(held.settled).toBe(true);
+    expect(held.error).toBeInstanceOf(Error);
+    expect(held.error?.message).toBe('primitive failure');
+  });
+
   it('rejects the held promise when confirmation fails', async () => {
     mocks.sendPrivyAtomicBatch.mockRejectedValue(
       new Error('preview has expired'),
@@ -715,6 +730,7 @@ describe('retryBatchSimulation', () => {
   it('is a no-op without a pending execution', async () => {
     const hook = renderExecutionHook(makeDeps());
     await act(async () => {
+      await hook.result.current.confirmBatchExecution();
       await hook.result.current.retryBatchSimulation();
     });
     expect(mocks.preparePrivyAtomicBatch).not.toHaveBeenCalled();
@@ -797,7 +813,10 @@ describe('updateApprovalAmount', () => {
   it('re-encodes the approve call and re-prepares with a fresh idempotency key', async () => {
     mocks.preparePrivyAtomicBatch.mockResolvedValue(approvalPreview);
     const hook = renderExecutionHook(makeDeps());
-    await startExecution(hook, [approveTx]);
+    await startExecution(hook, [
+      approveTx,
+      tx({ to: '0x4444444444444444444444444444444444444444' }),
+    ]);
     const firstBatch = mocks.preparePrivyAtomicBatch.mock.calls[0][0];
 
     await act(async () => {

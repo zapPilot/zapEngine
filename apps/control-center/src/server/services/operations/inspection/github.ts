@@ -124,33 +124,27 @@ export async function inspectGithubSignal(input: {
   // collector: skipped workflow_run wrappers are not recovery, while a real
   // later success is. Fetch a wide enough window to see through wrapper churn.
   const decisiveCompleted = completed.filter(isRecentFailureDecisiveRun);
-  const target =
+  // runs is non-empty past the length guard above, so target always resolves.
+  const target = (
     input.parsed.kind === 'recent-failure'
       ? (decisiveCompleted[0] ?? completed[0] ?? runs[0])
-      : (completed.find(isFailedRun) ?? completed[0] ?? runs[0]);
-  const failedJobs = target
-    ? await inspectRunJobs(target, token, input.fetchImpl)
-    : [];
+      : (completed.find(isFailedRun) ?? completed[0] ?? runs[0])
+  )!;
+  const failedJobs = await inspectRunJobs(target, token, input.fetchImpl);
 
   return {
     fingerprint: input.fingerprint,
     source: 'github-actions',
     status: 'ok',
     inspectedAt: input.inspectedAt.toISOString(),
-    summary: target
-      ? `${workflow}: inspected run ${target.id} (${target.conclusion ?? target.status}).`
-      : `${workflow}: run history was readable but no run could be selected.`,
+    summary: `${workflow}: inspected run ${target.id} (${target.conclusion ?? target.status}).`,
     entities: [
       { type: 'github-workflow', id: workflow },
-      ...(target
-        ? [
-            {
-              type: 'github-run' as const,
-              id: String(target.id),
-              url: target.html_url ?? null,
-            },
-          ]
-        : []),
+      {
+        type: 'github-run' as const,
+        id: String(target.id),
+        url: target.html_url ?? null,
+      },
     ],
     evidence: {
       workflow,
@@ -159,13 +153,12 @@ export async function inspectGithubSignal(input: {
         input.parsed.kind === 'recent-failure'
           ? 'Newest decisive completed run (success or failure); skipped wrappers do not recover an older failure.'
           : 'Newest failed completed run, otherwise newest completed or current run.',
-      commitsSinceFailure:
-        target && isFailedRun(target)
-          ? await commitsSinceRun(target, token, input.fetchImpl)
-          : null,
+      commitsSinceFailure: isFailedRun(target)
+        ? await commitsSinceRun(target, token, input.fetchImpl)
+        : null,
       commitsSinceFailureScope:
         'Commits on main after the failed run head SHA. Their presence is not evidence that any of them fixes the failure.',
-      selectedRun: target ? summarizeRun(target) : null,
+      selectedRun: summarizeRun(target),
       recentRuns: runs.slice(0, RUN_EVIDENCE_LIMIT).map(summarizeRun),
       failedJobs,
     },
@@ -209,7 +202,8 @@ async function inspectRunJobs(
         id: job.id,
         name: job.name,
         status: job.status,
-        conclusion: job.conclusion ?? null,
+        // Only failed jobs reach this mapper (filtered above).
+        conclusion: job.conclusion!,
         startedAt: job.started_at ?? null,
         completedAt: job.completed_at ?? null,
         url: job.html_url ?? null,
@@ -221,7 +215,8 @@ async function inspectRunJobs(
                   {
                     name: parsed.data.name,
                     number: parsed.data.number ?? null,
-                    conclusion: parsed.data.conclusion ?? null,
+                    // isFailedConclusion just matched.
+                    conclusion: parsed.data.conclusion!,
                     startedAt: parsed.data.started_at ?? null,
                     completedAt: parsed.data.completed_at ?? null,
                   },
@@ -283,7 +278,8 @@ function extractErrorExcerpt(raw: string): string {
     index < lines.length && selected.size < LOG_LINE_LIMIT;
     index += 1
   ) {
-    if (!hit.test(lines[index] ?? '')) {
+    // index stays in bounds by the loop guard over a dense split() array.
+    if (!hit.test(lines[index]!)) {
       continue;
     }
     for (
@@ -296,8 +292,10 @@ function extractErrorExcerpt(raw: string): string {
     }
   }
 
+  // selected holds in-bounds indices by construction, so the lookup never
+  // misses (same precedent as candidates[0]! in social.ts).
   const excerptLines = selected.size
-    ? [...selected].sort((a, b) => a - b).map((index) => lines[index] ?? '')
+    ? [...selected].sort((a, b) => a - b).map((index) => lines[index]!)
     : lines.slice(Math.max(0, lines.length - 80));
   return excerptLines.join('\n').slice(0, LOG_CHAR_LIMIT);
 }
@@ -395,7 +393,8 @@ async function commitsSinceRun(
       truncated: comparison.total_commits > comparison.commits.length,
       url: comparison.html_url,
       commits: comparison.commits.map((row) => {
-        const subject = row.commit.message.split('\n')[0] ?? '';
+        // split() always yields at least one element.
+        const subject = row.commit.message.split('\n')[0]!;
         const match =
           subject.match(/\(#(\d+)\)$/u) ??
           subject.match(/^Merge pull request #(\d+)/u);

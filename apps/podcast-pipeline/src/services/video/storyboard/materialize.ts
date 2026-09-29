@@ -72,13 +72,8 @@ export function materializeLocaleVideoManifest(
     }
     expectedLocalStartIndex = endIndex + 1;
 
-    const start = timedBySentenceId.get(alignment.startSentenceId);
-    const end = timedBySentenceId.get(alignment.endSentenceId);
-    if (!start || !end) {
-      throw new Error(
-        `Locale timing is missing the sentence range for ${scene.sceneId}`,
-      );
-    }
+    const start = timedBySentenceId.get(alignment.startSentenceId)!;
+    const end = timedBySentenceId.get(alignment.endSentenceId)!;
 
     return {
       id: scene.sceneId,

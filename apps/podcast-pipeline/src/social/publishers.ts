@@ -88,16 +88,10 @@ function createThreadsJob(input: SocialPublishJobsInput): SocialPublishJob {
   const { body } = composeForPublish(platform, input);
   const publisher = createThreadsPublisher({
     onLog: input.onLog,
-    ...(platformVideoMode(platform) === 'teaser'
-      ? {
-          prepareVideoUrl: (videoUrl: string) =>
-            prepareThreadsVideoUrl(videoUrl, {
-              ...(input.xVideoPath
-                ? { preparedVideoPath: input.xVideoPath }
-                : {}),
-            }),
-        }
-      : {}),
+    prepareVideoUrl: (videoUrl: string) =>
+      prepareThreadsVideoUrl(videoUrl, {
+        ...(input.xVideoPath ? { preparedVideoPath: input.xVideoPath } : {}),
+      }),
   });
   return {
     platform,

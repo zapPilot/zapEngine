@@ -13,7 +13,7 @@ import {
 import { isStrategyDepositPlan } from '@/integration/simulationPreviewModel';
 
 export const CHECKPOINT_REVIEW_CHANGED_REASON =
-  'The next route review changed. Inspect the updated evidence and confirm again.';
+  'The route has changed. Review the updated details and confirm again.';
 export const CHECKPOINT_BLOCKED_REASON =
   'The next batch is blocked or expired. Refresh and retry.';
 
@@ -22,13 +22,11 @@ export interface CheckpointReviewedBatch {
   review: DepositReviewGroup;
 }
 
-export interface CheckpointAdvancePorts {
-  /** Re-review the queued batch on the chain it executes on. */
-  reviewNext: () => Promise<CheckpointReviewedBatch>;
-  /** The entry the user already saw, for the fingerprint comparison. */
-  queued: CheckpointReviewedBatch;
+export interface CheckpointSubmitPorts {
+  /** The exact reviewed batch currently visible to the user. */
+  reviewed: CheckpointReviewedBatch;
   now: () => number;
-  /** Record the pre-transfer HyperCore snapshot the follow-up measures against. */
+  /** Record the pre-transfer HyperCore snapshot before anything can move USDC. */
   captureHlpBaseline: (step: HyperliquidVaultDepositStep) => Promise<void>;
   submitNext: (input: {
     plan: ReviewedDepositPlan;
@@ -38,6 +36,16 @@ export interface CheckpointAdvancePorts {
     | { status: 'submitted' }
     | { status: 'review-changed' | 'blocked'; reason: string }
   >;
+}
+
+export interface CheckpointAdvancePorts extends Omit<
+  CheckpointSubmitPorts,
+  'reviewed'
+> {
+  /** Re-review the queued batch on the chain it executes on. */
+  reviewNext: () => Promise<CheckpointReviewedBatch>;
+  /** The entry the user already saw, for the fingerprint comparison. */
+  queued: CheckpointReviewedBatch;
 }
 
 export type CheckpointAdvanceOutcome =
@@ -51,13 +59,46 @@ export type CheckpointAdvanceOutcome =
   | { status: 'rejected'; reason: string };
 
 /**
- * Carry one checkpoint to the next reviewed batch, in the only safe order:
- * re-review, compare against the evidence the user already accepted, then take
- * the HyperCore snapshot before anything can move USDC, and only then submit.
- *
- * Every outcome other than `submitted` leaves the queue paused for a person —
- * changed evidence has to be looked at, and a refused submit is not retried
- * here.
+ * Submit the exact reviewed batch the user can currently see. This deliberately
+ * does not rebuild or re-review the plan: a live quote may legitimately move
+ * between reviews, and confirming a changed review must submit that same
+ * visible calldata rather than creating yet another quote. The wallet layer
+ * still re-simulates this exact batch and checks its simulation/risk hashes
+ * immediately before signing.
+ */
+export async function confirmCheckpointReview(
+  ports: CheckpointSubmitPorts,
+): Promise<CheckpointAdvanceOutcome> {
+  const { reviewed } = ports;
+  if (reviewGroupBlocked(reviewed.review, ports.now())) {
+    return {
+      status: 'blocked',
+      fresh: reviewed,
+      reason: CHECKPOINT_BLOCKED_REASON,
+    };
+  }
+
+  const hlpStep = isStrategyDepositPlan(reviewed.plan)
+    ? null
+    : hlpStepFromPlan(reviewed.plan);
+  if (hlpStep) {
+    await ports.captureHlpBaseline(hlpStep);
+  }
+
+  const result = await ports.submitNext({
+    plan: reviewed.plan,
+    review: reviewed.review,
+    ...riskAcknowledgement(reviewed.review),
+  });
+  return result.status === 'submitted'
+    ? { status: 'submitted' }
+    : { status: 'rejected', reason: result.reason };
+}
+
+/**
+ * Carry one checkpoint to the next reviewed batch: re-review once, compare it
+ * with the evidence already accepted, and either submit that fresh review or
+ * pause so the changed review can be shown and explicitly confirmed.
  */
 export async function advanceCheckpoint(
   ports: CheckpointAdvancePorts,
@@ -70,23 +111,10 @@ export async function advanceCheckpoint(
       reason: CHECKPOINT_REVIEW_CHANGED_REASON,
     };
   }
-  if (reviewGroupBlocked(fresh.review, ports.now())) {
-    return { status: 'blocked', fresh, reason: CHECKPOINT_BLOCKED_REASON };
-  }
-
-  const hlpStep = isStrategyDepositPlan(fresh.plan)
-    ? null
-    : hlpStepFromPlan(fresh.plan);
-  if (hlpStep) {
-    await ports.captureHlpBaseline(hlpStep);
-  }
-
-  const result = await ports.submitNext({
-    plan: fresh.plan,
-    review: fresh.review,
-    ...riskAcknowledgement(fresh.review),
+  return confirmCheckpointReview({
+    reviewed: fresh,
+    now: ports.now,
+    captureHlpBaseline: ports.captureHlpBaseline,
+    submitNext: ports.submitNext,
   });
-  return result.status === 'submitted'
-    ? { status: 'submitted' }
-    : { status: 'rejected', reason: result.reason };
 }

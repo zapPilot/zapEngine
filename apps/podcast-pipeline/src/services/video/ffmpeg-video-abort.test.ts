@@ -69,6 +69,29 @@ describe('runProcess abort handling', () => {
     await expect(promise).rejects.toThrow('lease lost');
   });
 
+  it('reports a child error as an abort when cancellation wins the race', async () => {
+    const child = spawnPipedChild();
+    const controller = new AbortController();
+    const promise = runProcess(
+      '/opt/ffmpeg',
+      ['-i', 'input'],
+      true,
+      controller.signal,
+    );
+
+    controller.abort(new Error('lease lost during spawn'));
+    child.emit('error', new Error('spawn failed'));
+
+    await expect(promise).rejects.toThrow('lease lost during spawn');
+  });
+
+  it('reports an ordinary child error unchanged when not aborted', async () => {
+    const child = spawnPipedChild();
+    const promise = runProcess('/opt/ffmpeg', ['-i', 'input'], true);
+    child.emit('error', new Error('spawn failed'));
+    await expect(promise).rejects.toThrow('spawn failed');
+  });
+
   it('throws before spawning when the signal is already aborted', async () => {
     const controller = new AbortController();
     controller.abort(new Error('shutdown'));

@@ -27,6 +27,7 @@ import {
 
 const ingestMocks = vi.hoisted(() => ({
   logIngestEvent: vi.fn(),
+  logPipelineEvent: vi.fn(),
 }));
 
 const openAiMocks = vi.hoisted(() => ({
@@ -317,6 +318,127 @@ describe('createOpenRouterChatCompletion', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
+  it('logs custom context and labels explicit reasoning effort', async () => {
+    const mockCreate = vi.fn().mockResolvedValue({
+      choices: [{ message: { content: 'ok' } }],
+      model: 'test/model',
+      provider: 'provider-a',
+    });
+    const openai = createMockOpenAI(mockCreate) as OpenAI;
+
+    await createOpenRouterChatCompletion(
+      openai,
+      {
+        model: 'test/model',
+        messages: [{ role: 'user', content: 'reason about this' }],
+      },
+      null,
+      {
+        reasoning: { enabled: true, effort: 'high' },
+        logContext: { prefix: '[coverage]' },
+      },
+    );
+
+    expect(ingestMocks.logPipelineEvent).toHaveBeenCalledWith(
+      '[coverage]',
+      'llm:request',
+      expect.objectContaining({ reasoning: 'effort:high' }),
+    );
+    expect(ingestMocks.logPipelineEvent).toHaveBeenCalledWith(
+      '[coverage]',
+      'llm:response',
+      expect.objectContaining({ provider: 'provider-a' }),
+    );
+  });
+
+  it('merges custom log details into request and response events', async () => {
+    const mockCreate = vi.fn().mockResolvedValue({
+      choices: [{ message: { content: 'ok' } }],
+      model: 'test/model',
+    });
+    const openai = createMockOpenAI(mockCreate) as OpenAI;
+
+    await createOpenRouterChatCompletion(
+      openai,
+      {
+        model: 'test/model',
+        messages: [{ role: 'user', content: 'hello' }],
+      },
+      null,
+      { logContext: { prefix: '[coverage]', details: { episodeId: 'ep-1' } } },
+    );
+
+    expect(ingestMocks.logPipelineEvent).toHaveBeenCalledWith(
+      '[coverage]',
+      'llm:request',
+      expect.objectContaining({ episodeId: 'ep-1' }),
+    );
+  });
+
+  it('labels enabled reasoning without an effort override', async () => {
+    const mockCreate = vi.fn().mockResolvedValue({
+      choices: [{ message: { content: 'ok' } }],
+      model: 'test/model',
+    });
+    const openai = createMockOpenAI(mockCreate) as OpenAI;
+
+    await createOpenRouterChatCompletion(
+      openai,
+      {
+        model: 'test/model',
+        messages: [{ role: 'user', content: 'reason' }],
+      },
+      null,
+      { reasoning: { enabled: true } },
+    );
+
+    expect(ingestMocks.logIngestEvent).toHaveBeenCalledWith(
+      'llm:request',
+      expect.objectContaining({ reasoning: 'enabled' }),
+    );
+  });
+
+  it('reports unknown provider for malformed and contentless responses', async () => {
+    const missingChoices = createMockOpenAI(
+      vi.fn().mockResolvedValue({ model: 'test/model', provider: '' }),
+    ) as OpenAI;
+    await expect(
+      createOpenRouterChatCompletion(
+        missingChoices,
+        { model: 'test/model', messages: [{ role: 'user', content: 'x' }] },
+        null,
+      ),
+    ).rejects.toThrow('provider=unknown');
+
+    const blankContent = createMockOpenAI(
+      vi.fn().mockResolvedValue({
+        choices: [{ message: { content: '' } }],
+        model: 'test/model',
+        provider: '',
+      }),
+    ) as OpenAI;
+    await expect(
+      createOpenRouterChatCompletion(
+        blankContent,
+        { model: 'test/model', messages: [{ role: 'user', content: 'x' }] },
+        null,
+      ),
+    ).rejects.toThrow('provider=unknown');
+  });
+
+  it('fails clearly when the model candidate list is empty', async () => {
+    vi.stubEnv('LLM_FALLBACK_MODELS', '');
+    const openai = createMockOpenAI(vi.fn()) as OpenAI;
+
+    await expect(
+      createOpenRouterChatCompletion(
+        openai,
+        { model: '', messages: [{ role: 'user', content: 'x' }] },
+        null,
+      ),
+    ).rejects.toThrow('OpenRouter model fallback chain exhausted');
+  });
+
   it('throws a clear error instead of crashing when OpenRouter omits the choices array', async () => {
     // A malformed relay response with no `choices` field at all -- this used
     // to crash with "Cannot read properties of undefined" deep inside the
@@ -564,6 +686,56 @@ describe('generateScriptWithLLM', () => {
       costUsd: 0,
     });
   });
+
+  it('records numeric prompt and completion token usage in attempt telemetry', async () => {
+    const mockCreate = vi.fn().mockResolvedValue({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({ title: 'Title', script: 'Body' }),
+          },
+        },
+      ],
+      provider: 'Cloudflare',
+      model: 'test/model',
+      usage: {
+        prompt_tokens: 11,
+        completion_tokens: 7,
+        total_tokens: 18,
+        cost: 0.001,
+      },
+    });
+    mockOpenAIClient(mockCreate);
+    const attempts: LlmAttemptRecord[] = [];
+
+    await generateScriptWithLLM('Title', 'Text', {
+      onAttempt: (record) => attempts.push(record),
+    });
+
+    expect(attempts).toEqual([
+      expect.objectContaining({ promptTokens: 11, completionTokens: 7 }),
+    ]);
+  });
+
+  it.each(['#NoSpace body', '######', '####### Heading\nBody'])(
+    'accepts %j because it is not a Markdown heading owned by packaging',
+    async (script) => {
+      const mockCreate = vi.fn().mockResolvedValue({
+        choices: [
+          { message: { content: JSON.stringify({ title: 'Title', script }) } },
+        ],
+        provider: 'Cloudflare',
+        model: 'test/model',
+      });
+      mockOpenAIClient(mockCreate);
+
+      await expect(
+        generateScriptWithLLM('Title', 'Text'),
+      ).resolves.toMatchObject({
+        script,
+      });
+    },
+  );
 
   it('configures a valid OpenRouter timeout and disables SDK retries', async () => {
     vi.stubEnv('OPENROUTER_TIMEOUT_MS', '45000');
@@ -1265,6 +1437,39 @@ describe('generateLanguageClassroomsWithLLM', () => {
     expect(result.lessons[1]!.keywords[0]!.term).toBe('liquidity');
     expect(result.provider).toBe('Cloudflare');
     expect(result.costUsd).toBe(0.00002);
+  });
+
+  it('reports malformed and snake-case lesson targets in payload diagnostics', async () => {
+    const mockCreate = vi.fn().mockResolvedValue({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              lessons: [
+                null,
+                [],
+                { targetLanguageCode: '   ' },
+                { target_language_code: 'ja' },
+              ],
+            }),
+          },
+        },
+      ],
+      provider: '',
+      model: 'test/model',
+    });
+    mockOpenAIClient(mockCreate);
+
+    await expect(
+      generateLanguageClassroomsWithLLM({
+        title: 'Title',
+        articleText: 'Article',
+        script: 'Script',
+        sourceLanguageCode: 'zh-Hant',
+        targetLanguageCodes: ['ja'],
+      }),
+    ).rejects.toThrow('returned=?|?|?|ja');
+    expect(mockCreate).toHaveBeenCalledTimes(3);
   });
 
   it('parses language classroom lessons from a fenced JSON response', async () => {

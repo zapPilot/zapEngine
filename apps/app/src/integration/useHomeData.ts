@@ -164,7 +164,7 @@ export function calculateHomeRangeChange(
   return calculateAdjacentSnapshotChange([first, latest]);
 }
 
-function strategyStatusFromSuggestion(
+export function strategyStatusFromSuggestion(
   data: NonNullable<ReturnType<typeof useStrategySuggestion>['data']>,
 ): HomeStrategyStatusView {
   const actions = buildTradeActions(data);

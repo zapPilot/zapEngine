@@ -145,13 +145,9 @@ export function calculateWindowValueChangePct(
         const ts = Date.parse(point.date);
         return !Number.isNaN(ts) && ts <= targetTs;
       })
-      .at(-1) ?? sorted[0];
+      .at(-1) ?? sorted[0]!;
 
-  if (!start || !isFiniteNumber(start.total_value_usd)) {
-    return null;
-  }
-
-  const startValue = start.total_value_usd;
+  const startValue = start.total_value_usd!;
   if (startValue <= 0) {
     return null;
   }
@@ -300,7 +296,7 @@ export function attachDailyAttribution(
       .filter((item) => Math.abs(item.valueUsd) >= ATTRIBUTION_EPSILON_USD)
       .sort((a, b) => Math.abs(b.valueUsd) - Math.abs(a.valueUsd));
 
-    return attribution.length > 0 ? { ...point, attribution } : { ...point };
+    return { ...point, attribution };
   });
 }
 

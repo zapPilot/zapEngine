@@ -117,8 +117,8 @@ export function formatCurrency(
   if (options.smartPrecision) {
     return formatSmartCurrency(
       amount,
-      options.threshold ?? 0.01,
-      options.showNegative ?? true,
+      options.threshold as number,
+      options.showNegative as boolean,
       minDigits,
     );
   }

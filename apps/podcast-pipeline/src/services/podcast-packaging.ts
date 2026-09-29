@@ -45,9 +45,9 @@ export function splitPodcastVisualSections(
     sentences.at(-1)?.text === ZAP_PILOT_OUTRO
   ) {
     return {
-      intro: sentences[0] ?? null,
+      intro: sentences[0],
       body: sentences.slice(1, -1),
-      outro: sentences.at(-1) ?? null,
+      outro: sentences.at(-1)!,
       isPackaged: true,
     };
   }
@@ -62,7 +62,6 @@ export function splitPodcastVisualSections(
 export function getPodcastEditorialScript(script: string): string {
   const sections = splitPodcastVisualSections(script);
   if (!sections.isPackaged) return script;
-  if (sections.body.length === 0) return script;
   const first = sections.body[0]!;
   const last = sections.body.at(-1)!;
   const bodyText = script.slice(first.startOffset, last.endOffset);
@@ -78,7 +77,6 @@ export function getEnglishBodyScript(
   const sentences = splitCanonicalSentences(englishScript);
   if (sentences.length < 3) return englishScript;
   const body = sentences.slice(1, -1);
-  if (body.length === 0) return englishScript;
   return englishScript
     .slice(body[0]!.startOffset, body.at(-1)!.endOffset)
     .trim();
@@ -124,7 +122,6 @@ export function applyPodcastBrandingToStoryboard(
   if (!sections.isPackaged || !sections.intro || !sections.outro) {
     return draft;
   }
-  if (sections.body.length === 0) return draft;
 
   const sentences = splitCanonicalSentences(script);
   const sentenceIndex = new Map(
@@ -143,12 +140,11 @@ export function applyPodcastBrandingToStoryboard(
 
     const startSentence = sentences[clippedStart];
     const endSentence = sentences[clippedEnd];
-    if (!startSentence || !endSentence) return [];
     return [
       {
         ...scene,
-        startSentenceId: startSentence.id,
-        endSentenceId: endSentence.id,
+        startSentenceId: startSentence!.id,
+        endSentenceId: endSentence!.id,
       },
     ];
   });
@@ -239,9 +235,8 @@ function boundContentScenes(
   if (scenes.length <= maxContentScenes) return [...scenes];
 
   const kept = scenes.slice(0, maxContentScenes);
-  const overflowEnd = scenes.at(-1)?.endSentenceId;
-  const lastKept = kept.at(-1);
-  if (!lastKept || !overflowEnd) return kept;
+  const overflowEnd = scenes.at(-1)!.endSentenceId;
+  const lastKept = kept.at(-1)!;
   kept[kept.length - 1] = { ...lastKept, endSentenceId: overflowEnd };
   return kept;
 }

@@ -117,6 +117,7 @@ import type { SocialPostRow } from '../types.js';
 import {
   collectDueMetricWindows,
   earliestDueWindow,
+  runSocialCatchUpOnce,
   runSocialDaemon,
   runSocialDaemonTick,
 } from './daemon.js';
@@ -1269,6 +1270,68 @@ describe('social daemon', () => {
         tags: { operation: 'strategy' },
         level: 'warning',
       },
+    );
+  });
+
+  it('uses the default clock and returns idle when one-shot catch-up has no durable or discoverable work', async () => {
+    mocks.ensureSocialDaemonStart.mockResolvedValue(new Date().toISOString());
+    await expect(runSocialCatchUpOnce({ log: vi.fn() })).resolves.toBe('idle');
+  });
+
+  it('logs a populated experiment report during a verbose strategy refresh', async () => {
+    const en = {
+      ...socialPost({
+        id: 'post-en',
+        published_at: '2026-08-01T00:00:00.000Z',
+      }),
+      experiment_key: 'x-language-v1',
+      experiment_variant: 'en',
+    } as SocialPostRow;
+    const ja = {
+      ...socialPost({
+        id: 'post-ja',
+        published_at: '2026-08-09T00:00:00.000Z',
+      }),
+      experiment_key: 'x-language-v1',
+      experiment_variant: 'ja',
+    } as SocialPostRow;
+    mocks.listLearningSocialPosts.mockResolvedValue([en, ja]);
+    mocks.listLearningSocialMetrics.mockResolvedValue([
+      {
+        social_post_id: en.id,
+        measurement_window: '24h',
+        views: 100,
+        profile_visits: 10,
+        likes: 5,
+        comments: 2,
+        shares: 1,
+        saves: 2,
+      },
+      {
+        social_post_id: ja.id,
+        measurement_window: '24h',
+        views: 200,
+        profile_visits: 20,
+        likes: 8,
+        comments: 3,
+        shares: 2,
+        saves: 4,
+      },
+    ]);
+    const log = vi.fn();
+
+    await runSocialDaemonTick({
+      now: NOW,
+      firstStartedAt: '2026-08-16T08:00:00.000Z',
+      log,
+      refreshStrategy: true,
+      verbose: true,
+    });
+
+    expect(log).toHaveBeenCalledWith(
+      expect.stringMatching(
+        /🧪 \[experiment\] x-language-v1 .* en .* n=1 .* ja .* n=1/u,
+      ),
     );
   });
 

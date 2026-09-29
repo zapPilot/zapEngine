@@ -26,6 +26,21 @@ describe('grouped video completion delivery acknowledgement', () => {
     expect(parseVideoCompletionDelivery('收到，開始處理文章。')).toBeNull();
   });
 
+  it('rejects malformed, unrelated-path, and invalid-id completion URLs', () => {
+    const headline = '🎬 三語影片完成：🇹🇼 繁中・🇯🇵 日文・🇺🇸 英文';
+    expect(parseVideoCompletionDelivery(`${headline}\nnot-a-url`)).toBeNull();
+    expect(
+      parseVideoCompletionDelivery(
+        `${headline}\nhttps://example.test/not-an-episode`,
+      ),
+    ).toBeNull();
+    expect(
+      parseVideoCompletionDelivery(
+        `${headline}\nhttps://example.test/e/not-a-uuid`,
+      ),
+    ).toBeNull();
+  });
+
   it('stamps every completed language row for the episode after delivery', async () => {
     const rpc = vi.fn().mockResolvedValue({ data: true, error: null });
     const supabase = { rpc } as unknown as PipelineSupabaseClient;

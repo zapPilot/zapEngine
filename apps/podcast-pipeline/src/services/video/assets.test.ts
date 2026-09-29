@@ -149,6 +149,21 @@ function containedImageSlide(imageHash: string): Slide {
 }
 
 describe('resolveSlideAsset', () => {
+  it('rejects a non-image slide passed to the remote-image resolver boundary', async () => {
+    const nonImageSlide = {
+      id: 'quote',
+      startMs: 0,
+      endMs: 4_000,
+      template: 'quote',
+      sources: [],
+      asset: { kind: 'none' },
+    } as unknown as Slide;
+
+    await expect(resolveSlideAsset(nonImageSlide)).rejects.toThrow(
+      'Expected a remote image asset',
+    );
+  });
+
   it.each([
     { layout: 'contain' as const, width: 800, height: 450 },
     { layout: 'fullBleed' as const, width: 1_600, height: 900 },
@@ -617,6 +632,105 @@ describe('DNS pinning', () => {
 });
 
 describe('acquireRemoteImage', () => {
+  it('accepts decoded WebP bytes', async () => {
+    const directory = await tempDirectory();
+    const webp = await sharp({
+      create: { width: 800, height: 450, channels: 3, background: '#fff' },
+    })
+      .webp()
+      .toBuffer();
+
+    await expect(
+      acquireRemoteImage('https://example.test/photo.webp', {
+        workingDirectory: directory,
+        filename: 'webp-photo',
+        fetchImage: async () =>
+          imageResponse(webp, { contentType: 'image/webp' }),
+        resolveHost: async () => ['8.8.8.8'],
+      }),
+    ).resolves.toMatchObject({ contentType: 'image/webp' });
+  });
+
+  it('rejects a full-bleed image whose long edge passes but short edge is too small', async () => {
+    const directory = await tempDirectory();
+    const banner = await sharp({
+      create: { width: 1_000, height: 100, channels: 3, background: '#fff' },
+    })
+      .png()
+      .toBuffer();
+
+    await expect(
+      acquireRemoteImage('https://example.test/banner.png', {
+        workingDirectory: directory,
+        filename: 'short-banner',
+        layout: 'fullBleed',
+        fetchImage: async () => imageResponse(banner),
+        resolveHost: async () => ['8.8.8.8'],
+      }),
+    ).rejects.toThrow('fullBleed image short edge is 100px');
+  });
+
+  it('rejects a decoded raster format outside the supported image set', async () => {
+    const directory = await tempDirectory();
+    const svg = Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="450"><rect width="800" height="450" fill="black"/></svg>',
+    );
+
+    await expect(
+      acquireRemoteImage('https://example.test/vector.svg', {
+        workingDirectory: directory,
+        filename: 'unsupported-svg',
+        fetchImage: async () =>
+          imageResponse(svg, { contentType: 'image/svg+xml' }),
+        resolveHost: async () => ['8.8.8.8'],
+      }),
+    ).rejects.toThrow('unsupported raster format');
+  });
+
+  it('enforces the body-size limit when no content-length was declared', async () => {
+    const directory = await tempDirectory();
+    const chunk = new Uint8Array(13 * 1024 * 1024);
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(chunk);
+        controller.enqueue(chunk);
+        controller.close();
+      },
+    });
+
+    await expect(
+      acquireRemoteImage('https://example.test/large.png', {
+        workingDirectory: directory,
+        filename: 'large-stream',
+        fetchImage: async () => new Response(stream, { status: 200 }),
+        resolveHost: async () => ['8.8.8.8'],
+      }),
+    ).rejects.toThrow('Image exceeds the 25 MiB download limit');
+    await expect(stat(join(directory, 'large-stream.image'))).rejects.toThrow();
+  });
+
+  it('removes a partial file when the response body errors mid-stream', async () => {
+    const directory = await tempDirectory();
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array([1, 2, 3]));
+        controller.error(new Error('stream failed'));
+      },
+    });
+
+    await expect(
+      acquireRemoteImage('https://example.test/broken.png', {
+        workingDirectory: directory,
+        filename: 'broken-stream',
+        fetchImage: async () => new Response(stream, { status: 200 }),
+        resolveHost: async () => ['8.8.8.8'],
+      }),
+    ).rejects.toThrow('stream failed');
+    await expect(
+      stat(join(directory, 'broken-stream.image')),
+    ).rejects.toThrow();
+  });
+
   it('forwards a publisher referer to the pinned image request', async () => {
     const directory = await tempDirectory();
     const buffer = await sharp({

@@ -265,13 +265,14 @@ function generatedScriptBodyViolation(script: string): string | null {
 function isMarkdownHeading(line: string): boolean {
   let hashes = 0;
   while (line[hashes] === '#' && hashes < 7) hashes += 1;
-  return hashes >= 1 && hashes <= 6 && /\s/u.test(line[hashes] ?? '');
+  if (hashes < 1 || hashes > 6) return false;
+  return /\s/u.test(line[hashes] ?? '');
 }
 
 function isTimestampLine(line: string): boolean {
   const unwrapped =
     line.startsWith('[') || line.startsWith('(') ? line.slice(1) : line;
-  const token = unwrapped.split(/\s/u, 1)[0]?.replace(/[\])]$/u, '') ?? '';
+  const token = unwrapped.split(/\s/u, 1)[0]!.replace(/[\])]$/u, '');
   const parts = token.split(':');
   if (parts.length < 2 || parts.length > 3) return false;
   return parts.every(
@@ -576,7 +577,6 @@ export async function createOpenRouterChatCompletion(
   requestOptions: OpenRouterRequestOptions = {},
 ): Promise<OpenRouterChatCompletion> {
   const models = getOpenRouterModelCandidates(params.model);
-  let lastError: unknown;
   const failures: unknown[] = [];
 
   for (const [modelIndex, model] of models.entries()) {
@@ -588,7 +588,6 @@ export async function createOpenRouterChatCompletion(
         requestOptions,
       );
     } catch (error) {
-      lastError = error;
       failures.push(error);
       const nextModel = models[modelIndex + 1];
       const shouldFallback =
@@ -619,9 +618,7 @@ export async function createOpenRouterChatCompletion(
     }
   }
 
-  throw lastError instanceof Error
-    ? lastError
-    : new Error('OpenRouter model fallback chain exhausted');
+  throw new Error('OpenRouter model fallback chain exhausted');
 }
 
 async function createOpenRouterChatCompletionOnce(
@@ -855,7 +852,6 @@ class OpenRouterModelChainTimeoutError extends AggregateError {
 }
 
 function isTimeoutError(error: unknown): boolean {
-  if (!error || typeof error !== 'object') return false;
   if (error instanceof APIConnectionTimeoutError) return true;
   return (error as { name?: unknown }).name === 'TimeoutError';
 }
@@ -900,7 +896,7 @@ export async function createCompletionWithRetry(
   operation: LLMCompletionOperation,
   requestOptions: OpenRouterRequestOptions = {},
 ): Promise<OpenRouterChatCompletion> {
-  for (let attempt = 1; attempt <= LLM_COMPLETION_MAX_ATTEMPTS; attempt++) {
+  for (let attempt = 1; ; attempt++) {
     try {
       return await createOpenRouterChatCompletion(
         openai,
@@ -931,8 +927,6 @@ export async function createCompletionWithRetry(
       await sleep(LLM_COMPLETION_RETRY_DELAY_MS);
     }
   }
-
-  throw new Error(`OpenRouter ${operation} retry loop exhausted`);
 }
 
 export type ScriptCompletionErrorCategory =
@@ -1188,7 +1182,7 @@ export async function generateScriptWithLLM(
 
     const metadata = completionMetadata(completion, model, thinkingModel);
     costUsd += metadata.costUsd;
-    const content = completion.choices[0]?.message?.content || '';
+    const content = messageContentText(completion.choices[0]!.message?.content);
     try {
       const parsed = parseScriptPayload(content);
       if (parsed.titleFallbackReason !== null) {
@@ -1251,11 +1245,7 @@ export async function generateLanguageClassroomsWithLLM(
   let costUsd = 0;
   let retryReason: string | null = null;
 
-  for (
-    let attempt = 1;
-    attempt <= LANGUAGE_CLASSROOM_MAX_ATTEMPTS;
-    attempt += 1
-  ) {
+  for (let attempt = 1; ; attempt += 1) {
     // Transport/model failover lives entirely in createOpenRouterChatCompletion
     // (LLM_MODEL -> shared LLM_FALLBACK_MODELS): a transport error reaching this
     // layer means every candidate already failed, so it throws immediately
@@ -1306,28 +1296,23 @@ export async function generateLanguageClassroomsWithLLM(
       ) {
         throw error;
       }
-      logLanguageClassroomRetry('payload', attempt, error);
+      logLanguageClassroomRetry(attempt, error);
       retryReason = error.message;
     }
   }
-
-  throw new Error('OpenRouter language classroom retry loop exhausted');
 }
 
 function logLanguageClassroomRetry(
-  layer: 'transport' | 'payload',
   attempt: number,
-  error: unknown,
+  error: LanguageClassroomPayloadError,
 ): void {
   logIngestEvent('llm:retry', {
     operation: 'generateLanguageClassrooms',
-    layer,
+    layer: 'payload',
     attempt,
     nextAttempt: attempt + 1,
     rerouted: true,
-    ...(error instanceof LanguageClassroomPayloadError
-      ? { reason: error.reason }
-      : {}),
+    reason: error.reason,
     error: errorMessage(error),
   });
 }
@@ -1382,9 +1367,9 @@ function parseLanguageClassroomLessons(
   sourceLanguageCode: string,
   targetLanguageCodes: LanguageClassroomLanguageCode[],
 ): LanguageClassroomLessonDraft[] {
-  const content = completion.choices[0]?.message?.content || '';
+  const content = messageContentText(completion.choices[0]!.message?.content);
   const finishReason = completionFinishReason(completion);
-  const diagnostics = ` (provider=${completion.provider || 'unknown'}, model=${completion.model || 'unknown'}, finishReason=${finishReason}, outputChars=${content.length})`;
+  const diagnostics = ` (provider=${completion.provider || 'unknown'}, model=${completion.model}, finishReason=${finishReason}, outputChars=${content.length})`;
 
   if (finishReason === 'length') {
     throw new LanguageClassroomPayloadError(
@@ -1495,7 +1480,7 @@ function jsonErrorExcerpt(content: string, error: SyntaxError): string {
     .slice(start, start + 240)
     .replace(/\s+/gu, ' ')
     .trim();
-  return excerpt ? ` near: ${excerpt}` : '';
+  return ` near: ${excerpt}`;
 }
 
 function parseJsonObject(

@@ -105,9 +105,7 @@ function toDataUri(contentType: string, buffer: Uint8Array): string {
 
 function isPrivateOrReservedIpv4(address: string): boolean {
   const octets = address.split('.').map(Number);
-  if (octets.length !== 4 || octets.some((part) => !Number.isInteger(part))) {
-    return true;
-  }
+  // `isPublicIpAddress` calls this only after node:net `isIP` validated IPv4.
   const [a, b] = octets as [number, number, number, number];
   return (
     a === 0 ||
@@ -125,24 +123,17 @@ function isPrivateOrReservedIpv4(address: string): boolean {
   );
 }
 
-function parseIpv6Groups(part: string): number[] | null {
+function parseIpv6Groups(part: string): number[] {
   if (part === '') return [];
   const groups = part.split(':');
   const hextets: number[] = [];
   for (const group of groups) {
     if (group.includes('.')) {
       const octets = group.split('.').map(Number);
-      if (
-        octets.length !== 4 ||
-        octets.some((o) => !Number.isInteger(o) || o < 0 || o > 255)
-      ) {
-        return null;
-      }
       hextets.push((octets[0]! << 8) | octets[1]!);
       hextets.push((octets[2]! << 8) | octets[3]!);
       continue;
     }
-    if (!/^[0-9a-f]{1,4}$/.test(group)) return null;
     hextets.push(Number.parseInt(group, 16));
   }
   return hextets;
@@ -151,26 +142,22 @@ function parseIpv6Groups(part: string): number[] | null {
 // Expand any valid IPv6 literal to its eight numeric hextets so classification
 // does not depend on the textual form. A prefix-string check misses expanded
 // loopback (0:0:0:0:0:0:0:1) and hex IPv4-mapped literals (::ffff:7f00:1).
-function expandIpv6(address: string): number[] | null {
-  const zoneless = (address.toLowerCase().split('%', 1)[0] ?? '').trim();
+function expandIpv6(address: string): number[] {
+  // `isPublicIpAddress` calls this only after node:net `isIP` validated IPv6.
+  const zoneless = address.toLowerCase().split('%', 1)[0]!.trim();
   const halves = zoneless.split('::');
-  if (halves.length > 2) return null;
-
-  const head = parseIpv6Groups(halves[0] ?? '');
-  const tail = halves.length === 2 ? parseIpv6Groups(halves[1] ?? '') : [];
-  if (head === null || tail === null) return null;
+  const head = parseIpv6Groups(halves[0]!);
+  const tail = halves.length === 2 ? parseIpv6Groups(halves[1]!) : [];
 
   if (halves.length === 2) {
     const missing = 8 - head.length - tail.length;
-    if (missing < 1) return null;
     return [...head, ...new Array<number>(missing).fill(0), ...tail];
   }
-  return head.length === 8 ? head : null;
+  return head;
 }
 
 function isPrivateOrReservedIpv6(address: string): boolean {
   const hextets = expandIpv6(address);
-  if (hextets === null) return true; // Fail closed on anything unparseable.
   const [h0, h1, h2, h3, h4, h5, h6, h7] = hextets as [
     number,
     number,
@@ -224,28 +211,26 @@ async function defaultResolveHost(hostname: string): Promise<string[]> {
 async function resolveHostWithSignal(
   hostname: string,
   resolveHost: ResolveHost,
-  signal: AbortSignal | undefined,
+  signal: AbortSignal,
 ): Promise<string[]> {
-  if (!signal) return resolveHost(hostname);
   throwIfAborted(signal);
-  let onAbort: (() => void) | undefined;
+  let rejectAbort!: () => void;
+  const onAbort = () => rejectAbort();
   const aborted = new Promise<never>((_resolve, reject) => {
-    onAbort = () => {
-      reject(abortError(signal));
-    };
+    rejectAbort = () => reject(abortError(signal));
     signal.addEventListener('abort', onAbort, { once: true });
   });
   try {
     return await Promise.race([resolveHost(hostname), aborted]);
   } finally {
-    if (onAbort) signal.removeEventListener('abort', onAbort);
+    signal.removeEventListener('abort', onAbort);
   }
 }
 
 async function resolveAndValidateRemoteUrl(
   url: URL,
   resolveHost: ResolveHost,
-  signal: AbortSignal | undefined,
+  signal: AbortSignal,
 ): Promise<string[]> {
   if (url.protocol !== 'https:') {
     throw new Error('Remote image URL must use HTTPS');
@@ -373,7 +358,7 @@ async function fetchWithSafeRedirects(
   },
 ): Promise<Response> {
   let url = new URL(rawUrl);
-  for (let redirects = 0; redirects <= MAX_REDIRECTS; redirects += 1) {
+  for (let redirects = 0; ; redirects += 1) {
     throwIfAborted(options.signal);
     const pinnedAddresses = await resolveAndValidateRemoteUrl(
       url,
@@ -399,7 +384,6 @@ async function fetchWithSafeRedirects(
     }
     url = new URL(location, url);
   }
-  throw new Error('Image redirect resolution failed');
 }
 
 async function streamResponseToFile(
