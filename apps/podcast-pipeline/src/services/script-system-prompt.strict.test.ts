@@ -46,4 +46,22 @@ describe('script system prompt output contract', () => {
       'JSON 物件之外不得輸出任何內容，不得使用 Markdown code fence、註解或額外欄位。',
     );
   });
+
+  it('asks for an explained narration rather than a reworded article, without invented facts', () => {
+    const prompt = readFileSync(PROMPT_PATH, 'utf8');
+
+    expect(prompt).toContain(
+      '你的工作是「講解」，不是把原文逐句念一遍或換句話說一遍。',
+    );
+    expect(prompt).toContain('用自問自答推進');
+    expect(prompt).toContain(
+      '只問原文答得出來的問題，答案必須來自原文；原文沒有交代的原因或細節，不要自己補一個答案。',
+    );
+    expect(prompt).toContain(
+      '不要自己換算倍數、數量級、百分比或「幾成」，除非原文已經算好',
+    );
+    expect(prompt).toContain(
+      '原文作者以第一人稱講的經歷與看法，要轉述成那位作者或機構的看法',
+    );
+  });
 });

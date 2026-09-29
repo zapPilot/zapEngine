@@ -61,7 +61,7 @@ const LLM_COMPLETION_MAX_ATTEMPTS = 2;
 const LLM_COMPLETION_RETRY_DELAY_MS = 2_000;
 /** Selecting concepts and writing narration, not a reasoning task. */
 const LANGUAGE_CLASSROOM_REASONING: OpenRouterReasoning = { enabled: false };
-/** Rewriting an article as narration, not a reasoning task. */
+/** Turning an article into narration, not a reasoning task. */
 const SCRIPT_REASONING: OpenRouterReasoning = { enabled: false };
 /**
  * There is deliberately no `max_tokens` on this call any more. A ceiling cannot
