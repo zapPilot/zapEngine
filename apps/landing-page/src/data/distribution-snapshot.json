@@ -1,57 +1,57 @@
 {
-  "asOf": "2026-09-28T07:06:16.933+00:00",
+  "asOf": "2026-09-29T08:21:49.818717+00:00",
   "coverage": {
     "firstEpisodeAt": "2026-04-26T13:24:28.506345+00:00",
-    "lastEpisodeAt": "2026-09-27T02:31:00.917422+00:00",
+    "lastEpisodeAt": "2026-09-29T08:21:49.818717+00:00",
     "firstPostAt": "2026-08-12T07:13:20.207+00:00",
-    "lastPostAt": "2026-09-28T07:06:16.933+00:00"
+    "lastPostAt": "2026-09-29T07:05:51.504+00:00"
   },
   "funnel": {
-    "articles": 397,
-    "localizations": 1118,
+    "articles": 398,
+    "localizations": 1121,
     "videos": 517,
-    "posts": 451,
+    "posts": 459,
     "platforms": 4,
-    "reach": 21759
+    "reach": 22166
   },
   "languages": [
     {
       "code": "zh-Hant",
-      "localizations": 397,
-      "mainAudio": 393,
-      "classroomAudio": 341,
-      "posts": 252,
-      "reach": 17397
+      "localizations": 398,
+      "mainAudio": 394,
+      "classroomAudio": 342,
+      "posts": 256,
+      "reach": 17687
     },
     {
       "code": "ja",
-      "localizations": 362,
-      "mainAudio": 359,
+      "localizations": 363,
+      "mainAudio": 360,
       "classroomAudio": 25,
-      "posts": 100,
-      "reach": 2654
+      "posts": 102,
+      "reach": 2751
     },
     {
       "code": "en",
-      "localizations": 359,
+      "localizations": 360,
       "mainAudio": 353,
       "classroomAudio": 22,
-      "posts": 99,
-      "reach": 1708
+      "posts": 101,
+      "reach": 1728
     }
   ],
   "channels": [
     {
       "platform": "rednote",
       "language": "zh-Hant",
-      "posts": 98,
-      "postsWithMetrics": 98,
-      "reach": 7715,
-      "likes": 113,
+      "posts": 100,
+      "postsWithMetrics": 99,
+      "reach": 7791,
+      "likes": 116,
       "comments": 5,
       "shares": 19,
       "firstPostAt": "2026-08-12T08:18:27.658+00:00",
-      "lastPostAt": "2026-09-28T07:03:27.29+00:00"
+      "lastPostAt": "2026-09-29T07:04:44.186+00:00"
     },
     {
       "platform": "x",
@@ -68,33 +68,33 @@
     {
       "platform": "threads",
       "language": "zh-Hant",
-      "posts": 65,
-      "postsWithMetrics": 65,
-      "reach": 2568,
-      "likes": 6,
+      "posts": 67,
+      "postsWithMetrics": 66,
+      "reach": 2781,
+      "likes": 8,
       "comments": 0,
-      "shares": 2,
+      "shares": 4,
       "firstPostAt": "2026-08-15T14:15:16.306+00:00",
-      "lastPostAt": "2026-09-28T07:04:39.44+00:00"
+      "lastPostAt": "2026-09-29T07:04:17.629+00:00"
     },
     {
       "platform": "x",
       "language": "ja",
-      "posts": 40,
-      "postsWithMetrics": 40,
-      "reach": 1831,
+      "posts": 42,
+      "postsWithMetrics": 41,
+      "reach": 1928,
       "likes": 6,
       "comments": 1,
       "shares": 1,
       "firstPostAt": "2026-08-26T03:00:25.768+00:00",
-      "lastPostAt": "2026-09-28T07:05:21.902+00:00"
+      "lastPostAt": "2026-09-29T07:05:51.504+00:00"
     },
     {
       "platform": "x",
       "language": "en",
       "posts": 29,
       "postsWithMetrics": 29,
-      "reach": 1241,
+      "reach": 1242,
       "likes": 3,
       "comments": 0,
       "shares": 0,
@@ -128,14 +128,14 @@
     {
       "platform": "youtube",
       "language": "en",
-      "posts": 56,
-      "postsWithMetrics": 56,
-      "reach": 297,
+      "posts": 58,
+      "postsWithMetrics": 57,
+      "reach": 316,
       "likes": 1,
       "comments": 0,
       "shares": 0,
       "firstPostAt": "2026-08-26T00:32:40.916+00:00",
-      "lastPostAt": "2026-09-28T07:06:16.933+00:00"
+      "lastPostAt": "2026-09-29T07:03:24.935+00:00"
     },
     {
       "platform": "threads",
@@ -154,7 +154,7 @@
       "language": "zh-Hant",
       "posts": 43,
       "postsWithMetrics": 43,
-      "reach": 112,
+      "reach": 113,
       "likes": 2,
       "comments": 0,
       "shares": 1,
@@ -163,11 +163,11 @@
     }
   ],
   "reliability": {
-    "publishJobs": 566,
-    "publishJobsCompleted": 450,
+    "publishJobs": 578,
+    "publishJobsCompleted": 458,
     "publishJobsFailed": 0,
-    "metricSnapshots": 3433,
-    "metricSnapshotsCollected": 3358,
+    "metricSnapshots": 3552,
+    "metricSnapshotsCollected": 3473,
     "strategyVersions": 48
   },
   "example": {
