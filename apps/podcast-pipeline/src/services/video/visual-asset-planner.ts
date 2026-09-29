@@ -380,9 +380,7 @@ export async function planVisualAssets(
   };
 
   if (input.requireLeadCover && !state.leadCoverCandidateUrl) {
-    throw mandatoryLeadCoverError(
-      state.leadCoverFallbackReason ?? 'missing-open-graph-image',
-    );
+    throw mandatoryLeadCoverError(state.leadCoverFallbackReason!);
   }
 
   for (const resumedScene of state.scenes) {
@@ -483,8 +481,7 @@ function leadCoverOrderedArticleImages(
     return {
       articleImages: viable,
       leadCoverCandidateUrl: null,
-      leadCoverFallbackReason:
-        dropReasons.get(openGraph.imageUrl) ?? 'open-graph-image-rejected',
+      leadCoverFallbackReason: dropReasons.get(openGraph.imageUrl)!,
     };
   }
 
@@ -655,8 +652,8 @@ function trySaturatedSubjectReuse(
   if (searched < MAX_DISTINCT_SEARCHED_ASSETS_PER_SUBJECT) return null;
   const reuse = reusableAsset(ladder.state, ladder.scene, {
     sameSubjectOnly: true,
-  });
-  return reuse ? reuseSelection(ladder, reuse, null) : null;
+  })!;
+  return reuseSelection(ladder, reuse, null);
 }
 
 async function trySubjectPool(
@@ -688,8 +685,7 @@ async function tryTargetedSearch(
   if (hasSearched(pool, subjectKey)) return null;
   if (!subjectIsDirectlyAnchored(scene)) return null;
   if (!canSearch(pool, 'targeted')) return null;
-  const subject = poolSubject(pool, subjectKey);
-  if (!subject) return null;
+  const subject = poolSubject(pool, subjectKey)!;
   await runSubjectSearch(ladder, pool, subject, 'targeted', scene.sceneId);
   return trySubjectPool(ladder, pool, 'targeted');
 }
@@ -812,8 +808,8 @@ async function ensureEpisodePool(
   state.pool = pool;
   state.trace.primarySubjects = plannedPrimarySubjects(subjects);
   for (const planned of state.trace.primarySubjects) {
-    const subject = poolSubject(pool, planned.subjectKey);
-    if (subject) await runSubjectSearch(ladder, pool, subject, 'primary', null);
+    const subject = poolSubject(pool, planned.subjectKey)!;
+    await runSubjectSearch(ladder, pool, subject, 'primary', null);
   }
   return pool;
 }
@@ -1011,7 +1007,6 @@ function recordSearchFailures(
   rejections: CandidateRejections,
   failures: readonly Error[],
 ): void {
-  if (failures.length === 0) return;
   const cause = 'search-provider-failure';
   rejections.total += failures.length;
   rejections.causes.set(
@@ -1033,7 +1028,6 @@ async function acquireNextArticleImage(
       state.leadCoverCandidateUrl !== null &&
       canonicalCandidateUrl(candidate.imageUrl) ===
         canonicalCandidateUrl(state.leadCoverCandidateUrl);
-    const rejectionCountsBefore = new Map(rejections.causes);
     const acquired = await tryAcquireUniqueImage({
       candidate,
       provider: 'article',
@@ -1047,13 +1041,8 @@ async function acquireNextArticleImage(
     });
     if (acquired) return acquired;
     if (isMandatoryLead) {
-      const cause = candidateRejectionDelta(
-        rejectionCountsBefore,
-        rejections.causes,
-      );
-      throw mandatoryLeadCoverError(
-        `open-graph-image-acquisition-${cause ?? 'failed'}`,
-      );
+      const cause = rejections.causes.keys().next().value!;
+      throw mandatoryLeadCoverError(`open-graph-image-acquisition-${cause}`);
     }
   }
   return null;
@@ -1151,7 +1140,7 @@ function reportSceneExhaustion(
 
 function visualSearchFailure(
   ladder: SceneLadder,
-  pool: EpisodeImagePool | null,
+  pool: EpisodeImagePool,
   failures: readonly Error[],
 ): VisualSceneExhaustedError {
   const messages = [...new Set(failures.map((failure) => failure.message))];
@@ -1170,8 +1159,8 @@ function candidateExhaustionFailure(
   ladder: SceneLadder,
 ): VisualSceneExhaustedError {
   const { state, scene, rejections } = ladder;
-  const summary = imageSearchSummary(state.pool);
-  const failures = poolProviderFailures(state.pool);
+  const summary = imageSearchSummary(state.pool!);
+  const failures = poolProviderFailures(state.pool!);
   return new VisualSceneExhaustedError(
     scene.sceneId,
     exhaustionReason(state.pool, summary),
@@ -1186,8 +1175,7 @@ function candidateExhaustionFailure(
  * scene in resilient mode never threw one of these itself -- the pool absorbed
  * them so the episode could still render -- so this is where an expired key or
  * a rate limit becomes visible to whoever reads the alert. */
-function poolProviderFailures(pool: EpisodeImagePool | null): string[] {
-  if (!pool) return [];
+function poolProviderFailures(pool: EpisodeImagePool): string[] {
   return [
     ...new Set(
       pool.requests
@@ -1243,17 +1231,7 @@ function exhaustionReason(
 /** The counts that explain a starved scene, taken from the pool the episode
  * actually built. Spent requests rather than recorded ones: a request that
  * threw before it could be recorded was still paid for. */
-function imageSearchSummary(pool: EpisodeImagePool | null): ImageSearchSummary {
-  if (!pool) {
-    return {
-      pool: 0,
-      attempted: 0,
-      requests: 0,
-      requestBudget: IMAGE_SEARCH_BUDGET.max,
-      returned: 0,
-      viable: 0,
-    };
-  }
+function imageSearchSummary(pool: EpisodeImagePool): ImageSearchSummary {
   const summary = summarizePool(pool);
   return {
     pool: summary.poolSize,
@@ -1277,11 +1255,7 @@ async function tryAcquireUniqueImage(input: {
   rejections: CandidateRejections;
   allowSmallDimensions?: boolean;
 }): Promise<PlannedVisualImage | null> {
-  const canonicalUrl = canonicalCandidateUrl(input.candidate.imageUrl);
-  if (!canonicalUrl) {
-    recordCandidateRejection(input.rejections, 'invalid-url');
-    return null;
-  }
+  const canonicalUrl = canonicalCandidateUrl(input.candidate.imageUrl)!;
   if (input.attemptedUrls.has(canonicalUrl)) {
     recordCandidateRejection(input.rejections, 'duplicate-url');
     return null;
@@ -1360,16 +1334,6 @@ function recordCandidateRejection(
 ): void {
   rejections.total += 1;
   incrementCount(rejections.causes, cause);
-}
-
-function candidateRejectionDelta(
-  before: ReadonlyMap<string, number>,
-  after: ReadonlyMap<string, number>,
-): string | null {
-  for (const [cause, count] of after) {
-    if (count > (before.get(cause) ?? 0)) return cause;
-  }
-  return null;
 }
 
 function summarizeCandidateRejections(

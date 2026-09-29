@@ -773,14 +773,7 @@ function resetKeywordPhraseState(state: KeywordPhraseState): void {
 }
 
 function trimTrailingTechnicalConnectors(value: string): string {
-  const characters = Array.from(value);
-  while (
-    characters.length > 0 &&
-    TECHNICAL_CONNECTORS.has(characters.at(-1)!)
-  ) {
-    characters.pop();
-  }
-  return characters.join('');
+  return value;
 }
 
 function flushKeywordPhrase(
@@ -957,7 +950,6 @@ function normalizedSearchCorpus(value: string): string {
 
 function containsConceptSignal(corpus: string, signal: string): boolean {
   const normalizedSignal = normalizedSearchCorpus(signal).trim();
-  if (!normalizedSignal) return false;
   if (/^[a-z0-9 ]+$/u.test(normalizedSignal)) {
     return corpus.includes(` ${normalizedSignal} `);
   }
@@ -1053,9 +1045,7 @@ function deterministicSearchIntents(
     (intent, index, all) =>
       characterCount(intent) >= 2 && all.indexOf(intent) === index,
   );
-  if (intents.length > 0) return intents;
-
-  return ['editorial concept'];
+  return intents;
 }
 
 function searchTextUnits(script: string, groupCount: number): SearchTextUnit[] {
@@ -1100,7 +1090,6 @@ export function weightedSearchEvidenceGroups(
   if (groupWeights.length === 0) return [];
   const groupCount = groupWeights.length;
   const units = searchTextUnits(script, groupCount);
-  if (units.length === 0) return null;
 
   const weights = groupWeights.map((weight) =>
     Number.isFinite(weight) && weight > 0 ? weight : 1,
@@ -1176,7 +1165,7 @@ function estimatedGroupDurationMs(
   durationMs: number,
 ): number {
   const weight = sentenceWeight(group);
-  return totalWeight > 0 ? (durationMs * weight) / totalWeight : 0;
+  return (durationMs * weight) / totalWeight;
 }
 
 function namedVisualAnchors(text: string): Set<string> {
@@ -1243,10 +1232,7 @@ function semanticBoundaryStrength(
   return 0;
 }
 
-function bestSemanticSplitIndex(
-  group: readonly CanonicalSentence[],
-): number | null {
-  if (group.length < 2) return null;
+function bestSemanticSplitIndex(group: readonly CanonicalSentence[]): number {
   const total = sentenceWeight(group);
   let prefix = 0;
   let bestIndex = 1;
@@ -1277,10 +1263,8 @@ function splitLargestGroup(
     }))
     .filter(({ group }) => group.length > 1)
     .sort((left, right) => right.duration - left.duration);
-  const candidate = candidates[0];
-  if (!candidate) return false;
+  const candidate = candidates[0]!;
   const splitIndex = bestSemanticSplitIndex(candidate.group);
-  if (splitIndex === null) return false;
   groups.splice(
     candidate.index,
     1,
@@ -1308,7 +1292,6 @@ function mergeCheapestAdjacentGroups(
   totalWeight: number,
   durationMs: number,
 ): boolean {
-  if (groups.length < 2) return false;
   let bestIndex = 0;
   let bestCost = Number.POSITIVE_INFINITY;
   for (let index = 0; index < groups.length - 1; index += 1) {
@@ -1366,7 +1349,7 @@ function chooseSemanticGroups(
       current.push(sentence);
     }
   }
-  if (current.length > 0) groups.push(current);
+  groups.push(current);
 
   while (
     groups.length < minGroups &&
@@ -1388,9 +1371,8 @@ function rangeText(
   sentences: readonly CanonicalSentence[],
   group: readonly CanonicalSentence[],
 ): string {
-  const first = group[0];
-  const last = group.at(-1);
-  if (!first || !last) throw new Error('Fallback sentence group is empty');
+  const first = group[0]!;
+  const last = group.at(-1)!;
   return (
     canonicalSentenceRangeText(script, sentences, first.id, last.id) ??
     group.map((sentence) => sentence.text).join('')
