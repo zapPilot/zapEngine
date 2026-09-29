@@ -1,6 +1,6 @@
 'use client';
 
-import type { FormEvent, ReactNode } from 'react';
+import type { FormEvent, MouseEvent, ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
 
 import { createPortal } from 'react-dom';
@@ -35,9 +35,9 @@ export function AppCtaLink({
   className: string;
   children: ReactNode;
 }) {
-  const triggerRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLElement>(null);
-  const [open, setOpen] = useState(false);
+  const [trigger, setTrigger] = useState<HTMLButtonElement | null>(null);
+  const open = trigger !== null;
   const [submitting, setSubmitting] = useState(false);
   const [joined, setJoined] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,31 +47,30 @@ export function AppCtaLink({
   }, []);
 
   useEffect(() => {
-    if (!open) return;
-    const previousFocus = triggerRef.current;
+    if (!trigger) return;
     const overflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
       document.body.style.overflow = overflow;
-      previousFocus!.focus();
+      if (trigger.isConnected) trigger.focus();
     };
-  }, [open]);
+  }, [trigger]);
 
   useEffect(() => {
     if (joined && open)
       dialogRef.current?.querySelector<HTMLElement>('a[href]')?.focus();
   }, [joined, open]);
 
-  const openWaitlist = () => {
+  const openWaitlist = (event: MouseEvent<HTMLButtonElement>) => {
     captureWaitlistFirstTouch();
     trackCtaClicked(location);
     setError(null);
-    setOpen(true);
+    setTrigger(event.currentTarget);
   };
 
   const closeWaitlist = () => {
     if (submitting) return;
-    setOpen(false);
+    setTrigger(null);
   };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -111,7 +110,6 @@ export function AppCtaLink({
   return (
     <>
       <button
-        ref={triggerRef}
         className={`${className} ${styles['trigger']}`}
         type="button"
         onClick={openWaitlist}

@@ -13,6 +13,7 @@ import {
   hlpMinimumShareUsd6,
   targetMinimumUsd6,
   targetUsd6Shares,
+  targetShareAllocator,
   hlpIngressFor,
   chainBatchDrafts,
   chainBatchRequest,
@@ -289,5 +290,29 @@ describe('percentage helpers', () => {
     expect(percentInputToBps('.')).toBe(0);
     expect(bpsToPercentInput(1_250)).toBe('12.5');
     expect(bpsToPercentInput(4_000)).toBe('40');
+  });
+});
+
+describe('targetShareAllocator', () => {
+  it('rejects invalid weights and freezes a valid mix for repeated probes', () => {
+    expect(targetShareAllocator(allocation(0, 0, 0))).toBeNull();
+    const mix = allocation(3600, 4000, 2400);
+    const allocate = targetShareAllocator(mix)!;
+    mix[0]!.weightBps = 0;
+    expect(allocate(0n)).toEqual({
+      'morpho-base': 0n,
+      'gmx-arbitrum': 0n,
+      hlp: 0n,
+    });
+    expect(allocate(1n)).toEqual({
+      'morpho-base': 0n,
+      'gmx-arbitrum': 0n,
+      hlp: 1n,
+    });
+    expect(allocate(100000001n)).toEqual({
+      'morpho-base': 36000000n,
+      'gmx-arbitrum': 40000000n,
+      hlp: 24000001n,
+    });
   });
 });

@@ -553,3 +553,48 @@ describe('fundingMinimum', () => {
     );
   });
 });
+
+describe('funding ranking boundaries', () => {
+  it('reports an unavailable destination when its ranking has no sources', () => {
+    const config = input([], morpho);
+    const result = planFunding(
+      {
+        ...config,
+        demand: { totalUsd6: '1000000', allocations: morpho },
+      },
+      { ...STATIC_FUNDING_RANKING, 'morpho-base': [] },
+    );
+    expect(result.stages).toBeNull();
+    expect(result.blockers).toEqual([
+      { kind: 'chain-unavailable', positionId: 'morpho-base', chainIds: [] },
+    ]);
+  });
+
+  it('keeps an unpriced-only ranking blocked without inventing spendable funds', () => {
+    const config = input([row(B[1], 100, null)], morpho);
+    const result = planFunding(
+      {
+        ...config,
+        demand: { totalUsd6: '1000000', allocations: morpho },
+      },
+      {
+        ...STATIC_FUNDING_RANKING,
+        'morpho-base': [
+          { kind: 'evm', token: B[1], route: 'swap-deposit', costTier: 0 },
+        ],
+      },
+    );
+    expect(result.stages).toBeNull();
+    expect(result.assignments).toEqual([]);
+    expect(result.blockers).toEqual([
+      { kind: 'no-price', positionId: 'morpho-base', tokens: [B[1]] },
+    ]);
+    expect(result.options['morpho-base']).toEqual([
+      expect.objectContaining({
+        availableUsd6: null,
+        rejection: 'no-price',
+        selected: false,
+      }),
+    ]);
+  });
+});
