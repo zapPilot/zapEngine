@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AppCtaLink } from '@/components/landing-v2/AppCtaLink';
@@ -243,7 +243,9 @@ describe('AppCtaLink', () => {
     const link = await screen.findByRole('link', {
       name: 'Join the Discord →',
     });
-    expect(link).toHaveFocus();
+    // Focus is applied in a useEffect after the success state renders; wait
+    // for it instead of asserting synchronously to avoid flakes under CI load.
+    await waitFor(() => expect(link).toHaveFocus());
     fireEvent.click(link);
     expect(trackDiscordCtaClicked).toHaveBeenLastCalledWith(
       'waitlist_success',
