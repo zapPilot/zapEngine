@@ -107,40 +107,27 @@ per-workspace HTML reports remain a separate seven-day artifact.
 
 | Workspace                     | Statements | Branches | Functions | Lines |
 | ----------------------------- | ---------- | -------- | --------- | ----- |
-| `apps/account-engine`         | 95         | 90       | 95        | 95    |
-| `apps/alpha-etl`              | 92         | 92       | 92        | 92    |
-| `apps/analytics-engine`       | —          | —        | —         | 95    |
-| `apps/app`                    | 64         | 67       | 68        | 65    |
-| `apps/control-center`         | 80         | 71       | 82        | 80    |
+| `apps/account-engine`         | 100        | 100      | 100       | 100   |
+| `apps/alpha-etl`              | 100        | 100      | 100       | 100   |
+| `apps/analytics-engine`       | —          | —        | —         | 100   |
+| `apps/app`                    | 100        | 100      | 100       | 100   |
+| `apps/control-center`         | 100        | 100      | 100       | 100   |
 | `apps/desktop`                | 100        | 100      | 100       | 100   |
-| `apps/landing-page`           | 83         | 75       | 89        | 84    |
-| `apps/podcast-pipeline`       | 91         | 80       | 92        | 92    |
-| `packages/app-core`           | 75         | 66       | 73        | 76    |
+| `apps/landing-page`           | 100        | 100      | 100       | 100   |
+| `apps/podcast-pipeline`       | 100        | 100      | 100       | 100   |
+| `packages/app-core`           | 100        | 100      | 100       | 100   |
 | `packages/brand-assets`       | 100        | 100      | 100       | 100   |
 | `packages/cost-observability` | 100        | 100      | 100       | 100   |
 | `packages/design-tokens`      | 100        | 100      | 100       | 100   |
-| `packages/intent-engine`      | 90         | 85       | 90        | 90    |
+| `packages/intent-engine`      | 100        | 100      | 100       | 100   |
 | `packages/types`              | 100        | 100      | 100       | 100   |
 
 - `apps/analytics-engine` has one canonical pytest-cov floor:
-  `[tool.coverage.report] fail_under = 95` in `pyproject.toml`.
-- `apps/app` was re-ratcheted on 2026-09-08 from a measured
-  68.34/71.50/72.63/69.10 baseline, retaining roughly four points of churn
-  buffer while reviewed-execution seam coverage is added.
-- `packages/app-core` was re-ratcheted on 2026-09-08 from a measured
-  79.71/70.58/77.91/80.86 baseline with the same buffer policy.
-- `apps/landing-page` was re-ratcheted on 2026-09-14 after widening the
-  denominator to include App Router code and exclude test-only helpers. The
-  Node-24 measured baseline is 86.57/78.74/91.62/87.93, leaving roughly three
-  points of churn buffer.
-- `apps/desktop`, `packages/brand-assets`, `packages/cost-observability`,
-  `packages/design-tokens`, and `packages/types` pin statements, branches,
-  functions, and lines at 100% after exhaustive boundary coverage.
-- `apps/control-center` was re-ratcheted on 2026-09-14 after adding an explicit
-  production-source denominator. The measured baseline is
-  83.03/74.30/85.09/83.07, leaving roughly three points of normal
-  feature-churn buffer.
+  `[tool.coverage.report] fail_under = 100` in `pyproject.toml`; Cobertura
+  does not expose branch/function detail for the aggregate handoff.
+- The 2026-09-29 canonical CI artifact reported 100% for every supported
+  workspace metric, so every supported absolute floor is now pinned at 100%.
+  Do not lower a floor, add coverage ignores, or shrink the production
+  denominator to conceal a regression.
 
-Update this table whenever a workspace threshold changes. Ratchet floors upward
-only after sustained coverage improvements; do not lower them to conceal a
-regression.
+Update this table whenever a workspace threshold changes.
