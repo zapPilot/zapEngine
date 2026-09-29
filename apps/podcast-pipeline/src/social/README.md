@@ -204,6 +204,18 @@ transport call of the tick. It runs after the media re-check so an episode whose
 video is gone never pays for an LLM call, and it stops generating copy for the
 rest of an article as soon as one of its languages is held.
 
+Each successful preparation commits generated/published copy, model, and
+packaging assignments to `social_copy_snapshots`, keyed by episode and language,
+before returning. Threads and Rednote share the zh-Hant row. Ordinary daemon
+retries (including `ops --social-once`) reuse that row even after transport
+failure, changed strategy guidance, or partial publication; they never overwrite
+or automatically regenerate it. Missing platform blocks and database read/write
+failures stop the release. Canonical titles still come from the localization,
+and `social_posts` still records only successful publication. Snapshot invalidation
+and the interactive break-glass CLI's explicit edit/regenerate workflow are
+separate from this daemon retry contract. Deploy the root migration before
+running this publisher version.
+
 A rejected note fails the article's claimed lanes rather than releasing their
 leases, for the same reason missing media does — and for one more. Three
 attempts were spent before any transport, so nothing is live and nothing is
