@@ -46,7 +46,9 @@ it('always identifies the research slice and shows honest undeployed state', () 
   ).toBeInTheDocument();
   expect(screen.getByText(/Contract not deployed yet/)).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Call contract' })).toBeDisabled();
-  expect(screen.getByLabelText('current BTC price')).not.toHaveValue('');
+  expect(screen.getByLabelText('BTC price on decision day')).not.toHaveValue(
+    '',
+  );
 });
 it('runs the default example, shows match, and labels stale outputs after edits', async () => {
   render(<StrategyCalculator data={dataset} />);
@@ -62,7 +64,7 @@ it('runs the default example, shows match, and labels stale outputs after edits'
     screen.getByRole('button', { name: 'Copy warmup cast command' }),
   );
   await screen.findByText('Copied');
-  fireEvent.change(screen.getByLabelText('current BTC price'), {
+  fireEvent.change(screen.getByLabelText('BTC price on decision day'), {
     target: { value: '89' },
   });
   expect(
@@ -72,10 +74,14 @@ it('runs the default example, shows match, and labels stale outputs after edits'
     screen.queryByText('✓ Same result as the Python backtest'),
   ).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Call contract' }));
-  await screen.findByText('Custom inputs — no historical-match claim.');
+  await screen.findByText(
+    'Custom inputs, so there is no historical comparison.',
+  );
   expect(screen.getAllByText(/cast call/)[1]!.textContent).not.toBe(before);
   fireEvent.click(screen.getByRole('button', { name: 'Restore real inputs' }));
-  expect(screen.getByLabelText('current BTC price')).toHaveValue('90');
+  expect(screen.getByLabelText('BTC price on decision day')).toHaveValue(
+    '90.00',
+  );
 });
 it('selects the date query and displays errors without a historical match', async () => {
   state.query = new URLSearchParams('date=2025-10-19');
@@ -114,7 +120,7 @@ it('exposes explicit state and allows editing allocations and touch mode', () =>
     target: { value: '24' },
   });
   expect(onChange.mock.calls[0]![0].allocation[0]).toBe('24');
-  fireEvent.click(screen.getByRole('checkbox'));
+  fireEvent.click(screen.getByRole('switch'));
   expect(onChange.mock.calls[1]![0].crossOnTouch).toBe(false);
 });
 it('does not claim a match for cooldown or unmatched candidates', async () => {
@@ -145,7 +151,9 @@ it('edits all scenarios before deployment, validates fields, and never calls', (
   fireEvent.click(
     screen.getByRole('button', { name: 'BTC holds above its average' }),
   );
-  expect(screen.getByLabelText('current BTC price')).toHaveValue('101');
+  expect(screen.getByLabelText('BTC price on decision day')).toHaveValue(
+    '101.00',
+  );
   expect(screen.getByRole('img', { name: /BTC: yesterday/ })).toHaveAttribute(
     'aria-label',
     expect.stringContaining('today +1.00%'),
@@ -153,52 +161,71 @@ it('edits all scenarios before deployment, validates fields, and never calls', (
   fireEvent.click(
     screen.getByRole('button', { name: 'Exit rule cooling down' }),
   );
-  expect(
-    screen.getByLabelText('Last exit executed (blank means none)'),
-  ).toHaveValue('2025-10-08');
+  expect(screen.getByLabelText('Last exit executed')).toHaveValue('2025-10-08');
   fireEvent.click(
     screen.getByRole('button', { name: 'BTC closes on its average' }),
   );
-  expect(screen.getByLabelText('current BTC price')).toHaveValue('100');
-  fireEvent.change(screen.getByLabelText('current BTC price'), {
+  expect(screen.getByLabelText('BTC price on decision day')).toHaveValue(
+    '100.00',
+  );
+  fireEvent.change(screen.getByLabelText('BTC price on decision day'), {
     target: { value: '1.0000000000000000001' },
   });
-  expect(screen.getByLabelText('current BTC price')).toHaveAttribute(
+  expect(screen.getByLabelText('BTC price on decision day')).toHaveAttribute(
     'aria-invalid',
     'true',
   );
   expect(
-    screen.getByLabelText('current BTC price'),
+    screen.getByLabelText('BTC price on decision day'),
   ).toHaveAccessibleDescription(/18 places/);
   fireEvent.change(screen.getByLabelText('BTC allocation percent'), {
     target: { value: '24.5' },
   });
   expect(screen.getByText('Total is 99.5%, must be 100%')).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Restore real inputs' }));
-  expect(screen.getByLabelText('current BTC price')).toHaveValue('90');
+  expect(screen.getByLabelText('BTC price on decision day')).toHaveValue(
+    '90.00',
+  );
   expect(screen.getByRole('button', { name: 'Call contract' })).toBeDisabled();
   fireEvent.submit(document.getElementById('strategy-calculator')!);
   expect(screen.queryByText(/Same result/)).not.toBeInTheDocument();
 });
-it('supports date and last-exit edits and form submission', async () => {
+it('derives the previous day from the decision day and submits edits', async () => {
   render(<StrategyCalculator data={dataset} />);
   fireEvent.change(screen.getByLabelText('Decision day'), {
     target: { value: '2025-10-19' },
   });
-  expect(screen.getByLabelText('Previous day')).toHaveAttribute(
+  expect(screen.getAllByText('Oct 19')).toHaveLength(3);
+  expect(screen.getAllByText('Oct 18')).toHaveLength(3);
+  fireEvent.change(screen.getByLabelText('Decision day'), {
+    target: { value: '' },
+  });
+  expect(screen.getByLabelText('Decision day')).toHaveAttribute(
     'aria-invalid',
     'true',
   );
   expect(screen.getByRole('button', { name: 'Call contract' })).toBeDisabled();
-  fireEvent.change(screen.getByLabelText('Previous day'), {
-    target: { value: '2025-10-18' },
+  fireEvent.change(screen.getByLabelText('Decision day'), {
+    target: { value: '2025-10-19' },
   });
-  fireEvent.change(
-    screen.getByLabelText('Last exit executed (blank means none)'),
-    { target: { value: '2025-10-10' } },
-  );
+  fireEvent.change(screen.getByLabelText('Last exit executed'), {
+    target: { value: '2025-10-10' },
+  });
   fireEvent.submit(document.getElementById('strategy-calculator')!);
-  await screen.findByText('Custom inputs — no historical-match claim.');
+  await screen.findByText(
+    'Custom inputs, so there is no historical comparison.',
+  );
+});
+it('shows full precision while editing and rounds at rest', () => {
+  render(<StrategyCalculator data={{ ...dataset, deployment: null }} />);
+  const cell = screen.getByLabelText('BTC 200-day average on previous day');
+  fireEvent.change(cell, { target: { value: '107535.29506345' } });
+  expect(cell).toHaveValue('107,535.30');
+  fireEvent.focus(cell);
+  expect(cell).toHaveValue('107535.29506345');
+  fireEvent.blur(cell);
+  expect(cell).toHaveValue('107,535.30');
+  expect(screen.getByText('Python backtest on 2025-10-18')).toBeInTheDocument();
 });
 it('copies the full codehash with an accessible failure fallback', async () => {
   Object.defineProperty(navigator, 'clipboard', {

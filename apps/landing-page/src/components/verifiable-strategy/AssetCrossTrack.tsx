@@ -1,103 +1,103 @@
-import { useId } from 'react';
-import { MarkerGlyph } from '@/components/track-record/chartMarkers';
 import { distancePercent } from '@/lib/verifiable-strategy/encoding';
-import type {
-  AssetView,
-  CalculatorInput,
-} from '@/lib/verifiable-strategy/types';
+import type { CalculatorInput } from '@/lib/verifiable-strategy/types';
+
+type Row = CalculatorInput['current'][number];
+
+const WIDTH = 140;
+const HEIGHT = 48;
+const LEFT = 8;
+const RIGHT = WIDTH - 8;
+
+// Float conversion is confined to SVG geometry; encoding uses the exact strings.
+function plot(previous: Row, current: Row) {
+  const values = [previous.price, previous.dma, current.price, current.dma].map(
+    Number,
+  );
+  if (values.some((value) => !Number.isFinite(value) || value <= 0))
+    return null;
+  const low = Math.min(...values);
+  const high = Math.max(...values);
+  const pad = (high - low) * 0.2 || high * 0.01;
+  const y = (value: number) =>
+    4 + ((high + pad - value) / (high - low + 2 * pad)) * (HEIGHT - 8);
+  const [pricePrev, avgPrev, priceNow, avgNow] = values.map(y) as [
+    number,
+    number,
+    number,
+    number,
+  ];
+  // Where the price line meets the average line inside the day, if it does.
+  const before = pricePrev - avgPrev;
+  const after = priceNow - avgNow;
+  const t = before * after < 0 ? before / (before - after) : null;
+  const crossing =
+    t === null
+      ? null
+      : {
+          x: LEFT + t * (RIGHT - LEFT),
+          y: pricePrev + t * (priceNow - pricePrev),
+        };
+  return { pricePrev, avgPrev, priceNow, avgNow, crossing };
+}
 
 export function AssetCrossTrack({
   asset,
   previous,
   current,
-  view,
 }: {
   asset: string;
-  previous: CalculatorInput['current'][number];
-  current: CalculatorInput['current'][number];
-  view?: AssetView;
+  previous: Row;
+  current: Row;
 }) {
-  const id = useId();
-  const before = distancePercent(previous),
-    after = distancePercent(current);
-  // Float conversion is confined to SVG positioning, after exact input formatting.
-  const numeric = (value: string | null) =>
-    value === null ? 0 : parseFloat(value.replace('−', '-'));
-  const extent = Math.max(
-    6,
-    Math.abs(numeric(before)),
-    Math.abs(numeric(after)),
-  );
-  const position = (value: string | null) =>
-    150 + (numeric(value) * 120) / extent;
-  const x1 = position(before),
-    x2 = position(after);
+  const before = distancePercent(previous);
+  const after = distancePercent(current);
+  const points = before !== null && after !== null && plot(previous, current);
+  const label = `${asset}: yesterday ${before ?? 'missing'}, today ${after ?? 'missing'} relative to 200-day average`;
   return (
     <div
-      className="track-record-calculator-track"
+      className="calc-chart"
       style={{ color: `var(--event-${asset.toLowerCase()})` }}
     >
-      <div>
-        <strong>{asset}</strong>
-        <span>
-          Yesterday {before ?? 'missing'} → Today {after ?? 'missing'}
-        </span>
-      </div>
-      <svg
-        viewBox="0 0 300 42"
-        role="img"
-        aria-label={`${asset}: yesterday ${before ?? 'missing'}, today ${after ?? 'missing'} relative to 200-day average`}
-      >
-        <defs>
-          <marker
-            id={id}
-            viewBox="0 0 6 6"
-            refX="5"
-            refY="3"
-            markerWidth="6"
-            markerHeight="6"
-            orient="auto-start-reverse"
-          >
-            <path d="M0 0L6 3L0 6" fill="none" stroke="currentColor" />
-          </marker>
-        </defs>
-        <line x1="10" x2="290" y1="22" y2="22" className="track-baseline" />
-        <line x1="150" x2="150" y1="4" y2="40" className="track-average" />
-        {before !== null && after !== null && (
+      {points ? (
+        <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label={label}>
           <line
-            x1={x1}
-            x2={x2}
-            y1="22"
-            y2="22"
-            stroke="currentColor"
-            strokeWidth="2"
-            markerEnd={`url(#${id})`}
+            className="calc-chart-average"
+            x1={LEFT}
+            x2={RIGHT}
+            y1={points.avgPrev}
+            y2={points.avgNow}
           />
-        )}
-        {before !== null && (
+          <line
+            className="calc-chart-price"
+            x1={LEFT}
+            x2={RIGHT}
+            y1={points.pricePrev}
+            y2={points.priceNow}
+          />
+          {points.crossing && (
+            <circle
+              className="calc-chart-crossing"
+              cx={points.crossing.x}
+              cy={points.crossing.y}
+              r="6"
+            />
+          )}
           <circle
-            cx={x1}
-            cy="22"
-            r="5"
-            fill="var(--bg)"
-            stroke="currentColor"
-            strokeWidth="2"
+            className="calc-chart-yesterday"
+            cx={LEFT}
+            cy={points.pricePrev}
+            r="3"
           />
-        )}
-        {after !== null && <circle cx={x2} cy="22" r="5" fill="currentColor" />}
-      </svg>
-      <small>Center line: 200-day average. Input visualization only.</small>
-      {view && (
-        <span className="track-record-calculator-cross">
-          {view.cross === 1 && <MarkerGlyph action="sell" />}Contract:{' '}
-          {['missing', 'above', 'below', 'at'][view.zone]}
-          {view.cross === 1
-            ? ' — crossed below'
-            : view.cross === 2
-              ? ' — crossed above'
-              : ' — no cross'}
-        </span>
+          <circle cx={RIGHT} cy={points.priceNow} r="3.5" fill="currentColor" />
+        </svg>
+      ) : (
+        <p className="calc-chart-missing" role="img" aria-label={label}>
+          Missing data
+        </p>
       )}
+      <span className="calc-chart-distance">
+        {before ?? '—'} → {after ?? '—'}
+      </span>
     </div>
   );
 }

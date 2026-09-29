@@ -3300,281 +3300,776 @@
   }
 }
 
-/* Research calculator uses the same asset colors and type as track record. */
+/* On-chain calculator: track-record asset colours and type, one raised surface
+   (the contract answer), everything else on hairlines. */
 .shell-root .track-record-calculator {
   display: grid;
-  gap: 24px;
-}
-.shell-root .track-record-calculator :where(div, section, aside, form, header) {
-  min-width: 0;
-}
-.shell-root .track-record-calculator h1 {
-  font-family: var(--font-serif), Georgia, serif;
-  font-weight: 400;
-  font-size: clamp(2.5rem, 5vw, 4rem);
-  line-height: 1.1;
-  margin: 0;
-}
-.shell-root .track-record-calculator h2 {
-  font-size: 1.25rem;
-  margin: 12px 0;
-}
-.shell-root .track-record-calculator h3 {
-  font-size: 1rem;
-  margin: 16px 0;
-}
-.shell-root .track-record-calculator p {
-  line-height: 1.65;
-}
-.shell-root .track-record-calculator header {
-  max-width: 740px;
-}
-.shell-root .track-record-calculator .pending-badge {
-  text-transform: none;
-  letter-spacing: normal;
-  display: inline-block;
-  max-width: 100%;
-  white-space: normal;
-  line-height: 1.7;
-}
-.shell-root .track-record-calculator-identity {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px 20px;
-  padding: 18px 0;
-  border-block: 1px solid var(--line);
-  font-size: 0.8rem;
-  overflow-wrap: anywhere;
-}
-.shell-root .track-record-calculator-identity code {
-  white-space: nowrap;
-  display: inline-block;
-  vertical-align: bottom;
-  max-width: 130px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.shell-root .track-record-calculator-scenarios {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: center;
-}
-.shell-root .track-record-calculator button {
-  cursor: pointer;
-}
-.shell-root .track-record-calculator-scenarios button,
-.shell-root .track-record-calculator-identity button,
-.shell-root .track-record-calculator-restore {
-  border: 1px solid var(--line-hi);
-  border-radius: var(--radius-control);
-  background: transparent;
-  padding: 10px 12px;
-  color: var(--ink);
-  font-size: 0.8rem;
-}
-.shell-root .track-record-calculator-scenarios button[aria-pressed='true'] {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: var(--surface);
-}
-.shell-root .track-record-calculator-restore {
-  justify-self: start;
-}
-.shell-root .track-record-calculator-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
   gap: 40px;
-  align-items: start;
-}
-.shell-root .track-record-calculator-answer {
-  position: sticky;
-  top: 90px;
-  border: 1px solid var(--line-hi);
-  border-radius: var(--radius-card);
-  padding: 28px;
-  background: var(--surface);
-  box-shadow: 0 12px 40px #0002;
-}
-.shell-root .track-record-calculator-verdict {
-  font-family: var(--font-serif), Georgia, serif;
-  font-size: clamp(1.8rem, 3vw, 2.5rem);
-  line-height: 1.2 !important;
-}
-.shell-root .track-record-calculator-backtest {
-  border-top: 1px solid var(--line);
-  padding-top: 20px;
-  color: var(--ink-dim);
-}
-.shell-root .track-record-calculator-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 32px;
-}
-.shell-root .track-record-calculator-limits {
-  border-top: 1px solid var(--line);
-  padding-top: 20px;
-}
-.shell-root .track-record-calculator fieldset {
-  border: 0;
-  padding: 0;
-  margin: 0;
-  min-width: 0;
-}
-.shell-root .track-record-calculator-asset {
-  border-top: 1px solid var(--line);
-  padding: 20px 0;
-}
-.shell-root .track-record-calculator-input-row {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  margin: 12px 0;
-}
-.shell-root .track-record-calculator label {
-  display: grid;
-  gap: 6px;
-  font-size: 0.8rem;
-}
-.shell-root .track-record-calculator input:not([type='checkbox']) {
-  width: 100%;
-  min-width: 0;
-  padding: 10px;
-  border: 1px solid var(--line-hi);
-  border-radius: var(--radius-control);
-  background: var(--bg);
-  color: var(--ink);
-  font-family: var(--font-mono), monospace;
-  font-size: 0.8rem;
-  font-variant-numeric: tabular-nums;
-}
-.shell-root .track-record-calculator input[aria-invalid='true'] {
-  border-color: var(--danger, var(--accent));
-}
-.shell-root .track-record-calculator-weights {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 20px;
-}
-.shell-root .track-record-calculator .track-record-calculator-check {
-  display: flex;
-  align-items: center;
-  margin: 20px 0;
-}
-.shell-root .track-record-calculator-button {
-  background: var(--accent);
-  color: var(--bg);
-  padding: 14px 20px;
-  border-radius: var(--radius-control);
-  border: 0;
-  width: 100%;
-  margin: 16px 0;
-}
-.shell-root .track-record-calculator button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+  font-size: 0.9375rem;
 }
 .shell-root
   .track-record-calculator
-  :where(button, input, summary, a):focus-visible {
-  outline: 3px solid var(--accent);
-  outline-offset: 3px;
+  :where(div, section, aside, form, header, dl, label) {
+  min-width: 0;
 }
-.shell-root .track-record-calculator pre {
-  max-width: 100%;
-  overflow: auto;
-  background: var(--bg-2);
-  padding: 16px;
-  font-size: 0.75rem;
+.shell-root .track-record-calculator :where(h1, h2, h3, p, dl, dd, ul) {
+  margin: 0;
 }
-.shell-root .track-record-calculator :where(code, pre, b),
-.shell-root .track-record-calculator-track span {
-  font-family: var(--font-mono), monospace;
+.shell-root
+  .track-record-calculator
+  :where(code, pre, input, .calc-day, .calc-chart-distance, .calc-status),
+.shell-root .track-record-calculator :where(.calc-receipt, .calc-compare td) {
+  font-family: var(--font-mono), ui-monospace, monospace;
   font-variant-numeric: tabular-nums;
 }
-.shell-root .track-record-calculator summary {
+.shell-root .track-record-calculator :where(a) {
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--line-hi);
+  text-underline-offset: 3px;
+}
+.shell-root .track-record-calculator :where(a):hover {
+  text-decoration-color: var(--ink-dim);
+}
+.shell-root .track-record-calculator :where(button, summary) {
   cursor: pointer;
+}
+.shell-root .track-record-calculator :where(button, a, summary):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* Hero */
+.shell-root .calc-hero {
+  display: grid;
+  gap: 16px;
+  max-width: 46rem;
+}
+.shell-root .calc-hero h1 {
+  font-family: var(--font-serif), Georgia, serif;
+  font-weight: 400;
+  font-size: clamp(2.75rem, 5.5vw, 4.25rem);
+  line-height: 1;
+  letter-spacing: -0.01em;
+}
+.shell-root .calc-hero p {
+  max-width: 38rem;
+  color: var(--ink-dim);
+  font-size: 1.0625rem;
+  line-height: 1.6;
+}
+.shell-root .calc-hero .calc-disclosure {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8125rem;
+}
+.shell-root .calc-disclosure::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--warning);
+}
+
+/* Contract identity */
+.shell-root .calc-identity {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 56px;
+  padding: 20px 0;
+  border-block: 1px solid var(--line);
+}
+.shell-root .calc-identity dt {
+  margin-bottom: 6px;
+  color: var(--ink-dim);
+  font-size: 0.75rem;
+}
+.shell-root .calc-identity dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+  font-size: 0.875rem;
+}
+.shell-root .calc-identity code {
+  font-size: 0.8125rem;
+}
+.shell-root .calc-pending {
+  color: var(--warning);
+}
+.shell-root .track-record-calculator .calc-link,
+.shell-root .calc-verify-body button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.8125rem;
+  text-decoration: underline;
+  text-decoration-color: var(--accent-muted);
+  text-underline-offset: 3px;
+}
+
+/* Scenario */
+.shell-root .calc-scenarios {
+  display: grid;
+  gap: 12px;
+}
+.shell-root .calc-scenarios h2 {
+  color: var(--ink-dim);
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+.shell-root .calc-segments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 4px;
+  border: 1px solid var(--line-hi);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+}
+.shell-root .calc-segments button {
+  padding: 9px 14px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-dim);
+  font: inherit;
+  font-size: 0.875rem;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
+}
+.shell-root .calc-segments button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--ink);
+}
+.shell-root .calc-segments button[aria-pressed='true'] {
+  background: var(--surface-elevated);
+  box-shadow: inset 0 0 0 1px var(--line-hi);
+  color: var(--ink);
+}
+.shell-root .calc-scenario-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 16px;
+  color: var(--ink-dim);
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+
+/* Layout */
+.shell-root .calc-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 400px);
+  gap: 48px;
+  align-items: start;
+}
+.shell-root .calc-main {
+  display: grid;
+  gap: 28px;
+}
+.shell-root .calc-inputs fieldset {
+  display: grid;
+  gap: 44px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.shell-root .calc-section {
+  display: grid;
+  gap: 16px;
+}
+.shell-root .calc-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: end;
+  gap: 16px 24px;
+}
+.shell-root .calc-section-head h2 {
+  font-size: 1.0625rem;
+  font-weight: 500;
+}
+.shell-root .calc-section-head p {
+  margin-top: 4px;
+  color: var(--ink-dim);
+  font-size: 0.875rem;
+}
+
+/* Fields */
+.shell-root .calc-input,
+.shell-root .calc-date input {
+  width: 100%;
+  min-width: 0;
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--line-hi);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--ink);
+  font-size: 0.8125rem;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+.shell-root .calc-input {
+  text-align: right;
+}
+.shell-root .calc-input:hover,
+.shell-root .calc-date input:hover {
+  border-color: rgba(255, 255, 255, 0.28);
+}
+.shell-root .calc-input:focus,
+.shell-root .calc-date input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  background: var(--bg);
+}
+.shell-root .track-record-calculator [aria-invalid='true'] {
+  border-color: var(--error);
+}
+.shell-root .calc-inputs fieldset:disabled .calc-input {
+  opacity: 0.6;
+}
+.shell-root .calc-date {
+  display: grid;
+  gap: 6px;
+  color: var(--ink-dim);
+  font-size: 0.75rem;
+}
+.shell-root .calc-date input {
+  width: 11.5rem;
+  color-scheme: dark;
+}
+.shell-root .calc-error {
+  color: var(--error);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+.shell-root .calc-footnote {
+  color: var(--ink-dim);
+  font-size: 0.8125rem;
+  line-height: 1.55;
+}
+
+/* Market table: one row per day, the price-vs-average chart spans both. */
+.shell-root .calc-market {
+  border-bottom: 1px solid var(--line);
+}
+.shell-root .calc-market-head,
+.shell-root .calc-asset {
+  display: grid;
+  grid-template-columns:
+    3.5rem 3.25rem minmax(0, 1fr) minmax(0, 1fr)
+    9.5rem;
+  column-gap: 10px;
+  align-items: center;
+}
+.shell-root .calc-market-head {
+  padding-bottom: 8px;
+  color: var(--ink-dim);
+  font-size: 0.75rem;
+}
+.shell-root .calc-market-head > span:nth-child(3),
+.shell-root .calc-market-head > span:nth-child(4) {
+  padding-right: 11px;
+  text-align: right;
+}
+.shell-root .calc-legend {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.6875rem;
+}
+.shell-root .calc-legend i {
+  width: 14px;
+  border-top: 2px solid var(--ink-dim);
+}
+.shell-root .calc-legend .calc-legend-average {
+  margin-left: 6px;
+  border-top: 1.5px dashed var(--ink-dim);
+}
+.shell-root .calc-asset {
+  row-gap: 6px;
   padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+.shell-root .calc-asset-name {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  font-size: 0.9375rem;
   font-weight: 600;
 }
-.shell-root .track-record-calculator-match {
-  color: var(--event-spy);
+.shell-root .calc-day {
+  color: var(--ink-dim);
+  font-size: 0.75rem;
 }
-.shell-root .track-record-calculator-error {
-  color: var(--danger, var(--accent));
+.shell-root .calc-chart {
+  grid-column: 5;
+  grid-row: 1 / span 2;
+  display: grid;
+  gap: 4px;
+  justify-items: end;
 }
-.shell-root .track-record-calculator-stale {
-  opacity: 0.5;
+.shell-root .calc-chart svg {
+  width: 100%;
+  height: 48px;
+  overflow: visible;
 }
-.shell-root .track-record-calculator-track > div {
+.shell-root .calc-chart-price {
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.shell-root .calc-chart-average {
+  stroke: var(--ink-dim);
+  stroke-width: 1.25;
+  stroke-dasharray: 3 3;
+}
+.shell-root .calc-chart-crossing {
+  fill: none;
+  stroke: currentColor;
+  stroke-opacity: 0.45;
+  stroke-width: 1;
+}
+.shell-root .calc-chart-yesterday {
+  fill: var(--bg);
+  stroke: currentColor;
+  stroke-width: 1.5;
+}
+.shell-root .calc-chart-distance {
+  color: var(--ink-dim);
+  font-size: 0.6875rem;
+  white-space: nowrap;
+}
+.shell-root .calc-chart-missing {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 48px;
+  color: var(--ink-dim);
+  font-size: 0.75rem;
+}
+.shell-root .calc-asset .calc-error {
+  grid-column: 2 / -1;
+}
+
+/* Portfolio */
+.shell-root .calc-bar.allocation-bar {
+  gap: 2px;
+  border-radius: 3px;
+  background: transparent;
+}
+.shell-root .calc-bar .allocation-bar-segment {
+  border-radius: 2px;
+}
+.shell-root .calc-weights {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+.shell-root .calc-weights label {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  color: var(--ink-dim);
+  font-size: 0.75rem;
+}
+.shell-root .calc-weights label > span:first-child {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.shell-root .calc-swatch {
+  display: inline-block;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: 2px;
+  vertical-align: 1px;
+}
+.shell-root .calc-weights .calc-swatch {
+  margin-right: 0;
+}
+.shell-root .calc-percent {
+  position: relative;
+}
+.shell-root .calc-percent::after {
+  content: '%';
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  color: var(--ink-dim);
+  font-size: 0.75rem;
+  pointer-events: none;
+}
+.shell-root .calc-percent .calc-input {
+  padding-right: 24px;
+}
+.shell-root .calc-section-head .calc-total {
+  color: var(--success);
+  font-size: 0.8125rem;
+}
+
+/* Rule state */
+.shell-root .calc-rule {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 20px 48px;
+}
+.shell-root .calc-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 38px;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+.shell-root .calc-toggle input {
+  appearance: none;
+  position: relative;
+  flex: none;
+  width: 36px;
+  height: 20px;
+  margin: 0;
+  border-radius: 999px;
+  background: var(--line-hi);
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+.shell-root .calc-toggle input::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--ink);
+  transition: transform 0.2s var(--easing-primary);
+}
+.shell-root .calc-toggle input:checked {
+  background: var(--accent);
+}
+.shell-root .calc-toggle input:checked::before {
+  transform: translateX(16px);
+  background: var(--bg);
+}
+.shell-root .calc-toggle input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.shell-root .calc-note {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  border-left: 2px solid var(--warning);
+  background: rgba(232, 176, 75, 0.06);
+  font-size: 0.8125rem;
+}
+
+/* Contract answer: the only raised surface. */
+.shell-root .calc-answer {
+  position: sticky;
+  top: 24px;
+  display: grid;
+  gap: 20px;
+  padding: 24px;
+  border: 1px solid var(--line-hi);
+  border-radius: var(--radius-card);
+  background: linear-gradient(
+    180deg,
+    var(--surface-elevated),
+    var(--surface) 160px
+  );
+  box-shadow: 0 24px 48px -24px rgba(0, 0, 0, 0.7);
+}
+.shell-root .calc-answer-head {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 12px;
 }
-.shell-root .track-record-calculator-track span {
+.shell-root .calc-answer-head h2 {
+  color: var(--ink-dim);
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+.shell-root .calc-status {
+  padding: 3px 9px;
+  border: 1px solid var(--line-hi);
+  border-radius: 999px;
+  color: var(--ink-dim);
+  font-size: 0.6875rem;
+}
+.shell-root .calc-status[data-tone='done'] {
+  border-color: rgba(122, 216, 143, 0.35);
+  color: var(--success);
+}
+.shell-root .calc-status[data-tone='busy'] {
+  border-color: var(--accent-muted);
+  color: var(--accent);
+}
+.shell-root .calc-status[data-tone='error'] {
+  border-color: rgba(255, 111, 97, 0.4);
+  color: var(--error);
+}
+.shell-root .calc-answer-body {
+  display: grid;
+  gap: 16px;
+}
+.shell-root .calc-verdict {
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: clamp(1.75rem, 2.6vw, 2.125rem);
+  line-height: 1.1;
+}
+.shell-root .calc-reason {
+  color: var(--ink-dim);
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+.shell-root .calc-reference {
+  display: grid;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.shell-root .calc-reference h3 {
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+.shell-root .calc-reference p {
+  color: var(--ink-dim);
+  font-size: 0.8125rem;
+  line-height: 1.55;
+}
+.shell-root .calc-compare {
+  display: grid;
+  gap: 14px;
+}
+.shell-root .calc-compare-bars {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr);
+  align-items: center;
+  gap: 8px 12px;
+  color: var(--ink-dim);
   font-size: 0.75rem;
 }
-.shell-root .track-record-calculator-track > svg {
+.shell-root .calc-compare table {
   width: 100%;
-  height: 64px;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
 }
-.shell-root .track-record-calculator-track small {
+.shell-root .calc-compare :where(th, td) {
+  padding: 7px 0;
+  border-top: 1px solid var(--line);
+  font-weight: 400;
+  text-align: right;
+}
+.shell-root .calc-compare thead th {
+  padding-top: 0;
+  border-top: 0;
   color: var(--ink-dim);
-  font-size: 0.7rem;
+  font-size: 0.75rem;
 }
-.shell-root .track-baseline {
-  stroke: var(--line-hi);
+.shell-root .calc-compare :where(th:first-child) {
+  text-align: left;
 }
-.shell-root .track-average {
-  stroke: var(--ink);
-  stroke-width: 2;
+.shell-root .calc-compare td {
+  color: var(--ink-dim);
 }
-.shell-root .track-record-calculator-cross {
-  display: flex;
-  gap: 6px;
+.shell-root .calc-compare .calc-changed td:last-child {
+  color: var(--ink);
+  font-weight: 600;
+}
+.shell-root .calc-outcomes {
+  display: grid;
+  gap: 8px;
+  padding: 0;
+  list-style: none;
+  font-size: 0.8125rem;
+}
+.shell-root .calc-outcomes li {
+  display: grid;
+  grid-template-columns: 3.25rem minmax(0, 1fr);
+  gap: 8px;
+}
+.shell-root .calc-outcomes b {
+  display: inline-flex;
   align-items: center;
-  margin-top: 8px;
+  gap: 5px;
+  font-weight: 600;
 }
-.shell-root .track-record-calculator-cross svg {
-  width: 12px;
-  height: 12px;
+.shell-root .calc-outcomes b svg {
+  width: 9px;
+  height: 9px;
   fill: currentColor;
 }
-.shell-root .track-record-calculator-allocation > div:last-child {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 14px;
-  margin: 10px 0;
-  font-size: 0.7rem;
+.shell-root .calc-outcomes span {
+  color: var(--ink);
 }
+.shell-root .calc-match {
+  color: var(--success);
+  font-size: 0.875rem;
+}
+.shell-root .calc-receipt {
+  color: var(--ink-dim);
+  font-size: 0.6875rem;
+}
+.shell-root .calc-stale > :not(.calc-stale-note) {
+  opacity: 0.4;
+}
+.shell-root .calc-stale-note {
+  color: var(--warning);
+  font-size: 0.8125rem;
+}
+.shell-root .calc-answer > .calc-error {
+  padding: 12px 14px;
+  border-left: 2px solid var(--error);
+  background: rgba(255, 111, 97, 0.06);
+}
+.shell-root .calc-call {
+  height: 48px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: var(--accent);
+  color: var(--bg);
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  transition: filter 0.15s;
+}
+.shell-root .calc-call:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+.shell-root .calc-call:disabled {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--line-hi);
+  color: var(--ink-dim);
+  cursor: not-allowed;
+}
+
+/* Disclosure blocks */
+.shell-root .track-record-calculator summary {
+  width: fit-content;
+  color: var(--ink-dim);
+  font-size: 0.8125rem;
+}
+.shell-root .track-record-calculator summary:hover {
+  color: var(--ink);
+}
+.shell-root .track-record-calculator pre {
+  max-height: 320px;
+  margin: 10px 0 0;
+  overflow: auto;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  font-size: 0.6875rem;
+  line-height: 1.6;
+}
+.shell-root .calc-verify-body {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+  color: var(--ink-dim);
+  font-size: 0.8125rem;
+}
+
+/* Limits */
+.shell-root .calc-limits {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 28px 48px;
+  padding-top: 32px;
+  border-top: 1px solid var(--line);
+}
+.shell-root .calc-limits h2 {
+  margin-bottom: 8px;
+  font-size: 0.9375rem;
+  font-weight: 500;
+}
+.shell-root .calc-limits p {
+  max-width: 34rem;
+  color: var(--ink-dim);
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+.shell-root .calc-doc-link {
+  font-size: 0.875rem;
+}
+
 @media (max-width: 1099px) {
-  .shell-root .track-record-calculator-layout {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: 24px;
+  .shell-root .calc-layout {
+    grid-template-columns: minmax(0, 1fr);
   }
-  .shell-root .track-record-calculator-answer {
+  .shell-root .calc-answer {
     position: static;
+  }
+}
+@media (max-width: 639px) {
+  .shell-root .track-record-calculator {
+    gap: 32px;
+  }
+  .shell-root .calc-identity {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px 24px;
+  }
+  .shell-root .calc-segments {
+    width: 100%;
+  }
+  .shell-root .calc-segments button {
+    flex: 1 1 auto;
+  }
+  .shell-root .calc-market-head,
+  .shell-root .calc-asset {
+    grid-template-columns: 3rem minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .shell-root .calc-market-head > span:first-child,
+  .shell-root .calc-market-head > .calc-legend {
+    display: none;
+  }
+  .shell-root .calc-asset-name {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+  .shell-root .calc-chart {
+    grid-column: 2 / -1;
+    grid-row: 4;
+    grid-template-columns: 9rem auto;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 4px;
+  }
+  .shell-root .calc-asset .calc-error {
+    grid-column: 1 / -1;
+  }
+  .shell-root .calc-weights {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .shell-root .calc-date input {
+    width: 100%;
+  }
+  .shell-root .calc-answer {
     padding: 20px;
   }
-}
-@media (max-width: 767px) {
-  .shell-root .track-record-calculator-layout,
-  .shell-root .track-record-calculator-grid {
-    grid-template-columns: 1fr;
-  }
-  .shell-root .track-record-calculator-track > div {
-    flex-wrap: wrap;
-  }
-}
-@media (max-width: 479px) {
-  .shell-root .track-record-calculator-weights {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .shell-root .track-record-calculator-scenarios {
-    align-items: stretch;
+  .shell-root .calc-limits {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 @media (prefers-reduced-motion: reduce) {

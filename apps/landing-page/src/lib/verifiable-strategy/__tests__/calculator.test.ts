@@ -1,11 +1,14 @@
 import { scenarioInput } from '../scenarios';
-import { verdict } from '../verdict';
+import { assetOutcome, verdict } from '../verdict';
 import { decodeFunctionData, type Hex } from 'viem';
 import { describe, expect, it } from 'vitest';
 import {
   decimalToWad,
   dateFromDay,
   dayFromDate,
+  displayDecimal,
+  foldAllocation,
+  previousDate,
   validateInput,
   distancePercent,
   encodeInputs,
@@ -217,5 +220,72 @@ describe('guided inputs', () => {
     expect(
       verdict({ ...exit, trigger_mask: 1, liquidated_mask: 1 }).title,
     ).toBe('Move SPY to stablecoins.');
+  });
+  it('rounds idle cells for display without touching the encoded string', () => {
+    expect(displayDecimal('108076.72862033')).toBe('108,076.73');
+    expect(displayDecimal('90')).toBe('90.00');
+    expect(displayDecimal('0.995')).toBe('1.00');
+    expect(displayDecimal('0.000000000001')).toBe('<0.01');
+    expect(displayDecimal('0')).toBe('0.00');
+    expect(displayDecimal('12.5', 0)).toBe('13');
+    expect(displayDecimal('1,2')).toBe('1,2');
+    expect(displayDecimal('')).toBe('');
+  });
+  it('derives the previous day and folds Alt into Stable exactly', () => {
+    expect(previousDate('2025-10-18')).toBe('2025-10-17');
+    expect(previousDate('2025-03-01')).toBe('2025-02-28');
+    expect(previousDate('not a date')).toBe('');
+    expect(foldAllocation(['10', '20', '30', '35', '5'])).toEqual([
+      percentToWad('10'),
+      percentToWad('20'),
+      percentToWad('30'),
+      percentToWad('40'),
+    ]);
+    expect(foldAllocation(['bad', '100', '0', '0', '0'])[0]).toBe(0n);
+  });
+  it('describes each asset from observe views and exit masks', () => {
+    const view = {
+      zone: 2,
+      cross: 1,
+      actionable_cross: 1,
+      active: false,
+      remaining: 0,
+      blocked: 0,
+      distance: 0n,
+    };
+    const exit = {
+      matched: true,
+      cooled_off: false,
+      remaining_days: 0,
+      trigger_mask: 2,
+      exit_mask: 6,
+      liquidated_mask: 6,
+      target: [],
+    };
+    expect(assetOutcome(view, 1, exit)).toEqual({
+      crossedDown: true,
+      text: 'Crossed below its average',
+    });
+    expect(
+      assetOutcome({ ...view, zone: 1, cross: 0, actionable_cross: 0 }, 2, exit)
+        .text,
+    ).toBe('Above its average · exits with BTC');
+    expect(
+      assetOutcome(
+        { ...view, actionable_cross: 0, active: true, remaining: 4 },
+        0,
+        exit,
+      ).text,
+    ).toBe(
+      'Crossed below, held by its DMA cooldown · DMA cooldown, 4 days left',
+    );
+    expect(
+      assetOutcome({ ...view, zone: 1, cross: 2, actionable_cross: 2 }, 0, exit)
+        .text,
+    ).toBe('Crossed above its average');
+    expect(
+      assetOutcome({ ...view, zone: 0, cross: 0, actionable_cross: 0 }, 0, exit)
+        .text,
+    ).toBe('No data');
   });
 });

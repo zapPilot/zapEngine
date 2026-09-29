@@ -163,3 +163,46 @@ export function distancePercent(
     return null;
   }
 }
+
+export function previousDate(date: string): string {
+  try {
+    return dateFromDay(epochDay(date) - 1);
+  } catch {
+    return '';
+  }
+}
+
+// Display-only rounding for idle inputs; the raw string is what gets encoded.
+export function displayDecimal(value: string, fraction = 2): string {
+  const match = /^(\d+)(?:\.(\d+))?$/.exec(value);
+  if (!match) return value;
+  const whole = match[1]!;
+  const digits = match[2] ?? '';
+  const scaled = BigInt(
+    whole + digits.padEnd(fraction + 1, '0').slice(0, fraction + 1),
+  );
+  const rounded = ((scaled + 5n) / 10n).toString().padStart(fraction + 1, '0');
+  if (/^0+$/.test(rounded) && /[1-9]/.test(digits))
+    return `<0.${'1'.padStart(fraction, '0')}`;
+  const integer = rounded
+    .slice(0, rounded.length - fraction)
+    .replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return fraction ? `${integer}.${rounded.slice(-fraction)}` : integer;
+}
+
+// BTC/ETH/SPY/Stable shares with Alt folded into Stable, as the contract does.
+export function foldAllocation(percents: readonly string[]): bigint[] {
+  const wad = percents.map((value) => {
+    try {
+      return percentToWad(value);
+    } catch {
+      return 0n;
+    }
+  });
+  return [
+    wad[0] ?? 0n,
+    wad[1] ?? 0n,
+    wad[2] ?? 0n,
+    (wad[3] ?? 0n) + (wad[4] ?? 0n),
+  ];
+}

@@ -1,13 +1,41 @@
-import { wadToPercent } from '@/lib/verifiable-strategy/encoding';
-import { verdict } from '@/lib/verifiable-strategy/verdict';
+import { MarkerGlyph } from '@/components/track-record/chartMarkers';
+import {
+  ASSETS,
+  decimalToWad,
+  foldAllocation,
+  wadToPercent,
+} from '@/lib/verifiable-strategy/encoding';
+import { assetOutcome, verdict } from '@/lib/verifiable-strategy/verdict';
 import type {
   CalculatorInput,
   CalculatorResult,
   Dataset,
   Example,
 } from '@/lib/verifiable-strategy/types';
-import { AllocationPreview } from './AllocationPreview';
+import { AllocationCompare } from './AllocationPreview';
 import { VerifyYourself } from './VerifyYourself';
+
+const OUTCOME_ORDER = [1, 2, 0] as const;
+
+function BacktestReference({ example }: { example: Example }) {
+  const event = example.publishedEvent;
+  return (
+    <section className="calc-reference" aria-label="Python backtest reference">
+      <h3>Python backtest on {example.date}</h3>
+      <p>
+        It moved {event.fromAssets.join(' and ')} (
+        {event.amountPercent.toFixed(2)}% of the portfolio) to stablecoins. This
+        is the published backtest, not a contract answer.
+      </p>
+      <AllocationCompare
+        before={foldAllocation(
+          example.allocation.map((value) => wadToPercent(BigInt(value.wad))),
+        )}
+        after={example.expected.pythonTarget.map(decimalToWad)}
+      />
+    </section>
+  );
+}
 
 export function ContractAnswer({
   result,
@@ -31,12 +59,12 @@ export function ContractAnswer({
   error: string;
 }) {
   const answer = result ? verdict(result.exit) : null;
+  const executable = !!result?.exit.matched && !result.exit.cooled_off;
   const match =
     result &&
     historical &&
     !stale &&
-    result.exit.matched &&
-    !result.exit.cooled_off &&
+    executable &&
     result.exit.target.length === example.expected.pyrevmTarget.length &&
     result.exit.target.every(
       (v, i) => v.toString() === example.expected.pyrevmTarget[i],
@@ -44,83 +72,109 @@ export function ContractAnswer({
     result.exit.trigger_mask === example.expected.triggerMask &&
     result.exit.exit_mask === example.expected.exitMask &&
     result.exit.liquidated_mask === example.expected.liquidatedMask;
+  const [status, tone] = running
+    ? ['Calling…', 'busy']
+    : error
+      ? ['Call failed', 'error']
+      : stale
+        ? ['Inputs changed', 'muted']
+        : result
+          ? [`Block ${result.blockNumber.toString()}`, 'done']
+          : data.deployment
+            ? ['Ready', 'done']
+            : ['Not deployed', 'muted'];
   return (
-    <aside
-      className="track-record-calculator-answer"
-      aria-live="polite"
-      aria-busy={running}
-    >
-      <h2>Contract answer</h2>
-      {!data.deployment && (
-        <>
-          <p className="track-record-calculator-verdict">
-            Ready when the contract is.
-          </p>
-          <p>
-            Contract not deployed yet. Calls open once it’s live on Arbitrum
-            Sepolia. You can already edit every input.
-          </p>
-          <p className="track-record-calculator-backtest">
-            <strong>Python backtest event</strong>
-            <br />
-            On {example.date} the Python backtest moved{' '}
-            {example.publishedEvent.fromAssets.join(' and ')} (
-            {example.publishedEvent.amountPercent.toFixed(2)}%) to stablecoins.
-            This is a backtest result, not an on-chain answer.
-          </p>
-        </>
-      )}
-      {data.deployment && !result && (
-        <p>
-          Edit the inputs, then call the deployed contract to see its answer.
-        </p>
-      )}
-      {stale && <p>Previous answer — inputs changed</p>}
-      {result && answer && (
-        <div className={stale ? 'track-record-calculator-stale' : ''}>
-          <p className="track-record-calculator-verdict">{answer.title}</p>
-          <p>{answer.reason}</p>
-          {submitted && (
-            <>
-              <h3>Before</h3>
-              <AllocationPreview
-                values={submitted.allocation}
-                label="Submitted allocation before"
-              />
-            </>
+    <aside className="calc-answer" aria-live="polite" aria-busy={running}>
+      <header className="calc-answer-head">
+        <h2>Contract answer</h2>
+        <span className="calc-status" data-tone={tone}>
+          {status}
+        </span>
+      </header>
+      {result && answer ? (
+        <div
+          className={stale ? 'calc-answer-body calc-stale' : 'calc-answer-body'}
+        >
+          {stale && (
+            <p className="calc-stale-note">Previous answer — inputs changed</p>
           )}
-          <h3>
-            {result.exit.matched && !result.exit.cooled_off
-              ? 'After'
-              : 'Candidate target (no executable exit)'}
-          </h3>
-          <AllocationPreview
-            values={result.exit.target.map(wadToPercent)}
-            label="Contract target allocation"
-          />
-          {match && (
-            <p className="track-record-calculator-match">
-              ✓ Same result as the Python backtest
-            </p>
+          <p className="calc-verdict">{answer.title}</p>
+          <p className="calc-reason">{answer.reason}</p>
+          {submitted && result.exit.matched ? (
+            <AllocationCompare
+              before={foldAllocation(submitted.allocation)}
+              after={result.exit.target}
+              afterLabel={executable ? 'After' : 'If ready'}
+            />
+          ) : (
+            <p className="calc-footnote">The allocation stays as entered.</p>
+          )}
+          <ul className="calc-outcomes">
+            {OUTCOME_ORDER.map((index) => {
+              const outcome = assetOutcome(
+                result.views[index]!,
+                index,
+                result.exit,
+              );
+              const asset = ASSETS[index];
+              return (
+                <li
+                  key={asset}
+                  style={{ color: `var(--event-${asset.toLowerCase()})` }}
+                >
+                  <b>
+                    {asset}
+                    {outcome.crossedDown && <MarkerGlyph action="sell" />}
+                  </b>
+                  <span>{outcome.text}</span>
+                </li>
+              );
+            })}
+          </ul>
+          {!stale && match && (
+            <p className="calc-match">✓ Same result as the Python backtest</p>
           )}
           {!stale && !historical && (
-            <p>Custom inputs — no historical-match claim.</p>
+            <p className="calc-footnote">
+              Custom inputs, so there is no historical comparison.
+            </p>
           )}
           {!stale && historical && !match && (
-            <p>Does not match the published decision.</p>
+            <p className="calc-footnote">
+              Does not match the published decision.
+            </p>
           )}
-          <p>
-            {result.steps.length} calls · block {result.blockNumber.toString()}
+          <p className="calc-receipt">
+            {result.steps.length} read-only calls at block{' '}
+            {result.blockNumber.toString()}
           </p>
+        </div>
+      ) : (
+        <div className="calc-answer-body">
+          <p className="calc-verdict">
+            {running
+              ? 'Asking the contract…'
+              : data.deployment
+                ? 'Ready to call.'
+                : 'Waiting for deployment.'}
+          </p>
+          <p className="calc-reason">
+            {running
+              ? 'Three read-only calls to Arbitrum Sepolia: warmup, observe, then cross_down_exit.'
+              : data.deployment
+                ? 'Send these inputs to the deployed contract to see what it decides.'
+                : 'Contract not deployed yet. Calls open once it’s live on Arbitrum Sepolia. Every input already works.'}
+          </p>
+          <BacktestReference example={example} />
         </div>
       )}
       {error && (
-        <p role="alert" className="track-record-calculator-error">
+        <p role="alert" className="calc-error">
           {error}
         </p>
       )}
       <button
-        className="track-record-calculator-button"
+        className="calc-call"
         form="strategy-calculator"
         type="submit"
         disabled={disabled || running}
@@ -128,9 +182,9 @@ export function ContractAnswer({
         {running ? 'Calling Arbitrum Sepolia…' : 'Call contract'}
       </button>
       {result && data.deployment && (
-        <details>
+        <details className="calc-verify">
           <summary>
-            Verify it yourself (cast / curl){stale ? ' — previous inputs' : ''}
+            Verify it yourself{stale ? ' (previous inputs)' : ''}
           </summary>
           <VerifyYourself result={result} deployment={data.deployment} />
         </details>

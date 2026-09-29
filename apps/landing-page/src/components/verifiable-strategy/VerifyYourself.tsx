@@ -22,8 +22,7 @@ export function VerifyYourself({
     }
   }
   return (
-    <section className="track-record-calculator-verify">
-      <h2>Verify it yourself</h2>
+    <div className="calc-verify-body">
       <p>
         Each call includes the exact inputs used above, pinned to the same
         block. No wallet or transaction is needed.
@@ -57,6 +56,6 @@ export function VerifyYourself({
           )}
         </pre>
       </details>
-    </section>
+    </div>
   );
 }

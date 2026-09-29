@@ -47,8 +47,8 @@ function ExampleCalculator({
   const [result, setResult] = useState<CalculatorResult | null>(null);
   const [submitted, setSubmitted] = useState<CalculatorInput | null>(null);
   const [error, setError] = useState('');
-  const historical =
-    scenario === 'real' && JSON.stringify(input) === JSON.stringify(original);
+  const edited = JSON.stringify(input) !== JSON.stringify(original);
+  const historical = scenario === 'real' && !edited;
   function change(value: CalculatorInput, selected: Scenario | null = null) {
     setInput(value);
     setScenario(selected);
@@ -86,27 +86,36 @@ function ExampleCalculator({
       <ScenarioPicker
         date={example.date}
         selected={scenario}
+        edited={edited}
         disabled={state === 'calling'}
         onSelect={(selected) =>
           change(scenarioInput(example, selected), selected)
         }
+        onRestore={() => change(original, 'real')}
       />
-      <button
-        className="track-record-calculator-restore"
-        type="button"
-        disabled={state === 'calling'}
-        onClick={() => change(original, 'real')}
-      >
-        Restore real inputs
-      </button>
-      <div className="track-record-calculator-layout">
-        <CalculatorForm
-          input={input}
-          onChange={change}
-          running={state === 'calling'}
-          onRun={() => void run()}
-          result={state === 'done' ? (result ?? undefined) : undefined}
-        />
+      <div className="calc-layout">
+        <div className="calc-main">
+          <CalculatorForm
+            input={input}
+            onChange={change}
+            running={state === 'calling'}
+            onRun={() => void run()}
+          />
+          <details className="calc-provenance">
+            <summary>Recorded example provenance</summary>
+            <pre>
+              {JSON.stringify(
+                {
+                  provenance: example.provenance,
+                  publishedEvent: example.publishedEvent,
+                  expected: example.expected,
+                },
+                null,
+                2,
+              )}
+            </pre>
+          </details>
+        </div>
         <ContractAnswer
           result={result}
           submitted={submitted}
@@ -121,20 +130,6 @@ function ExampleCalculator({
           error={error}
         />
       </div>
-      <details>
-        <summary>Recorded example provenance</summary>
-        <pre>
-          {JSON.stringify(
-            {
-              provenance: example.provenance,
-              publishedEvent: example.publishedEvent,
-              expected: example.expected,
-            },
-            null,
-            2,
-          )}
-        </pre>
-      </details>
     </>
   );
 }
@@ -168,15 +163,15 @@ export function StrategyCalculator({
   }, [data]);
   return (
     <div className="track-record-calculator">
-      <header>
+      <header className="calc-hero">
         <h1>On-chain calculator</h1>
         <p>
           Run one Zap Pilot exit rule on its public Vyper contract. Enter a day
           of prices, call the contract, and see the allocation it returns.
         </p>
-        <span className="pending-badge">
+        <p className="calc-disclosure">
           Research slice: 1 of 6 rules, not the production strategy
-        </span>
+        </p>
       </header>
       <ContractIdentityCard data={data} verification={verification} />
       {example ? (
@@ -186,7 +181,7 @@ export function StrategyCalculator({
           No verified historical example is available for {requested}.
         </p>
       )}
-      <section className="track-record-calculator-grid track-record-calculator-limits">
+      <section className="calc-limits">
         <div>
           <h2>What this proves</h2>
           <p>
@@ -204,9 +199,9 @@ export function StrategyCalculator({
           </p>
         </div>
       </section>
-      <p>
+      <p className="calc-doc-link">
         <Link href="/docs/track-record/verifiable-strategy/">
-          Read the verification method and limitations →
+          Read the verification method and limitations
         </Link>
       </p>
     </div>
