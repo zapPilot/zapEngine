@@ -5,8 +5,8 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  s3Options: undefined,
-  uploadOptions: undefined,
+  s3Options: undefined as unknown,
+  uploadOptions: undefined as unknown,
   done: vi.fn(),
   createReadStream: vi.fn(() => ({ stream: true })),
   requiredEnv: vi.fn((name: string) => {

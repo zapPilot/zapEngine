@@ -819,11 +819,9 @@ function searchIntentScenes(
   const sentenceIndex = new Map(
     sentences.map((sentence) => [sentence.id, sentence.index]),
   );
-  const bodyStartIndex = sections.isPackaged
-    ? (sections.body[0]?.index ?? 0)
-    : 0;
+  const bodyStartIndex = sections.isPackaged ? sections.body[0]!.index : 0;
   const bodyEndIndex = sections.isPackaged
-    ? (sections.body.at(-1)?.index ?? sentences.length - 1)
+    ? sections.body.at(-1)!.index
     : sentences.length - 1;
   const scenes: SearchIntentScene[] = [];
   for (const scene of contentScenes) {

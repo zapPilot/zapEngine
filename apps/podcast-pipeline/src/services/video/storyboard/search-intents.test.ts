@@ -33,6 +33,7 @@ import {
   buildSubjectCatalogSystemPrompt,
   createOpenRouterSearchIntentProvider,
   enrichStoryboardSearchIntents,
+  sceneSearchEntities,
   type SearchIntentProvider,
 } from './search-intents.js';
 import { splitCanonicalSentences } from './sentences.js';
@@ -259,6 +260,34 @@ describe('storyboard search intent enrichment', () => {
     const call = provider.catalog.mock.calls[0]?.[0];
     expect(call?.title).toBe(TITLE);
     expect(call?.scenes[0]).not.toHaveProperty('searchText');
+  });
+
+  it('rejects a packaged content scene whose sentence range sits entirely in the outro', async () => {
+    const script = packagePodcastScript('Body sentence.');
+    const sentences = splitCanonicalSentences(script);
+    const outro = sentences.at(-1)!;
+    const provider = stubCatalogProvider([stablecoinSubject()]);
+
+    await expect(
+      enrichStoryboardSearchIntents(
+        {
+          draft: {
+            scenes: [
+              {
+                sceneId: 'scene-01',
+                startSentenceId: outro.id,
+                endSentenceId: outro.id,
+                imageSearchIntent: ['ordinary-content-photo'],
+              },
+            ],
+          },
+          title: TITLE,
+          script,
+        },
+        { provider },
+      ),
+    ).rejects.toThrow('cannot map every storyboard scene onto canonical');
+    expect(provider.catalog).not.toHaveBeenCalled();
   });
 
   it('skips the brand scene and maps the first English evidence to the first clipped content scene', async () => {
@@ -838,6 +867,23 @@ describe('visual subject catalog degradation', () => {
     );
   });
 
+  it('degrades a literal primitive catalog rejection', async () => {
+    const provider = {
+      model: MODEL,
+      catalog: vi
+        .fn<SearchIntentProvider['catalog']>()
+        .mockRejectedValue('catalog primitive failure'),
+    };
+
+    const result = await enrichStoryboardSearchIntents(
+      catalogEnrichmentRequest('CNBC'),
+      { provider },
+    );
+
+    expect(result.subjectCatalog).toBeNull();
+    expect(result.degradedReason).toContain('catalog primitive failure');
+  });
+
   it('degrades a primitive catalog rejection with the generic bounded reason', async () => {
     const provider = {
       model: MODEL,
@@ -980,6 +1026,67 @@ describe('OpenRouter search intent provider', () => {
     });
   }
 
+  it('reports default diagnostics when the completion exposes no choice metadata', async () => {
+    llmMocks.getOpenRouterConfig.mockReturnValue({
+      openai: {},
+      model: 'openrouter/free',
+      thinkingModel: null,
+      timeoutMs: 120_000,
+    });
+    llmMocks.createCompletionWithRetry.mockResolvedValue({
+      choices: [],
+      provider: '',
+      model: '',
+    });
+
+    await expect(
+      createOpenRouterSearchIntentProvider().catalog({
+        title: SEARCH_TITLE,
+        scenes: [{ sceneId: 'scene-01', text: 'CNBC reported the news.' }],
+      }),
+    ).rejects.toThrow(
+      /provider=unknown, model=openrouter\/free, finishReason=unknown/u,
+    );
+  });
+
+  it('retries a malformed compact subject missing id and type metadata', async () => {
+    vi.clearAllMocks();
+    mockCompletion(
+      JSON.stringify({
+        primarySubjectId: 'subject-cnbc',
+        subjects: [{ canonicalName: 'CNBC', aliases: [] }],
+      }),
+    );
+
+    await expect(
+      createOpenRouterSearchIntentProvider().catalog({
+        title: 'CNBC update',
+        scenes: [{ sceneId: 'scene-01', text: 'CNBC reported the news.' }],
+      }),
+    ).rejects.toThrow(/unknown=invalid-type/u);
+    expect(llmMocks.createCompletionWithRetry).toHaveBeenCalledTimes(2);
+  });
+
+  it('repairs the primary id defensively for a passthrough-only compact payload', async () => {
+    vi.clearAllMocks();
+    mockCompletion(
+      JSON.stringify({
+        primarySubjectId: 'subject-missing',
+        subjects: [null],
+      }),
+    );
+
+    await expect(
+      createOpenRouterSearchIntentProvider().catalog({
+        title: SEARCH_TITLE,
+        scenes: [{ sceneId: 'scene-01', text: 'CNBC reported the news.' }],
+      }),
+    ).resolves.toEqual({
+      primarySubjectId: 'subject-missing',
+      subjects: [null],
+    });
+  });
+
   it('asks for a compact JSON catalog and materializes deterministic search metadata', async () => {
     mockCompletion(CATALOG_JSON);
     const provider = createOpenRouterSearchIntentProvider();
@@ -1121,6 +1228,25 @@ describe('OpenRouter search intent provider', () => {
 });
 
 describe('named-entity-first scene assignment', () => {
+  it('does not duplicate one subject when evidence lists the same scene twice', async () => {
+    const request = catalogEnrichmentRequest('CNBC');
+    const provider = stubCatalogProvider([
+      catalogSubject({ evidenceSceneIds: ['scene-01', 'scene-01'] }),
+    ]);
+
+    const result = await enrichStoryboardSearchIntents(request, { provider });
+
+    expect(result.sceneAssignments[0]?.subjectIds).toEqual(['subject-cnbc']);
+  });
+
+  it('deduplicates aliases that normalize to the canonical search entity', () => {
+    expect(
+      sceneSearchEntities([
+        catalogSubject({ canonicalName: 'CNBC', aliases: ['cnbc'] }),
+      ]),
+    ).toEqual(['CNBC']);
+  });
+
   it('orders the person a scene names ahead of the company it also names', async () => {
     const request = catalogEnrichmentRequest('Amazon CEO Andy Jassy');
     const allSceneIds = request.draft.scenes.map((scene) => scene.sceneId);
