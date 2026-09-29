@@ -22,13 +22,13 @@ export default defineConfig({
         'src/data/**',
       ],
       exclude: ['src/integration/podcastPlayer.ts'],
-      // Ratcheted from the 2026-09-08 measured baseline
-      // (68.34/71.50/72.63/69.10) with ~4 points of churn buffer.
+      // Canonical CI coverage is 100% across every reported dimension as of
+      // 2026-09-29; keep regressions from silently reopening covered paths.
       thresholds: {
-        statements: 64,
-        branches: 67,
-        functions: 68,
-        lines: 65,
+        statements: 100,
+        branches: 100,
+        functions: 100,
+        lines: 100,
       },
     },
   },
