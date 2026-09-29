@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import type { ImageCandidate } from '../../types.js';
 import {
+  candidateHostname,
+  canonicalCandidateUrl,
   decorativeRejection,
+  normalizedSearchTokens,
   partitionViableCandidates,
   searchCandidateScore,
 } from './search-candidate-ranking.js';
@@ -30,6 +33,28 @@ function tokenScoreDelta(matching: ImageCandidate, intent: string): number {
 }
 
 describe('searchCandidateScore token matching', () => {
+  it('covers malformed URLs, empty tokenization, and generic podcast penalties', () => {
+    expect(normalizedSearchTokens('--- !!!')).toEqual([]);
+    expect(candidateHostname('not a url')).toBeNull();
+    expect(canonicalCandidateUrl('not a url')).toBeNull();
+
+    const baseline = searchCandidateScore(
+      candidate({ imageUrl: 'not a url', sourceUrl: 'not a url', altText: '' }),
+      'Ethereum staking',
+      [],
+    );
+    const podcast = searchCandidateScore(
+      candidate({
+        imageUrl: 'not a url',
+        sourceUrl: 'not a url',
+        altText: 'podcast microphone studio',
+      }),
+      'Ethereum staking',
+      [],
+    );
+    expect(podcast).toBe(baseline - 30);
+  });
+
   it('does not score a query token that only appears inside a longer word', () => {
     // This is the Tether episode: the top-ranked image was
     // `7-Reasons-Why-Tethering-Your-Phone.jpg`, which took the full token score
@@ -95,6 +120,20 @@ describe('partitionViableCandidates', () => {
     );
     expect(partitioned.dropReasons.get(stock.imageUrl)).toBe('stock-preview');
     expect(partitioned.dropReasons.has(kept.imageUrl)).toBe(false);
+  });
+
+  it('keeps the first drop reason when the same rejected URL appears twice', () => {
+    const decorative = candidate({
+      imageUrl: 'https://images.example.test/brand-icon.png',
+    });
+    const partitioned = partitionViableCandidates(
+      [decorative, { ...decorative, altText: 'same icon again' }],
+      ['brave'],
+    );
+    expect(partitioned.dropReasons.get(decorative.imageUrl)).toBe(
+      'decorative-asset',
+    );
+    expect(partitioned.drops.get('decorative-asset')).toBe(2);
   });
 
   it('records the validation code a candidate was refused under', () => {

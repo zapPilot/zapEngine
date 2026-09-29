@@ -408,14 +408,14 @@ export async function getSocialQueueSnapshot(
     const languageCode = job.language_code ?? 'zh-Hant';
     if (!queuedEpisodes.has(job.episode_id)) {
       queuedEpisodes.add(job.episode_id);
-      const lanes = lanesByEpisode.get(job.episode_id) ?? [];
+      const lanes = lanesByEpisode.get(job.episode_id)!;
       episodeQueue.push({
         episodeId: job.episode_id,
         title:
           titleByEpisodeLanguage.get(`${job.episode_id}|${languageCode}`) ??
           null,
         nextAt: jobNextAt(job),
-        laneCount: lanes.length || 1,
+        laneCount: lanes.length,
         lanes,
       });
     }
@@ -459,10 +459,7 @@ async function listWaitingSocialVideos(): Promise<SocialWaitingVideoItem[]> {
   const episodeIds = [...new Set(rows.map((row) => row.episode_id))];
   const titles = await listSocialEpisodeLocalizationTitles(episodeIds);
   const titleByEpisodeLanguage = new Map(
-    titles.map((row) => [
-      `${row.episode_id}|${row.language_code ?? 'zh-Hant'}`,
-      row.title,
-    ]),
+    titles.map((row) => [`${row.episode_id}|${row.language_code}`, row.title]),
   );
   const languagesByEpisode = new Map<string, Set<PrimaryLanguageCode>>();
   for (const row of rows) {

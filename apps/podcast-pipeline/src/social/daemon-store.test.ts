@@ -22,15 +22,20 @@ vi.mock('../services/supabase-client.js', () => ({
 import {
   activateSocialStrategy,
   completeSocialPublishJob,
+  deactivateSocialStrategy,
   enqueueSocialPublishJob,
   ensureSocialDaemonStart,
   failSocialPublishJob,
   getActiveSocialStrategies,
   getSocialQueueSnapshot,
+  insertSocialAccountSnapshot,
+  latestSocialAccountSnapshots,
   listDueSocialPublishPlatforms,
   listLearningSocialMetrics,
   listLearningSocialPosts,
   listMetricWindowsForPosts,
+  listPendingSocialPublishSchedules,
+  listSocialEpisodeLocalizationTitles,
   listSocialPublishCandidates,
   listSocialPublishCandidatesForEpisodes,
   listUnfinishedSocialPublishJobs,
@@ -198,6 +203,102 @@ describe('social daemon store', () => {
       '2026-08-16T09:30:00.000Z',
     );
     expect(mocks.calls.some((call) => call.method === 'upsert')).toBe(true);
+  });
+
+  it('fails closed when a daemon-start insert race still has no readable winner', async () => {
+    const now = new Date('2026-08-16T10:00:00.000Z');
+    queue(
+      { data: null, error: null },
+      { data: null, error: null },
+      { data: null, error: null },
+    );
+
+    await expect(ensureSocialDaemonStart(now)).rejects.toThrow(
+      'Failed to read social daemon start time after race',
+    );
+  });
+
+  it('short-circuits an empty localization title lookup without querying Supabase', async () => {
+    await expect(listSocialEpisodeLocalizationTitles([])).resolves.toEqual([]);
+    expect(mocks.from).not.toHaveBeenCalledWith('episode_localizations');
+  });
+
+  it('lists pending publish schedules with the full durable lane state', async () => {
+    const row = {
+      episode_id: 'episode-1',
+      platform: 'x',
+      language_code: 'ja',
+      scheduled_at: '2026-08-16T10:00:00.000Z',
+      completed_at: null,
+      status: 'failed',
+      experiment_key: 'experiment-1',
+      experiment_variant: 'b',
+    } as const;
+    queue({ data: [row], error: null });
+
+    await expect(listPendingSocialPublishSchedules()).resolves.toEqual([row]);
+    expect(mocks.calls).toEqual(
+      expect.arrayContaining([
+        {
+          method: 'in',
+          args: ['status', ['queued', 'failed', 'processing', 'completed']],
+        },
+        { method: 'order', args: ['scheduled_at', { ascending: true }] },
+      ]),
+    );
+  });
+
+  it('returns no waiting-media rows when the waiting view is empty', async () => {
+    queue({ data: [], error: null }, { data: [], error: null });
+
+    await expect(
+      getSocialQueueSnapshot({ includeWaitingMedia: true }),
+    ).resolves.toEqual({
+      pendingCount: 0,
+      episodeQueue: [],
+      nextByLane: {},
+      waitingVideos: [],
+    });
+  });
+
+  it('falls back from a missing zh-Hant waiting-media title to another ready language and then null', async () => {
+    queue(
+      { data: [], error: null },
+      {
+        data: [
+          { episode_id: 'episode-alt', language_code: 'ja' },
+          { episode_id: 'episode-none', language_code: 'en' },
+        ],
+        error: null,
+      },
+      {
+        data: [
+          {
+            episode_id: 'episode-alt',
+            language_code: 'ja',
+            title: '日本語タイトル',
+          },
+        ],
+        error: null,
+      },
+    );
+
+    await expect(
+      getSocialQueueSnapshot({ includeWaitingMedia: true }),
+    ).resolves.toMatchObject({
+      waitingVideos: [
+        {
+          episodeId: 'episode-alt',
+          title: '日本語タイトル',
+          languageCodes: ['ja'],
+        },
+        {
+          episodeId: 'episode-none',
+          title: null,
+          languageCodes: ['en'],
+        },
+      ],
+    });
   });
 
   it('lists only unleased unfinished jobs and reconciles one without a lease', async () => {
@@ -592,6 +693,80 @@ describe('social daemon store', () => {
     await expect(listMetricWindowsForPosts(['post-1'])).resolves.toEqual([]);
   });
 
+  it('persists the strategy version that actually guided a completed publish', async () => {
+    const now = new Date('2026-08-16T10:00:00.000Z');
+    queue({ data: { id: 'job-1' }, error: null });
+
+    await expect(
+      completeSocialPublishJob({
+        jobId: 'job-1',
+        owner: 'mac:1',
+        completedAt: now,
+        socialPostId: 'post-1',
+        strategyVersionId: 'strategy-7',
+      }),
+    ).resolves.toBeUndefined();
+
+    const updates = mocks.calls.filter((call) => call.method === 'update');
+    expect(updates[updates.length - 1]?.args[0]).toEqual(
+      expect.objectContaining({ strategy_version_id: 'strategy-7' }),
+    );
+  });
+
+  it('includes experiment metadata only when both experiment fields are present', async () => {
+    const baseJob = {
+      episode_id: 'episode-experiment',
+      platform: 'x',
+      language_code: 'ja',
+      status: 'queued',
+      scheduled_at: '2026-08-16T10:00:00Z',
+      next_attempt_at: null,
+      attempt_count: 0,
+      lease_expires_at: null,
+    };
+    queue(
+      {
+        data: [
+          {
+            ...baseJob,
+            experiment_key: 'hook-v1',
+            experiment_variant: 'question',
+          },
+          {
+            ...baseJob,
+            platform: 'threads',
+            language_code: 'zh-Hant',
+            experiment_key: 'hook-v1',
+            experiment_variant: null,
+          },
+        ],
+        error: null,
+      },
+      {
+        data: [
+          {
+            episode_id: 'episode-experiment',
+            language_code: 'ja',
+            title: 'Experiment title',
+          },
+          {
+            episode_id: 'episode-experiment',
+            language_code: 'zh-Hant',
+            title: '實驗標題',
+          },
+        ],
+        error: null,
+      },
+    );
+
+    await expect(getSocialQueueSnapshot()).resolves.toMatchObject({
+      nextByLane: {
+        'x|ja': { experiment: 'hook-v1:question' },
+        'threads|zh-Hant': { experiment: null },
+      },
+    });
+  });
+
   it('surfaces each activation-stage error and starts versioning at one', async () => {
     const input = {
       platform: 'x' as const,
@@ -660,6 +835,104 @@ describe('social daemon store', () => {
     await expect(
       listSocialPublishCandidates('2026-08-01T00:00:00Z'),
     ).rejects.toThrow('query failed');
+  });
+
+  it('fails activation when the insert returns no row despite no Supabase error', async () => {
+    queue(
+      { data: [], error: null },
+      { data: null, error: null },
+      { data: null, error: null },
+    );
+
+    await expect(
+      activateSocialStrategy({
+        platform: 'x',
+        config: { preferredHookTypes: ['question'] },
+        basedOnSamples: 2,
+        now: new Date('2026-08-16T10:00:00Z'),
+      }),
+    ).rejects.toThrow('Failed to activate social strategy');
+  });
+
+  it('keeps visible and under-review posts in learning while excluding suppressed states', async () => {
+    queue({
+      data: [
+        { id: 'visible', review_status: 'visible' },
+        { id: 'review', review_status: 'under_review' },
+        { id: 'suppressed', review_status: 'suppressed' },
+      ],
+      error: null,
+    });
+
+    await expect(
+      listLearningSocialPosts('2026-08-01T00:00:00Z'),
+    ).resolves.toEqual([
+      { id: 'visible', review_status: 'visible' },
+      { id: 'review', review_status: 'under_review' },
+    ]);
+  });
+
+  it('reads the newest account snapshot per platform', async () => {
+    const newestX = {
+      id: 'snapshot-x-new',
+      platform: 'x',
+      followers: 12,
+      details: {},
+      captured_at: '2026-08-16T10:00:00Z',
+    };
+    const olderX = {
+      ...newestX,
+      id: 'snapshot-x-old',
+      followers: 10,
+      captured_at: '2026-08-16T09:00:00Z',
+    };
+    const rednote = {
+      id: 'snapshot-rednote',
+      platform: 'rednote',
+      followers: 8,
+      details: {},
+      captured_at: '2026-08-16T09:30:00Z',
+    };
+    queue({ data: [newestX, olderX, rednote], error: null });
+
+    await expect(latestSocialAccountSnapshots()).resolves.toEqual({
+      x: newestX,
+      rednote,
+    });
+    expect(mocks.calls).toEqual(
+      expect.arrayContaining([
+        { method: 'order', args: ['captured_at', { ascending: false }] },
+        { method: 'limit', args: [100] },
+      ]),
+    );
+  });
+
+  it('inserts account snapshots with an empty details object by default', async () => {
+    queue({ data: null, error: null });
+
+    await expect(
+      insertSocialAccountSnapshot({ platform: 'threads', followers: 42 }),
+    ).resolves.toBeUndefined();
+
+    expect(mocks.calls).toContainEqual({
+      method: 'insert',
+      args: [{ platform: 'threads', followers: 42, details: {} }],
+    });
+  });
+
+  it('deactivates one strategy row through the active-row fence', async () => {
+    queue({ data: null, error: null });
+
+    await expect(
+      deactivateSocialStrategy('strategy-1'),
+    ).resolves.toBeUndefined();
+    expect(mocks.calls).toEqual(
+      expect.arrayContaining([
+        { method: 'update', args: [{ active: false }] },
+        { method: 'eq', args: ['id', 'strategy-1'] },
+        { method: 'eq', args: ['active', true] },
+      ]),
+    );
   });
 
   it('reads every ready localization for a set of episodes, unfiltered by the discovery anchor', async () => {
@@ -753,6 +1026,26 @@ describe('social daemon store', () => {
     ).resolves.toBeUndefined();
     expect(mocks.calls.filter((call) => call.method === 'update')).toHaveLength(
       0,
+    );
+  });
+
+  it('releases a zero-attempt lease without inventing a negative attempt count', async () => {
+    const now = new Date('2026-08-16T10:05:00Z');
+    queue({ data: { id: 'job-zero' }, error: null });
+
+    await expect(
+      releaseSocialPublishJobLease({
+        jobId: 'job-zero',
+        owner: 'mac:1',
+        scheduledAt: '2026-08-16T10:00:00Z',
+        attemptCount: 0,
+        now,
+      }),
+    ).resolves.toBeUndefined();
+
+    const updates = mocks.calls.filter((call) => call.method === 'update');
+    expect(updates[updates.length - 1]?.args[0]).not.toHaveProperty(
+      'attempt_count',
     );
   });
 });

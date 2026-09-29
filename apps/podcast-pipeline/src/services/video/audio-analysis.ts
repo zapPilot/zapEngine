@@ -325,7 +325,6 @@ export function splitCaptionText(text: string): string[] {
       }
     }
     if (end < characters.length && preferredBreak > start) end = preferredBreak;
-    if (end <= start) end = start + 1;
     const chunk = characters.slice(start, end).join('').trim();
     if (chunk) chunks.push(chunk);
     start = end;

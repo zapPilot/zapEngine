@@ -66,7 +66,7 @@ export function allocationFromSnapshot(
  * visible segments first, so filtering a sub-0.5% sliver cannot make the text
  * add up to 99 (or leave a single 99% segment beside an almost-full bar).
  */
-function wholePercents(values: readonly number[]): number[] {
+export function wholePercents(values: readonly number[]): number[] {
   const total = values.reduce((sum, value) => sum + value, 0);
   if (total <= 0) return values.map(() => 0);
 
@@ -81,8 +81,7 @@ function wholePercents(values: readonly number[]): number[] {
 
   const result = [...floors];
   for (let index = 0; deficit > 0; index += 1) {
-    const candidate = byRemainder[index % byRemainder.length];
-    if (candidate === undefined) break;
+    const candidate = byRemainder[index % byRemainder.length]!;
     result[candidate.index]! += 1;
     deficit -= 1;
   }

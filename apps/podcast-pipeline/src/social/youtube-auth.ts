@@ -1,4 +1,5 @@
 import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -157,12 +158,7 @@ export async function waitForYouTubeAuthorizationCode(
     let settled = false;
     let redirectUri = '';
     const server = createServer((request, response) => {
-      if (!redirectUri) {
-        respond(response, 503, 'YouTube authorization callback is not ready.');
-        return;
-      }
-
-      const requestUrl = new URL(request.url ?? '/', redirectUri);
+      const requestUrl = new URL(request.url!, redirectUri);
       if (request.method !== 'GET' || requestUrl.pathname !== '/') {
         respond(response, 404, 'Not found.');
         return;
@@ -200,15 +196,9 @@ export async function waitForYouTubeAuthorizationCode(
       finish(new Error('Timed out waiting for YouTube authorization.'));
     }, input.timeoutMs);
 
-    server.once('error', (error) => finish(error));
+    server.once('error', finish);
     server.listen(0, '127.0.0.1', async () => {
-      const address = server.address();
-      if (!address || typeof address === 'string') {
-        finish(
-          new Error('Could not determine the YouTube OAuth callback port.'),
-        );
-        return;
-      }
+      const address = server.address() as AddressInfo;
       redirectUri = `http://127.0.0.1:${address.port}`;
       try {
         await input.onReady(redirectUri);
@@ -226,8 +216,7 @@ export async function waitForYouTubeAuthorizationCode(
       clearTimeout(timer);
       server.close();
       if (error) reject(error);
-      else if (result) resolve(result);
-      else reject(new Error('YouTube OAuth callback ended without a result.'));
+      else resolve(result!);
     }
   });
 }

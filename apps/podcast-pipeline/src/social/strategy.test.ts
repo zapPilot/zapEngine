@@ -465,6 +465,23 @@ describe('social strategy', () => {
     expect(learned?.config.avoidHashtags).not.toContain('穩定幣');
   });
 
+  it('drops metrics explicitly marked unavailable from learning', () => {
+    const posts = Array.from({ length: 6 }, (_value, index) =>
+      post({
+        id: `availability-${index}`,
+        platform: 'x',
+        publishedAt: '2026-08-15T03:00:00.000Z',
+      }),
+    );
+    const metrics = posts.map((row, index) => ({
+      ...metric({ postId: row.id, views: 100 + index }),
+      ...(index === 5 ? { collection_status: 'unavailable' as const } : {}),
+    }));
+
+    const [learned] = learnSocialStrategies({ posts, metrics });
+    expect(learned).toMatchObject({ platform: 'x', basedOnSamples: 5 });
+  });
+
   it('floors unobserved Rednote rows at more than one view but keeps quiet X posts', () => {
     const rednotePosts = Array.from({ length: 6 }, (_value, index) =>
       post({

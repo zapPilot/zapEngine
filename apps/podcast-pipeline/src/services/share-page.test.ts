@@ -135,6 +135,28 @@ describe('renderEpisodeSharePage', () => {
     expect(html).not.toContain('autoplay');
   });
 
+  it('reports historical landscape renderer dimensions in Open Graph metadata', () => {
+    const html = renderEpisodeSharePage({
+      episode: {
+        ...shareEpisode(),
+        video: {
+          url: 'https://cdn.example.com/video/satori-resvg-v2/episode.mp4',
+          thumbnailUrl: 'https://cdn.example.com/poster.png',
+          durationSeconds: 90,
+        },
+      },
+      platform: 'desktop',
+      iosAppId: '6749248542',
+      iosAppStoreUrl: 'https://apps.apple.com/app/id123',
+      canonicalUrl: 'https://example.com/e/episode-1',
+      appDeepLinkUrl: 'zappilotv2://podcast/episode-1',
+      webEpisodeUrl: 'https://v2.zap-pilot.org/podcast/episode-1?lang=zh-Hant',
+    });
+
+    expect(html).toContain('property="og:video:width" content="1920"');
+    expect(html).toContain('property="og:video:height" content="1080"');
+  });
+
   it('truncates description longer than 220 characters in twitter card', () => {
     const longDescription = 'A'.repeat(250);
     const html = renderEpisodeSharePage({

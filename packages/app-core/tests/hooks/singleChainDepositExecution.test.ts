@@ -204,6 +204,30 @@ describe('singleChainDepositExecution', () => {
     ).rejects.toThrow('Native balance too low');
   });
 
+  it('uses planned native call value when it exceeds an invest request amount', async () => {
+    const nativeInvest = {
+      ...(investRequest as any),
+      fromToken: NATIVE_TOKEN_ADDRESS,
+      fromAmount: '1000000000000000',
+    };
+    const nativePlan = {
+      ...planWithValue('5000000000000000'),
+      sourceChainId: 8453,
+      calls: [
+        { ...planWithValue('5000000000000000').calls[0]!, chainId: 8453 },
+      ],
+    };
+    mocks.getBalance.mockResolvedValueOnce(10n ** 18n);
+
+    await expect(
+      assertSingleChainPreflight({
+        request: nativeInvest,
+        plan: nativePlan,
+        address: USER,
+      }),
+    ).resolves.toBeUndefined();
+  });
+
   it('preflights ERC-20 funding and native gas separately', async () => {
     const plan = planWithValue('1000');
     mocks.readContract.mockResolvedValueOnce(2_000_000n);

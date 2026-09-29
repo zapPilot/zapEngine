@@ -221,10 +221,7 @@ export function useSingleChainDepositWizard(): SingleChainDepositWizard {
           address,
           DEPOSIT_PLAN_LABEL,
         );
-        const baseline = positionBaselineRef.current;
-        if (baseline === null) {
-          throw new Error('Position baseline is unavailable.');
-        }
+        const baseline = positionBaselineRef.current!;
         await waitForSingleChainPositionIncrease({
           request,
           address,
@@ -269,11 +266,9 @@ export function useSingleChainDepositWizard(): SingleChainDepositWizard {
     const generation = generationRef.current;
     advanceInFlightRef.current = true;
     try {
-      if (stepKind === 'batch') {
-        await executeBatch(request, generation);
-      } else if (stepKind === 'settlement') {
-        await verifySettlement(request, generation);
-      }
+      await (stepKind === 'batch'
+        ? executeBatch(request, generation)
+        : verifySettlement(request, generation));
     } finally {
       advanceInFlightRef.current = false;
     }

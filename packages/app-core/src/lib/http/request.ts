@@ -70,7 +70,7 @@ async function executeRequest<T>(
   if (!response.ok) {
     const errorData = await parseErrorResponse(response);
     throw new APIError(
-      errorData.message || `HTTP ${response.status}`,
+      errorData.message,
       response.status,
       errorData.code,
       errorData.details,

@@ -115,6 +115,7 @@ describe('translateChineseText', () => {
 
   it.each([
     ['invalid JSON', 'not-json'],
+    ['JSON code fence', '```json\n{"text":"Translated text"}\n```'],
     ['non-object JSON', JSON.stringify(['Translated text'])],
     ['missing field', JSON.stringify({ title: 'Wrong field' })],
     ['blank field', JSON.stringify({ text: '   ' })],
@@ -199,6 +200,15 @@ describe('translateChineseText', () => {
     await expect(
       translateChineseText('滑鼠和腳踏車市場', 'en'),
     ).rejects.toEqual({ status: 401 });
+    expect(mocks.createOpenRouterChatCompletion).toHaveBeenCalledTimes(1);
+  });
+
+  it('preserves a primitive transport rejection without inventing attempt cost', async () => {
+    mocks.createOpenRouterChatCompletion.mockRejectedValueOnce('network-down');
+
+    await expect(translateChineseText('滑鼠和腳踏車市場', 'en')).rejects.toBe(
+      'network-down',
+    );
     expect(mocks.createOpenRouterChatCompletion).toHaveBeenCalledTimes(1);
   });
 
@@ -391,6 +401,23 @@ describe('translateCanonicalScript', () => {
         (_call, index) => translationInputForCall(index)['script']?.length,
       ),
     ).toEqual([2_000, 2_000, 501]);
+  });
+
+  it('skips empty paragraphs while chunking a long canonical script', async () => {
+    const script = `\n\n${'甲'.repeat(2_001)}`;
+    mockEchoedTranslation();
+
+    await translateCanonicalScript({
+      title: '標題',
+      script,
+      targetLanguageCode: 'ja',
+    });
+
+    const translatedScripts =
+      mocks.createOpenRouterChatCompletion.mock.calls.map(
+        (_call, index) => translationInputForCall(index)['script'],
+      );
+    expect(translatedScripts).toEqual(['甲'.repeat(2_000), '甲']);
   });
 
   it('retries only the failed chunk and adds correction context to that retry', async () => {

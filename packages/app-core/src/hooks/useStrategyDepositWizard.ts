@@ -59,8 +59,7 @@ async function readPositionBalance(
   step: StrategyWizardStep,
   address: Address,
 ): Promise<bigint | null> {
-  if (!step.chainId || step.kind !== 'transaction') return null;
-  const publicClient = getPublicClient(step.chainId);
+  const publicClient = getPublicClient(step.chainId!);
   const marketKey = marketKeyFromStep(step);
   const positionToken = marketKey
     ? GMX_V2_MARKETS[marketKey].marketToken
@@ -82,7 +81,7 @@ async function waitForPositionIncrease(params: {
   address: Address;
   baseline: bigint | null;
 }): Promise<void> {
-  if (params.baseline === null || !params.step.chainId) return;
+  if (params.baseline === null) return;
   await pollUntil({
     fn: () => readPositionBalance(params.step, params.address),
     shouldStop: (balance) => balance !== null && balance > params.baseline!,
@@ -193,7 +192,7 @@ export function useStrategyDepositWizard() {
       await waitForPositionIncrease({
         step,
         address,
-        baseline: positionBaselines.current.get(step.id) ?? null,
+        baseline: positionBaselines.current.get(step.id)!,
       });
     },
     [],

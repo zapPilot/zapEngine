@@ -1,6 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { combineAbortSignalWithTimeout } from './abort.js';
 import { runWithDeadline } from './deadline.js';
+
+vi.mock('./abort.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./abort.js')>();
+  return {
+    ...actual,
+    combineAbortSignalWithTimeout: vi.fn(actual.combineAbortSignalWithTimeout),
+  };
+});
 
 describe('runWithDeadline', () => {
   afterEach(() => {
@@ -57,5 +66,24 @@ describe('runWithDeadline', () => {
       runWithDeadline(operation, undefined, 0, 'Image search'),
     ).rejects.toThrow('Image search timeout must be a positive number');
     expect(operation).not.toHaveBeenCalled();
+  });
+
+  it('rejects through the already-aborted fast path when the deadline starts aborted', async () => {
+    const mockedCombine = vi.mocked(combineAbortSignalWithTimeout);
+    const controller = new AbortController();
+    controller.abort(new Error('deadline already aborted'));
+    mockedCombine.mockReturnValueOnce({
+      signal: controller.signal,
+      dispose: vi.fn(),
+    });
+
+    await expect(
+      runWithDeadline(
+        () => new Promise<never>(() => undefined),
+        undefined,
+        5_000,
+        'Image search',
+      ),
+    ).rejects.toThrow('deadline already aborted');
   });
 });

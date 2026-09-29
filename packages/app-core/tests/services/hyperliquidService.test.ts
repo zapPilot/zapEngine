@@ -469,6 +469,28 @@ describe('waitForHyperCoreUsdcArrival', () => {
     expect(ticks).toEqual([2_000_000n]);
   });
 
+  it('forwards a signal while polling perp withdrawable for Standard accounts', async () => {
+    const controller = new AbortController();
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse('disabled'))
+      .mockResolvedValueOnce(perpResponse('2'));
+
+    await expect(
+      waitForHyperCoreUsdcArrival({
+        user: USER,
+        baselineUsd6: 0n,
+        expectedUsd6: 1_000_000n,
+        signal: controller.signal,
+      }),
+    ).resolves.toEqual({
+      arrivedUsd6: 2_000_000n,
+      mode: 'standard',
+    });
+    expect((fetchMock.mock.calls[1]?.[1] as RequestInit).signal).toBeInstanceOf(
+      AbortSignal,
+    );
+  });
+
   it('polls perp withdrawable for Standard accounts', async () => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse('disabled'))

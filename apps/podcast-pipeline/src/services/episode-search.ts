@@ -244,7 +244,7 @@ function snippetForMatch(
   match: FieldMatch,
 ): string | null {
   if (source === 'title') return firstScriptParagraph(script);
-  return match.segment ? truncateSnippet(match.segment) : null;
+  return truncateSnippet(match.segment!);
 }
 
 function scoreScript(
@@ -290,13 +290,13 @@ function scoreText(
   if (!normalizedValue) return null;
 
   if (normalizedValue === query) {
-    return { score: source === 'title' ? 1200 : 700 };
+    return { score: 1200 };
   }
   if (normalizedValue.startsWith(query)) {
-    return { score: source === 'title' ? 1150 : 700 };
+    return { score: 1150 };
   }
   if (normalizedValue.includes(query)) {
-    return { score: source === 'title' ? 1050 : 700 };
+    return { score: 1050 };
   }
 
   const queryLength = Array.from(compactQuery).length;
@@ -344,7 +344,6 @@ function ngramCoverage(query: string, target: string): number {
   const queryLength = Array.from(query).length;
   const size = queryLength >= 5 ? 3 : 2;
   const queryNgrams = ngrams(query, size);
-  if (queryNgrams.size === 0) return target.includes(query) ? 1 : 0;
   const targetNgrams = ngrams(target, size);
   let matches = 0;
   for (const ngram of queryNgrams) {
@@ -383,8 +382,7 @@ function closestScriptSegment(
   const exact = segments.find((segment) => segment.normalized.includes(query));
   if (exact) return exact.text;
 
-  let best = segments[0];
-  if (!best) return script;
+  let best = segments[0]!;
 
   let bestScore = ngramCoverage(compactQuery, best.compact);
   for (const segment of segments.slice(1)) {

@@ -365,6 +365,28 @@ describe('R2 upload retries', () => {
     expect(mockSend).toHaveBeenCalledTimes(2);
   });
 
+  it('does not retry a primitive rejection with no error metadata', async () => {
+    mockSend.mockRejectedValueOnce('plain failure');
+
+    await expect(upload()).rejects.toBe('plain failure');
+    expect(mockSend).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not retry AbortError and does retry a retryable error name', async () => {
+    const abortError = transportError('aborted', { name: 'AbortError' });
+    mockSend.mockRejectedValueOnce(abortError);
+    await expect(upload()).rejects.toBe(abortError);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+
+    mockSend
+      .mockReset()
+      .mockRejectedValueOnce(
+        transportError('timed out', { name: 'TimeoutError' }),
+      );
+    await expect(upload()).resolves.toBeDefined();
+    expect(mockSend).toHaveBeenCalledTimes(2);
+  });
+
   it('gives up after seven attempts and preserves the original error', async () => {
     const error = transportError('write EPIPE', {
       code: 'EPIPE',
@@ -569,5 +591,17 @@ describe('published cover retention', () => {
         CacheControl: 'public, max-age=31536000, immutable',
       }),
     );
+  });
+
+  it('rejects a malformed cover sha before upload', async () => {
+    await expect(
+      uploadEpisodeCoverToR2({
+        episodeId: 'ep-1',
+        visualHash: 'hash',
+        sha256: 'not-a-sha',
+        path: '/render/cover.png',
+      }),
+    ).rejects.toThrow('Invalid cover sha256');
+    expect(mockSend).not.toHaveBeenCalled();
   });
 });

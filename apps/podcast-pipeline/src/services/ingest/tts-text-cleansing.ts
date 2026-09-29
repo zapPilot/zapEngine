@@ -18,12 +18,12 @@ export function cleanTextForTts(text: string): string {
     )
   ) {
     let start = separatorIndex;
-    while (start > 0 && BLANK_LINE.test(lines[start - 1] ?? '')) {
+    while (start > 0 && BLANK_LINE.test(lines[start - 1]!)) {
       start -= 1;
     }
 
     let end = separatorIndex + 1;
-    while (end < lines.length && BLANK_LINE.test(lines[end] ?? '')) {
+    while (end < lines.length && BLANK_LINE.test(lines[end]!)) {
       end += 1;
     }
 

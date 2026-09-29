@@ -37,6 +37,6 @@ export function bgmTrackPath(trackId: BgmTrackId): string {
 // The same episode keeps the same track across all three locale renders.
 export function pickBgmTrack(episodeId: string): BgmTrackId {
   const digest = createHash('sha256').update(episodeId).digest();
-  const index = (digest[0] ?? 0) % BGM_TRACK_IDS.length;
-  return BGM_TRACK_IDS[index] ?? BGM_TRACK_IDS[0];
+  const index = digest[0]! % BGM_TRACK_IDS.length;
+  return BGM_TRACK_IDS[index]!;
 }

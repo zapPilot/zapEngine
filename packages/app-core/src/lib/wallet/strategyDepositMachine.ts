@@ -251,8 +251,7 @@ function refreshSteps(
   if (!current) return fresh;
   const freshCurrentIndex = fresh.findIndex((step) => step.id === current.id);
   if (freshCurrentIndex < 0) return [...previous];
-  const freshCurrent = fresh[freshCurrentIndex];
-  if (!freshCurrent) return [...previous];
+  const freshCurrent = fresh[freshCurrentIndex] as StrategyWizardStep;
   return [
     ...previous.slice(0, currentIndex),
     { ...freshCurrent, status: current.status },

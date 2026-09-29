@@ -285,11 +285,11 @@ export function useTrackRecord(): TrackRecordHookState {
     async function load() {
       const cached = cachedState(source);
       if (cached) {
-        if (!cancelled) setState(cached);
+        setState(cached);
         return;
       }
 
-      if (!cancelled) setState(initialState());
+      setState(initialState());
 
       const request = (inflight[source] ??= loadTrackRecord(source).finally(
         () => {

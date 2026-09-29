@@ -80,7 +80,7 @@ export function wrapSubtitle(
     '」',
     '』',
   ]);
-  if (prohibitedLineStarts.has(characters[splitIndex] ?? '')) {
+  if (prohibitedLineStarts.has(characters[splitIndex]!)) {
     splitIndex -= 1;
   }
 

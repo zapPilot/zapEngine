@@ -178,6 +178,10 @@ describe('vertical news video manifest (v4)', () => {
   });
 
   it('requires contiguous frame-aligned slides ending at the narration end', () => {
+    const wrongId = createVerticalManifest();
+    wrongId.slides[0]!.id = 'scene-wrong';
+    expectCustomIssue(wrongId, 'Scene 1 must use stable ID scene-01');
+
     const gap = createVerticalManifest();
     gap.slides[1]!.startMs = 4_100;
     expectCustomIssue(gap, 'Slide scene-02 must start at 10000ms');
@@ -222,6 +226,14 @@ describe('vertical news video manifest (v4)', () => {
   });
 
   it('validates caption order, clip bounds, and the two-line maximum', () => {
+    const nonZeroStart = createVerticalManifest();
+    nonZeroStart.captions[0]!.startMs = 1_000;
+    expectCustomIssue(nonZeroStart, 'Generated captions must start at 0ms');
+
+    const overlap = createVerticalManifest();
+    overlap.captions[1]!.startMs = 9_000;
+    expectCustomIssue(overlap, 'Captions must be ordered and non-overlapping');
+
     const reversed = createVerticalManifest();
     reversed.captions[0]!.endMs = reversed.captions[0]!.startMs;
     expectCustomIssue(reversed, 'Caption must end after it starts');

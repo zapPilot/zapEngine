@@ -346,7 +346,9 @@ export function buildPipelineQueues(input: {
         now: input.now,
         posts: postsByEpisode.get(episode.id) ?? [],
         visualState: visualStateByEpisode.get(episode.id),
-        videoPrereqsReady: videoPrereqsByEpisode.get(episode.id) ?? false,
+        // videoPrereqsByEpisode is keyed by every input episode id and episode
+        // always resolves from that same list (missing episodes return early).
+        videoPrereqsReady: videoPrereqsByEpisode.get(episode.id)!,
       }),
     ];
   });
@@ -370,7 +372,9 @@ export function buildPipelineQueues(input: {
         posts: postsByEpisode.get(episode.id) ?? [],
         localizationId: row.episode_localization_id,
         visualState: visualStateByEpisode.get(episode.id),
-        videoPrereqsReady: videoPrereqsByEpisode.get(episode.id) ?? false,
+        // videoPrereqsByEpisode is keyed by every input episode id and episode
+        // always resolves from that same list (missing episodes return early).
+        videoPrereqsReady: videoPrereqsByEpisode.get(episode.id)!,
       }),
     ];
   });

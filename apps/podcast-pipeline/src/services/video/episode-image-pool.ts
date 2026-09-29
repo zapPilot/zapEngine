@@ -203,7 +203,7 @@ export function deriveSearchSubjects(
     (left, right) =>
       Number(right.key === leadKey) - Number(left.key === leadKey) ||
       right.sceneIds.length - left.sceneIds.length ||
-      (order.get(left.key) ?? 0) - (order.get(right.key) ?? 0),
+      order.get(left.key)! - order.get(right.key)!,
   );
 }
 
@@ -541,10 +541,8 @@ function insertPoolEntries(
 ): void {
   const ranks = providerRanks(request.results);
   for (const candidate of request.accepted) {
-    const canonicalUrl = canonicalCandidateUrl(candidate.imageUrl);
-    if (!canonicalUrl) continue;
-    const providerRank =
-      ranks.get(candidate.imageUrl) ?? request.results.length;
+    const canonicalUrl = canonicalCandidateUrl(candidate.imageUrl)!;
+    const providerRank = ranks.get(candidate.imageUrl)!;
     const existing = pool.entries.get(canonicalUrl);
     if (existing) {
       mergePoolEntry(existing, request.queryKey, providerRank);
@@ -581,7 +579,7 @@ function mergePoolEntry(
   queryKey: string,
   providerRank: number,
 ): void {
-  if (!entry.queryKeys.includes(queryKey)) entry.queryKeys.push(queryKey);
+  entry.queryKeys.push(queryKey);
   entry.providerRank = Math.min(entry.providerRank, providerRank);
 }
 

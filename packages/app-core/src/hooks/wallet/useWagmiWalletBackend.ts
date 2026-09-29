@@ -215,9 +215,7 @@ export function useWagmiWalletBackend(): WagmiWalletBackend {
         try {
           await promise;
         } finally {
-          if (connectPromiseRef.current === promise) {
-            connectPromiseRef.current = null;
-          }
+          connectPromiseRef.current = null;
         }
       })();
       return promise;

@@ -116,6 +116,36 @@ describe('Fish Audio TTS provider', () => {
     });
   });
 
+  it.each([
+    [90_000, '1m 30s'],
+    [3_660_000, '1h 1m'],
+  ])(
+    'formats long progress durations at %dms as %s',
+    async (elapsedMs, expected) => {
+      const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+      const now = vi.spyOn(Date, 'now');
+      now.mockReturnValueOnce(0).mockReturnValue(elapsedMs);
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(streamResponse([new Uint8Array([0x01])])),
+      );
+      vi.stubEnv('FISH_AUDIO_API_KEY', 'fish-test-key');
+
+      await synthesize('progress duration', {
+        languageCode: 'en',
+        config: { modelId: 'model', engine: 's2-pro' },
+      });
+
+      const progress = log.mock.calls.find(
+        ([message]) => message === '[/tts] Fish Audio TTS progress',
+      )?.[1] as { elapsed?: string; averageChunk?: string } | undefined;
+      expect(progress).toMatchObject({
+        elapsed: expected,
+        averageChunk: expected,
+      });
+    },
+  );
+
   it('sends s2.1-pro-free as the Fish Audio model header when configured', async () => {
     const mockFetch = vi
       .fn()
@@ -237,6 +267,25 @@ describe('Fish Audio TTS provider', () => {
       }),
     ).rejects.toThrow('Fish Audio TTS failed: 402 Payment Required: no credit');
     expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('preserves a FishAudioTimeoutError thrown directly by the transport', async () => {
+    vi.stubEnv('FISH_AUDIO_API_KEY', 'fish-test-key');
+    const timeout = new FishAudioTimeoutError(
+      'transport timeout',
+      'total',
+      50,
+      50,
+      0,
+    );
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(timeout));
+
+    await expect(
+      synthesize('timeout transport', {
+        languageCode: 'en',
+        config: { modelId: 'model', engine: 's2-pro' },
+      }),
+    ).rejects.toBe(timeout);
   });
 
   it('estimates cost from UTF-8 input bytes', () => {
@@ -803,6 +852,26 @@ describe('Fish Audio TTS provider', () => {
     expect(secondBody.text).toContain('。');
 
     expect(result.audio).toBeDefined();
+  });
+
+  it('does not append an empty trailing chunk when a delimiter consumes the remainder', async () => {
+    vi.stubEnv('FISH_AUDIO_MAX_CHARS_PER_REQUEST', '10');
+    vi.stubEnv('FISH_AUDIO_API_KEY', 'fish-test-key');
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(streamResponse([new Uint8Array([0x01])]));
+    vi.stubGlobal('fetch', mockFetch);
+
+    await synthesize('abcdefghij. ', {
+      languageCode: 'en',
+      config: { modelId: 'model', engine: 's2-pro' },
+    });
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const body = JSON.parse(
+      (mockFetch.mock.calls[0] as [string, { body: string }])[1].body,
+    ) as { text: string };
+    expect(body.text).toBe('abcdefghij. ');
   });
 
   // === WP-9: Resilience tests (idle/total timeout, chunking, concat order) ===

@@ -137,4 +137,28 @@ describe('vertical brand frame and outro templates', () => {
     const alpha = stats.channels[3];
     if (alpha) expect(alpha.min).toBe(255);
   }, 120_000);
+
+  it('renders the concept-card fallback at its own canvas size', async () => {
+    temporaryDirectory = await mkdtemp(join(tmpdir(), 'concept-card-'));
+    const inputPath = join(temporaryDirectory, 'card.json');
+    const svgPath = join(temporaryDirectory, 'card.svg');
+
+    await writeFile(
+      inputPath,
+      JSON.stringify({
+        kind: 'concept-card',
+        card: {
+          kicker: '鏈上快訊',
+          headline: '流動性轉向的三個訊號',
+          points: ['利率預期轉向', '鏈上活躍回升'],
+        },
+      }),
+      'utf8',
+    );
+    await runSatoriStage(inputPath, svgPath);
+
+    const svg = await readFile(svgPath, 'utf8');
+    expect(svg).toContain('width="2880"');
+    expect(svg).toContain('height="2560"');
+  }, 120_000);
 });

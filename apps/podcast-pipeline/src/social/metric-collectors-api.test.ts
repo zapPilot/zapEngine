@@ -117,13 +117,13 @@ describe('Threads metric collection', () => {
   it('returns nulls for metrics the API omits', async () => {
     const fetchImpl = vi
       .fn<typeof fetch>()
-      .mockResolvedValue(json({ data: [{ name: 'views', value: 9 }] }));
+      .mockResolvedValue(json({ data: [{ name: 'likes', value: 9 }] }));
 
     await expect(
       collectThreadsMetrics(post('threads'), fetchImpl),
     ).resolves.toMatchObject({
-      views: 9,
-      likes: null,
+      views: null,
+      likes: 9,
       comments: null,
       shares: null,
     });
@@ -411,6 +411,17 @@ describe('YouTube metric collection', () => {
     );
   });
 
+  it('omits Google API detail text when the error body exposes neither reason nor message', async () => {
+    await expect(
+      collectYouTubeMetrics(
+        post('youtube', 'video-1'),
+        vi
+          .fn<typeof fetch>()
+          .mockResolvedValue(json({ error: { errors: [{}] } }, 403)),
+      ),
+    ).rejects.toThrow('YouTube statistics failed with HTTP 403.');
+  });
+
   it('rejects public-statistics HTTP errors, malformed payloads, and missing videos', async () => {
     await expect(
       collectYouTubeMetrics(post('youtube', null), vi.fn()),
@@ -465,5 +476,56 @@ describe('YouTube metric collection', () => {
       'x',
       'youtube',
     ]);
+  });
+
+  it('executes the YouTube registry wrapper with injected fetch', async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async (input) => {
+      const url = new URL(String(input));
+      if (url.hostname === 'www.googleapis.com') {
+        return json({
+          items: [
+            {
+              id: 'video-1',
+              statistics: {
+                viewCount: '11',
+                likeCount: '2',
+                commentCount: '1',
+              },
+            },
+          ],
+        });
+      }
+      return json({ rows: [] });
+    });
+    const collectors = createMetricCollectors({ fetchImpl });
+
+    await expect(
+      collectors.youtube(post('youtube', 'video-1')),
+    ).resolves.toMatchObject({
+      status: 'collected',
+      metrics: { views: 11, likes: 2, comments: 1 },
+    });
+  });
+
+  it('treats invalid JSON response bodies as null payloads for API errors', async () => {
+    const invalidJson = (status: number) =>
+      new Response('not-json', {
+        status,
+        headers: { 'content-type': 'application/json' },
+      });
+
+    await expect(
+      collectThreadsMetrics(
+        post('threads'),
+        vi.fn<typeof fetch>().mockResolvedValue(invalidJson(500)),
+      ),
+    ).rejects.toThrow('Threads insights failed with HTTP 500');
+
+    await expect(
+      collectYouTubeMetrics(
+        post('youtube', 'video-1'),
+        vi.fn<typeof fetch>().mockResolvedValue(invalidJson(500)),
+      ),
+    ).rejects.toThrow('YouTube statistics failed with HTTP 500');
   });
 });

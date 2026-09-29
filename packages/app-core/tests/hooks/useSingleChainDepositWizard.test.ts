@@ -565,6 +565,36 @@ describe('useSingleChainDepositWizard', () => {
     expect(result.current.wizard.status).toBe('idle');
   });
 
+  it('accepts an active bundle confirmation without a transaction hash', async () => {
+    mocks.getDepositPlan.mockResolvedValue(basePlan);
+    mocks.readContract
+      .mockResolvedValueOnce(100_000_000n)
+      .mockResolvedValueOnce(4n);
+    mocks.executeDepositPlanWithWallet.mockImplementationOnce(
+      async ({ onBundleSubmitted, onBundleConfirmed }) => {
+        onBundleSubmitted?.('0xbundle-no-hash');
+        onBundleConfirmed?.();
+        return {
+          kind: 'eip7702',
+          callsId: '0xbundle-no-hash',
+          transactionHash: `0x${'b'.repeat(64)}`,
+        };
+      },
+    );
+    const { result } = renderHook(() => useSingleChainDepositWizard());
+
+    await act(async () => {
+      await result.current.start(baseRequest);
+      await result.current.advance();
+    });
+
+    expect(result.current.wizard.steps[1]).toMatchObject({
+      status: 'confirmed',
+      callsId: '0xbundle-no-hash',
+      transactionHash: `0x${'b'.repeat(64)}`,
+    });
+  });
+
   it('passes the external wallet brand and supports sequential execution without a hash', async () => {
     delete wallet.executeAtomicBatch;
     wallet.externalWalletBrand = 'metamask';
@@ -636,6 +666,38 @@ describe('useSingleChainDepositWizard', () => {
     expect(result.current.wizard).toMatchObject({ status: 'idle', steps: [] });
   });
 
+  it('drops a stale executor failure after reset', async () => {
+    mocks.getDepositPlan.mockResolvedValue(basePlan);
+    mocks.readContract
+      .mockResolvedValueOnce(100_000_000n)
+      .mockResolvedValueOnce(4n);
+    let rejectExecution: ((reason?: unknown) => void) | undefined;
+    mocks.executeDepositPlanWithWallet.mockReturnValueOnce(
+      new Promise((_resolve, reject) => {
+        rejectExecution = reject;
+      }),
+    );
+    const { result } = renderHook(() => useSingleChainDepositWizard());
+    await act(async () => {
+      await result.current.start(baseRequest);
+    });
+
+    let advancePromise: Promise<void> | undefined;
+    act(() => {
+      advancePromise = result.current.advance();
+    });
+    await waitFor(() =>
+      expect(mocks.executeDepositPlanWithWallet).toHaveBeenCalledOnce(),
+    );
+    act(() => result.current.reset());
+    await act(async () => {
+      rejectExecution?.(new Error('late execution failure'));
+      await advancePromise;
+    });
+
+    expect(result.current.wizard).toMatchObject({ status: 'idle', steps: [] });
+  });
+
   it('does not publish stale settlement success after reset', async () => {
     mocks.getDepositPlan.mockResolvedValue(basePlan);
     mocks.readContract
@@ -663,6 +725,37 @@ describe('useSingleChainDepositWizard', () => {
     act(() => result.current.reset());
     resolvePoll?.(5n);
     await act(async () => {
+      await settlementPromise;
+    });
+
+    expect(result.current.wizard).toMatchObject({ status: 'idle', steps: [] });
+  });
+
+  it('does not publish a stale settlement failure after reset', async () => {
+    mocks.getDepositPlan.mockResolvedValue(basePlan);
+    mocks.readContract
+      .mockResolvedValueOnce(100_000_000n)
+      .mockResolvedValueOnce(4n);
+    const { result } = renderHook(() => useSingleChainDepositWizard());
+    await act(async () => {
+      await result.current.start(baseRequest);
+      await result.current.advance();
+    });
+
+    let rejectPoll: ((reason?: unknown) => void) | undefined;
+    mocks.pollUntil.mockReturnValueOnce(
+      new Promise((_resolve, reject) => {
+        rejectPoll = reject;
+      }),
+    );
+    let settlementPromise: Promise<void> | undefined;
+    act(() => {
+      settlementPromise = result.current.advance();
+    });
+    await waitFor(() => expect(mocks.pollUntil).toHaveBeenCalledOnce());
+    act(() => result.current.reset());
+    await act(async () => {
+      rejectPoll?.(new Error('late settlement failure'));
       await settlementPromise;
     });
 

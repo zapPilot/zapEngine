@@ -171,14 +171,13 @@ export async function inspectSentrySignal(input: {
     };
   }
 
-  const top = scoped[0];
-  const sampleEvent = top
-    ? await loadLatestEvent({
-        token,
-        issueId: top.id,
-        fetchImpl: input.fetchImpl,
-      })
-    : null;
+  // scoped is non-empty past the length guard above.
+  const top = scoped[0]!;
+  const sampleEvent = await loadLatestEvent({
+    token,
+    issueId: top.id,
+    fetchImpl: input.fetchImpl,
+  });
 
   return {
     fingerprint: input.fingerprint,

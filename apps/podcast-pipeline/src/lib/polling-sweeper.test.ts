@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { createPollingSweeper } from './polling-sweeper.js';
+import {
+  createPollingSweeper,
+  createSweepNotifier,
+} from './polling-sweeper.js';
 
 describe('createPollingSweeper', () => {
   it('runs immediately on start and again on each interval tick', async () => {
@@ -93,5 +96,38 @@ describe('createPollingSweeper', () => {
     const sweeper = createPollingSweeper({ intervalMs: 10_000, run });
 
     await expect(sweeper.run()).rejects.toThrow('boom');
+  });
+
+  it('does not run after stop', async () => {
+    const run = vi.fn().mockResolvedValue(undefined);
+    const sweeper = createPollingSweeper({ intervalMs: 10_000, run });
+
+    sweeper.stop();
+    await sweeper.run();
+
+    expect(run).not.toHaveBeenCalled();
+  });
+});
+
+describe('createSweepNotifier', () => {
+  it('delegates start/sweep/stop to the underlying sweeper lifecycle', async () => {
+    vi.useFakeTimers();
+    try {
+      const run = vi.fn().mockResolvedValue(undefined);
+      const notifier = createSweepNotifier({ intervalMs: 10, run });
+
+      notifier.start();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(run).toHaveBeenCalledTimes(1);
+
+      await notifier.sweep();
+      expect(run).toHaveBeenCalledTimes(2);
+
+      notifier.stop();
+      await vi.advanceTimersByTimeAsync(50);
+      expect(run).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

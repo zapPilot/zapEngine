@@ -256,8 +256,11 @@ function buildStaleSignals(
             .map((issue) => issue.id)
             .join(','),
           issueIdsTruncated: rows.length > STALE_ISSUE_ID_LIMIT,
-          oldestLastSeen: dates[0] ?? null,
-          newestLastSeen: dates.at(-1) ?? null,
+          // `rows` is a non-empty group from `groupByProject`, so `dates` has
+          // the same non-zero length. The `?? null` fallback is dead, so the
+          // non-null assertion removes unreachable branches.
+          oldestLastSeen: dates[0]!,
+          newestLastSeen: dates.at(-1)!,
           affectedUsers: rows.reduce((sum, issue) => sum + issue.userCount, 0),
           eventCount30d: rows.reduce((sum, issue) => sum + issue.count, 0),
           topIssue: issueLabel(loudest),

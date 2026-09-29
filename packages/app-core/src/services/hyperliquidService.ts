@@ -429,7 +429,6 @@ function isAmbiguousSubmission(
   error: unknown,
 ): boolean {
   try {
-    if (typeof sdk.TransportError !== 'function') return true;
     return error instanceof sdk.TransportError;
   } catch {
     return true;

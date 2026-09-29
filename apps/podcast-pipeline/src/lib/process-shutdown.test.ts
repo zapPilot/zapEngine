@@ -28,4 +28,19 @@ describe('installProcessShutdown', () => {
     await installProcessShutdown(teardown).shutdown();
     expect(teardown).toHaveBeenCalledWith('shutdown');
   });
+
+  it('runs teardown when the process receives SIGINT or SIGTERM', async () => {
+    const teardown = vi.fn().mockResolvedValue(undefined);
+    installProcessShutdown(teardown);
+
+    process.emit('SIGINT', 'SIGINT');
+    await vi.waitFor(() => expect(teardown).toHaveBeenCalledWith('SIGINT'));
+
+    const secondTeardown = vi.fn().mockResolvedValue(undefined);
+    installProcessShutdown(secondTeardown);
+    process.emit('SIGTERM', 'SIGTERM');
+    await vi.waitFor(() =>
+      expect(secondTeardown).toHaveBeenCalledWith('SIGTERM'),
+    );
+  });
 });

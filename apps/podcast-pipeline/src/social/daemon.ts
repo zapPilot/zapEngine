@@ -82,7 +82,6 @@ import {
   EMPTY_COUNTS,
 } from './metric-collectors.js';
 import { buildSocialPostMetric, collectPostMetrics } from './metrics.js';
-import { activePackagingExperiment } from './packaging-experiments.js';
 import type { SocialPlatform } from './platforms.js';
 import { SOCIAL_PUBLISH_WINDOW_JST } from './policy.js';
 import {
@@ -158,7 +157,7 @@ type PublishDueJobsOutcome =
 
 interface PublishDueJobsOptions {
   ignorePublishWindow?: boolean;
-  verbose?: boolean;
+  verbose: boolean;
 }
 
 export async function runSocialDaemon(
@@ -494,7 +493,7 @@ async function discoverAndEnqueue(input: {
   titleIndex: EpisodeTitleIndex;
   immediateScheduleAt?: Date;
   maxNewCohorts?: number;
-  verbose?: boolean;
+  verbose: boolean;
 }): Promise<{ newCohorts: number; deferredArticles: number }> {
   const [candidates, schedules] = await Promise.all([
     listSocialPublishCandidates(input.firstStartedAt),
@@ -529,7 +528,7 @@ async function discoverAndEnqueue(input: {
       now: input.now,
       log: input.log,
       immediateScheduleAt: input.immediateScheduleAt,
-      verbose: input.verbose ?? true,
+      verbose: input.verbose,
     });
     if (result.inserted) {
       newCohorts += 1;
@@ -556,7 +555,7 @@ async function discoverAndEnqueueEpisode(input: {
   now: Date;
   log: (message: string) => void;
   immediateScheduleAt?: Date;
-  verbose?: boolean;
+  verbose: boolean;
 }): Promise<{ inserted: boolean; deferred: boolean }> {
   const firstCandidate = input.episodeCandidates[0];
   if (!firstCandidate) return { inserted: false, deferred: false };
@@ -592,7 +591,7 @@ async function discoverAndEnqueueEpisode(input: {
     now: input.now,
     log: input.log,
     immediateScheduleAt: input.immediateScheduleAt,
-    verbose: input.verbose ?? true,
+    verbose: input.verbose,
   });
 }
 
@@ -619,7 +618,6 @@ function readyAtForLanguages(
   const timestamps = candidates
     .filter((candidate) => requiredLanguages.has(candidate.language_code))
     .map((candidate) => Date.parse(candidate.ready_at));
-  if (timestamps.length === 0) return null;
   const max = Math.max(...timestamps);
   const date = new Date(max);
   return Number.isNaN(date.getTime()) ? null : date;
@@ -661,7 +659,6 @@ async function enqueueExistingCohort(input: {
     input.schedules,
     input.episodeId,
   );
-  if (existingLanes.length === 0) return;
   const requiredLanguages = new Set(existingLanes.map((lane) => lane.language));
   const readyLanguages = new Set(
     input.episodeCandidates.map((candidate) => candidate.language_code),
@@ -695,7 +692,6 @@ async function enqueueExistingCohort(input: {
     isEqual || (isSubset && existingKeys.size < intendedKeys.size)
       ? intendedLanes
       : existingLanes;
-  if (lanes.length === 0) return;
 
   const finalMissing = missingLanguages(
     new Set(lanes.map((lane) => lane.language)),
@@ -725,7 +721,7 @@ async function enqueueNewCohort(input: {
   now: Date;
   log: (message: string) => void;
   immediateScheduleAt?: Date;
-  verbose?: boolean;
+  verbose: boolean;
 }): Promise<{ inserted: boolean; deferred: boolean }> {
   const requiredLanguages = new Set(
     resolveRequiredReleaseLanguages(input.firstCandidate.episode_created_at),
@@ -759,7 +755,7 @@ async function enqueueNewCohort(input: {
     });
   }
   if (!scheduledAt) {
-    if (input.verbose ?? true) {
+    if (input.verbose) {
       input.log(
         `🗓️ [social-daemon] ${episodeLabel(input.title, input.episodeId)} · no article slot inside the ${SCHEDULING_HORIZON_DAYS}-day horizon · staying discoverable for a later tick`,
       );
@@ -770,16 +766,6 @@ async function enqueueNewCohort(input: {
   const lanes = resolveReleaseCohortLanes(
     input.firstCandidate.episode_created_at,
   );
-  if (lanes.length === 0) return { inserted: false, deferred: false };
-
-  const finalMissing = missingLanguages(
-    new Set(lanes.map((lane) => lane.language)),
-    readyLanguages,
-  );
-  if (finalMissing.length > 0) {
-    logCohortNotReady(input.log, input.title, input.episodeId, finalMissing);
-    return { inserted: false, deferred: false };
-  }
 
   const insertedAny = await enqueueCohortJobs({
     episodeId: input.episodeId,
@@ -919,9 +905,9 @@ async function publishDueJobs(
   now: Date,
   log: (message: string) => void,
   titleIndex: EpisodeTitleIndex,
-  options: PublishDueJobsOptions = {},
+  options: PublishDueJobsOptions,
 ): Promise<PublishDueJobsOutcome> {
-  const verbose = options.verbose ?? true;
+  const verbose = options.verbose;
   if (
     !options.ignorePublishWindow &&
     !withinPublishWindow(now, SOCIAL_PUBLISH_WINDOW_JST)
@@ -1140,16 +1126,16 @@ async function holdCohortsMissingCopy(
     log,
   );
   return survivors.flatMap((jobs) => {
-    const firstJob = jobs[0];
-    const copy = firstJob ? copyByGroup.get(groupKey(firstJob)) : undefined;
-    return copy ? [{ jobs, copy }] : [];
+    const firstJob = jobs[0]!;
+    const copy = copyByGroup.get(groupKey(firstJob))!;
+    return [{ jobs, copy }];
   });
 }
 
 const HOLD_REASON_LOG_MAX_CHARACTERS = 200;
 
 function truncateHoldReason(reason: string): string {
-  const firstLine = reason.split('\n')[0] ?? reason;
+  const firstLine = reason.split('\n')[0]!;
   return firstLine.length > HOLD_REASON_LOG_MAX_CHARACTERS
     ? `${firstLine.slice(0, HOLD_REASON_LOG_MAX_CHARACTERS)}…`
     : firstLine;
@@ -1178,7 +1164,6 @@ async function holdCohortsMissingMedia(
 ): Promise<SocialPublishJobRow[][]> {
   const groups = [...pendingByEpisodeLanguage.values()];
   const episodeIds = [...new Set(groups.flat().map((job) => job.episode_id))];
-  if (episodeIds.length === 0) return groups;
 
   const [schedules, candidates] = await Promise.all([
     listPendingSocialPublishSchedules(),
@@ -1214,7 +1199,7 @@ async function holdCohortsMissingMedia(
   const heldEpisodes = new Map<string, ClaimedCohortHold>();
   for (const episodeId of episodeIds) {
     const missing = missingLanguages(
-      requiredByEpisode.get(episodeId) ?? new Set<string>(),
+      requiredByEpisode.get(episodeId)!,
       readyByEpisode.get(episodeId) ?? new Set<string>(),
     );
     if (missing.length === 0) continue;
@@ -1323,11 +1308,10 @@ async function releaseUntouchedLeases(
  */
 async function refundUntriedLanesInFailedGroup(
   jobs: readonly SocialPublishJobRow[],
-  error: unknown,
+  error: SocialReleaseFailureError,
   now: Date,
   log: (message: string) => void,
 ): Promise<void> {
-  if (!(error instanceof SocialReleaseFailureError)) return;
   const untouched = new Set<string>(error.untouchedLanes);
   if (untouched.size === 0) return;
   for (const job of jobs) {
@@ -1404,9 +1388,6 @@ function buildGuidanceForJobs(
         active[strategyMapKey(job.platform, jobLanguage(job))]?.config,
         Math.random,
         {
-          packagingActive:
-            activePackagingExperiment(job.platform, jobLanguage(job)) !==
-            undefined,
           languageExperimentActive: isLanguageExperiment,
         },
       );
@@ -1424,8 +1405,7 @@ async function publishLanguageBatch(
   log: (message: string) => void,
   verbose: boolean,
 ): Promise<void> {
-  const firstJob = jobs[0];
-  if (!firstJob) return;
+  const firstJob = jobs[0]!;
   const outcomes = await publishSocialBatch({
     episodeId: firstJob.episode_id,
     languageCode: jobLanguage(firstJob),
@@ -1556,7 +1536,7 @@ function createEpisodeTitleIndex(): EpisodeTitleIndex {
         const rows = await listSocialEpisodeLocalizationTitles(unseen);
         for (const row of rows) {
           titleByEpisodeLanguage.set(
-            `${row.episode_id}|${row.language_code ?? 'zh-Hant'}`,
+            `${row.episode_id}|${row.language_code}`,
             row.title,
           );
         }
@@ -1811,8 +1791,7 @@ function logCompactPublishingStart(
   verbose: boolean,
 ): void {
   if (verbose) return;
-  const firstPendingJob = pendingByEpisodeLanguage.values().next().value?.[0];
-  if (!firstPendingJob) return;
+  const firstPendingJob = pendingByEpisodeLanguage.values().next().value![0]!;
 
   log('');
   log('────────────────────────────────────────');
@@ -1995,11 +1974,11 @@ function logQueueSnapshot(
   snapshot: Awaited<ReturnType<typeof getSocialQueueSnapshot>>,
   now: Date,
   log: (message: string) => void,
-  options: { verbose?: boolean; deferredArticles?: number } = {},
+  options: { verbose: boolean; deferredArticles: number },
 ): void {
   const waitingVideos = snapshot.waitingVideos;
   if (!options.verbose) {
-    logCompactQueueSnapshot(snapshot, now, log, options.deferredArticles ?? 0);
+    logCompactQueueSnapshot(snapshot, now, log, options.deferredArticles);
     return;
   }
   if (snapshot.pendingCount === 0 && waitingVideos.length === 0) {
@@ -2025,7 +2004,7 @@ function logQueueSnapshot(
     );
     const lanes = formatQueueEpisodeLanes(episode.lanes);
     log(
-      `📥 [social-daemon]      ↳ ${laneCount} lane${laneCount === 1 ? '' : 's'}${lanes ? ` · ${lanes}` : ''}`,
+      `📥 [social-daemon]      ↳ ${laneCount} lane${laneCount === 1 ? '' : 's'} · ${lanes}`,
     );
   });
   const nextLanes = Object.values(snapshot.nextByLane).filter(

@@ -47,7 +47,8 @@ export function createPollingSweeper(
     try {
       await work;
     } finally {
-      if (active === work) active = null;
+      // Single-flight guarantees `active` is still this run's work.
+      active = null;
     }
   };
 

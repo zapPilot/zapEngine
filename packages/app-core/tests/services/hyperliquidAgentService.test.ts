@@ -197,6 +197,32 @@ describe('hyperliquidAgentService', () => {
     expect(hyperliquidAgentSigner(loaded!).address).toBe(saved.address);
   });
 
+  it('forwards an abort signal while validating a saved agent', async () => {
+    const keyStore = memoryStore();
+    const saved = record();
+    const key = hyperliquidAgentStorageKey({
+      hyperliquidChain: 'Mainnet',
+      masterAddress: MASTER,
+    });
+    const controller = new AbortController();
+    keyStore.data.set(key, JSON.stringify(saved));
+    mocks.getExtraAgents.mockResolvedValue([
+      { address: saved.address, name: 'ZapPilot', validUntil: null },
+    ]);
+
+    await expect(
+      loadApprovedHyperliquidAgent({
+        keyStore,
+        masterAddress: MASTER,
+        signing,
+        signal: controller.signal,
+      }),
+    ).resolves.toEqual(saved);
+    expect(mocks.getExtraAgents).toHaveBeenCalledWith(
+      expect.objectContaining({ signal: controller.signal }),
+    );
+  });
+
   it('generates and stores a fresh key before approving it', async () => {
     const keyStore = memoryStore();
     const approved = await approveNewHyperliquidAgent({
@@ -239,6 +265,34 @@ describe('hyperliquidAgentService', () => {
         walletClient: {} as never,
       }),
     ).resolves.toEqual(expect.objectContaining({ name: 'ZapPilot' }));
+  });
+
+  it('forwards an abort signal while confirming an ambiguous approval', async () => {
+    const keyStore = memoryStore();
+    const controller = new AbortController();
+    mocks.approveHyperliquidAgent.mockRejectedValueOnce(
+      new mocks.HyperliquidAgentApprovalError('network lost', {
+        ambiguous: true,
+      }),
+    );
+    mocks.getExtraAgents.mockImplementation(async () => {
+      const raw = [...keyStore.data.values()][0];
+      const saved = parseHyperliquidAgentRecord(raw ?? null)!;
+      return [{ address: saved.address, name: 'ZapPilot', validUntil: null }];
+    });
+
+    await expect(
+      approveNewHyperliquidAgent({
+        keyStore,
+        masterAddress: MASTER,
+        signing,
+        walletClient: {} as never,
+        signal: controller.signal,
+      }),
+    ).resolves.toEqual(expect.objectContaining({ name: 'ZapPilot' }));
+    expect(mocks.getExtraAgents).toHaveBeenCalledWith(
+      expect.objectContaining({ signal: controller.signal }),
+    );
   });
 
   it('rethrows an ambiguous approval that extraAgents cannot confirm', async () => {

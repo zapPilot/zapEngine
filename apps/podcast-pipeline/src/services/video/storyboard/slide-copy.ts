@@ -225,9 +225,11 @@ function compactWords(
 }
 
 function numbersAreGrounded(output: string, corpus: string): boolean {
-  const grounded = new Set(corpus.match(NUMBER_PATTERN) ?? []);
-  return (output.match(NUMBER_PATTERN) ?? []).every((number) =>
-    grounded.has(number),
+  const grounded = new Set(
+    [...corpus.matchAll(NUMBER_PATTERN)].map((match) => match[0]),
+  );
+  return [...output.matchAll(NUMBER_PATTERN)].every((match) =>
+    grounded.has(match[0]),
   );
 }
 
@@ -235,7 +237,9 @@ function entitiesAreGrounded(
   output: string,
   request: ConceptCardCopyRequest,
 ): boolean {
-  const capitalized = output.match(/\b[A-Z][A-Za-z0-9+.-]{2,}\b/gu) ?? [];
+  const capitalized = [...output.matchAll(/\b[A-Z][A-Za-z0-9+.-]{2,}\b/gu)].map(
+    (match) => match[0],
+  );
   const allowed = `${request.evidence} ${request.entities.join(' ')} ${request.intent.join(' ')} ${request.title}`;
   return capitalized.every((entity) => containsEntityPhrase(allowed, entity));
 }

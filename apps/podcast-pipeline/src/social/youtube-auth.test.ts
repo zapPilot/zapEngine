@@ -565,6 +565,7 @@ describe('YouTube OAuth', () => {
         'Google OAuth 500: service unavailable',
       ],
       [{ error: 'server_error' }, 'Google OAuth 500: server_error'],
+      [{}, 'Google OAuth request failed with HTTP 500'],
       ['plain failure', 'Google OAuth request failed with HTTP 500'],
       ['', 'Google OAuth request failed with HTTP 500'],
     ] as const) {
@@ -735,6 +736,22 @@ describe('YouTube OAuth', () => {
 
     expect(result.code).toBe('code-1');
     expect(result.redirectUri).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/u);
+  });
+
+  it('ignores a second finish attempt after a successful loopback callback', async () => {
+    await expect(
+      waitForYouTubeAuthorizationCode({
+        expectedState: 'state-1',
+        timeoutMs: 2_000,
+        onReady: async (redirectUri) => {
+          const callback = await fetch(
+            `${redirectUri}/?state=state-1&code=code-1`,
+          );
+          expect(callback.status).toBe(200);
+          throw new Error('late browser callback failure');
+        },
+      }),
+    ).resolves.toMatchObject({ code: 'code-1' });
   });
 
   it('rejects a loopback callback with a mismatched state', async () => {

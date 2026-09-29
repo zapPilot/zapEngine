@@ -308,6 +308,18 @@ describe('WalletProvider (unified)', () => {
     expect(mocks.privy.backend.disconnect).toHaveBeenCalledTimes(1);
   });
 
+  it('disconnect() can clear Privy without an external wagmi session', async () => {
+    mocks.wagmi.isConnected = false;
+    mocks.privy.isActive = true;
+    mocks.privy.backend = stubBackend({ isConnected: true });
+    const { wallet } = renderAndCapture();
+
+    await wallet.disconnect();
+
+    expect(mocks.wagmi.backend.disconnect).not.toHaveBeenCalled();
+    expect(mocks.privy.backend.disconnect).toHaveBeenCalledTimes(1);
+  });
+
   it('disconnect() does not call disconnect on a backend that was never connected', async () => {
     mocks.wagmi.isConnected = true;
     mocks.wagmi.backend = stubBackend({ isConnected: true });

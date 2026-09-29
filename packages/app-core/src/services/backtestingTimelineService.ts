@@ -9,10 +9,6 @@ function sampleEvenlyFromIndices(
   indices: number[],
   targetSize: number,
 ): number[] {
-  if (indices.length <= targetSize) {
-    return indices;
-  }
-
   if (targetSize <= 1) {
     const midpointIndex = Math.floor(indices.length / 2);
     return indices.slice(midpointIndex, midpointIndex + 1);
@@ -21,10 +17,7 @@ function sampleEvenlyFromIndices(
   const step = (indices.length - 1) / (targetSize - 1);
   const sampled: number[] = [];
   for (let i = 0; i < targetSize; i++) {
-    const indexValue = indices[Math.round(i * step)];
-    if (indexValue !== undefined) {
-      sampled.push(indexValue);
-    }
+    sampled.push(indices[Math.round(i * step)] as number);
   }
 
   return sampled;

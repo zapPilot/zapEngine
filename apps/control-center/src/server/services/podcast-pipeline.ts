@@ -517,7 +517,10 @@ function videoState(
   ) {
     return 'processing';
   }
-  return visual || renders.length > 0 ? 'queued' : 'pending';
+  // Reaching this line requires ttsStatus 'completed', which ttsState only
+  // returns when every language has a row, and every language row yields a
+  // render entry. The genuine pending path returns early above.
+  return 'queued';
 }
 
 function currentPhaseFor(

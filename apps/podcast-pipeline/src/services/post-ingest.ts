@@ -261,7 +261,7 @@ export async function performMultilingualIngestAndEnqueueVideo(
               ),
             ),
           );
-          const videoJob = videoJobs[0] ?? null;
+          const videoJob = videoJobs[0]!;
           logIngestEvent('video:enqueue:done', {
             elapsedMs: Date.now() - enqueueStartedAt,
             episodeId: ingest.episode.id,

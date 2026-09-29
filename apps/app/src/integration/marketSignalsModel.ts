@@ -91,8 +91,7 @@ export function signalWindowStart(dates: string[], range: SignalRange): number {
   const latest = dates.at(-1);
   if (!latest) return 0;
   const cutoff = shiftIsoDate(latest, -RANGE_DAYS[range]);
-  const start = dates.findIndex((date) => date > cutoff);
-  return start === -1 ? 0 : start;
+  return dates.findIndex((date) => date > cutoff);
 }
 
 export function normalizeSignalRegime(

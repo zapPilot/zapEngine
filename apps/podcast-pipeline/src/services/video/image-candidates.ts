@@ -92,7 +92,7 @@ function normalizedSuffix(value: string): string {
 }
 
 function imageExtension(url: URL): string | null {
-  const filename = url.pathname.split('/').at(-1) ?? '';
+  const filename = url.pathname.split('/').at(-1)!;
   const match = /(\.[a-z\d]+)$/i.exec(filename);
   return match?.[1]?.toLowerCase() ?? null;
 }

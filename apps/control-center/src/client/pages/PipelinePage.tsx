@@ -220,9 +220,7 @@ function FailedAttemptCostCard(props: {
       />
     );
   }
-  const evidence = podcastCostEvidenceTotals(
-    props.podcastCosts?.episodes ?? [],
-  );
+  const evidence = podcastCostEvidenceTotals(props.podcastCosts!.episodes);
   return (
     <div className="cc-stack">
       <div className="pipe-waste-top">
@@ -260,7 +258,7 @@ function FailedAttemptCostCard(props: {
           value={evidenceAmountText(evidence.interruptedAttemptCost)}
         />
       </div>
-      <BarRows rows={failedAttemptRows(props.podcastCosts)} />
+      <BarRows rows={failedAttemptRows(props.podcastCosts!)} />
     </div>
   );
 }
@@ -288,8 +286,8 @@ function interruptionCaption(evidence: PodcastCostEvidenceTotals): string {
 
 /** The episodes carrying the most failed-attempt cost, so the ranking points at
  * work that can actually be investigated rather than at a single aggregate. */
-function failedAttemptRows(data: PodcastCostResponse | null): BarRow[] {
-  return (data?.episodes ?? [])
+function failedAttemptRows(data: PodcastCostResponse): BarRow[] {
+  return data.episodes
     .filter((episode) => episode.failedAttemptCostUsd > 0)
     .sort(
       (left, right) => right.failedAttemptCostUsd - left.failedAttemptCostUsd,

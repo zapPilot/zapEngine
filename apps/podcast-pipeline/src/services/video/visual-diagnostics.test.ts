@@ -96,6 +96,16 @@ describe('buildVisualFailureDiagnostics', () => {
     });
   });
 
+  it('falls back to a summary when a snapshot serializes to a non-object', () => {
+    const snapshot = {
+      toJSON: () => null,
+    } as unknown as Record<string, unknown>;
+
+    const diagnostics = build({ snapshot });
+
+    expect(diagnostics.snapshot).toEqual({ summary: 'null' });
+  });
+
   it('falls back to a clipped summary when the snapshot exceeds the size budget', () => {
     const snapshot: Record<string, unknown> = {};
     for (let index = 0; index < 20; index += 1) {

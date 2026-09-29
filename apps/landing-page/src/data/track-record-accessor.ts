@@ -419,7 +419,7 @@ async function fetchSnapshotHistoryEntries(
     const raw = await fetchFromIpfs(currentCid);
     const snapshot = DailySnapshotSchema.parse(raw);
     entries.unshift({ cid: currentCid, snapshot });
-    currentCid = snapshot.previousCid ?? null;
+    currentCid = snapshot.previousCid;
   }
 
   return entries;

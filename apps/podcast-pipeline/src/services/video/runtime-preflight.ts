@@ -145,6 +145,6 @@ export async function assertVideoRenderRuntime(
 if (isMainModule(import.meta.url)) {
   const report = await assertVideoRenderRuntime({ verifySubtitleBurnIn: true });
   console.info(
-    `[video-runtime] subtitle burn-in verified ffmpeg=${report.ffmpegPath} fonts=${report.fontsDirectory} maxChannel=${report.subtitleFrameMaxChannel ?? 'n/a'}`,
+    `[video-runtime] subtitle burn-in verified ffmpeg=${report.ffmpegPath} fonts=${report.fontsDirectory} maxChannel=${report.subtitleFrameMaxChannel}`,
   );
 }

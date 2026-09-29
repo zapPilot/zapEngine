@@ -17,6 +17,18 @@ describe('getSocialQueueSnapshot localization query', () => {
     vi.clearAllMocks();
   });
 
+  it('rejects an unexpected table in the queue snapshot fixture', () => {
+    const fixture = createQueueSnapshotReadFixture({
+      jobs: [],
+      localizationData: [],
+    });
+
+    const from = fixture.from as unknown as (table: string) => unknown;
+    expect(() => from('unexpected_table')).toThrow(
+      'Unexpected Supabase table: unexpected_table',
+    );
+  });
+
   it('queries pending jobs and multilingual localizations with deduplicated episode ids', async () => {
     const fixture = createQueueSnapshotReadFixture({
       jobs: [

@@ -170,7 +170,7 @@ export function learnSocialStrategies(input: {
     if (platformSamples.length < MIN_PLATFORM_SAMPLES) return [];
 
     const medianViews = median(
-      platformSamples.map((sample) => sample.metric.views ?? 0),
+      platformSamples.map((sample) => sample.metric.views!),
     );
     const scored = platformSamples.map((sample) => ({
       ...sample,
@@ -235,7 +235,7 @@ function isLearnableSample(sample: {
   ) {
     return false;
   }
-  return (sample.metric.views ?? 0) > REDNOTE_MIN_LEARNABLE_VIEWS;
+  return sample.metric.views! > REDNOTE_MIN_LEARNABLE_VIEWS;
 }
 
 export async function refreshSocialStrategies(input: {
@@ -292,7 +292,7 @@ export async function refreshSocialStrategies(input: {
 }
 
 function scoreSample(metric: SocialPostMetricRow, medianViews: number): number {
-  const views = metric.views ?? 0;
+  const views = metric.views!;
   let reach = 0;
   if (medianViews > 0) {
     reach = views / medianViews;

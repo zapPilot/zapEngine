@@ -111,6 +111,24 @@ describe('Logger', () => {
     expect(logger.getLogs()[0]?.error).toBeUndefined();
   });
 
+  it('formats unknown log levels defensively', () => {
+    const logger = new Logger({ enableConsole: false });
+    const formatted = (
+      logger as unknown as {
+        formatLogEntry: (entry: {
+          timestamp: string;
+          level: number;
+          message: string;
+        }) => string;
+      }
+    ).formatLogEntry({
+      timestamp: '2026-09-28T00:00:00.000Z',
+      level: 999,
+      message: 'future',
+    });
+    expect(formatted).toContain('UNKNOWN future');
+  });
+
   it('keeps only maxLocalLogs and returns defensive copies', () => {
     const logger = new Logger({ enableConsole: false, maxLocalLogs: 2 });
     logger.info('one');

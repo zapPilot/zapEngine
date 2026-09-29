@@ -182,10 +182,7 @@ export const queryKeys = {
    * the post-execution invalidation share one definition.
    */
   desktop: {
-    /**
-     * Deliberately broad: the whole app-host domain is invalidated once an
-     * investment finishes, rather than enumerating affected queries.
-     */
+    /** Prefix for the whole app-host domain; prefer narrower keys for writes. */
     all: ['desktop'] as const,
     portfolio: {
       /** Prefix matching every day-window of a user's daily yield. */

@@ -253,7 +253,7 @@ async function synthesizeChunkWithRetry(
   chunkIndex: number,
   totalChunks: number,
 ): Promise<Buffer> {
-  for (let attempt = 1; attempt <= MAX_FISH_AUDIO_TTS_ATTEMPTS; attempt += 1) {
+  for (let attempt = 1; ; attempt += 1) {
     try {
       const audioBuffer = await fetchSingleChunk(
         apiKey,
@@ -290,8 +290,6 @@ async function synthesizeChunkWithRetry(
       await sleep(delayMs);
     }
   }
-
-  throw new Error('Fish Audio TTS chunk retry loop exhausted unexpectedly');
 }
 
 function classifyRetryError(
@@ -451,7 +449,7 @@ async function fetchSingleChunk(
         }
       }
     } finally {
-      if (idleTimeout) clearTimeout(idleTimeout);
+      clearTimeout(idleTimeout);
       reader.releaseLock();
     }
 

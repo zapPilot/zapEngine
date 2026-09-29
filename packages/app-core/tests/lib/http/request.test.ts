@@ -103,6 +103,20 @@ describe('httpRequest', () => {
     );
   });
 
+  it('falls back to the HTTP status when an error response has no message', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(response({}, { status: 500 })),
+    );
+
+    await expect(
+      httpRequest('https://example.test/items', { retries: 0 }),
+    ).rejects.toSatisfy(
+      (error: unknown) =>
+        error instanceof APIError && error.message === 'HTTP 500',
+    );
+  });
+
   it('stops retrying and wraps an exhausted transport failure as NetworkError', async () => {
     const fetchMock = vi.fn().mockRejectedValue(new TypeError('network down'));
     vi.stubGlobal('fetch', fetchMock);

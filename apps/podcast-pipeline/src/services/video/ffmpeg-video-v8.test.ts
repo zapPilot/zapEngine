@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildVerticalMediaChunkFilter,
+  kenBurnsPanForScene,
+  kenBurnsSeedForEpisode,
   planVerticalMediaChunks,
 } from './ffmpeg-video.js';
 import type { VerticalVideoManifest } from './manifest.js';
@@ -76,7 +78,36 @@ function presentationFilter(manifest: VerticalVideoManifest): string {
   return buildVerticalMediaChunkFilter(manifest, chunk);
 }
 
+function episodeIdForSeed(seed: number): string {
+  for (let index = 0; index < 10_000; index += 1) {
+    const id = `episode-seed-${index}`;
+    if (kenBurnsSeedForEpisode(id) === seed) return id;
+  }
+  throw new Error(`Unable to find episode seed ${seed}`);
+}
+
 describe('v8 editorial image presentation', () => {
+  it('covers every deterministic editorial drift direction', () => {
+    expect(kenBurnsPanForScene(-1, 0)).toBe('zoomIn');
+
+    for (const seed of [0, 1, 2, 3, 4]) {
+      const manifest = manifestWithPresentation({
+        layout: 'contain',
+        motion: 'pan',
+      });
+      manifest.episode.id = episodeIdForSeed(seed);
+      const filter = presentationFilter(manifest);
+      const pan = kenBurnsPanForScene(0, seed);
+      if (pan === 'rightToLeft' || pan === 'zoomOut') {
+        expect(filter).toContain("x='14*(1-");
+      } else if (pan === 'topToBottom') {
+        expect(filter).toContain("y='13*pow(");
+      } else {
+        expect(filter).toContain("x='14*pow(");
+      }
+    }
+  });
+
   it('shows contain images completely and keeps static assets actually static', () => {
     const filter = presentationFilter(
       manifestWithPresentation({ layout: 'contain', motion: 'static' }),

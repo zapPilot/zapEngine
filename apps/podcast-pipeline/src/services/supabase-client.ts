@@ -60,8 +60,7 @@ export function createRetryingSupabaseFetch(
 
     const signal = resolveAbortSignal(input, init);
 
-    let lastError: unknown;
-    for (let attempt = 1; attempt <= SUPABASE_READ_MAX_ATTEMPTS; attempt += 1) {
+    for (let attempt = 1; ; attempt += 1) {
       if (attempt > 1) signal?.throwIfAborted();
       try {
         const response = await fetcher(input, init);
@@ -73,7 +72,6 @@ export function createRetryingSupabaseFetch(
         }
         await response.body?.cancel().catch(() => {});
       } catch (error) {
-        lastError = error;
         if (
           attempt === SUPABASE_READ_MAX_ATTEMPTS ||
           signal?.aborted ||
@@ -86,10 +84,6 @@ export function createRetryingSupabaseFetch(
 
       await sleep(SUPABASE_READ_RETRY_DELAY_MS * 2 ** (attempt - 1));
     }
-
-    throw lastError instanceof Error
-      ? lastError
-      : new Error('Supabase read retry loop exhausted');
   };
 }
 

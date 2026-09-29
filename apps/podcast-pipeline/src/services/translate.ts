@@ -149,9 +149,7 @@ async function translateFields<K extends string>(
     return { fields: attempt.fields, cost: attempt.cost };
   }
 
-  const error =
-    attempt.error ??
-    new Error('Translation failed without an OpenRouter error');
+  const error = attempt.error;
   logTranslationFailure(
     targetLanguageCode,
     TRANSLATION_MODEL,
@@ -171,7 +169,7 @@ async function tryTranslationModel<K extends string>(
   const costs: UsageCostLine[] = [];
   let retryReason: string | null = null;
 
-  for (let attempt = 1; attempt <= TRANSLATION_MAX_ATTEMPTS; attempt += 1) {
+  for (let attempt = 1; ; attempt += 1) {
     try {
       const result = await translateFieldsWithOpenRouter(
         fields,
@@ -215,13 +213,6 @@ async function tryTranslationModel<K extends string>(
       await sleep(TRANSLATION_RETRY_DELAY_MS);
     }
   }
-
-  return {
-    fields: null,
-    cost: costs,
-    error: new Error('Translation attempts exhausted unexpectedly'),
-    attempts: TRANSLATION_MAX_ATTEMPTS,
-  };
 }
 
 function logTranslationFailure(
@@ -274,9 +265,9 @@ async function translateFieldsWithOpenRouter<K extends string>(
     };
   } catch (error) {
     // The request completed and is billed even though its response is unusable.
-    if (error instanceof TranslationResponseError) {
-      Object.assign(error, { translationAttemptCost: costLine });
-    }
+    Object.assign(error as TranslationResponseError, {
+      translationAttemptCost: costLine,
+    });
     throw error;
   }
 }
@@ -364,9 +355,6 @@ function splitLongTranslationParagraph(
   maxChars: number,
 ): string[] {
   const sentences = splitCanonicalSentences(paragraph);
-  if (sentences.length === 0) {
-    return hardSliceTranslationText(paragraph, maxChars);
-  }
 
   const chunks: string[] = [];
   let chunkStart: number | null = null;
@@ -374,7 +362,7 @@ function splitLongTranslationParagraph(
   const flushSentenceChunk = (): void => {
     if (chunkStart === null) return;
     const chunk = paragraph.slice(chunkStart, chunkEnd).trim();
-    if (chunk) chunks.push(chunk);
+    chunks.push(chunk);
     chunkStart = null;
     chunkEnd = 0;
   };
@@ -446,7 +434,7 @@ function buildTranslationUserMessage(
 function parseTranslationJson(
   completion: OpenRouterChatCompletion,
 ): Record<string, unknown> {
-  const content = completion.choices[0]?.message?.content ?? '';
+  const content = completion.choices[0]!.message.content!;
   const trimmed = content.trim();
   if (!trimmed || trimmed.startsWith('```')) {
     throw new TranslationResponseError(

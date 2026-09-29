@@ -352,6 +352,54 @@ describe('useDepositWizard', () => {
     );
   });
 
+  it('treats an abort-shaped HyperCore arrival failure as cancellation', async () => {
+    mocks.waitForHyperCoreUsdcArrival.mockRejectedValueOnce(
+      new DOMException('arrival aborted', 'AbortError'),
+    );
+    const { result } = renderWizard();
+
+    await act(async () => {
+      await result.current.resumeReviewedPlan({
+        plan: bridgePlan,
+        baselineUsd6: 1_000_000n,
+        sourceTxHash: SOURCE_TX,
+      });
+    });
+
+    expect(result.current.wizard.error).toBeNull();
+    expect(result.current.wizard.hlp.status).toBe('awaitingArrival');
+  });
+
+  it('drops a rejected HyperCore arrival after reset', async () => {
+    let rejectArrival: ((reason?: unknown) => void) | undefined;
+    mocks.waitForHyperCoreUsdcArrival.mockReturnValueOnce(
+      new Promise((_resolve, reject) => {
+        rejectArrival = reject;
+      }),
+    );
+    const { result } = renderWizard();
+    let resumed: Promise<void> | undefined;
+
+    act(() => {
+      resumed = result.current.resumeReviewedPlan({
+        plan: bridgePlan,
+        baselineUsd6: 1_000_000n,
+        sourceTxHash: SOURCE_TX,
+      });
+    });
+    await waitFor(() => {
+      expect(result.current.wizard.hlp.status).toBe('awaitingArrival');
+    });
+    act(() => result.current.reset());
+
+    await act(async () => {
+      rejectArrival?.(new Error('late arrival failure'));
+      await resumed;
+    });
+
+    expect(result.current.wizard).toEqual(initialDepositWizardState);
+  });
+
   it('stops the resume chain when the bridge leg fails', async () => {
     mocks.waitForBridgeCompletion.mockRejectedValue(new Error('bridge failed'));
     const { result } = renderWizard();
@@ -626,6 +674,20 @@ describe('useDepositWizard', () => {
     expect(result.current.wizard).toEqual(initialDepositWizardState);
   });
 
+  it('treats an abort-shaped vault submission failure as cancellation', async () => {
+    mocks.submitVaultDeposit.mockRejectedValueOnce(
+      new DOMException('submission aborted', 'AbortError'),
+    );
+    const { result } = await resumeUntilArrived();
+
+    await act(async () => {
+      await result.current.runHlpDeposit();
+    });
+
+    expect(mocks.waitForVaultEquityIncrease).not.toHaveBeenCalled();
+    expect(result.current.wizard.error).toBeNull();
+  });
+
   it('re-arms after a plain pre-submission error', async () => {
     mocks.submitVaultDeposit.mockRejectedValueOnce(
       new Error('wallet rejected'),
@@ -797,6 +859,45 @@ describe('useDepositWizard', () => {
     expect(mocks.submitVaultDeposit).toHaveBeenCalledTimes(1);
     expect(mocks.waitForVaultEquityIncrease).toHaveBeenCalledTimes(1);
     expect(result.current.wizard.hlp.status).toBe('deposited');
+    expect(result.current.wizard.error).toBeNull();
+  });
+
+  it('drops a successful equity confirmation that resolves after reset', async () => {
+    let resolveEquity: ((value: { equityUsd6: bigint }) => void) | undefined;
+    mocks.waitForVaultEquityIncrease.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveEquity = resolve;
+      }),
+    );
+    const { result } = await resumeUntilArrived();
+    let submission: Promise<void> | undefined;
+
+    act(() => {
+      submission = result.current.runHlpDeposit();
+    });
+    await waitFor(() => {
+      expect(mocks.waitForVaultEquityIncrease).toHaveBeenCalledOnce();
+    });
+    act(() => result.current.reset());
+
+    await act(async () => {
+      resolveEquity?.({ equityUsd6: 29_400_000n });
+      await submission;
+    });
+
+    expect(result.current.wizard).toEqual(initialDepositWizardState);
+  });
+
+  it('treats an abort-shaped equity confirmation failure as cancellation', async () => {
+    mocks.waitForVaultEquityIncrease.mockRejectedValueOnce(
+      new DOMException('equity poll aborted', 'AbortError'),
+    );
+    const { result } = await resumeUntilArrived();
+
+    await act(async () => {
+      await result.current.runHlpDeposit();
+    });
+
     expect(result.current.wizard.error).toBeNull();
   });
 

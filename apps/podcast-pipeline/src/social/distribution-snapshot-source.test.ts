@@ -25,7 +25,7 @@ interface SelectCall {
  * it was asked so the paging contract itself can be asserted.
  */
 function stubClient(
-  pages: Record<string, unknown[][]>,
+  pages: Record<string, (unknown[] | null)[]>,
   error?: { message: string },
 ): { calls: SelectCall[] } {
   const calls: SelectCall[] = [];
@@ -39,7 +39,8 @@ function stubClient(
     if (error) return { data: null, error };
     const index = cursors.get(call.table) ?? 0;
     cursors.set(call.table, index + 1);
-    return { data: pages[call.table]?.[index] ?? [], error: null };
+    const page = pages[call.table]?.[index];
+    return { data: page === undefined ? [] : page, error: null };
   }
 
   // Split out of the builder chain so no arrow nests more than four deep.
@@ -120,6 +121,14 @@ describe('loadDistributionSnapshotSource', () => {
       [1_000, 1_999],
       [2_000, 2_999],
     ]);
+  });
+
+  it('treats a null data page as an empty result set', async () => {
+    stubClient({ episodes: [null] });
+
+    const source = await loadDistributionSnapshotSource();
+
+    expect(source.episodes).toEqual([]);
   });
 
   it('stops after one page when the first page is short', async () => {

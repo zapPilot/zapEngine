@@ -12,6 +12,7 @@ vi.mock('node:child_process', () => ({ spawn: spawnMock }));
 import {
   cropMediaImage,
   rasterizeBrandFrame,
+  rasterizeConceptCard,
   rasterizeOutro,
   runRasterStage,
 } from './rasterizer.js';
@@ -84,6 +85,42 @@ describe('portrait card rasterization', () => {
       ...output,
     });
     expect(stages).toEqual(['satori', 'resvg', 'sharp-scale']);
+  });
+
+  it('renders a concept card through the default stage runner', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'rasterizer-concept-test-'));
+    const paths = {
+      input: join(directory, 'concept.json'),
+      svg: join(directory, 'concept.svg'),
+      master: join(directory, 'concept-master.png'),
+      output: join(directory, 'concept-output.png'),
+    };
+    const card = {
+      kicker: '市場概念',
+      headline: '流動性',
+      points: ['市場深度', '成交成本'],
+    };
+
+    const children = [0, 1, 2].map(() => new EventEmitter());
+    spawnMock
+      .mockReturnValueOnce(children[0])
+      .mockReturnValueOnce(children[1])
+      .mockReturnValueOnce(children[2]);
+
+    const promise = rasterizeConceptCard(card, paths);
+    for (let index = 0; index < children.length; index += 1) {
+      await vi.waitFor(() =>
+        expect(spawnMock).toHaveBeenCalledTimes(index + 1),
+      );
+      children[index]!.emit('exit', 0, null);
+    }
+    await promise;
+
+    expect(JSON.parse(await readFile(paths.input, 'utf8'))).toEqual({
+      imagePath: paths.master,
+      width: 2880,
+      height: 2560,
+    });
   });
 });
 

@@ -264,6 +264,17 @@ describe('refreshSocialStrategies', () => {
         active: true,
         created_at: '2026-08-16T00:00:00.000Z',
       },
+      // Legacy rows created before language_code became explicit default to
+      // zh-Hant for retirement/logging decisions.
+      {
+        id: 'youtube-legacy-language',
+        platform: 'youtube',
+        version: 1,
+        config: defaultSocialStrategy(),
+        based_on_samples: 1,
+        active: true,
+        created_at: '2026-08-16T00:00:00.000Z',
+      },
     ]);
     const log = vi.fn();
 
@@ -272,15 +283,21 @@ describe('refreshSocialStrategies', () => {
       log,
     });
 
-    expect(store.deactivateSocialStrategy).toHaveBeenCalledTimes(3);
+    expect(store.deactivateSocialStrategy).toHaveBeenCalledTimes(4);
     expect(store.deactivateSocialStrategy).toHaveBeenCalledWith('youtube-ja');
     expect(store.deactivateSocialStrategy).toHaveBeenCalledWith('threads-en');
     expect(store.deactivateSocialStrategy).toHaveBeenCalledWith('rednote-en');
+    expect(store.deactivateSocialStrategy).toHaveBeenCalledWith(
+      'youtube-legacy-language',
+    );
     expect(store.deactivateSocialStrategy).not.toHaveBeenCalledWith(
       'youtube-en',
     );
     expect(log).toHaveBeenCalledWith(
       expect.stringContaining('no longer in the publish policy'),
+    );
+    expect(log).toHaveBeenCalledWith(
+      expect.stringContaining('▶️ youtube 🇹🇼 zh-Hant'),
     );
   });
 });

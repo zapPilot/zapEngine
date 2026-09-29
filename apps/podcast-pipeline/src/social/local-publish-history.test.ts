@@ -85,6 +85,50 @@ it('shows completed history and matching links without inventing telemetry', asy
   expect(log.mock.calls[0]?.[0]).toContain('historical telemetry unavailable');
 });
 
+it('returns quietly when no completed local-only rows exist', async () => {
+  mocks.returns.mockResolvedValue({ data: null, error: null });
+  const log = vi.fn();
+
+  await reportLocalPublicationHistory(log);
+
+  expect(log).not.toHaveBeenCalled();
+  expect(mocks.state).not.toHaveBeenCalled();
+});
+
+it('falls back to the episode id and an unknown completion time', async () => {
+  mocks.titles.mockResolvedValue([]);
+  mocks.state.mockResolvedValue({});
+  mocks.returns.mockResolvedValue({
+    data: [
+      {
+        episode_id: 'episode-without-title',
+        platform: 'x',
+        language_code: 'en',
+        completed_at: null,
+      },
+    ],
+    error: null,
+  });
+  const log = vi.fn();
+
+  await reportLocalPublicationHistory(log);
+
+  expect(log.mock.calls[0]?.[0]).toContain('“episode-without-title”');
+  expect(log.mock.calls[1]?.[0]).toContain('x/en · time unknown');
+  expect(log.mock.calls[1]?.[0]).toContain('no verified link');
+});
+
+it('formats non-Error history failures without crashing startup', async () => {
+  mocks.returns.mockRejectedValue('offline string');
+  const log = vi.fn();
+
+  await expect(reportLocalPublicationHistory(log)).resolves.toBeUndefined();
+
+  expect(log).toHaveBeenCalledWith(
+    expect.stringContaining('history unavailable: offline string'),
+  );
+});
+
 it('does not prevent startup when history is unavailable', async () => {
   mocks.returns.mockResolvedValue({ data: null, error: new Error('offline') });
   const log = vi.fn();

@@ -206,6 +206,33 @@ describe('buildDistributionSnapshot', () => {
     expect(snapshot.funnel.reach).toBe(77);
   });
 
+  it('treats collected null metric values as measured zeroes', () => {
+    const snapshot = buildDistributionSnapshot(
+      source({
+        posts: [post({ id: 'p1', episode_id: 'ep1' })],
+        metrics: [
+          metric({
+            social_post_id: 'p1',
+            views: null,
+            impressions: null,
+            likes: null,
+            comments: null,
+            shares: null,
+          }),
+        ],
+      }),
+    );
+
+    expect(snapshot.channels[0]).toMatchObject({
+      posts: 1,
+      postsWithMetrics: 1,
+      reach: 0,
+      likes: 0,
+      comments: 0,
+      shares: 0,
+    });
+  });
+
   it('counts a post with no snapshot yet without inventing reach for it', () => {
     const snapshot = buildDistributionSnapshot(
       source({
@@ -260,6 +287,36 @@ describe('buildDistributionSnapshot', () => {
     ).toEqual([
       ['x', 'ja', 2, 60],
       ['x', 'zh-Hant', 1, 5],
+    ]);
+  });
+
+  it('uses language order to break equal-reach same-platform channel ties', () => {
+    const snapshot = buildDistributionSnapshot(
+      source({
+        posts: [
+          post({
+            id: 'p-ja',
+            episode_id: 'ep1',
+            platform: 'x',
+            language_code: 'ja',
+          }),
+          post({
+            id: 'p-en',
+            episode_id: 'ep1',
+            platform: 'x',
+            language_code: 'en',
+          }),
+        ],
+        metrics: [
+          metric({ social_post_id: 'p-ja', views: 10 }),
+          metric({ social_post_id: 'p-en', views: 10 }),
+        ],
+      }),
+    );
+
+    expect(snapshot.channels.map(({ language }) => language)).toEqual([
+      'ja',
+      'en',
     ]);
   });
 
@@ -483,6 +540,83 @@ describe('buildDistributionSnapshot example selection', () => {
     });
 
     expect(snapshot.example).toBeNull();
+  });
+
+  it('breaks a complete reach-and-recency tie on episode id', () => {
+    const createdAt = '2026-08-25T00:00:00.000Z';
+    const snapshot = buildDistributionSnapshot(
+      source({
+        episodes: [
+          episode('ep-b', createdAt, 'B'),
+          episode('ep-a', createdAt, 'A'),
+        ],
+        localizations: [...localizations('ep-b'), ...localizations('ep-a')],
+        videos: [...videos('ep-b'), ...videos('ep-a')],
+        posts: [
+          ...['x', 'threads', 'rednote'].map((platform, index) =>
+            post({
+              id: `b-${index}`,
+              episode_id: 'ep-b',
+              platform: platform as DistributionPostRow['platform'],
+            }),
+          ),
+          ...['x', 'threads', 'rednote'].map((platform, index) =>
+            post({
+              id: `a-${index}`,
+              episode_id: 'ep-a',
+              platform: platform as DistributionPostRow['platform'],
+            }),
+          ),
+        ],
+      }),
+    );
+
+    expect(snapshot.example?.title).toBe('A');
+  });
+
+  it('uses language order when example channels tie on time and platform', () => {
+    const base = completeChain();
+    const sameTime = '2026-08-20T01:00:00.000Z';
+    const snapshot = buildDistributionSnapshot({
+      ...base,
+      posts: [
+        post({
+          id: 'p-ja',
+          episode_id: 'ep1',
+          platform: 'x',
+          language_code: 'ja',
+          published_at: sameTime,
+        }),
+        post({
+          id: 'p-en',
+          episode_id: 'ep1',
+          platform: 'x',
+          language_code: 'en',
+          published_at: sameTime,
+        }),
+        post({
+          id: 'p-threads',
+          episode_id: 'ep1',
+          platform: 'threads',
+          language_code: 'zh-Hant',
+          published_at: '2026-08-20T02:00:00.000Z',
+        }),
+        post({
+          id: 'p-rednote',
+          episode_id: 'ep1',
+          platform: 'rednote',
+          language_code: 'zh-Hant',
+          published_at: '2026-08-20T03:00:00.000Z',
+        }),
+      ],
+      metrics: [],
+    });
+
+    expect(
+      snapshot.example?.channels
+        .filter(({ platform }) => platform === 'x')
+        .map(({ language }) => language),
+    ).toEqual(['ja', 'en']);
   });
 
   it('breaks a reach tie on recency so the choice is reproducible', () => {

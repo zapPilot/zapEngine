@@ -29,6 +29,7 @@ function alchemyResponses(
     invalidRpc?: boolean;
     rpcErrorWithoutMessage?: boolean;
     empty?: boolean;
+    symbolPriceFallback?: boolean;
   } = {},
 ) {
   fetchMock.mockImplementation(async (input, init) => {
@@ -39,7 +40,9 @@ function alchemyResponses(
       if (url.includes('by-symbol'))
         return Response.json({
           data: [
-            { symbol: 'eth', prices: [{ currency: 'usd', value: '2000' }] },
+            options.symbolPriceFallback
+              ? { symbol: 'eth', prices: [], price: '2100' }
+              : { symbol: 'eth', prices: [{ currency: 'usd', value: '2000' }] },
             { prices: [] },
           ],
         });
@@ -142,6 +145,19 @@ describe('Alchemy transport and balance aggregation', () => {
       'https://eth-mainnet.g.alchemy.com/v2/test-key',
     );
   });
+  it('uses the legacy symbol price when structured prices are absent', async () => {
+    alchemyResponses({ symbolPriceFallback: true });
+    const result = await getAlchemyWalletBalancesSnapshot('0xwallet');
+    expect(result.balances[0]?.response.result).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          symbol: 'ETH',
+          usd_price: 2100,
+          usd_value: 2100,
+        }),
+      ]),
+    );
+  });
   it('survives blocked price service and partial RPC failure', async () => {
     alchemyResponses({ pricesFail: true, failedNetwork: 'base-mainnet' });
     const result = await getAlchemyWalletBalancesSnapshot('0xwallet');
@@ -168,6 +184,73 @@ describe('Alchemy transport and balance aggregation', () => {
       'unknown error',
     );
   });
+  it('treats astronomically large balances as non-finite numeric values without crashing', async () => {
+    const hugeRawBalance = `0x1${'0'.repeat(1024)}`;
+    fetchMock.mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.includes('/tokens/by-symbol')) {
+        return Response.json({
+          data: [
+            { symbol: 'eth', prices: [{ currency: 'usd', value: '2000' }] },
+          ],
+        });
+      }
+      if (url.includes('/tokens/by-address')) {
+        return Response.json({
+          data: [
+            {
+              network: 'eth-mainnet',
+              address: addresses.eth.USDC[0],
+              prices: [{ currency: 'usd', value: '1' }],
+            },
+          ],
+        });
+      }
+      const rpc = JSON.parse(String(init?.body));
+      if (rpc.method === 'eth_getBalance') {
+        return Response.json({ result: hugeRawBalance });
+      }
+      const chain = url.includes('eth-mainnet')
+        ? 'eth'
+        : url.includes('base-mainnet')
+          ? 'base'
+          : 'arbitrum';
+      return Response.json({
+        result: {
+          tokenBalances: [
+            {
+              contractAddress: addresses[chain].USDC[0],
+              tokenBalance: hugeRawBalance,
+            },
+          ],
+        },
+      });
+    });
+
+    const result = await getAlchemyWalletBalancesSnapshot('0xwallet');
+    const ethBalances = result.balances.find((entry) => entry.chain === 'eth');
+    expect(ethBalances?.response.result).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ symbol: 'USDC', usd_value: 0 }),
+        expect.objectContaining({ symbol: 'ETH', usd_value: 0 }),
+      ]),
+    );
+  });
+
+  it('uses the generic all-chains failure when rejected reasons are not Error objects', async () => {
+    alchemyResponses({ empty: true });
+    const allSettled = vi.spyOn(Promise, 'allSettled').mockResolvedValueOnce([
+      { status: 'rejected', reason: 'eth failed' },
+      { status: 'rejected', reason: 'base failed' },
+      { status: 'rejected', reason: 'arbitrum failed' },
+    ] as PromiseSettledResult<never>[]);
+
+    await expect(getAlchemyWalletBalancesSnapshot('0xwallet')).rejects.toThrow(
+      'Alchemy wallet balance requests failed on every chain.',
+    );
+    allSettled.mockRestore();
+  });
+
   it('supports genuinely empty wallets and checks configuration before transport', async () => {
     alchemyResponses({ empty: true });
     expect(

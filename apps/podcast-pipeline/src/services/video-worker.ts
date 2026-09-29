@@ -318,7 +318,6 @@ export function createVideoWorker(
   };
 
   const executePoll = async (): Promise<VideoWorkerPollResult> => {
-    if (stopped || shutdownController.signal.aborted) return 'stopped';
     // Draining reports busy rather than empty: 'empty' exits the process
     // (src/worker.ts), and the whole point of a drain is to let the render
     // still in flight finish first.

@@ -175,7 +175,6 @@ export function targetUsd6Shares(
     id: position.id,
     weightBps: weightBpsFor(allocations, position.id),
   })).filter((entry) => entry.weightBps > 0);
-  if (funded.length === 0) return null;
 
   const shares: TargetUsd6Shares = {
     'morpho-base': 0n,
@@ -336,8 +335,8 @@ export function chainBatchLabel(batch: ChainBatchDraft): string {
     : `Chain ${batch.chainId}`;
   const venues = batch.positions.map(
     (draft) =>
-      INVEST_POSITIONS.find((position) => position.id === draft.positionId)
-        ?.label ?? draft.positionId,
+      INVEST_POSITIONS.find((position) => position.id === draft.positionId)!
+        .label,
   );
   return `${chainLabel} · ${venues.join(' + ')}`;
 }
