@@ -118,8 +118,8 @@ describe('portrait card rasterization', () => {
 
     expect(JSON.parse(await readFile(paths.input, 'utf8'))).toEqual({
       imagePath: paths.master,
-      width: 1080,
-      height: 960,
+      width: 2880,
+      height: 2560,
     });
   });
 });

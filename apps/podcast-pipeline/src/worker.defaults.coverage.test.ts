@@ -129,6 +129,8 @@ describe('video worker default wiring coverage', () => {
       logger: { info: vi.fn() },
     });
     vi.runAllTicks();
+    await Promise.resolve();
+    await Promise.resolve();
     expect(mocks.notifier.stop).toHaveBeenCalled();
     expect(mocks.flush).toHaveBeenCalled();
     await handle.shutdown('cleanup');
