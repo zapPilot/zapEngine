@@ -36,6 +36,7 @@ import {
   inspectRednotePublishedPost,
   inspectXPublishedPost,
   inspectXPublishedPostAt,
+  type MetricsBrowserSession,
 } from './metric-collectors.js';
 
 const X_PROFILE = join(tmpdir(), 'x-profile');
@@ -351,6 +352,31 @@ describe('X browser metrics and reconciliation', () => {
       comments: null,
       shares: null,
     });
+  });
+
+  it('executes the registry X wrapper through an injected browser session', async () => {
+    const page = xPage([
+      xArticle({
+        comments: { text: '1' },
+        reposts: { text: '2' },
+        likes: { text: '3' },
+        views: { text: '4' },
+      }),
+    ]);
+    const session = {
+      withPage: vi.fn(async (_profile, _url, run) => run(page as never)),
+      withRequest: vi.fn(),
+      close: vi.fn().mockResolvedValue(undefined),
+    } as unknown as MetricsBrowserSession;
+
+    await expect(
+      createMetricCollectors({ browser: session }).x(post('x')),
+    ).resolves.toMatchObject({
+      status: 'collected',
+      metrics: { views: 4, likes: 3, comments: 1, shares: 2 },
+    });
+    expect(session.withPage).toHaveBeenCalledOnce();
+    expect(session.close).not.toHaveBeenCalled();
   });
 
   it('rejects an X metric row without a post URL', async () => {
@@ -765,6 +791,80 @@ describe('Rednote browser metrics and reconciliation', () => {
     ).resolves.toMatchObject({ status: 'collected', metrics: { views: 40 } });
   });
 
+  it('returns terminal Rednote moderation states without parsing counters', async () => {
+    installPage(
+      rednotePage({
+        cards: [
+          rednoteCard({
+            noteId: 'rejected-note',
+            searchText: '發佈標題',
+            reviewText: '审核未通过',
+            stats: ['0', '0', '0', '0', '0'],
+          }),
+        ],
+      }),
+    );
+
+    await expect(
+      collectRednoteMetrics(
+        post('rednote', { platform_post_id: 'rejected-note' }),
+      ),
+    ).resolves.toEqual({
+      status: 'unavailable',
+      reason: 'rednote post rejected',
+    });
+  });
+
+  it('falls back to timestamp matching when a nonempty title matches no cards', async () => {
+    installPage(
+      rednotePage({
+        cards: [
+          rednoteCard({
+            noteId: 'timestamp-match',
+            searchText: 'different title',
+            time: '2026-08-16 10:00',
+            stats: ['12', '1', '2', '3', '4'],
+          }),
+        ],
+      }),
+    );
+
+    await expect(collectRednoteMetrics(post('rednote'))).resolves.toMatchObject(
+      {
+        status: 'collected',
+        metrics: { views: 12 },
+      },
+    );
+  });
+
+  it('uses the first repeated-title card when none exposes a readable timestamp', async () => {
+    installPage(
+      rednotePage({
+        cards: [
+          rednoteCard({
+            noteId: 'first-invalid-time',
+            searchText: '發佈標題',
+            time: null,
+            stats: ['21', '1', '2', '3', '4'],
+          }),
+          rednoteCard({
+            noteId: 'second-invalid-time',
+            searchText: '發佈標題',
+            time: 'bad-time',
+            stats: ['22', '1', '2', '3', '4'],
+          }),
+        ],
+      }),
+    );
+
+    await expect(collectRednoteMetrics(post('rednote'))).resolves.toMatchObject(
+      {
+        status: 'collected',
+        metrics: { views: 21 },
+      },
+    );
+  });
+
   it('rejects incomplete or unreadable Rednote statistics and invalid publish timestamps', async () => {
     installPage(
       rednotePage({
@@ -788,6 +888,21 @@ describe('Rednote browser metrics and reconciliation', () => {
             noteId: 'bad-stat',
             searchText: '發佈標題',
             stats: ['1', 'two', '3', '4', '5'],
+          }),
+        ],
+      }),
+    );
+    await expect(collectRednoteMetrics(post('rednote'))).rejects.toThrow(
+      'unreadable statistic',
+    );
+
+    installPage(
+      rednotePage({
+        cards: [
+          rednoteCard({
+            noteId: 'null-stat',
+            searchText: '發佈標題',
+            stats: [null, '2', '3', '4', '5'],
           }),
         ],
       }),

@@ -97,8 +97,8 @@ describe('portrait card rasterization', () => {
     };
     const card = {
       kicker: '市場概念',
-      title: '流動性',
-      body: '市場深度與成交成本。',
+      headline: '流動性',
+      points: ['市場深度', '成交成本'],
     };
 
     const children = [0, 1, 2].map(() => new EventEmitter());

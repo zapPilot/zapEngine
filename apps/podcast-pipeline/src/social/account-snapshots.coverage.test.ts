@@ -1,3 +1,4 @@
+import type { APIRequestContext, APIResponse } from 'playwright-core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -29,7 +30,11 @@ import type { MetricsBrowserSession } from './metric-collectors.js';
 const NOW = new Date('2026-09-29T00:00:00.000Z');
 const USER_INFO_URL = 'https://creator.rednote.com/api/galaxy/user/info';
 
-function response(status: number, payload: unknown, rejectJson = false) {
+function response(
+  status: number,
+  payload: unknown,
+  rejectJson = false,
+): APIResponse {
   return {
     ok: () => status >= 200 && status < 300,
     status: () => status,
@@ -37,7 +42,7 @@ function response(status: number, payload: unknown, rejectJson = false) {
       ? () => Promise.reject(new Error('invalid json'))
       : async () => payload,
     text: async () => '',
-  };
+  } as unknown as APIResponse;
 }
 
 function rednoteJsonFailureSession(): MetricsBrowserSession {
@@ -48,7 +53,7 @@ function rednoteJsonFailureSession(): MetricsBrowserSession {
           if (url !== USER_INFO_URL) throw new Error(`unexpected ${url}`);
           return response(200, null, true);
         },
-      }),
+      } as unknown as APIRequestContext),
     withPage: vi.fn(),
     close: vi.fn().mockResolvedValue(undefined),
   };

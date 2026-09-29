@@ -166,6 +166,24 @@ describe('episode image pool coverage edges', () => {
     expect(poolSkippedForBudget(pool)).toBe(1);
   });
 
+  it('uses the generic provider error when the thrown value has no message', async () => {
+    const item = subject();
+    const provider: ImageSearchProvider = {
+      origin: 'brave',
+      // A bare empty-string rejection exercises the `|| 'image search failed'`
+      // fallback without tripping `unicorn/error-message`.
+      search: vi.fn().mockRejectedValue(''),
+    };
+    const pool = createEpisodeImagePool([item]);
+    await searchSubject(pool, item, 'primary', {
+      provider,
+      sceneId: null,
+      attemptedUrls: new Set(),
+      throwOnProviderFailure: false,
+    });
+    expect(subjectRequestError(pool, item.key)).toBe('image search failed');
+  });
+
   it('records a resilient provider failure and rethrows strict or abort failures', async () => {
     const item = subject();
     const provider: ImageSearchProvider = {
@@ -226,6 +244,23 @@ describe('episode image pool coverage edges', () => {
         { imageSearchIntent: ['NVIDIA earnings'] },
       ),
     ).toBe(true);
+  });
+
+  it('ranks a context fallback scene whose search intent is empty', () => {
+    const generic = subject({ key: 'intent:market', label: 'market' });
+    const pool = createEpisodeImagePool([generic]);
+    pool.entries.set(
+      'one',
+      entry({ canonicalUrl: 'one', requestSubjectKey: generic.key }),
+    );
+    expect(
+      rankFallbackEntries(
+        pool,
+        { sceneId: 'scene-01', imageSearchIntent: [], searchAnchor: 'context' },
+        [],
+        new Map(),
+      ),
+    ).toHaveLength(1);
   });
 
   it('marks an external entry attempted and penalizes repeated fallback draws', () => {
@@ -324,6 +359,28 @@ describe('episode image pool coverage edges', () => {
         new Map(),
       ).some((ranked) => ranked.canonicalUrl === 'amd'),
     ).toBe(false);
+  });
+
+  it('keeps the first provider rank when the provider repeats an image URL', async () => {
+    const item = subject();
+    const repeated = candidate('shared');
+    const pool = createEpisodeImagePool([item]);
+    const provider: ImageSearchProvider = {
+      origin: 'brave',
+      search: vi
+        .fn()
+        .mockResolvedValue([
+          repeated,
+          { ...repeated, altText: 'duplicate result' },
+        ]),
+    };
+    await searchSubject(pool, item, 'primary', {
+      provider,
+      sceneId: null,
+      attemptedUrls: new Set(),
+      throwOnProviderFailure: true,
+    });
+    expect([...pool.entries.values()][0]?.providerRank).toBe(0);
   });
 
   it('merges the same accepted image across two distinct queries', async () => {

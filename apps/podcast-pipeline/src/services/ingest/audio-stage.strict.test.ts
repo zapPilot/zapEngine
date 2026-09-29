@@ -328,6 +328,44 @@ describe('strict language classroom audio integrity', () => {
     );
   });
 
+  it('omits a main R2 prefix when repairing classroom audio for a legacy checkpoint without one', async () => {
+    const localization = localizationRow({
+      status: 'audio_generated',
+      hls_url: 'https://cdn.example.com/main/playlist.m3u8',
+      r2_prefix: null,
+      classroom_hls_url: null,
+      classroom_r2_prefix: null,
+    });
+    mockUpdateEpisodeLocalizationStatus.mockImplementation(
+      (_id, status, updates = {}) =>
+        Promise.resolve(
+          localizationRow({
+            ...localization,
+            status,
+            hls_url: updates.hlsUrl ?? localization.hls_url,
+            r2_prefix: updates.r2Prefix ?? null,
+            classroom_hls_url:
+              updates.classroomHlsUrl ?? localization.classroom_hls_url,
+            classroom_r2_prefix:
+              updates.classroomR2Prefix ?? localization.classroom_r2_prefix,
+          }),
+        ),
+    );
+
+    await ensureLocalizationCompleted(
+      episodeRow(),
+      localization,
+      'zh-Hant',
+      [],
+    );
+
+    expect(mockUpdateEpisodeLocalizationStatus).toHaveBeenCalledWith(
+      localization.id,
+      'completed',
+      expect.objectContaining({ r2Prefix: undefined }),
+    );
+  });
+
   it('backfills only the blank-script targets before synthesizing audio', async () => {
     mockListLanguageClassroomsByLocalizationId.mockResolvedValue([
       classroomRow({

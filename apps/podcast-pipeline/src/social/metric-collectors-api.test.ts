@@ -117,13 +117,13 @@ describe('Threads metric collection', () => {
   it('returns nulls for metrics the API omits', async () => {
     const fetchImpl = vi
       .fn<typeof fetch>()
-      .mockResolvedValue(json({ data: [{ name: 'views', value: 9 }] }));
+      .mockResolvedValue(json({ data: [{ name: 'likes', value: 9 }] }));
 
     await expect(
       collectThreadsMetrics(post('threads'), fetchImpl),
     ).resolves.toMatchObject({
-      views: 9,
-      likes: null,
+      views: null,
+      likes: 9,
       comments: null,
       shares: null,
     });
@@ -409,6 +409,17 @@ describe('YouTube metric collection', () => {
     ).rejects.toThrow(
       'YouTube statistics failed with HTTP 403. insufficientPermissions: Request had insufficient authentication scopes.',
     );
+  });
+
+  it('omits Google API detail text when the error body exposes neither reason nor message', async () => {
+    await expect(
+      collectYouTubeMetrics(
+        post('youtube', 'video-1'),
+        vi
+          .fn<typeof fetch>()
+          .mockResolvedValue(json({ error: { errors: [{}] } }, 403)),
+      ),
+    ).rejects.toThrow('YouTube statistics failed with HTTP 403.');
   });
 
   it('rejects public-statistics HTTP errors, malformed payloads, and missing videos', async () => {

@@ -61,7 +61,7 @@ export function partitionViableCandidates(
     maxCandidates: MAX_SEARCH_CANDIDATES_PER_REQUEST,
   });
   for (const entry of rejected) {
-    countDrop(entry.candidate, entry.issues[0]?.code ?? 'unknown');
+    countDrop(entry.candidate, entry.issues[0]!.code);
   }
   return { candidates: accepted, drops, dropReasons };
 }
@@ -375,7 +375,7 @@ function tokenMatchScore(token: string): number {
 
 function imageFileExtension(rawUrl: string): string | null {
   try {
-    const filename = new URL(rawUrl).pathname.split('/').at(-1) ?? '';
+    const filename = new URL(rawUrl).pathname.split('/').at(-1)!;
     return /\.([a-z\d]+)$/i.exec(filename)?.[1]?.toLowerCase() ?? null;
   } catch {
     return null;

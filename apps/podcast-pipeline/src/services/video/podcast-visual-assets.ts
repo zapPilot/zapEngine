@@ -36,9 +36,6 @@ const PODCAST_OUTRO_ASSET_ID = 'image-99';
 if (MAX_STORYBOARD_SLIDES >= 98) {
   throw new Error('Podcast intro asset ID collides with storyboard assets');
 }
-if (MAX_STORYBOARD_SLIDES >= 99) {
-  throw new Error('Podcast outro asset ID collides with storyboard assets');
-}
 
 export interface PodcastVisualAssetPlanInput extends PlanVisualAssetsInput {
   /** Absent when the catalog step produced nothing to anchor on. The episode
@@ -99,7 +96,7 @@ export async function planPodcastVisualAssets(
     ...(contentPlan.imageSearch
       ? { imageSearch: contentPlan.imageSearch }
       : {}),
-    ...(contentPlan.leadCover ? { leadCover: contentPlan.leadCover } : {}),
+    leadCover: contentPlan.leadCover!,
   };
 }
 
@@ -160,7 +157,7 @@ function subjectAnchoredScene(
   if (subjects.length === 0) {
     throw new Error(`Visual subjects are missing for ${scene.sceneId}`);
   }
-  const primarySubject = subjects[0];
+  const primarySubject = subjects[0]!;
   return {
     ...scene,
     imageSearchIntent: [
@@ -171,7 +168,7 @@ function subjectAnchoredScene(
     imageSearchEntities: sceneSearchEntities(subjects),
     // The cue is trace/ranking metadata in this phase. It deliberately does not
     // produce another Brave request until Phase 3 is justified by review data.
-    ...(primarySubject && scene.visualCue
+    ...(scene.visualCue
       ? { cueQuery: prefixedSubjectQuery(primarySubject, scene.visualCue) }
       : {}),
     // Only a scene that cites its subject in its own sentences is worth a
@@ -181,7 +178,7 @@ function subjectAnchoredScene(
       assignment.selectionReason === 'direct' ? 'direct' : 'context',
     // Anchors are already ordered by identifying power, so the first subject is
     // the one Brave is asked about and the one the decorative filter judges.
-    ...(primarySubject ? { subjectType: primarySubject.type } : {}),
+    subjectType: primarySubject.type,
   };
 }
 
@@ -210,15 +207,15 @@ async function preparePodcastVisualAssets(
       reportBrandAssetProgress(
         input,
         brandScene.sceneId,
-        originalSceneIndex.get(brandScene.sceneId) ?? 0,
+        originalSceneIndex.get(brandScene.sceneId)!,
         PODCAST_INTRO_ASSET_ID,
       );
-    } else if (kind === 'outro') {
+    } else {
       assets.push(await createPodcastOutroAsset(input.workingDirectory));
       reportBrandAssetProgress(
         input,
         brandScene.sceneId,
-        originalSceneIndex.get(brandScene.sceneId) ?? 0,
+        originalSceneIndex.get(brandScene.sceneId)!,
         PODCAST_OUTRO_ASSET_ID,
       );
     }

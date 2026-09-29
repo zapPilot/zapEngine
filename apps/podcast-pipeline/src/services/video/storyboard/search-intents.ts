@@ -169,8 +169,7 @@ export async function enrichStoryboardSearchIntents(
 }
 
 function degradedCatalogReason(error: unknown): string {
-  const collapsed = errorMessage(error).replace(/\s+/gu, ' ').trim();
-  const reason = collapsed || 'visual subject catalog response was unusable';
+  const reason = errorMessage(error).replace(/\s+/gu, ' ').trim();
   return reason.length > MAX_DEGRADED_REASON_CHARS
     ? `${reason.slice(0, MAX_DEGRADED_REASON_CHARS - 1)}…`
     : reason;
@@ -209,7 +208,6 @@ function enrichFromSubjectCatalog(
   catalog: VisualSubjectCatalog,
   model: string,
 ): SearchIntentEnrichment {
-  const contentSceneIds = new Set(scenes.map((scene) => scene.sceneId));
   const directByScene = new Map<string, string[]>();
   const cueByScene = new Map(
     (catalog.sceneCues ?? []).map((cue) => [cue.sceneId, cue] as const),
@@ -224,14 +222,13 @@ function enrichFromSubjectCatalog(
   );
   for (const subject of rankedSubjects) {
     for (const sceneId of subject.evidenceSceneIds) {
-      if (!contentSceneIds.has(sceneId)) continue;
       const current = directByScene.get(sceneId) ?? [];
       if (!current.includes(subject.id)) current.push(subject.id);
       directByScene.set(sceneId, current);
     }
   }
 
-  const firstContentSceneId = scenes[0]?.sceneId;
+  const firstContentSceneId = scenes[0]!.sceneId;
   let lastDirectSubjectIds: string[] = [];
   const assignments: VisualSceneSubjectAssignment[] = [];
   let entityAnchoredSceneCount = 0;
@@ -268,20 +265,19 @@ function enrichFromSubjectCatalog(
     if (directSubjectIds.length > 0) lastDirectSubjectIds = directSubjectIds;
     assignments.push({ sceneId: scene.sceneId, subjectIds, selectionReason });
 
-    const subjects = subjectIds.flatMap((subjectId) => {
-      const subject = visualSubjectById(catalog, subjectId);
-      return subject ? [subject] : [];
-    });
+    const subjects = subjectIds.map(
+      (subjectId) => visualSubjectById(catalog, subjectId)!,
+    );
     const imageSearchIntent = [
       ...new Set(subjects.flatMap(buildVisualSubjectSearchQueries)),
     ].slice(0, MAX_SEARCH_INTENTS_PER_SCENE);
     const imageSearchEntities = sceneSearchEntities(subjects);
-    if (imageSearchEntities.length > 0) entityAnchoredSceneCount += 1;
+    entityAnchoredSceneCount += 1;
     return {
       ...scene,
       imageSearchIntent,
       ...(cue ? { visualCue: cue.visualCue } : {}),
-      ...(imageSearchEntities.length > 0 ? { imageSearchEntities } : {}),
+      imageSearchEntities,
     };
   });
 
@@ -432,7 +428,6 @@ function validateSubjectCatalogGrounding(
 }
 
 function containsEntityPhrase(haystack: string, needle: string): boolean {
-  if (!needle) return false;
   return ` ${haystack} `.includes(` ${needle} `);
 }
 
@@ -451,11 +446,8 @@ export function createOpenRouterSearchIntentProvider(): SearchIntentProvider {
   return {
     model,
     catalog: async (request) => {
-      for (
-        let attempt = 1;
-        attempt <= SEARCH_INTENT_PAYLOAD_MAX_ATTEMPTS;
-        attempt += 1
-      ) {
+      let attempt = 1;
+      while (true) {
         try {
           const raw = await completeSearchIntentRequest({
             openai,
@@ -469,13 +461,13 @@ export function createOpenRouterSearchIntentProvider(): SearchIntentProvider {
           throwIfAborted(request.signal);
           if (
             !(error instanceof SearchIntentPayloadError) ||
-            attempt === SEARCH_INTENT_PAYLOAD_MAX_ATTEMPTS
+            attempt >= SEARCH_INTENT_PAYLOAD_MAX_ATTEMPTS
           ) {
             throw error;
           }
+          attempt += 1;
         }
       }
-      throw new Error('Search intent payload retry loop exhausted');
     },
   };
 }
@@ -699,8 +691,7 @@ function withStoryRole(
 }
 
 function evidenceCount(subject: Record<string, unknown>): number {
-  const evidence = subject['evidenceSceneIds'];
-  return Array.isArray(evidence) ? evidence.length : 0;
+  return (subject['evidenceSceneIds'] as unknown[]).length;
 }
 
 function rawSubjectNames(subject: Record<string, unknown>): string[] {
@@ -717,9 +708,7 @@ function rawSubjectNames(subject: Record<string, unknown>): string[] {
 function deterministicSubjectSearchQueries(
   subject: Record<string, unknown>,
 ): string[] {
-  const canonicalName = subject['canonicalName'];
-  if (typeof canonicalName !== 'string' || !canonicalName.trim()) return [];
-  const canonical = canonicalName.trim();
+  const canonical = (subject['canonicalName'] as string).trim();
   // The hint always leads the query, whatever the name looks like. Gating it on
   // an "ambiguous" shape -- object anchors, collision hints, short names --
   // asked Brave for a bare `Tether`, which returned photographs of tethering
@@ -795,12 +784,10 @@ function promptMessages(
 
 function parseSearchIntentContent(
   content: string,
-  diagnostics?: SearchIntentCompletionDiagnostics,
+  diagnostics: SearchIntentCompletionDiagnostics,
 ): unknown {
   const trimmed = content.trim();
-  const suffix = diagnostics
-    ? ` (provider=${diagnostics.provider}, model=${diagnostics.model}, finishReason=${diagnostics.finishReason}, reasoningChars=${diagnostics.reasoningChars}, outputChars=${content.length})`
-    : '';
+  const suffix = ` (provider=${diagnostics.provider}, model=${diagnostics.model}, finishReason=${diagnostics.finishReason}, reasoningChars=${diagnostics.reasoningChars}, outputChars=${content.length})`;
   if (!trimmed) {
     throw new SearchIntentPayloadError(
       `Search intents returned empty content${suffix}`,
@@ -857,8 +844,7 @@ function searchIntentScenes(
       sentences,
       clippedStartId,
       clippedEndId,
-    )?.trim();
-    if (!text) return null;
+    )!.trim();
     scenes.push({ sceneId: scene.sceneId, text });
   }
 

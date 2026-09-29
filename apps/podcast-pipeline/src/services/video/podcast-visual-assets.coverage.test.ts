@@ -49,6 +49,19 @@ afterEach(async () => {
 });
 
 describe('podcast visual asset coverage edges', () => {
+  it('rejects a storyboard size that collides with the reserved intro asset id', async () => {
+    vi.resetModules();
+    vi.doMock('./storyboard/draft.js', async (importOriginal) => {
+      const actual =
+        await importOriginal<typeof import('./storyboard/draft.js')>();
+      return { ...actual, MAX_STORYBOARD_SLIDES: 98 };
+    });
+
+    await expect(import('./podcast-visual-assets.js')).rejects.toThrow(
+      'Podcast intro asset ID collides with storyboard assets',
+    );
+  });
+
   it('rejects a lead assignment that is not anchored to the primary subject', () => {
     expect(() =>
       anchoredPlannerScenes(
