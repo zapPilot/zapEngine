@@ -2,25 +2,41 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  type Mock,
+  vi,
+} from 'vitest';
 
-const mocks = vi.hoisted(() => ({
-  s3Options: undefined as unknown,
-  uploadOptions: undefined as unknown,
-  done: vi.fn(),
-  createReadStream: vi.fn(() => ({ stream: true })),
-  requiredEnv: vi.fn((name: string) => {
-    const values: Record<string, string> = {
-      R2_ENDPOINT: 'https://r2.example.test',
-      R2_ACCESS_KEY_ID: 'access',
-      R2_SECRET_ACCESS_KEY: 'secret',
-      R2_BUCKET_NAME: 'bucket',
-    };
-    const value = values[name];
-    if (!value) throw new Error(`Unexpected env: ${name}`);
-    return value;
+const mocks = vi.hoisted(
+  (): {
+    s3Options: unknown;
+    uploadOptions: unknown;
+    done: Mock<() => Promise<unknown>>;
+    createReadStream: Mock<() => { stream: boolean }>;
+    requiredEnv: Mock<(name: string) => string>;
+  } => ({
+    s3Options: undefined,
+    uploadOptions: undefined,
+    done: vi.fn(),
+    createReadStream: vi.fn(() => ({ stream: true })),
+    requiredEnv: vi.fn((name: string) => {
+      const values: Record<string, string> = {
+        R2_ENDPOINT: 'https://r2.example.test',
+        R2_ACCESS_KEY_ID: 'access',
+        R2_SECRET_ACCESS_KEY: 'secret',
+        R2_BUCKET_NAME: 'bucket',
+      };
+      const value = values[name];
+      if (!value) throw new Error(`Unexpected env: ${name}`);
+      return value;
+    }),
   }),
-}));
+);
 
 vi.mock('@aws-sdk/client-s3', () => ({
   S3Client: class {
