@@ -339,8 +339,7 @@ async function renderVerticalNewsVideo(context: {
     );
   }
   const mediaMs = Date.now() - mediaStartedAt;
-  const firstMediaPath = slideOutputPaths[0];
-  if (!firstMediaPath) throw new Error('Renderer produced no media images');
+  const firstMediaPath = slideOutputPaths[0]!;
 
   options.onProgress?.({
     message: 'Rendering brand frame and outro card',

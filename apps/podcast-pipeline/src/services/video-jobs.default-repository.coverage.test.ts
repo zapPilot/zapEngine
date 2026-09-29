@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const pipelineSupabase = vi.hoisted(() => ({ rpc: vi.fn() }));
+const pipelineSupabase = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn() }));
 
 vi.mock('./supabase-client.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./supabase-client.js')>()),
@@ -11,11 +11,55 @@ import {
   enqueueEpisodeVideoJob,
   enqueueEpisodeVideoVisualJob,
   EPISODE_VIDEO_VISUAL_VERSION,
+  findEpisodeVideoJob,
+  findEpisodeVideoVisualJob,
 } from './video-jobs.js';
 
 describe('default video job repository wrappers', () => {
   beforeEach(() => {
     pipelineSupabase.rpc.mockReset();
+    pipelineSupabase.from.mockReset();
+  });
+
+  it('finds localization and visual jobs through the default repositories', async () => {
+    const localizationJob = {
+      episode_localization_id: 'localization-1',
+      status: 'queued',
+    };
+    const visualJob = {
+      episode_id: 'episode-1',
+      status: 'queued',
+    };
+    const localizationQuery = {
+      select: vi.fn(),
+      eq: vi.fn(),
+      maybeSingle: vi.fn().mockResolvedValue({
+        data: localizationJob,
+        error: null,
+      }),
+    };
+    localizationQuery.select.mockReturnValue(localizationQuery);
+    localizationQuery.eq.mockReturnValue(localizationQuery);
+    const visualQuery = {
+      select: vi.fn(),
+      eq: vi.fn(),
+      maybeSingle: vi.fn().mockResolvedValue({
+        data: visualJob,
+        error: null,
+      }),
+    };
+    visualQuery.select.mockReturnValue(visualQuery);
+    visualQuery.eq.mockReturnValue(visualQuery);
+    pipelineSupabase.from
+      .mockReturnValueOnce(visualQuery)
+      .mockReturnValueOnce(localizationQuery);
+
+    await expect(findEpisodeVideoVisualJob('episode-1')).resolves.toEqual(
+      visualJob,
+    );
+    await expect(findEpisodeVideoJob('localization-1')).resolves.toEqual(
+      localizationJob,
+    );
   });
 
   it('enqueues localization and visual jobs through the lazily-created default repositories', async () => {

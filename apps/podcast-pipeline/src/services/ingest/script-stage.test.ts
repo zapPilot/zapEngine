@@ -181,6 +181,61 @@ describe('ensureEpisodeLocalizationScript editorial title persistence', () => {
     expect(mocks.updateEpisodeLocalizationStatus).not.toHaveBeenCalled();
   });
 
+  it('records per-attempt telemetry from script generation', async () => {
+    const existing = localizationRow({ status: 'scraped', script: '' });
+    const attempt = {
+      operation: 'generateScript' as const,
+      attempt: 1,
+      model: 'test/model',
+      provider: 'test-provider',
+      status: 'completed' as const,
+      startedAt: new Date('2026-09-29T00:00:00.000Z'),
+      finishedAt: new Date('2026-09-29T00:00:00.010Z'),
+      elapsedMs: 10,
+      timeoutMs: 30_000,
+      inputChars: 12,
+      outputChars: 16,
+      promptTokens: 4,
+      completionTokens: 5,
+      generationId: 'generation-1',
+      routing: 'openrouter',
+      errorCategory: null,
+      errorMessage: null,
+      costUsd: 0.01,
+    };
+    mocks.generateScriptWithLLM.mockImplementation(
+      async (
+        _title: string,
+        _text: string,
+        options?: { onAttempt?: (record: typeof attempt) => void },
+      ) => {
+        options?.onAttempt?.(attempt);
+        return generatedScript({ title: null });
+      },
+    );
+    mocks.updateEpisodeLocalizationStatus.mockResolvedValue(
+      localizationRow({ status: 'script_generated', script: PACKAGED_SCRIPT }),
+    );
+    const telemetry = {
+      lines: [],
+      attempts: [],
+      episodeId: null,
+      localizationId: null,
+    };
+
+    await ensureEpisodeLocalizationScript(
+      'https://example.com/article',
+      'zh-Hant',
+      [],
+      { episode: episodeRow(), localization: existing },
+      telemetry,
+    );
+
+    expect(telemetry.attempts).toEqual([attempt]);
+    expect(telemetry.episodeId).toBe('episode-id');
+    expect(telemetry.localizationId).toBe(existing.id);
+  });
+
   it('resumes after script generation without clearing the editorial title', async () => {
     const existing = localizationRow({
       title: '已持久化的編輯標題',
@@ -198,6 +253,26 @@ describe('ensureEpisodeLocalizationScript editorial title persistence', () => {
     expect(mocks.generateScriptWithLLM).not.toHaveBeenCalled();
     expect(mocks.updateEpisodeLocalizationStatus).not.toHaveBeenCalled();
     expect(result.localization).toBe(existing);
+  });
+
+  it('keeps an already-current packaged script even when its raw body is persisted', async () => {
+    const existing = localizationRow({
+      status: 'script_generated',
+      script: PACKAGED_SCRIPT,
+      script_body: 'Generated script',
+      packaging_version: PODCAST_PACKAGING_VERSION,
+    });
+
+    const result = await ensureEpisodeLocalizationScript(
+      'https://example.com/article',
+      'zh-Hant',
+      [],
+      { episode: episodeRow(), localization: existing },
+    );
+
+    expect(result.localization).toBe(existing);
+    expect(mocks.generateScriptWithLLM).not.toHaveBeenCalled();
+    expect(mocks.updateEpisodeLocalizationStatus).not.toHaveBeenCalled();
   });
 
   it('repackages a persisted raw body without another LLM request', async () => {

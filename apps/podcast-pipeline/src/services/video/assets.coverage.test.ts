@@ -55,7 +55,7 @@ function installHttpsResponse(
   options: {
     statusCode?: number;
     headers?: Record<string, string | string[] | undefined>;
-    body?: string;
+    body?: string | Uint8Array;
   } = {},
 ) {
   mocks.request.mockImplementation(
@@ -127,6 +127,37 @@ describe('assets transport coverage', () => {
         pinnedAddresses: ['8.8.8.8'],
       }),
     );
+  });
+
+  it('uses the pinned HTTPS transport when no fetch override is supplied', async () => {
+    const directory = await tempDirectory();
+    const png = await sharp({
+      create: {
+        width: 800,
+        height: 450,
+        channels: 3,
+        background: '#ffffff',
+      },
+    })
+      .png()
+      .toBuffer();
+    installHttpsResponse({
+      statusCode: 200,
+      headers: { 'content-type': 'image/png' },
+      body: png,
+    });
+
+    await expect(
+      acquireRemoteImage('https://cdn.example.test/image.png', {
+        workingDirectory: directory,
+        filename: 'default-transport',
+      }),
+    ).resolves.toMatchObject({
+      width: 800,
+      height: 450,
+      contentType: 'image/png',
+    });
+    expect(mocks.request).toHaveBeenCalledOnce();
   });
 
   it('converts a pinned https response into a web Response including repeated headers', async () => {

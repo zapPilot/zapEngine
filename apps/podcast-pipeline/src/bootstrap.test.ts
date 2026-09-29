@@ -263,6 +263,10 @@ describe('bootstrap', () => {
   it('uses lazy default processors when the render worker is enabled without overrides', async () => {
     const { bootstrap } = await import('./index.js');
     const { createVideoWorker } = await import('./services/video-worker.js');
+    const { processEpisodeVideoJob } =
+      await import('./services/episode-video-processor.js');
+    const { processEpisodeVideoVisualJob } =
+      await import('./services/episode-video-visual-processor.js');
     const handle = bootstrap({
       app: { fetch: vi.fn() } as unknown as Hono,
       startVideoWorker: true,
@@ -273,6 +277,15 @@ describe('bootstrap', () => {
       processJob: expect.any(Function),
       processVisualJob: expect.any(Function),
     });
+    const workerOptions = vi.mocked(createVideoWorker).mock.calls.at(-1)?.[0];
+    await workerOptions?.processJob({} as never, {} as never, {} as never);
+    await workerOptions?.processVisualJob(
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+    expect(processEpisodeVideoJob).toHaveBeenCalledTimes(1);
+    expect(processEpisodeVideoVisualJob).toHaveBeenCalledTimes(1);
     await handle.shutdown();
   });
 
@@ -372,5 +385,22 @@ describe('bootstrap', () => {
 
     await expect(handle.shutdown('SIGTERM')).resolves.toBeUndefined();
     expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects shutdown when the server close callback reports an error', async () => {
+    const { bootstrap } = await import('./index.js');
+    const closeError = new Error('server close failed');
+    const close = vi.fn((callback?: (error?: Error) => void) =>
+      callback?.(closeError),
+    );
+    const handle = bootstrap({
+      app: { fetch: vi.fn() } as unknown as Hono,
+      server: { close },
+      renderCapacity: null,
+    });
+
+    await expect(handle.shutdown('SIGTERM')).rejects.toThrow(
+      'server close failed',
+    );
   });
 });

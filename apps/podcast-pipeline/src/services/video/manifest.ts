@@ -164,27 +164,19 @@ interface ManifestForValidation {
 function validateManifest(
   manifest: ManifestForValidation,
   context: z.RefinementCtx,
-  options: {
-    // Portrait manifests keep a BGM-only outro tail after narration, so the
-    // slide/caption timeline ends before the clip does.
-    contentEndMs?: number;
-  },
+  // Portrait manifests keep a BGM-only outro tail after narration, so the
+  // slide/caption timeline always ends at narration rather than clip end.
+  contentEndMs: number,
 ): void {
-  const contentEndMs = options.contentEndMs ?? manifest.clip.durationMs;
-  const contentEndLabel =
-    options.contentEndMs === undefined
-      ? 'the clip duration'
-      : 'the narration end';
-  const captionBoundLabel =
-    options.contentEndMs === undefined ? 'the clip' : 'the narration';
+  const contentEndLabel = 'the narration end';
+  const captionBoundLabel = 'the narration';
   const frameDurationMs = 1_000 / manifest.clip.fps;
   const transitionFrames = Math.round(
     (manifest.clip.transitionMs * manifest.clip.fps) / 1_000,
   );
 
   manifest.slides.forEach((slide, index) => {
-    const previousSlide = manifest.slides[index - 1];
-    const expectedStartMs = previousSlide?.endMs ?? 0;
+    const expectedStartMs = index === 0 ? 0 : manifest.slides[index - 1]!.endMs;
 
     const expectedId = `scene-${String(index + 1).padStart(2, '0')}`;
     if (slide.id !== expectedId) {
@@ -345,9 +337,7 @@ function validateVerticalManifest(
   },
   context: z.RefinementCtx,
 ): void {
-  validateManifest(manifest, context, {
-    contentEndMs: manifest.audio.narrationDurationMs,
-  });
+  validateManifest(manifest, context, manifest.audio.narrationDurationMs);
   if (
     manifest.clip.durationMs !==
     manifest.audio.narrationDurationMs + OUTRO_TAIL_MS

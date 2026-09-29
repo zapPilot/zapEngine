@@ -68,6 +68,26 @@ describe('assertR2PlaybackReady', () => {
     }
   });
 
+  it('swallows response-body cancellation failures during cleanup', async () => {
+    const response = new Response('ok', {
+      status: 206,
+      headers: {
+        'access-control-allow-origin': '*',
+        'content-range': 'bytes 0-1/10',
+      },
+    });
+    if (!response.body) throw new Error('Expected a response body');
+    vi.spyOn(response.body, 'cancel').mockRejectedValue(
+      new Error('cancel failed'),
+    );
+
+    await expect(
+      assertR2PlaybackReady('https://media.example.com/video.mp4', {
+        fetchRange: vi.fn().mockResolvedValue(response),
+      }),
+    ).resolves.toMatchObject({ status: 206 });
+  });
+
   it.each([
     [
       'full response',

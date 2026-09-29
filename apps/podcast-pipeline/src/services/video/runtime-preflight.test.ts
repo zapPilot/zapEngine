@@ -69,6 +69,17 @@ describe('assertVideoRenderRuntime', () => {
     expect(deps.makeTemporaryDirectory).not.toHaveBeenCalled();
   });
 
+  it('resolves the default ffmpeg path when no override is supplied', async () => {
+    const deps = dependencies();
+
+    const report = await assertVideoRenderRuntime({
+      dependencies: deps,
+    });
+
+    expect(report.ffmpegPath).toBeTruthy();
+    expect(deps.processRunner).toHaveBeenCalled();
+  });
+
   it('checks packaged fonts and capabilities without paying the pixel-smoke cost on worker startup', async () => {
     const deps = dependencies();
 

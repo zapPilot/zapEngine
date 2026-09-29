@@ -28,10 +28,6 @@ interface RasterizeOptions {
   signal?: AbortSignal;
 }
 
-const noop = (): void => {
-  // reassigned synchronously below, before any event can fire
-};
-
 function stageEntryPath(): string {
   const extension = extname(fileURLToPath(import.meta.url));
   return fileURLToPath(
@@ -52,7 +48,7 @@ export async function runRasterStage(
       [...process.execArgv, stageEntryPath(), stage, inputPath, outputPath],
       { stdio: 'inherit' },
     );
-    let removeAbortListener = noop;
+    let removeAbortListener!: () => void;
     const { settleResolve, settleReject } = settleOnce<void>(
       resolve,
       reject,
@@ -67,7 +63,6 @@ export async function runRasterStage(
       const onAbort = () =>
         settleReject(abortError(abortSignal, `Raster ${stage} stage aborted`));
       abortSignal?.addEventListener('abort', onAbort, { once: true });
-      if (abortSignal?.aborted) onAbort();
       removeAbortListener = () =>
         abortSignal?.removeEventListener('abort', onAbort);
     }

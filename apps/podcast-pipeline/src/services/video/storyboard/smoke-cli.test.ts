@@ -2,8 +2,9 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { createDeterministicStoryboardProvider } from './fallback.js';
 import type { SearchIntentProvider } from './search-intents.js';
 import {
   parseStoryboardSmokeCliArgs,
@@ -21,6 +22,58 @@ afterEach(async () => {
 });
 
 describe('storyboard smoke catalog mode', () => {
+  it('rejects boolean, valued catalog, missing required, and invalid duration flags', () => {
+    expect(() =>
+      parseStoryboardSmokeCliArgs([
+        '--script',
+        '--title',
+        'Title',
+        '--duration-ms',
+        '1000',
+        '--output',
+        './out',
+      ]),
+    ).toThrow('Usage: video:storyboard:smoke');
+    expect(() =>
+      parseStoryboardSmokeCliArgs([
+        '--script',
+        './episode.txt',
+        '--title',
+        'Title',
+        '--duration-ms',
+        '1000',
+        '--output',
+        './out',
+        '--catalog',
+        'value',
+      ]),
+    ).toThrow('--catalog does not accept a value');
+    expect(() =>
+      parseStoryboardSmokeCliArgs([
+        '--script',
+        './episode.txt',
+        '--title',
+        '   ',
+        '--duration-ms',
+        '1000',
+        '--output',
+        './out',
+      ]),
+    ).toThrow('Usage: video:storyboard:smoke');
+    expect(() =>
+      parseStoryboardSmokeCliArgs([
+        '--script',
+        './episode.txt',
+        '--title',
+        'Title',
+        '--duration-ms',
+        '1.5',
+        '--output',
+        './out',
+      ]),
+    ).toThrow('--duration-ms must be a positive integer');
+  });
+
   it('parses catalog and search evidence flags', () => {
     const parsed = parseStoryboardSmokeCliArgs([
       '--script',
@@ -119,5 +172,123 @@ describe('storyboard smoke catalog mode', () => {
     expect(
       await readFile(join(outputDirectory, 'assignments.json'), 'utf8'),
     ).toContain('selectionReason');
+  });
+
+  it('runs the deterministic storyboard path without catalog enrichment', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'storyboard-smoke-basic-'));
+    temporaryDirectories.push(directory);
+    const scriptPath = join(directory, 'episode.txt');
+    const outputDirectory = join(directory, 'output');
+    await writeFile(scriptPath, 'One sentence. Another sentence.', 'utf8');
+
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    await runStoryboardSmokeCli([
+      '--script',
+      scriptPath,
+      '--title',
+      'Simple smoke',
+      '--duration-ms',
+      '12000',
+      '--output',
+      outputDirectory,
+    ]);
+
+    expect(
+      await readFile(join(outputDirectory, 'draft.json'), 'utf8'),
+    ).toContain('scene-01');
+    expect(log).toHaveBeenCalledWith(
+      expect.stringContaining('Storyboard smoke complete'),
+    );
+    log.mockRestore();
+  });
+
+  it('accepts a direct storyboard provider override', async () => {
+    const directory = await mkdtemp(
+      join(tmpdir(), 'storyboard-smoke-provider-'),
+    );
+    temporaryDirectories.push(directory);
+    const scriptPath = join(directory, 'episode.txt');
+    const outputDirectory = join(directory, 'output');
+    await writeFile(scriptPath, 'One sentence. Another sentence.', 'utf8');
+
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    await runStoryboardSmokeCli(
+      [
+        '--script',
+        scriptPath,
+        '--title',
+        'Provider smoke',
+        '--duration-ms',
+        '12000',
+        '--output',
+        outputDirectory,
+      ],
+      createDeterministicStoryboardProvider(),
+    );
+
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('deterministic'));
+    log.mockRestore();
+  });
+
+  it('reads alternate English evidence and reports a degraded catalog', async () => {
+    const directory = await mkdtemp(
+      join(tmpdir(), 'storyboard-smoke-degraded-'),
+    );
+    temporaryDirectories.push(directory);
+    const scriptPath = join(directory, 'episode.txt');
+    const searchScriptPath = join(directory, 'episode.en.txt');
+    const outputDirectory = join(directory, 'output');
+    await writeFile(
+      scriptPath,
+      'AI changed markets. Investors reacted.',
+      'utf8',
+    );
+    await writeFile(
+      searchScriptPath,
+      'AI changed markets. Investors reacted.',
+      'utf8',
+    );
+
+    const catalogProvider: SearchIntentProvider = {
+      model: 'test/catalog',
+      catalog: async () => ({
+        primarySubjectId: 'subject-ai',
+        subjects: [
+          {
+            id: 'subject-ai',
+            canonicalName: 'AI',
+            type: 'other',
+            aliases: [],
+            storyRole: 'primary',
+            evidenceSceneIds: ['scene-01'],
+            searchQueries: ['AI'],
+            identityHints: [],
+            negativeHints: [],
+            officialDomains: [],
+          },
+        ],
+      }),
+    };
+
+    await expect(
+      runStoryboardSmokeCli(
+        [
+          '--script',
+          scriptPath,
+          '--title',
+          'AI story',
+          '--duration-ms',
+          '12000',
+          '--output',
+          outputDirectory,
+          '--catalog',
+          '--search-title',
+          'English AI story',
+          '--search-script',
+          searchScriptPath,
+        ],
+        { catalog: catalogProvider },
+      ),
+    ).rejects.toThrow();
   });
 });

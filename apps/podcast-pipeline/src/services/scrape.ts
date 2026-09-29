@@ -75,7 +75,7 @@ function parseSrcset(srcset: string): SrcsetCandidate[] {
 
     const widthMatch = /^(\d+)w$/i.exec(descriptor);
     if (widthMatch) {
-      const width = positiveInteger(widthMatch[1] ?? null);
+      const width = positiveInteger(widthMatch[1]!);
       candidates.push({ url: rawUrl, ...(width ? { width } : {}) });
       continue;
     }
@@ -137,7 +137,7 @@ function largestSrcsetCandidate(
     const densityCandidate = largestCandidateBy(candidates, 'density');
     if (densityCandidate) return densityCandidate;
 
-    return candidates.at(-1) ?? null;
+    return candidates.at(-1)!;
   }
 
   return null;
@@ -227,9 +227,7 @@ function extractOpenGraphImageCandidates(
     'meta[property], meta[name]',
   )) {
     const property = (
-      meta.getAttribute('property') ??
-      meta.getAttribute('name') ??
-      ''
+      meta.getAttribute('property') ?? meta.getAttribute('name')!
     ).toLowerCase();
     const content = meta.getAttribute('content')?.trim();
 
@@ -373,9 +371,6 @@ async function fetchArticleHtml(
   url: string,
   options: ScrapeArticleOptions,
 ): Promise<string> {
-  if (typeof url !== 'string' || !url.trim()) {
-    throw new Error(`Failed to parse URL from ${String(url)}`);
-  }
   const request = async (signal?: AbortSignal): Promise<string> => {
     const response = await fetch(url, {
       headers: {

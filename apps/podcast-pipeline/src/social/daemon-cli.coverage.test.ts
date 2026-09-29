@@ -123,6 +123,21 @@ describe('social daemon CLI main coverage', () => {
     expect(mocks.lockRelease).toHaveBeenCalledOnce();
   });
 
+  it('passes verbose history through unchanged in one-shot mode', async () => {
+    process.argv = ['node', 'daemon', '--once', '--verbose'];
+    const consoleLog = vi.spyOn(console, 'log').mockImplementation(() => {});
+    mocks.reportHistory.mockImplementation(
+      async (log: (message: string) => void) => {
+        log('ordinary verbose history detail');
+      },
+    );
+
+    await import('./daemon.js');
+
+    expect(consoleLog).toHaveBeenCalledWith('ordinary verbose history detail');
+    expect(mocks.lockRelease).toHaveBeenCalledOnce();
+  });
+
   it('enters the long-running daemon branch and performs fatal cleanup when startup fails', async () => {
     mocks.ensureStart.mockRejectedValue(new Error('daemon start failed'));
     const consoleError = vi
@@ -147,6 +162,30 @@ describe('social daemon CLI main coverage', () => {
     expect(mocks.lockRelease).toHaveBeenCalledOnce();
     expect(mocks.flush).toHaveBeenCalledOnce();
     expect(exit).toHaveBeenCalledWith(1);
+  });
+
+  it('tags a fatal release failure with its release phase', async () => {
+    const { SocialReleaseFailureError } = await import('./publish-error.js');
+    const releaseFailure = new SocialReleaseFailureError({
+      episodeId: 'episode-fatal',
+      languageCode: 'ja',
+      platform: 'x',
+      phase: 'transport',
+      cause: new Error('publish state unknown'),
+    });
+    mocks.recoverLeases.mockRejectedValue(releaseFailure);
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    vi.spyOn(process, 'exit').mockImplementation((() => undefined) as never);
+
+    await import('./daemon.js');
+
+    expect(mocks.capture).toHaveBeenCalledWith(
+      releaseFailure,
+      expect.objectContaining({
+        component: 'social-daemon',
+        tags: { operation: 'transport' },
+      }),
+    );
   });
 
   it('reports an already-running lock and exits immediately', async () => {

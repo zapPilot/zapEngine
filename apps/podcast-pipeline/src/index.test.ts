@@ -29,6 +29,7 @@ const {
   mockDecodeCursor,
   mockEnqueueEpisodeVideoJob,
   mockEnqueueEpisodeVideoVisualJob,
+  mockRetryEpisodeVideoGeneration,
   mockFindEpisodeById,
   mockFindEpisodeBySourceUrl,
   mockFindEpisodeListRowByLocalizationId,
@@ -66,6 +67,7 @@ const {
   mockDecodeCursor: vi.fn(),
   mockEnqueueEpisodeVideoJob: vi.fn(),
   mockEnqueueEpisodeVideoVisualJob: vi.fn(),
+  mockRetryEpisodeVideoGeneration: vi.fn(),
   mockFindEpisodeById: vi.fn(),
   mockFindEpisodeBySourceUrl: vi.fn(),
   mockFindEpisodeListRowByLocalizationId: vi.fn(),
@@ -237,6 +239,7 @@ vi.mock('./services/video-jobs.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./services/video-jobs.js')>()),
   enqueueEpisodeVideoJob: mockEnqueueEpisodeVideoJob,
   enqueueEpisodeVideoVisualJob: mockEnqueueEpisodeVideoVisualJob,
+  retryEpisodeVideoGeneration: mockRetryEpisodeVideoGeneration,
   findEpisodeVideoJob: mockFindEpisodeVideoJob,
   findEpisodeVideoVisualJob: mockFindEpisodeVideoVisualJob,
   getVideoJobRepository: () => ({ find: mockFindEpisodeVideoJob }),
@@ -281,6 +284,7 @@ beforeEach(() => {
   });
   mockFindEpisodeVideoVisualJob.mockResolvedValue(null);
   mockFindEpisodeVideoJob.mockResolvedValue(null);
+  mockRetryEpisodeVideoGeneration.mockResolvedValue('queued');
   mockListEpisodeLocalizationsByEpisodeId.mockResolvedValue([
     localizationRow({
       language_code: 'zh-Hant',
@@ -978,6 +982,38 @@ describe('POST /ingest pipeline', () => {
     expect(mockInvalidateEpisodeSearchCache).toHaveBeenCalledTimes(1);
   });
 
+  it('omits a primary language from the ingest summary when no localization row exists yet', async () => {
+    mockListEpisodeLocalizationsByEpisodeId.mockResolvedValue([
+      localizationRow({
+        language_code: 'zh-Hant',
+        classroom_hls_url: 'https://cdn.example.com/classroom/playlist.m3u8',
+      }),
+      localizationRow({
+        id: '00000000-0000-4000-8000-000000000004',
+        language_code: 'en',
+        classroom_hls_url: null,
+      }),
+    ]);
+
+    const response = await app.request('/ingest', {
+      method: 'POST',
+      headers: {
+        authorization: 'Bearer secret-token',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ url: 'https://example.com/article' }),
+    });
+    const body = (await response.json()) as {
+      localizations: { languageCode: string }[];
+    };
+
+    expect(response.status).toBe(201);
+    expect(body.localizations.map(({ languageCode }) => languageCode)).toEqual([
+      'zh-Hant',
+      'en',
+    ]);
+  });
+
   it('requeues canonical video from completed multilingual audio without regenerating ingest artifacts', async () => {
     const canonicalLocalization = localizationRow({
       id: 'canonical-localization',
@@ -1635,6 +1671,62 @@ describe('POST /telegram/webhook', () => {
     );
   });
 
+  it('schedules a video retry callback without blocking the webhook response', async () => {
+    const episodeId = '00000000-0000-4000-8000-000000000001';
+    const response = await postTelegramUpdate({
+      update_id: 1,
+      callback_query: {
+        id: 'callback-video-retry',
+        data: `retry_video:${episodeId}`,
+        from: { id: 12345 },
+        message: {
+          chat: { id: 67890 },
+          text: '影片失敗',
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    await vi.waitFor(() =>
+      expect(mockRetryEpisodeVideoGeneration).toHaveBeenCalledWith(episodeId),
+    );
+  });
+
+  it('answers retry callbacks whose Telegram message has no text', async () => {
+    const response = await postTelegramUpdate({
+      update_id: 1,
+      callback_query: {
+        id: 'callback-no-text',
+        data: 'retry_ingest',
+        from: { id: 12345 },
+        message: { chat: { id: 67890 } },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    await vi.waitFor(() => expect(mockTelegramFetch).toHaveBeenCalledTimes(1));
+    expect(mockFindEpisodeBySourceUrl).not.toHaveBeenCalled();
+  });
+
+  it('rejects a malformed source URL preserved in a retry failure message', async () => {
+    const response = await postTelegramUpdate({
+      update_id: 1,
+      callback_query: {
+        id: 'callback-invalid-url',
+        data: 'retry_ingest',
+        from: { id: 12345 },
+        message: {
+          chat: { id: 67890 },
+          text: 'URL: http://%',
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    await vi.waitFor(() => expect(mockTelegramFetch).toHaveBeenCalledTimes(1));
+    expect(mockFindEpisodeBySourceUrl).not.toHaveBeenCalled();
+  });
+
   it('answers a retry callback whose failure message no longer contains a source URL', async () => {
     const response = await postTelegramUpdate({
       update_id: 1,
@@ -2032,6 +2124,19 @@ describe('GET /episodes/search', () => {
     expect(body.items[0].episode.videoGeneration).toEqual(videoGeneration);
   });
 
+  it('preserves an empty audio-track list in search results', async () => {
+    const episode = { ...episodeListResponse(listRow()), audioTracks: [] };
+    mockSearchEpisodes.mockResolvedValue([
+      { episode, matchSource: 'title', snippet: null },
+    ]);
+
+    const response = await app.request('/episodes/search?q=liquidity');
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.items[0].episode.audioTracks).toEqual([]);
+  });
+
   it.each([
     ['missing', '/episodes/search'],
     ['too short', '/episodes/search?q=a'],
@@ -2241,6 +2346,19 @@ describe('GET /episodes/:localizationId', () => {
 
     expect(response.status).toBe(200);
     expect(body.video).toEqual(video);
+    expect(body.videoGeneration).toBeNull();
+  });
+
+  it('defaults a missing video summary to null for a resolved localization row', async () => {
+    const row = listRow();
+    mockFindEpisodeListRowByLocalizationId.mockResolvedValue(row);
+    mockListEpisodeVideoSummariesByLocalizationIds.mockResolvedValue(new Map());
+
+    const response = await app.request(`/episodes/${row.localization_id}`);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.video).toBeNull();
     expect(body.videoGeneration).toBeNull();
   });
 

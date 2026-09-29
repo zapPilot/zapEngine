@@ -135,6 +135,62 @@ describe('materialize missing locale timing', () => {
     ).toThrow('unknown locale sentence');
   });
 
+  it('rejects a missing alignment entry even when the array length matches', () => {
+    const localized = splitCanonicalSentences(
+      'Markets changed. Policy followed.',
+    );
+    const timing: CanonicalAudioTiming = {
+      durationMs: 20_000,
+      sentences: [
+        { sentence: localized[0]!, startMs: 0, endMs: 10_000 },
+        { sentence: localized[1]!, startMs: 10_000, endMs: 20_000 },
+      ],
+      captions: [],
+      silences: [],
+    };
+    const draft = {
+      scenes: localized.map((sentence, index) => ({
+        sceneId: stableSceneId(index),
+        startSentenceId: sentence.id,
+        endSentenceId: sentence.id,
+        imageSearchIntent: [`intent ${index + 1}`],
+      })),
+    };
+    const visualPlan = materializeImageVisualPlan({
+      draft,
+      sceneAssets: draft.scenes.map((scene) => ({
+        sceneId: scene.sceneId,
+        sources: [sceneSource(scene.sceneId)],
+        asset: sceneAsset(scene.sceneId),
+      })),
+    });
+    const sceneAlignment = [
+      {
+        sceneId: draft.scenes[0]!.sceneId,
+        startSentenceId: localized[0]!.id,
+        endSentenceId: localized[0]!.id,
+      },
+      undefined,
+    ] as unknown as Parameters<
+      typeof materializeLocaleVideoManifest
+    >[0]['sceneAlignment'];
+
+    expect(() =>
+      materializeLocaleVideoManifest({
+        visualPlan,
+        timing,
+        sceneAlignment,
+        episode: {
+          id: '9ee737b4-c3d3-4f88-9837-ccc7fc20704e',
+          localizationId: '56b21422-1a38-4917-957e-b23223c0396c',
+          languageCode: 'en',
+          title: 'Markets',
+        },
+        audioSource: '/audio/en.m4a',
+      }),
+    ).toThrow('Scene alignment 2 must reference scene-02');
+  });
+
   it('fits transitions when every slide is brand-generated', () => {
     const localized = splitCanonicalSentences(
       'Markets changed. Policy followed.',

@@ -838,6 +838,25 @@ describe('visual subject catalog degradation', () => {
     );
   });
 
+  it('degrades a primitive catalog rejection with the generic bounded reason', async () => {
+    const provider = {
+      model: MODEL,
+      catalog: vi.fn<SearchIntentProvider['catalog']>(async () => {
+        throw new Error('catalog payload invalid');
+      }),
+    };
+
+    const result = await enrichStoryboardSearchIntents(
+      catalogEnrichmentRequest('CNBC'),
+      { provider },
+    );
+
+    expect(result.subjectCatalog).toBeNull();
+    expect(result.degradedReason).toBe(
+      'Visual subject catalog failed: catalog payload invalid',
+    );
+  });
+
   it('fails the episode when a non-SDK provider reports an HTTP status', async () => {
     const provider = failingProvider(statusError(502, 'Bad gateway'));
 

@@ -31,21 +31,23 @@ async function setup(section = 'main') {
     [`${prefix}/seg2.ts`, 'old-2'],
   ]);
   let etag = 'old-etag';
-  const send = vi.fn(async (command: unknown) => {
-    if (command instanceof HeadObjectCommand) {
-      if (!store.has(playlistKey))
-        throw Object.assign(new Error('not found'), { name: 'NotFound' });
-      return { ETag: etag };
-    }
-    if (command instanceof ListObjectsV2Command)
-      return { Contents: [...store.keys()].map((Key) => ({ Key })) };
-    if (command instanceof DeleteObjectsCommand) {
-      for (const item of command.input.Delete!.Objects!)
-        store.delete(item.Key!);
-      return { Deleted: command.input.Delete!.Objects };
-    }
-    throw new Error('Unexpected command');
-  });
+  const send = vi.fn<(command: unknown) => Promise<unknown>>(
+    async (command) => {
+      if (command instanceof HeadObjectCommand) {
+        if (!store.has(playlistKey))
+          throw Object.assign(new Error('not found'), { name: 'NotFound' });
+        return { ETag: etag };
+      }
+      if (command instanceof ListObjectsV2Command)
+        return { Contents: [...store.keys()].map((Key) => ({ Key })) };
+      if (command instanceof DeleteObjectsCommand) {
+        for (const item of command.input.Delete!.Objects!)
+          store.delete(item.Key!);
+        return { Deleted: command.input.Delete!.Objects };
+      }
+      throw new Error('Unexpected command');
+    },
+  );
   const put = vi.fn(
     async (object: {
       Key: string;
@@ -99,6 +101,93 @@ async function setup(section = 'main') {
 }
 
 describe('safe HLS replacement', () => {
+  it('requires a playlist file', async () => {
+    const h = await setup();
+    h.files.shift();
+    await expect(h.run()).rejects.toThrow('HLS playlist is required');
+  });
+
+  it.each([
+    [
+      'duplicate filename',
+      (files: Awaited<ReturnType<typeof setup>>['files']) =>
+        files.push({ ...files[1]! }),
+    ],
+    [
+      'invalid filename',
+      (files: Awaited<ReturnType<typeof setup>>['files']) =>
+        files.push({ ...files[1]!, name: 'segment.m4s' }),
+    ],
+  ])('rejects a %s', async (_label, mutate) => {
+    const h = await setup();
+    mutate(h.files);
+    await expect(h.run()).rejects.toThrow('Invalid or duplicate HLS filename');
+  });
+
+  it.each([
+    ['missing header', 'seg0.ts\n#EXT-X-ENDLIST\n'],
+    ['missing end marker', '#EXTM3U\nseg0.ts\n'],
+    [
+      'external URI attribute',
+      '#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI="key.bin"\nseg0.ts\n#EXT-X-ENDLIST\n',
+    ],
+  ])('rejects unsupported playlists with %s', async (_label, playlist) => {
+    const h = await setup();
+    await writeFile(h.files[0]!.path, playlist);
+    await expect(h.run()).rejects.toThrow(
+      'Only self-contained MPEG-TS VOD playlists are supported',
+    );
+  });
+
+  it('rejects files that are not all referenced by the playlist', async () => {
+    const h = await setup();
+    const extraPath = join(h.files[0]!.path, '..', 'seg1.ts');
+    await writeFile(extraPath, 'extra');
+    h.files.push({
+      name: 'seg1.ts',
+      path: extraPath,
+      contentType: 'video/mp2t',
+    });
+    await expect(h.run()).rejects.toThrow(
+      'HLS segment set does not match playlist',
+    );
+  });
+
+  it('rejects an existing playlist without an ETag', async () => {
+    const h = await setup();
+    const send = h.send.getMockImplementation()!;
+    h.send.mockImplementation(async (command) => {
+      if (command instanceof HeadObjectCommand) return {};
+      return send(command);
+    });
+    await expect(h.run()).rejects.toThrow('Previous HLS playlist has no ETag');
+  });
+
+  it('accepts NoSuchKey as another missing-playlist response', async () => {
+    const h = await setup();
+    h.store.clear();
+    const send = h.send.getMockImplementation()!;
+    h.send.mockImplementation(async (command) => {
+      if (command instanceof HeadObjectCommand) {
+        throw Object.assign(new Error('missing'), { name: 'NoSuchKey' });
+      }
+      return send(command);
+    });
+    await expect(h.run()).resolves.toBeUndefined();
+    expect(h.put.mock.calls.at(-1)?.[0]).toMatchObject({ ifNoneMatch: '*' });
+  });
+
+  it('propagates unexpected head-object failures', async () => {
+    const h = await setup();
+    h.send.mockImplementation(async (command) => {
+      if (command instanceof HeadObjectCommand) {
+        throw Object.assign(new Error('denied'), { name: 'AccessDenied' });
+      }
+      throw new Error('Unexpected command');
+    });
+    await expect(h.run()).rejects.toThrow('denied');
+  });
+
   it('publishes a shorter playlist last and removes stale segments while retaining current objects', async () => {
     const h = await setup();
     await h.run();

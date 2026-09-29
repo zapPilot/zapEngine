@@ -30,9 +30,7 @@ export type StoryboardValidationResult =
 function zodIssues(error: z.ZodError): StoryboardValidationIssue[] {
   return error.issues.map((issue) => ({
     code: `schema.${issue.code}`,
-    path: issue.path.map((part) =>
-      typeof part === 'symbol' ? (part.description ?? String(part)) : part,
-    ),
+    path: issue.path as (string | number)[],
     message: issue.message,
   }));
 }
@@ -78,7 +76,7 @@ export function normalizeNumericToken(value: string): string {
 // signals corrupted model output.
 function containsDisallowedControlCharacters(value: string): boolean {
   for (const character of value) {
-    const codePoint = character.codePointAt(0) ?? 0;
+    const codePoint = character.codePointAt(0)!;
     if (
       codePoint <= 0x1f &&
       codePoint !== 0x09 &&

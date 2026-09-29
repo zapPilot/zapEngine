@@ -245,10 +245,7 @@ function compactSceneAlignment(
         `Scene ${scene.sceneId} must end on or after the next localized sentence`,
       );
     }
-    const startSentenceId = localizedSentenceIds[startIndex];
-    if (!startSentenceId) {
-      throw new Error(`Scene ${scene.sceneId} starts beyond the script`);
-    }
+    const startSentenceId = localizedSentenceIds[startIndex]!;
     startIndex = endIndex + 1;
     return {
       sceneId: scene.sceneId,

@@ -158,7 +158,7 @@ export function createEpisodeVideoProcessor(
       const preparedCover = await dependencies.prepareCover({
         sourceUrl: source.sourceUrl,
         workingDirectory: outputDirectory,
-        knownImageUrl: visual.provenance.leadCoverImageUrl ?? null,
+        knownImageUrl: visual.provenance.leadCoverImageUrl,
         signal: context.signal,
       });
       if (!preparedCover.thumbnailPath || !preparedCover.metadata.sha256) {
@@ -365,13 +365,15 @@ function logRenderProgress(
   });
 }
 
-async function readCgroupCurrentBytes(): Promise<number | null> {
+export async function readCgroupCurrentBytes(
+  read: (path: string, encoding: 'utf8') => Promise<string> = readFile,
+): Promise<number | null> {
   for (const path of [
     '/sys/fs/cgroup/memory.current',
     '/sys/fs/cgroup/memory/memory.usage_in_bytes',
   ]) {
     try {
-      const value = Number((await readFile(path, 'utf8')).trim());
+      const value = Number((await read(path, 'utf8')).trim());
       if (Number.isFinite(value) && value >= 0) return value;
     } catch {
       // Local development and non-Linux hosts do not expose cgroup files.
@@ -392,9 +394,7 @@ async function startCgroupMemorySampler(
     const current = await readCurrent();
     if (current !== null) peak = Math.max(peak, current);
   };
-  const timer = setInterval(() => {
-    void sample();
-  }, intervalMs);
+  const timer = setInterval(sample, intervalMs);
   timer.unref?.();
 
   return {

@@ -44,12 +44,7 @@ export async function synthesizeClassroomAudio(
       cost,
     };
   } catch (error) {
-    let err: Error;
-    if (error instanceof Error && error.cause instanceof Error) {
-      err = error.cause;
-    } else {
-      err = error instanceof Error ? error : new Error(String(error));
-    }
+    const err = unwrapClassroomError(error as Error);
     console.error('[classroom-audio] synthesis failed:', {
       episodeId: opts.episodeId,
       targetLanguageCode: row.target_language_code,
@@ -62,4 +57,9 @@ export async function synthesizeClassroomAudio(
       cost,
     };
   }
+}
+
+function unwrapClassroomError(error: Error): Error {
+  if (error.cause instanceof Error) return error.cause;
+  return error;
 }

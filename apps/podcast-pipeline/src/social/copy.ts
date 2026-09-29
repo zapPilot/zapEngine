@@ -66,7 +66,7 @@ function weightedCharacterLength(value: string): number {
 }
 
 function isCjkCharacter(character: string): boolean {
-  const codePoint = character.codePointAt(0) ?? 0;
+  const codePoint = character.codePointAt(0)!;
   return (
     (codePoint >= 0x1100 && codePoint <= 0x11ff) ||
     (codePoint >= 0x2e80 && codePoint <= 0x4dbf) ||
@@ -374,8 +374,7 @@ export async function generateSocialCopy(input: {
   /** Keep provider request/response telemetry visible for CLI/debug runs. */
   logLlm?: boolean;
 }): Promise<{ copy: GeneratedSocialCopy; model: string }> {
-  const languageCode =
-    input.languageCode ?? input.episode.languageCode ?? 'zh-Hant';
+  const languageCode = input.languageCode ?? input.episode.languageCode;
   const blocks = copyBlocksForPlatforms(input.platforms);
   // The red-line rules are one file shared with the judge in
   // ./rednote-semantic-risk.ts, so the writer is held to exactly what the
@@ -495,7 +494,7 @@ export async function generateSocialCopy(input: {
     episodeId: input.episode.id,
     languageCode,
     attempts: MAX_ATTEMPTS,
-    reason: failures.at(-1) ?? 'unknown',
+    reason: failures.at(-1)!,
     cause: lastError,
   });
 }

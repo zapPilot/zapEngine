@@ -829,6 +829,68 @@ describe('performMultilingualIngestAndEnqueueVideo cost ledger', () => {
     expect(run.stages[0]?.reportedCostUsd).toBeUndefined();
   });
 
+  it('preserves a primitive ingest failure while still recording the failed run', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    await expect(
+      performMultilingualIngestAndEnqueueVideo(
+        'https://example.com/article',
+        'ja',
+        {
+          trigger: 'http',
+          dependencies: {
+            coordinator: createHeavyWorkCoordinator(),
+            findEpisode: vi.fn().mockResolvedValue(null),
+            performIngest: vi
+              .fn()
+              .mockRejectedValue('primitive ingest failure'),
+          },
+        },
+      ),
+    ).rejects.toBe('primitive ingest failure');
+
+    expect(recordedRun()).toMatchObject({
+      status: 'failed',
+      episodeId: null,
+      stages: [],
+    });
+  });
+
+  it('records a failed cost entry that died before a localization row existed', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    await expect(
+      performMultilingualIngestAndEnqueueVideo(
+        'https://example.com/article',
+        'ja',
+        {
+          trigger: 'telegram',
+          dependencies: {
+            coordinator: createHeavyWorkCoordinator(),
+            findEpisode: vi.fn().mockResolvedValue(null),
+            performIngest: ingestFillingSink([], {
+              throwAfter: 0,
+              failedEntry: {
+                languageCode: 'zh-Hant',
+                episodeId: 'episode-1',
+                localizationId: null,
+                status: 'failed',
+                lines: [],
+                attempts: [],
+              },
+            }),
+          },
+        },
+      ),
+    ).rejects.toThrow('en localization failed');
+
+    expect(recordedRun()).toMatchObject({
+      status: 'failed',
+      episodeId: 'episode-1',
+      stages: [],
+    });
+  });
+
   it('records a run with no stages when a resubmission costs nothing', async () => {
     vi.spyOn(console, 'log').mockImplementation(() => undefined);
     const localizations = videoLocalizations();

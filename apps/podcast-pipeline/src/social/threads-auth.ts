@@ -765,8 +765,7 @@ function requiresAuthorization(error: unknown): boolean {
 
 function redactSecrets(message: string, secrets: readonly string[]): string {
   return secrets.reduce(
-    (redacted, secret) =>
-      secret ? redacted.replaceAll(secret, '[REDACTED]') : redacted,
+    (redacted, secret) => redacted.replaceAll(secret, '[REDACTED]'),
     message,
   );
 }

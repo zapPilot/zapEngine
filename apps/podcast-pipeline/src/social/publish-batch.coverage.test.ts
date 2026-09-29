@@ -82,6 +82,25 @@ describe('publish batch coverage gaps', () => {
     expect(prepared.snapshot.model).toBe('m');
   });
 
+  it('omits optional copy controls when they are not supplied', async () => {
+    mocks.getSocialEpisode.mockResolvedValue(episode);
+    mocks.resolvePackagingAssignments.mockResolvedValue({});
+    mocks.generateSocialCopy.mockResolvedValue({ copy, model: 'm' });
+
+    await prepareSocialBatchCopy({
+      episodeId: episode.id,
+      languageCode: 'zh-Hant',
+      platforms: ['rednote'],
+    });
+
+    expect(mocks.generateSocialCopy).toHaveBeenCalledWith(
+      expect.not.objectContaining({
+        logLlm: expect.anything(),
+        strategyGuidanceByPlatform: expect.anything(),
+      }),
+    );
+  });
+
   it('uses the default logger and reports the error mapper when publishing', async () => {
     // WHY: the `?? noop` and `onError` mapper only run without an explicit logger.
     mocks.prepareSocialBatchAssets.mockResolvedValue({ episode });

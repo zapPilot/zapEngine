@@ -4,6 +4,7 @@ import {
   createEpisodeVideoProcessor,
   EPISODE_VIDEO_RENDER_TIMEOUT_CAP_MS,
   EPISODE_VIDEO_RENDER_TIMEOUT_FLOOR_MS,
+  readCgroupCurrentBytes,
   renderTimeoutMsFor,
 } from './episode-video-processor.js';
 import {
@@ -34,6 +35,25 @@ describe('renderTimeoutMsFor', () => {
   });
 });
 
+describe('readCgroupCurrentBytes', () => {
+  it('returns the first finite non-negative cgroup value', async () => {
+    const read = vi.fn().mockResolvedValue('1048576\n');
+
+    await expect(readCgroupCurrentBytes(read)).resolves.toBe(1_048_576);
+    expect(read).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects non-finite and negative samples before returning null', async () => {
+    const read = vi
+      .fn()
+      .mockResolvedValueOnce('not-a-number')
+      .mockResolvedValueOnce('-1');
+
+    await expect(readCgroupCurrentBytes(read)).resolves.toBeNull();
+    expect(read).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe('createEpisodeVideoProcessor', () => {
   function renderedArtifacts(manifestHash: string) {
     return {
@@ -60,6 +80,103 @@ describe('createEpisodeVideoProcessor', () => {
       r2Prefix: 'episodes/episode-1/video/renderer-v1/manifest-hash',
     };
   }
+
+  it('fails closed when cover preparation returns no uploadable thumbnail', async () => {
+    const processJob = createEpisodeVideoProcessor({
+      ...coverDependencies(),
+      prepareCover: vi.fn().mockResolvedValue({
+        thumbnailPath: null,
+        metadata: {
+          strategy: 'visual-plan-og-image-v1',
+          status: 'fallback',
+          sha256: 'c'.repeat(64),
+          sourceImageUrl: null,
+        },
+      }),
+      downloadNarration: vi.fn().mockResolvedValue(undefined),
+      analyzeAudio: vi
+        .fn()
+        .mockResolvedValue({ durationMs: 90_000, silences: [] }),
+      createManifest: vi
+        .fn()
+        .mockResolvedValue(generatedManifest('manifest-hash')),
+      render: vi.fn(),
+      upload: vi.fn(),
+      makeTemporaryDirectory: vi.fn().mockResolvedValue('/work'),
+      writeManifest: vi.fn().mockResolvedValue(undefined),
+      removeDirectory: vi.fn().mockResolvedValue(undefined),
+      readCgroupMemory: vi.fn().mockResolvedValue(null),
+    });
+
+    await expect(
+      processJob(job(), source(), {
+        signal: new AbortController().signal,
+        runId: 'run-cover-missing',
+        saveManifest: vi.fn().mockResolvedValue(undefined),
+        reportProgress: vi.fn(),
+        reportRenderMetrics: vi.fn(),
+      }),
+    ).rejects.toThrow(
+      'Video cover preparation returned no uploadable artifact',
+    );
+  });
+
+  it('logs cover fallbacks without optional source or stored URL fields', async () => {
+    const logger = { info: vi.fn() };
+    const customSource = source();
+    const manifest = customSource.visualManifest as {
+      provenance: {
+        leadCoverImageUrl: string | null;
+        leadCoverFallbackReason: string | null;
+      };
+    };
+    manifest.provenance.leadCoverImageUrl = null;
+    manifest.provenance.leadCoverFallbackReason = 'decorative-og-image';
+
+    const processJob = createEpisodeVideoProcessor({
+      prepareCover: vi.fn().mockResolvedValue({
+        thumbnailPath: '/work/cover.png',
+        metadata: {
+          strategy: 'visual-plan-og-image-v1',
+          status: 'fallback',
+          sha256: 'c'.repeat(64),
+          sourceImageUrl: null,
+          fallbackReason: 'generated-cover',
+        },
+      }),
+      uploadCover: vi.fn().mockResolvedValue(''),
+      downloadNarration: vi.fn().mockResolvedValue(undefined),
+      analyzeAudio: vi
+        .fn()
+        .mockResolvedValue({ durationMs: 90_000, silences: [] }),
+      createManifest: vi
+        .fn()
+        .mockResolvedValue(generatedManifest('manifest-hash')),
+      render: vi.fn().mockResolvedValue(renderedArtifacts('manifest-hash')),
+      upload: vi.fn().mockResolvedValue(uploadedArtifacts()),
+      makeTemporaryDirectory: vi.fn().mockResolvedValue('/work'),
+      writeManifest: vi.fn().mockResolvedValue(undefined),
+      removeDirectory: vi.fn().mockResolvedValue(undefined),
+      readCgroupMemory: vi.fn().mockResolvedValue(null),
+      logger,
+    });
+
+    await processJob(job(), customSource, {
+      signal: new AbortController().signal,
+      runId: 'run-cover-fallback',
+      saveManifest: vi.fn().mockResolvedValue(undefined),
+      reportProgress: vi.fn(),
+      reportRenderMetrics: vi.fn(),
+    });
+
+    const coverLine = logger.info.mock.calls
+      .map(([line]) => String(line))
+      .find((line) => line.includes('video:cover'));
+    expect(coverLine).toContain('leadCoverFallback=decorative-og-image');
+    expect(coverLine).toContain('reason=generated-cover');
+    expect(coverLine).not.toContain(' source=');
+    expect(coverLine).not.toContain(' stored=');
+  });
 
   it('persists provenance before rendering and uploads immutable artifacts', async () => {
     const calls: string[] = [];

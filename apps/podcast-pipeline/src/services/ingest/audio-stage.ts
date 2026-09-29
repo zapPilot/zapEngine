@@ -58,15 +58,14 @@ export async function ensureLocalizationCompleted(
   );
 
   if (!mainAudioReady || !classroomAudioReady) {
-    const uploadedMain = mainAudioReady
-      ? null
-      : await synthesizeAndUploadMainAudio(
-          localization,
-          episode.id,
-          languageCode,
-          costBreakdown,
-        );
-    if (uploadedMain) {
+    let uploadedMain: UploadedAudioSection | null = null;
+    if (!mainAudioReady) {
+      uploadedMain = await synthesizeAndUploadMainAudio(
+        localization,
+        episode.id,
+        languageCode,
+        costBreakdown,
+      );
       localization = await checkpointMainAudio(
         localization,
         uploadedMain,
@@ -74,16 +73,15 @@ export async function ensureLocalizationCompleted(
       );
     }
 
-    const uploadedClassroom = classroomAudioReady
-      ? null
-      : await synthesizeAndUploadClassroomAudio(
-          episode.id,
-          localization,
-          languageCode,
-          classroomRows,
-          costBreakdown,
-        );
-    if (uploadedClassroom) {
+    let uploadedClassroom: UploadedAudioSection | null = null;
+    if (!classroomAudioReady) {
+      uploadedClassroom = await synthesizeAndUploadClassroomAudio(
+        episode.id,
+        localization,
+        languageCode,
+        classroomRows,
+        costBreakdown,
+      );
       localization = await checkpointClassroomAudio(
         localization,
         uploadedClassroom,
@@ -316,11 +314,7 @@ async function synthesizeAndUploadClassroomAudio(
   languageCode: LanguageClassroomLanguageCode,
   classroomRows: LanguageClassroomRow[],
   costBreakdown: UsageCostLine[],
-): Promise<UploadedAudioSection | null> {
-  if (!isLanguageClassroomAudioRequired(languageCode)) {
-    return null;
-  }
-
+): Promise<UploadedAudioSection> {
   const readyRows = await ensureClassroomScripts(
     localization,
     languageCode,
@@ -336,10 +330,7 @@ async function synthesizeAndUploadClassroomAudio(
     costBreakdown,
   );
 
-  const classroomAudio = await combineClassroomAudio(
-    perTargetAudios,
-    languageCode,
-  );
+  const classroomAudio = await combineClassroomAudio(perTargetAudios);
 
   return packageAndUploadHls({
     audio: classroomAudio,
@@ -494,14 +485,7 @@ async function packageMainHls(
  */
 async function combineClassroomAudio(
   classroomAudios: Buffer[],
-  languageCode: LanguageClassroomLanguageCode,
 ): Promise<Buffer> {
-  if (classroomAudios.length === 0) {
-    throw new Error(
-      `Language classroom audio buffers are missing for ${languageCode}`,
-    );
-  }
-
   return step('concatEpisodeClassroomAudio', () =>
     concatMp3Buffers(classroomAudios),
   );

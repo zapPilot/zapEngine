@@ -503,6 +503,9 @@ describe('createVideoJobRepository', () => {
     });
     await expect(repository.reapFailedNotifications()).resolves.toEqual([]);
 
+    supabase.rpc.mockResolvedValueOnce({ data: [], error: null });
+    await expect(repository.reapFailedNotifications()).resolves.toEqual([]);
+
     supabase.query.maybeSingle.mockResolvedValueOnce({
       data: null,
       error: { message: 'find localization failed' },
@@ -530,6 +533,12 @@ describe('createVideoJobRepository', () => {
           episode_id: 'episode-2',
           last_error: null,
         },
+        {
+          episode_localization_id: 'loc-3',
+          telegram_chat_id: 'chat-3',
+          episode_id: 'episode-3',
+          last_error: null,
+        },
       ],
       error: null,
     });
@@ -540,6 +549,7 @@ describe('createVideoJobRepository', () => {
         data: [
           { id: 'loc-1', language_code: 'ja' },
           { id: 'loc-2', language_code: 'en' },
+          { id: 'loc-3', language_code: 'fr' },
         ],
         error: null,
       }),
@@ -551,6 +561,13 @@ describe('createVideoJobRepository', () => {
         episodeId: 'episode-1',
         languageCode: 'ja',
         lastError: 'filming failed',
+      },
+      {
+        episodeLocalizationId: 'loc-3',
+        telegramChatId: 'chat-3',
+        episodeId: 'episode-3',
+        languageCode: 'zh-Hant',
+        lastError: null,
       },
     ]);
     expect(supabase.from).toHaveBeenLastCalledWith('episode_localizations');

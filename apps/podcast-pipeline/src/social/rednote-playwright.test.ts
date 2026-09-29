@@ -79,6 +79,11 @@ function fakePage(options: {
   titleAcceptsOnWrite?: number;
   declarationOpens?: boolean;
   counter?: 'rendered' | 'absent' | 'stuck-at-zero';
+  confirmTopics?: boolean;
+  url?: string;
+  publishConfirmation?: 'text' | 'url' | 'fail';
+  bodyVisibleSelectorIndex?: number | null;
+  extraEditorTopicPayloads?: (string | null)[];
 }) {
   const state = {
     query: '',
@@ -133,11 +138,50 @@ function fakePage(options: {
     page: () => page,
   };
 
+  const editorDom = new JSDOM(
+    '<div class="tiptap ProseMirror" contenteditable="true"></div>',
+  );
+  const editorElement = editorDom.window.document.querySelector<HTMLElement>(
+    '.tiptap.ProseMirror',
+  )!;
+  const withEditorGlobals = async <T>(
+    run: () => T | Promise<T>,
+  ): Promise<T> => {
+    const descriptorDocument = Object.getOwnPropertyDescriptor(
+      globalThis,
+      'document',
+    );
+    const descriptorWindow = Object.getOwnPropertyDescriptor(
+      globalThis,
+      'window',
+    );
+    Object.defineProperty(globalThis, 'document', {
+      configurable: true,
+      value: editorDom.window.document,
+    });
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: editorDom.window,
+    });
+    try {
+      return await run();
+    } finally {
+      if (descriptorDocument)
+        Object.defineProperty(globalThis, 'document', descriptorDocument);
+      else Reflect.deleteProperty(globalThis, 'document');
+      if (descriptorWindow)
+        Object.defineProperty(globalThis, 'window', descriptorWindow);
+      else Reflect.deleteProperty(globalThis, 'window');
+    }
+  };
+
   const body = {
     waitFor: vi.fn().mockResolvedValue(undefined),
     fill: vi.fn().mockResolvedValue(undefined),
     click: vi.fn().mockResolvedValue(undefined),
-    evaluate: vi.fn().mockResolvedValue(undefined),
+    evaluate: vi.fn(async (run: (element: HTMLElement) => void) =>
+      withEditorGlobals(() => run(editorElement)),
+    ),
   };
 
   const row = {
@@ -146,7 +190,7 @@ function fakePage(options: {
       throw new Error('no matching topic row');
     }),
     click: vi.fn(async () => {
-      state.attached.push(state.query);
+      if (options.confirmTopics ?? true) state.attached.push(state.query);
     }),
   };
   const rowChain = { filter: () => rowChain, first: () => row };
@@ -182,6 +226,15 @@ function fakePage(options: {
     }),
   };
 
+  const publishSuccess = {
+    first: () => publishSuccess,
+    waitFor: vi.fn(async () => {
+      if ((options.publishConfirmation ?? 'text') !== 'text') {
+        throw new Error('success text absent');
+      }
+    }),
+  };
+
   const keyboard = {
     type: vi.fn(async (text: string) => {
       state.query = text.replace(/^#/, '');
@@ -191,18 +244,60 @@ function fakePage(options: {
 
   const page = {
     keyboard,
-    url: () => 'https://creator.rednote.com/new/note-manager',
-    waitForURL: vi.fn().mockResolvedValue(undefined),
+    url: () => options.url ?? 'https://creator.rednote.com/new/note-manager',
+    waitForURL: vi.fn(async (predicate: (url: { href: string }) => boolean) => {
+      if ((options.publishConfirmation ?? 'text') !== 'url') {
+        throw new Error('url did not change');
+      }
+      const href =
+        options.url ?? 'https://creator.rednote.com/new/note-manager';
+      if (!predicate({ href })) throw new Error('url was not accepted');
+    }),
     waitForTimeout: vi.fn().mockResolvedValue(undefined),
-    // Only `editorTopics` evaluates on the page, and it reports the entities the
-    // editor currently holds.
-    evaluate: vi.fn(async () => [...state.attached]),
+    evaluate: vi.fn(
+      async (
+        run: (selectors: readonly [string, string]) => string[],
+        selectors: readonly [string, string],
+      ) => {
+        editorElement.replaceChildren();
+        const payloads = [
+          ...state.attached.map((name) => JSON.stringify({ name })),
+          ...(options.extraEditorTopicPayloads ?? []),
+        ];
+        for (const payload of payloads) {
+          const anchor = editorDom.window.document.createElement('a');
+          anchor.className = 'tiptap-topic';
+          if (payload !== null) anchor.setAttribute('data-topic', payload);
+          editorElement.append(anchor);
+        }
+        return withEditorGlobals(() => run(selectors));
+      },
+    ),
     locator: vi.fn((selector: string) => {
+      if (selector.includes('发布成功')) return publishSuccess;
       if (selector.includes('标题') || selector.includes('標題')) {
         return { ...title, first: () => title };
       }
       if (selector.includes('contenteditable')) {
-        return { ...body, first: () => body };
+        const bodySelectors = [
+          '.tiptap.ProseMirror[contenteditable="true"]',
+          '.ql-editor[contenteditable="true"]',
+          '[contenteditable="true"]',
+        ];
+        const selectorIndex = bodySelectors.indexOf(selector);
+        const visibleIndex =
+          options.bodyVisibleSelectorIndex === undefined
+            ? 0
+            : options.bodyVisibleSelectorIndex;
+        const selectedBody = {
+          ...body,
+          waitFor: vi.fn(async () => {
+            if (visibleIndex === null || selectorIndex !== visibleIndex) {
+              throw new Error(`body selector ${selectorIndex} hidden`);
+            }
+          }),
+        };
+        return { ...selectedBody, first: () => selectedBody };
       }
       if (selector.includes('creator-editor-topic-container')) {
         return { ...rowChain, ...row };
@@ -231,6 +326,29 @@ beforeEach(() => {
 });
 
 describe('createPlaywrightRednotePublisher', () => {
+  it('fails before upload when the persistent publisher profile is logged out', async () => {
+    const { page } = fakePage({ existingTopics: [] });
+    mocks.page = page;
+    mocks.isPublisherReady.mockResolvedValue(false);
+
+    await expect(
+      createPlaywrightRednotePublisher().publishRednote(PAYLOAD),
+    ).rejects.toThrow(/social:login/);
+  });
+
+  it('ignores an empty generated hashtag before attaching real topics', async () => {
+    const { page, keyboard } = fakePage({ existingTopics: ['宏观经济'] });
+    mocks.page = page;
+
+    await expect(
+      createPlaywrightRednotePublisher().publishRednote({
+        ...PAYLOAD,
+        hashtags: ['###', '宏觀經濟'],
+      }),
+    ).resolves.toMatchObject({ hashtags: ['宏觀經濟'] });
+    expect(keyboard.type).toHaveBeenCalledTimes(1);
+  });
+
   it('attaches every hashtag as a real topic instead of literal text', async () => {
     const { page, body, keyboard, state } = fakePage({
       existingTopics: ['宏观经济', '市场结构'],
@@ -277,6 +395,43 @@ describe('createPlaywrightRednotePublisher', () => {
     expect(
       keyboard.press.mock.calls.filter(([key]) => key === 'Backspace'),
     ).toHaveLength('市场结构'.length + 1);
+  });
+
+  it('discards a clicked topic suggestion when no topic entity appears in the editor', async () => {
+    const { page, row, keyboard } = fakePage({
+      existingTopics: ['宏观经济'],
+      confirmTopics: false,
+    });
+    mocks.page = page;
+
+    await expect(
+      createPlaywrightRednotePublisher().publishRednote({
+        ...PAYLOAD,
+        hashtags: ['宏觀經濟'],
+      }),
+    ).rejects.toThrow(/attach_topics/);
+
+    expect(row.click).toHaveBeenCalledTimes(1);
+    expect(keyboard.press).toHaveBeenCalledWith('Escape');
+  });
+
+  it('ignores malformed and non-string topic metadata while reading editor entities', async () => {
+    const { page } = fakePage({
+      existingTopics: ['宏观经济'],
+      extraEditorTopicPayloads: [
+        'not-json',
+        JSON.stringify({ name: 123 }),
+        null,
+      ],
+    });
+    mocks.page = page;
+
+    await expect(
+      createPlaywrightRednotePublisher().publishRednote({
+        ...PAYLOAD,
+        hashtags: ['宏觀經濟'],
+      }),
+    ).resolves.toMatchObject({ hashtags: ['宏觀經濟'] });
   });
 
   it('fails the publish when no hashtag matched a topic', async () => {
@@ -338,6 +493,114 @@ describe('createPlaywrightRednotePublisher', () => {
     await expect(
       createPlaywrightRednotePublisher().publishRednote(PAYLOAD),
     ).resolves.toMatchObject({ body: '' });
+  });
+
+  it('returns the public note URL when Rednote has already redirected to it', async () => {
+    const publicUrl = 'https://www.xiaohongshu.com/explore/note-123';
+    const { page } = fakePage({
+      existingTopics: ['宏观经济', '市场结构'],
+      url: publicUrl,
+    });
+    mocks.page = page;
+
+    await expect(
+      createPlaywrightRednotePublisher().publishRednote(PAYLOAD),
+    ).resolves.toMatchObject({ url: publicUrl });
+  });
+
+  it('accepts a creator-manager URL transition as publish confirmation', async () => {
+    const { page } = fakePage({
+      existingTopics: ['宏观经济', '市场结构'],
+      publishConfirmation: 'url',
+      url: 'https://creator.rednote.com/new/note-manager',
+    });
+    mocks.page = page;
+
+    await expect(
+      createPlaywrightRednotePublisher().publishRednote(PAYLOAD),
+    ).resolves.toMatchObject({ status: 'published' });
+  });
+
+  it('accepts a public Rednote post URL as publish confirmation', async () => {
+    const { page } = fakePage({
+      existingTopics: ['宏观经济', '市场结构'],
+      publishConfirmation: 'url',
+      url: 'https://www.xiaohongshu.com/explore/note-123',
+    });
+    mocks.page = page;
+
+    await expect(
+      createPlaywrightRednotePublisher().publishRednote(PAYLOAD),
+    ).resolves.toMatchObject({ status: 'published' });
+  });
+
+  it('rejects a malformed URL while evaluating URL-based publish confirmation', async () => {
+    const { page } = fakePage({
+      existingTopics: ['宏观经济', '市场结构'],
+      publishConfirmation: 'url',
+      url: 'not a url',
+    });
+    mocks.page = page;
+
+    await expect(
+      createPlaywrightRednotePublisher().publishRednote(PAYLOAD),
+    ).rejects.toThrow(/did not confirm publish success/);
+  });
+
+  it('fails when neither success text nor a successful URL transition confirms publish', async () => {
+    const { page } = fakePage({
+      existingTopics: ['宏观经济', '市场结构'],
+      publishConfirmation: 'fail',
+      url: 'not a url',
+    });
+    mocks.page = page;
+
+    await expect(
+      createPlaywrightRednotePublisher().publishRednote(PAYLOAD),
+    ).rejects.toThrow(/did not confirm publish success/);
+  });
+
+  it('publishes without a URL field when the current page URL is malformed', async () => {
+    const { page } = fakePage({
+      existingTopics: ['宏观经济', '市场结构'],
+      url: 'not a url',
+    });
+    mocks.page = page;
+
+    await expect(
+      createPlaywrightRednotePublisher().publishRednote(PAYLOAD),
+    ).resolves.not.toHaveProperty('url');
+  });
+
+  it('tries later body selectors after an earlier candidate is hidden', async () => {
+    const { page } = fakePage({
+      existingTopics: ['宏观经济', '市场结构'],
+      bodyVisibleSelectorIndex: 1,
+    });
+    mocks.page = page;
+
+    await expect(
+      createPlaywrightRednotePublisher().publishRednote(PAYLOAD),
+    ).resolves.toMatchObject({ status: 'published' });
+  });
+
+  it('surfaces the final selector error when no body editor candidate becomes visible', async () => {
+    const { page } = fakePage({
+      existingTopics: ['宏观经济', '市场结构'],
+      bodyVisibleSelectorIndex: null,
+    });
+    mocks.page = page;
+    const now = vi.spyOn(Date, 'now');
+    let clock = 0;
+    now.mockImplementation(() => {
+      clock += 10_000;
+      return clock;
+    });
+
+    await expect(
+      createPlaywrightRednotePublisher().publishRednote(PAYLOAD),
+    ).rejects.toThrow(/find_body/);
+    now.mockRestore();
   });
 
   // The regression this whole check exists for: notes shipped with `title: ""`
@@ -463,6 +726,18 @@ describe('readTitleField', () => {
     expect(readTitleField(build(FORM_HTML), selectors)).toEqual({
       value: '',
       text: null,
+    });
+  });
+
+  it('reports a null value when the matched title element has no value property', () => {
+    const document = new JSDOM(
+      '<div class="input"><div class="d-text"></div><span class="count-tip">4 / 20</span></div>',
+    ).window.document;
+    const element = document.querySelector('.d-text')!;
+
+    expect(readTitleField(element, selectors)).toEqual({
+      value: null,
+      text: '4 / 20',
     });
   });
 

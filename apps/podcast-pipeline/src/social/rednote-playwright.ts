@@ -364,7 +364,7 @@ async function writeTitle(
   expected: string,
   log: (message: string) => void,
 ): Promise<void> {
-  let last: TitleAcceptance | undefined;
+  let last: TitleAcceptance = { accepted: false, value: null, text: null };
   for (let attempt = 1; attempt <= TITLE_WRITE_ATTEMPTS; attempt += 1) {
     await field.click();
     await field.fill('');
@@ -379,8 +379,8 @@ async function writeTitle(
   throw new Error(
     [
       `Rednote did not accept the title "${expected}" after ${TITLE_WRITE_ATTEMPTS} attempts.`,
-      `  dom value: ${JSON.stringify(last?.value ?? null)}`,
-      `  counter: ${last?.text === null || last?.text === undefined ? `not found in the field's ${TITLE_CONTAINER_SELECTOR} block` : JSON.stringify(last.text)}`,
+      `  dom value: ${JSON.stringify(last.value)}`,
+      `  counter: ${last.text === null ? `not found in the field's ${TITLE_CONTAINER_SELECTOR} block` : JSON.stringify(last.text)}`,
     ].join('\n'),
   );
 }
@@ -426,7 +426,7 @@ async function pollTitleAcceptance(
     if (probe.value === expected && counted !== null && counted > 0) {
       if (counted !== wanted) {
         log(
-          `[rednote] title_count_mismatch: platform counted ${counted}, this side counted ${wanted} ("${probe.text ?? ''}")`,
+          `[rednote] title_count_mismatch: platform counted ${counted}, this side counted ${wanted} ("${probe.text!}")`,
         );
       }
       return { ...last, accepted: true };
@@ -455,7 +455,7 @@ export function readTitleField(
   return {
     value:
       'value' in element ? String((element as HTMLInputElement).value) : null,
-    text: counter?.textContent ?? null,
+    text: counter ? counter.textContent : null,
   };
 }
 

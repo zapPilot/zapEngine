@@ -514,6 +514,48 @@ describe('Telegram ingest queue remaining durability branches', () => {
     get.mockRestore();
   });
 
+  it('covers a null-chat race at the final duplicate guard', async () => {
+    const recovered = row({
+      id: 'job-null-chat-race',
+      telegram_chat_id: null,
+      source_url: 'https://example.test/null-chat-race',
+    });
+    const store = fakeStore({
+      claimNext: vi
+        .fn()
+        .mockResolvedValueOnce(recovered)
+        .mockResolvedValue(null),
+    });
+    const queue = createTelegramIngestQueue({
+      jobStore: store,
+      startRecoveryLoop: false,
+    });
+    const key = `zh-Hant:${recovered.source_url}`;
+    const originalGet = Map.prototype.get;
+    let matchingGets = 0;
+    const get = vi.spyOn(Map.prototype, 'get').mockImplementation(function (
+      this: Map<unknown, unknown>,
+      candidate: unknown,
+    ) {
+      if (candidate === key) {
+        matchingGets += 1;
+        if (matchingGets === 2) {
+          return {
+            latestChatId: null,
+            promise: Promise.resolve(),
+          };
+        }
+      }
+      return originalGet.call(this, candidate);
+    });
+
+    await queue.recoverNow();
+
+    expect(mocks.perform).not.toHaveBeenCalled();
+    expect(mocks.send).not.toHaveBeenCalledWith(null, 'inflight');
+    get.mockRestore();
+  });
+
   it('covers the stale clearWhenDone identity guard without mutating production state', async () => {
     const run = createDeferred<unknown>();
     mocks.perform.mockReturnValue(run.promise);

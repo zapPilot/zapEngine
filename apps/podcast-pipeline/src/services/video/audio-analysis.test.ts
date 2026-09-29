@@ -218,6 +218,12 @@ describe('podcast video audio analysis', () => {
     expect(chunks[0]).toBe('abcdefghijklmnopqrst,');
   });
 
+  it('drops whitespace-only chunks created by a long internal gap', () => {
+    const chunks = splitCaptionText(`headline${' '.repeat(100)}tail`);
+    expect(chunks.every((chunk) => chunk.length > 0)).toBe(true);
+    expect(chunks.join('').replaceAll(' ', '')).toBe('headlinetail');
+  });
+
   it('splits long captions within the two-line safe-area budget', () => {
     const chunks = splitCaptionText(
       '這是一段非常長的繁體中文字幕，必須在合理的位置切開，避免任何單一字幕超出兩行安全範圍。',

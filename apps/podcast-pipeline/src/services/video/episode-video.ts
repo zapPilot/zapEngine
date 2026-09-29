@@ -85,8 +85,8 @@ export async function createEpisodeVideoManifest(input: {
     sceneAlignment = canonicalSceneAlignment(sceneAnchors, input.script);
   } else {
     const alignmentOptions = {
-      ...(input.alignmentProvider ? { provider: input.alignmentProvider } : {}),
-      ...(input.signal ? { signal: input.signal } : {}),
+      provider: input.alignmentProvider,
+      signal: input.signal,
     };
     sceneAlignment = await alignLocalizedScenes(
       {
