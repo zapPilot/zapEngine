@@ -1,12 +1,8 @@
 name: Test QA State
 
 on:
-  workflow_dispatch:
-    inputs:
-      records:
-        description: JSON array emitted by scripts/agents/test-qa-state.mjs record.
-        required: true
-        type: string
+  repository_dispatch:
+    types: [test-qa-state]
 
 permissions:
   contents: read
@@ -20,12 +16,10 @@ concurrency:
 
 jobs:
   persist:
-    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      RECORDS: ${{ inputs.records }}
     steps:
       - uses: actions/checkout@v7
 
@@ -36,28 +30,15 @@ jobs:
       - name: Download newest main state artifact
         run: |
           mkdir -p "$RUNNER_TEMP/test-qa-previous"
-          pages="$(
-            gh api --method GET "repos/$GITHUB_REPOSITORY/actions/artifacts" \
-              -f name=test-qa-state \
-              -f per_page=100 \
-              --paginate \
-              --slurp
-          )"
-          row="$(
-            printf '%s' "$pages" | jq -r '
-              [.[].artifacts[]
-                | select(.expired == false)
-                | select(.workflow_run.head_branch == "main")]
-              | sort_by(.id)
-              | last
-              | if . == null then "" else [.id, .workflow_run.id] | @tsv end
-            '
-          )"
-          if [ -z "$row" ]; then
-            echo "No previous main test-qa-state artifact; starting from an empty state."
+          status=0
+          run_id="$(node scripts/agents/test-qa-state.mjs locate \
+            --repo "$GITHUB_REPOSITORY" --workflow test-qa-state.yml \
+            --event repository_dispatch --status success --artifact test-qa-state)" || status=$?
+          if [ "$status" -eq 3 ]; then
+            echo "No previous state; merge requires an explicit bootstrap."
             exit 0
           fi
-          run_id="${row#*$'\t'}"
+          if [ "$status" -ne 0 ]; then exit "$status"; fi
           gh run download "$run_id" \
             --repo "$GITHUB_REPOSITORY" \
             --name test-qa-state \
@@ -66,6 +47,7 @@ jobs:
       - name: Merge worker records
         run: |
           node scripts/agents/test-qa-state.mjs merge \
+            --event "$GITHUB_EVENT_PATH" \
             --previous "$RUNNER_TEMP/test-qa-previous/state.json" \
             --output "$RUNNER_TEMP/test-qa-state"
 
@@ -77,4 +59,5 @@ jobs:
             ${{ runner.temp }}/test-qa-state/state.json
             ${{ runner.temp }}/test-qa-state/STATE.md
           if-no-files-found: error
+          overwrite: true
           retention-days: 90

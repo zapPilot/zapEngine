@@ -8,6 +8,8 @@ import {
   collectScopes,
   emptyState,
   fingerprintPaths,
+  fingerprintInputs,
+  locateArtifactRun,
   listFilesAtRef,
   findingId,
   MAX_RECORD_PAYLOAD_BYTES,
@@ -156,7 +158,7 @@ function parseRecordArgs(argv) {
   const options = {
     key: null,
     status: null,
-    ref: 'HEAD',
+    ref: null,
     pr: null,
     findings: [],
     issue: null,
@@ -243,10 +245,11 @@ export function createRecord(options) {
   if (!safePath(options.key)) throw new Error('unsafe --key');
   if (!options.status) throw new Error('--status is required with --key');
 
-  const scopes = collectScopes(repoRoot, { ref: options.ref ?? 'HEAD' });
+  const ref =
+    options.ref ?? (options.status === 'pending' ? 'HEAD' : 'origin/main');
+  const scopes = collectScopes(repoRoot, { ref });
   const scope = scopes.find((candidate) => candidate.key === options.key);
-  if (!scope)
-    throw new Error(`scope not found at ${options.ref}: ${options.key}`);
+  if (!scope) throw new Error(`scope not found at ${ref}: ${options.key}`);
 
   const findings = (options.findings ?? []).map((finding) =>
     typeof finding === 'string'
@@ -262,7 +265,7 @@ export function createRecord(options) {
       key: scope.key,
       status,
       auditedAt: at,
-      auditedCommit: gitSha(repoRoot, options.ref ?? 'HEAD'),
+      auditedCommit: gitSha(repoRoot, ref),
       fingerprint: scope.fingerprint,
       files: scope.files,
       relatedPaths: scope.relatedPaths,
@@ -284,7 +287,8 @@ function parseMergeArgs(argv) {
     const arg = argv[index];
     const value = argv[++index];
     if (value === undefined) throw new Error(`missing value for ${arg}`);
-    if (arg === '--previous') options.previous = value;
+    if (arg === '--event') options.event = value;
+    else if (arg === '--previous') options.previous = value;
     else if (arg === '--output') options.output = value;
     else if (arg === '--repo') options.repo = value;
     else throw new Error(`unknown argument: ${arg}`);
@@ -292,19 +296,49 @@ function parseMergeArgs(argv) {
   return options;
 }
 
-function loadPrevious(filePath) {
-  if (!filePath || !existsSync(filePath)) return emptyState();
-  return validateState(JSON.parse(readFileSync(filePath, 'utf8')));
+export function loadPrevious(filePath, bootstrap = false) {
+  if (filePath && existsSync(filePath))
+    return validateState(JSON.parse(readFileSync(filePath, 'utf8')));
+  if (!bootstrap)
+    throw new Error(
+      'No previous state; first initialization requires payload --bootstrap',
+    );
+  return emptyState();
 }
 
 export function parseRecords(raw) {
-  if (!raw) throw new Error('RECORDS is required');
-  if (Buffer.byteLength(raw, 'utf8') > MAX_RECORD_PAYLOAD_BYTES) {
-    throw new Error(`RECORDS exceeds ${MAX_RECORD_PAYLOAD_BYTES} bytes`);
-  }
   const parsed = JSON.parse(raw);
-  if (!Array.isArray(parsed)) throw new Error('RECORDS must be a JSON array');
+  if (!Array.isArray(parsed)) throw new Error('records must be a JSON array');
+  if (
+    Buffer.byteLength(JSON.stringify(parsed), 'utf8') > MAX_RECORD_PAYLOAD_BYTES
+  )
+    throw new Error('records exceeds 60 KiB');
   return parsed.map(validateRecord);
+}
+
+export function parseEvent(event) {
+  assertKeys(event.client_payload, ['records', 'bootstrap'], 'client_payload');
+  const { records, bootstrap } = event.client_payload;
+  if (bootstrap !== undefined && typeof bootstrap !== 'boolean')
+    throw new Error('bootstrap must be a boolean');
+  return {
+    records: parseRecords(JSON.stringify(records)),
+    bootstrap: bootstrap === true,
+  };
+}
+
+export function createPayload(records, bootstrap = false) {
+  const payload = {
+    event_type: 'test-qa-state',
+    client_payload: { records, ...(bootstrap ? { bootstrap: true } : {}) },
+  };
+  parseEvent(payload);
+  if (
+    Buffer.byteLength(JSON.stringify(payload), 'utf8') >
+    MAX_RECORD_PAYLOAD_BYTES
+  )
+    throw new Error('payload exceeds 60 KiB');
+  return payload;
 }
 
 function readPr(repo, number) {
@@ -456,10 +490,14 @@ function recordMain(argv) {
 
 function mergeMain(argv) {
   const options = parseMergeArgs(argv);
+  if (!options.event) throw new Error('--event is required');
+  const { records, bootstrap } = parseEvent(
+    JSON.parse(readFileSync(resolve(options.event), 'utf8')),
+  );
   const previous = loadPrevious(
     options.previous ? resolve(options.previous) : null,
+    bootstrap,
   );
-  const records = parseRecords(process.env.RECORDS);
   const github = {
     runId: Number(process.env.GITHUB_RUN_ID ?? 0),
     runAttempt: Number(process.env.GITHUB_RUN_ATTEMPT ?? 1),
@@ -494,10 +532,13 @@ function mergeMain(argv) {
         files,
         relatedPaths,
         auditedCommit: mainSha,
-        fingerprint: fingerprintPaths(process.cwd(), mainSha, [
-          ...files,
-          ...relatedPaths,
-        ]),
+        fingerprint: fingerprintPaths(
+          process.cwd(),
+          mainSha,
+          fingerprintInputs({ key, files }).filter((path) =>
+            mainFiles.has(path),
+          ),
+        ),
       };
     },
     previous,
@@ -526,8 +567,41 @@ function main() {
   const [command, ...argv] = process.argv.slice(2);
   if (command === 'record') recordMain(argv);
   else if (command === 'merge') mergeMain(argv);
-  else {
-    throw new Error('usage: test-qa-state.mjs <record|merge> [options]');
+  else if (command === 'payload') {
+    const bootstrap = argv.includes('--bootstrap');
+    const paths = argv.filter((arg) => arg !== '--bootstrap');
+    if (paths.some((arg) => arg.startsWith('--')))
+      throw new Error('unknown payload option');
+    process.stdout.write(
+      `${JSON.stringify(
+        createPayload(
+          paths.map((path) => JSON.parse(readFileSync(path, 'utf8'))),
+          bootstrap,
+        ),
+      )}\n`,
+    );
+  } else if (command === 'locate') {
+    const options = {};
+    for (let i = 0; i < argv.length; i += 2) {
+      const key = argv[i].slice(2);
+      if (
+        !['repo', 'workflow', 'event', 'status', 'branch', 'artifact'].includes(
+          key,
+        ) ||
+        !argv[i + 1]
+      )
+        throw new Error('invalid locate option');
+      options[key] = argv[i + 1];
+    }
+    for (const key of ['repo', 'workflow', 'event', 'status', 'artifact'])
+      if (!options[key]) throw new Error(`--${key} is required`);
+    const run = locateArtifactRun(options);
+    if (run === null) process.exitCode = 3;
+    else console.log(run);
+  } else {
+    throw new Error(
+      'usage: test-qa-state.mjs <record|merge|payload|locate> [options]',
+    );
   }
 }
 

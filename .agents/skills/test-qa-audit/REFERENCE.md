@@ -24,28 +24,22 @@ Do not turn a production finding into a production edit in Phase 1.
 
 ## Artifact download
 
-Use a temporary directory outside the repository. List artifacts, filter to
-unexpired main runs, then sort by artifact id locally.
+Use a temporary directory outside the repository. `locate` checks repository
+identity and main branch, then searches newest runs for unexpired artifacts.
+Exit 3 means no artifact; exit 1 means API error. Stop if state cannot be read.
 
 ```bash
-gh api --method GET repos/zapPilot/zapEngine/actions/artifacts \
-  -f per_page=100 --paginate --slurp >"$TMPDIR/zap-artifacts.json"
-
-jq -r '
-  [.[].artifacts[]
-    | select(.expired == false)
-    | select(.workflow_run.head_branch == "main")
-    | select(.name == "test-qa-state")]
-  | sort_by(.id) | last
-  | [.id, .workflow_run.id] | @tsv
-' "$TMPDIR/zap-artifacts.json"
-
-gh run download <run-id> --repo zapPilot/zapEngine \
+run_id="$(node scripts/agents/test-qa-state.mjs locate \
+  --repo zapPilot/zapEngine --workflow test-qa-state.yml \
+  --event repository_dispatch --status success --artifact test-qa-state)"
+gh run download "$run_id" --repo zapPilot/zapEngine \
   --name test-qa-state --dir "$TMPDIR/test-qa-state"
+run_id="$(node scripts/agents/test-qa-state.mjs locate \
+  --repo zapPilot/zapEngine --workflow ci.yml \
+  --event push --status completed --artifact coverage-handoff)"
+gh run download "$run_id" --repo zapPilot/zapEngine \
+  --name coverage-handoff --dir "$TMPDIR/coverage-handoff"
 ```
-
-Repeat the last selection/download with artifact name `coverage-handoff`.
-Do not use a PR-run coverage artifact as main state.
 
 ## Scope commands
 
@@ -54,13 +48,14 @@ repository traps:
 
 - `pnpm --filter X test -- <path>` runs the package test script and may still
   execute the whole package. Use the emitted `exec vitest run <paths>`.
-- Scoped Vitest coverage uses `--coverage.enabled`,
-  `--coverage.include=<subject>`, an external reports directory, and a 100%
-  threshold. Python uses `--cov-fail-under=100`. Never lower these thresholds.
-  If other tests are needed to cover the subject, include them in verification;
-  a failing coverage command is not permission to push.
-- analytics-engine uses `exec uv run pytest <tests> -q -m "not integration"`.
-  Scopes requiring unavailable PostgreSQL are audit-only.
+- `commands.coverage` runs package `test:coverage` with CI's 100% gates.
+  `commands.coverageReport` is a scoped diagnostic report with zero thresholds;
+  it cannot substitute for package verification.
+- analytics-engine scoped reports use `--cov-fail-under=0`. Full coverage needs
+  PostgreSQL and is verified by PR CI. Unavailable fixtures mean audit-only.
+- Fresh container installation:
+  `HUSKY=0 PLAYWRIGHT_SKIP_INSTALL=1 ELECTRON_SKIP_BINARY_DOWNLOAD=1 pnpm install --frozen-lockfile`.
+  After staging changes, run `pnpm exec lint-staged` yourself.
 - Stage new files before running the guard. Without `--head`, it checks the
   working tree against the base and rejects untracked files. CI passes an
   explicit `--head HEAD` to check only the committed merge result.
@@ -80,8 +75,7 @@ node scripts/agents/test-qa-state.mjs record \
   --worker-run-id <UTC-to-second-id> \
   --outcome clean \
   --key <scope-key> \
-  --status clean \
-  --ref HEAD
+  --status clean > record.json
 ```
 
 For findings, repeat `--finding kind:summary`. For a bug issue, add
@@ -89,18 +83,19 @@ For findings, repeat `--finding kind:summary`. For a bug issue, add
 `pending --pr <number>`; the state workflow converts it to `clean` after
 merge or `rejected` after closure.
 
-Collect record JSON objects into one JSON array and dispatch:
+The record default ref is `HEAD` for pending and `origin/main` otherwise.
+Fetch main before auditing. Build validated JSON without hand-writing it:
 
 ```bash
-gh workflow run test-qa-state.yml \
-  --repo zapPilot/zapEngine \
-  --ref main \
-  -f records='<JSON-array>'
+node scripts/agents/test-qa-state.mjs payload record.json > payload.json
+gh api --method POST repos/zapPilot/zapEngine/dispatches --input payload.json
 ```
 
-The dispatch input is capped below GitHub's 65,535-character limit; the merge
-script rejects payloads over 60 KiB, unsafe paths, unknown fields, and long
-finding text.
+Only first initialization uses `payload --bootstrap`. Missing previous state
+otherwise fails; bootstrap with existing state preserves progress. Payloads are
+limited to 60 KiB; unknown fields, unsafe paths, and long findings are rejected.
+ChatGPT token permissions: Contents / Pull requests / Issues write, Actions read.
+Do not grant Actions write or Workflows permission.
 
 ## Worker PR handling
 
@@ -141,6 +136,6 @@ test-QA worker in `.agents/skills/test-qa-audit/SKILL.md` on the latest main
 and follow it strictly; where it differs from earlier coverage runs, the skill
 wins. Read the newest `test-qa-state` artifact and newest main
 `coverage-handoff`; handle the one open test-QA PR before selecting scopes;
-change tests only; verify with scoped commands and the guard; push only to the
-single `test-qa/*` PR; never merge; and always dispatch `test-qa-state.yml`
-with this run's records, including a clean no-change run.
+change tests only; verify with emitted test/package coverage commands and the guard; push only to the
+single `test-qa/*` PR; never merge; and always send this run's records, including a clean no-change run, through
+the `test-qa-state` repository_dispatch.

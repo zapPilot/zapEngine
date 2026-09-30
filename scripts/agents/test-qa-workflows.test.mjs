@@ -6,23 +6,24 @@ function read(path) {
   return readFileSync(path, 'utf8');
 }
 
-test('state workflow is manual-only, main-only, read-only, serialized, and durable', () => {
+test('state workflow is repository-dispatch-only, read-only, serialized, and durable', () => {
   const workflow = read('.github/workflows/test-qa-state.yml');
-  assert.match(workflow, /workflow_dispatch:/u);
+  assert.match(workflow, /repository_dispatch:/u);
+  assert.match(workflow, /types: \[test-qa-state\]/u);
   assert.doesNotMatch(workflow, /^\s+schedule:/mu);
   assert.doesNotMatch(workflow, /^\s+push:/mu);
   assert.match(workflow, /contents: read/u);
   assert.match(workflow, /actions: read/u);
   assert.match(workflow, /pull-requests: read/u);
   assert.doesNotMatch(workflow, /contents: write/u);
-  assert.match(workflow, /if: github\.ref == 'refs\/heads\/main'/u);
   assert.match(workflow, /group: test-qa-state/u);
   assert.match(workflow, /cancel-in-progress: false/u);
   assert.match(workflow, /queue: max/u);
-  assert.match(workflow, /head_branch == "main"/u);
-  assert.match(workflow, /sort_by\(\.id\)/u);
   assert.match(workflow, /retention-days: 90/u);
-  assert.match(workflow, /RECORDS: \$\{\{ inputs\.records \}\}/u);
+  assert.match(workflow, /test-qa-state.mjs locate/u);
+  assert.match(workflow, /--event repository_dispatch/u);
+  assert.match(workflow, /--event "\$GITHUB_EVENT_PATH"/u);
+  assert.match(workflow, /overwrite: true/u);
 });
 
 test('PR guard executes the base branch copy of the guard against the merge ref', () => {

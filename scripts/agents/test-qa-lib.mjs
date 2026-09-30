@@ -105,7 +105,13 @@ function git(repoRoot, args, options = {}) {
 const gitBlobCache = new Map();
 
 export function resolveGitRef(repoRoot, ref = 'HEAD') {
-  return git(repoRoot, ['rev-parse', ref]).trim();
+  try {
+    return git(repoRoot, ['rev-parse', '--verify', `${ref}^{commit}`]).trim();
+  } catch {
+    throw new Error(
+      `Cannot resolve ${ref}; fetch origin/main before selecting scopes.`,
+    );
+  }
 }
 
 export function listFilesAtRef(repoRoot, ref = 'HEAD') {
@@ -440,11 +446,17 @@ export function fingerprintPaths(repoRoot, ref, paths) {
   return hash.digest('hex');
 }
 
+export function fingerprintInputs(scope) {
+  return [
+    ...new Set([
+      ...(scope.files ?? []),
+      ...(!isTestFile(scope.key) ? [scope.key] : []),
+    ]),
+  ].sort();
+}
+
 export function fingerprintScope(repoRoot, ref, scope) {
-  return fingerprintPaths(repoRoot, ref, [
-    ...(scope.files ?? []),
-    ...(scope.relatedPaths ?? []),
-  ]);
+  return fingerprintPaths(repoRoot, ref, fingerprintInputs(scope));
 }
 
 function shellQuote(value) {
@@ -490,8 +502,9 @@ function commandSet(repoRoot, ref, scope, fileSet) {
     return {
       build: null,
       test: `pnpm --filter ${shellQuote(pkg.name)} exec uv run pytest ${tests} -q -m "not integration"`,
-      coverage: relSubject
-        ? `pnpm --filter ${shellQuote(pkg.name)} exec uv run pytest ${tests} -q -m "not integration" --cov=${shellQuote(pythonModuleTarget(relSubject))} --cov-report=term-missing --cov-fail-under=100`
+      coverage: null,
+      coverageReport: relSubject
+        ? `pnpm --filter ${shellQuote(pkg.name)} exec uv run pytest ${tests} -q -m "not integration" --cov=${shellQuote(pythonModuleTarget(relSubject))} --cov-report=term-missing --cov-fail-under=0`
         : null,
       typeCheck: pkg.scripts['type-check']
         ? `pnpm --filter ${shellQuote(pkg.name)} type-check`
@@ -511,8 +524,11 @@ function commandSet(repoRoot, ref, scope, fileSet) {
   return {
     build: `pnpm --filter ${shellQuote(`${pkg.name}^...`)} build`,
     test: `pnpm --filter ${shellQuote(pkg.name)} exec vitest run ${tests}`,
-    coverage: relSubject
-      ? `pnpm --filter ${shellQuote(pkg.name)} exec vitest run ${tests} --coverage.enabled${includes} --coverage.reportsDirectory="\${TMPDIR:-/tmp}/test-qa-coverage" --coverage.thresholds.100=true`
+    coverage: pkg.scripts['test:coverage']
+      ? `pnpm --filter ${shellQuote(pkg.name)} test:coverage`
+      : null,
+    coverageReport: relSubject
+      ? `pnpm --filter ${shellQuote(pkg.name)} exec vitest run ${tests} --coverage.enabled${includes} --coverage.reportsDirectory="\${TMPDIR:-/tmp}/test-qa-coverage" --coverage.thresholds.lines=0 --coverage.thresholds.functions=0 --coverage.thresholds.branches=0 --coverage.thresholds.statements=0`
       : null,
     typeCheck: pkg.scripts['type-check']
       ? `pnpm --filter ${shellQuote(pkg.name)} type-check`
@@ -779,4 +795,63 @@ export function findingId(kind, summary) {
     .update(summary)
     .digest('hex')
     .slice(0, 16);
+}
+
+export function locateArtifactRun({
+  repo,
+  workflow,
+  event,
+  status,
+  branch = 'main',
+  artifact,
+  gh = (args) =>
+    JSON.parse(
+      execFileSync('gh', args, {
+        encoding: 'utf8',
+        maxBuffer: 64 * 1024 * 1024,
+      }),
+    ),
+}) {
+  const repository = gh(['api', `repos/${repo}`]);
+  const query = new URLSearchParams({ branch, event, status, per_page: '100' });
+  const pages = gh([
+    'api',
+    '--method',
+    'GET',
+    `repos/${repo}/actions/workflows/${encodeURIComponent(workflow)}/runs?${query}`,
+    '--paginate',
+    '--slurp',
+  ]);
+  const runs = pages
+    .flatMap((page) => page.workflow_runs)
+    .filter(
+      (run) =>
+        run.head_repository?.id === repository.id &&
+        run.head_branch === branch &&
+        run.event === event &&
+        (status === 'completed'
+          ? run.status === status
+          : run.conclusion === status),
+    )
+    .sort(
+      (a, b) =>
+        Date.parse(b.created_at) - Date.parse(a.created_at) || b.id - a.id,
+    );
+  for (const run of runs) {
+    const artifacts = gh([
+      'api',
+      `repos/${repo}/actions/runs/${run.id}/artifacts?per_page=100`,
+      '--paginate',
+      '--slurp',
+    ]);
+    if (
+      artifacts.some((page) =>
+        page.artifacts.some(
+          (item) => item.name === artifact && item.expired === false,
+        ),
+      )
+    )
+      return run.id;
+  }
+  return null;
 }

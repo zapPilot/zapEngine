@@ -12,6 +12,11 @@ import {
 } from './test-qa-lib.mjs';
 
 const ADDED_FORBIDDEN = [
+  {
+    label: 'conditional/skipped/focused test',
+    pattern:
+      /\.(?:skipIf|runIf|todo|fails)\s*\(|\b(?:xdescribe|xtest|fit|fdescribe)\s*\(|pytest\.mark\.(?:skipif|xfail)\b|\bxfail\b|\bimportorskip\s*\(|pragma:\s*no\s+branch/u,
+  },
   { label: 'focused test', pattern: /\.only\s*\(/u },
   { label: 'skipped test', pattern: /\.skip\s*\(/u },
   { label: 'xit', pattern: /\bxit\s*\(/u },

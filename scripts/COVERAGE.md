@@ -84,19 +84,13 @@ monorepo-wide coverage solely to discover gaps. During implementation, run only
 scoped tests or scoped coverage and let CI produce the next canonical full-repo
 state.
 
-To download the latest canonical artifact, query repository artifacts, keep only
-unexpired entries whose `workflow_run.head_branch` is `main`, sort by artifact
-id locally, then download that run:
+To download the canonical artifact, locate a trusted main push run with an
+unexpired artifact. Repository identity checks exclude fork PR runs:
 
 ```bash
-pages="$(gh api --method GET repos/zapPilot/zapEngine/actions/artifacts \
-  -f name=coverage-handoff -f per_page=100 --paginate --slurp)"
-run_id="$(printf '%s' "$pages" | jq -r '
-  [.[].artifacts[]
-    | select(.expired == false)
-    | select(.workflow_run.head_branch == "main")]
-  | sort_by(.id) | last | .workflow_run.id // empty
-')"
+run_id="$(node scripts/agents/test-qa-state.mjs locate \
+  --repo zapPilot/zapEngine --workflow ci.yml --event push \
+  --status completed --artifact coverage-handoff)"
 gh run download "$run_id" --repo zapPilot/zapEngine \
   --name coverage-handoff --dir "$TMPDIR/coverage-handoff"
 ```

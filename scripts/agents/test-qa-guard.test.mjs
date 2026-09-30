@@ -198,3 +198,27 @@ test('local guard inspects staged, unstaged and new files while explicit head ch
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test('guard rejects conditional, todo, expected failure, focus and branch ignores', () => {
+  for (const added of [
+    'test.skipIf(true)(',
+    'test.runIf(true)(',
+    'test.todo(',
+    'test.fails(',
+    'xdescribe(',
+    'xtest(',
+    'fit(',
+    'fdescribe(',
+    '@pytest.mark.skipif',
+    '@pytest.mark.xfail',
+    'pytest.importorskip(',
+    '# pragma: no branch',
+  ]) {
+    assert.equal(
+      evaluateGuard({ paths: ['apps/foo/src/a.test.ts'], diff: `+${added}` })
+        .decision,
+      'deny',
+      added,
+    );
+  }
+});

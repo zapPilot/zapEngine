@@ -41,6 +41,7 @@ async function fixture() {
       name: '@zapengine/foo',
       scripts: {
         'type-check': 'tsc --noEmit',
+        'test:coverage': 'vitest run --coverage',
         'dup:check': 'echo dup',
       },
     }),
@@ -141,11 +142,18 @@ test('collectScopes groups sibling coverage tests around their production subjec
     assert.equal(github.risk.coverageNamed, 1);
     assert.match(github.commands.test, /exec vitest run/u);
     assert.match(
-      github.commands.coverage,
+      github.commands.coverageReport,
       /--coverage\.include='src\/github\.ts'/u,
     );
-    assert.match(github.commands.coverage, /--coverage\.thresholds\.100=true/u);
+    assert.match(
+      github.commands.coverageReport,
+      /--coverage\.thresholds\.lines=0/u,
+    );
 
+    assert.equal(
+      github.commands.coverage,
+      "pnpm --filter '@zapengine/foo' test:coverage",
+    );
     const standalone = scopes.find(
       (scope) => scope.key === 'apps/foo/src/standalone.test.ts',
     );
@@ -174,10 +182,10 @@ test('collectScopes groups sibling coverage tests around their production subjec
     ]);
     assert.match(python.commands.test, /exec uv run pytest/u);
     assert.match(
-      python.commands.coverage,
+      python.commands.coverageReport,
       /--cov='src\.services\.calculator'/u,
     );
-    assert.match(python.commands.coverage, /--cov-fail-under=100/u);
+    assert.match(python.commands.coverageReport, /--cov-fail-under=0/u);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -256,6 +264,133 @@ test('closed PR records stay rejected on unchanged main and become selectable af
     git(root, 'commit', '-qm', 'subject changed');
     const changed = collectScopes(root).find((scope) => scope.key === key);
     assert.equal(classifyScope(changed, rejected.scopes[key]).kind, 'changed');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('artifact lookup excludes fork/branch/event runs and expired artifacts', async () => {
+  const { locateArtifactRun } = await import('./test-qa-lib.mjs');
+  const run = (id, overrides = {}) => ({
+    id,
+    created_at: '2026-09-30T00:00:00Z',
+    head_repository: { id: 1 },
+    head_branch: 'main',
+    event: 'push',
+    status: 'completed',
+    ...overrides,
+  });
+  const checked = [];
+  const options = {
+    repo: 'org/repo',
+    workflow: 'ci.yml',
+    event: 'push',
+    status: 'completed',
+    artifact: 'coverage-handoff',
+  };
+  const gh = (args) => {
+    if (args[1] === 'repos/org/repo') return { id: 1 };
+    if (args.includes('--method'))
+      return [
+        {
+          workflow_runs: [
+            run(99, { head_repository: { id: 2 } }),
+            run(98, { head_branch: 'other' }),
+            run(97, { event: 'pull_request' }),
+            run(4),
+            run(3),
+            run(2),
+          ],
+        },
+      ];
+    const id = Number(args[1].match(/runs\/(\d+)/u)[1]);
+    checked.push(id);
+    return [{ artifacts: [{ name: 'coverage-handoff', expired: id === 4 }] }];
+  };
+  assert.equal(locateArtifactRun({ ...options, gh }), 3);
+  assert.deepEqual(checked, [4, 3]);
+  assert.equal(
+    locateArtifactRun({
+      ...options,
+      gh: (args) =>
+        args[1] === 'repos/org/repo' ? { id: 1 } : [{ workflow_runs: [] }],
+    }),
+    null,
+  );
+  assert.throws(
+    () =>
+      locateArtifactRun({
+        ...options,
+        gh: () => {
+          throw new Error('API error');
+        },
+      }),
+    /API error/u,
+  );
+});
+
+test('shared imports do not invalidate scope, while test and subject changes do', async () => {
+  const root = await fixture();
+  try {
+    const key = 'apps/foo/src/github.ts';
+    const fingerprint = () =>
+      collectScopes(root).find((scope) => scope.key === key).fingerprint;
+    await put(
+      root,
+      'apps/foo/src/github.test.ts',
+      "import './github.js';\nimport './other.js';\n",
+    );
+    git(root, 'add', '.');
+    git(root, 'commit', '-qm', 'shared import');
+    const before = fingerprint();
+    await put(root, 'apps/foo/tests/helpers.ts', 'export const helper = 9;\n');
+    git(root, 'add', '.');
+    git(root, 'commit', '-qm', 'shared helper');
+    assert.equal(fingerprint(), before);
+    await put(root, 'apps/foo/src/other.ts', 'export const other = 9;\n');
+    git(root, 'add', '.');
+    git(root, 'commit', '-qm', 'shared production change');
+    assert.equal(fingerprint(), before);
+    await put(
+      root,
+      'apps/foo/src/github.test.ts',
+      "import './github.js';\ntest('behavior',()=>{});\n",
+    );
+    git(root, 'add', '.');
+    git(root, 'commit', '-qm', 'test change');
+    const changed = fingerprint();
+    assert.notEqual(changed, before);
+    await put(root, key, 'export const value = 9;\n');
+    git(root, 'add', '.');
+    git(root, 'commit', '-qm', 'subject change');
+    assert.notEqual(fingerprint(), changed);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('record defaults use audited main except for pending PR contents', async () => {
+  const root = await fixture();
+  try {
+    const mainSha = git(root, 'rev-parse', 'HEAD');
+    git(root, 'update-ref', 'refs/remotes/origin/main', mainSha);
+    await put(root, 'apps/foo/src/github.ts', 'export const value = 99;\n');
+    git(root, 'add', '.');
+    git(root, 'commit', '-qm', 'PR subject');
+    const options = {
+      repoRoot: root,
+      key: 'apps/foo/src/github.ts',
+      workerRunId: 'defaults',
+    };
+    assert.equal(
+      createRecord({ ...options, status: 'clean' }).scope.auditedCommit,
+      mainSha,
+    );
+    assert.equal(
+      createRecord({ ...options, status: 'pending', pr: 661 }).scope
+        .auditedCommit,
+      git(root, 'rev-parse', 'HEAD'),
+    );
   } finally {
     await rm(root, { recursive: true, force: true });
   }

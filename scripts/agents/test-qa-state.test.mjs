@@ -71,7 +71,8 @@ test('validateRecord rejects unknown fields and unsafe paths', () => {
 
 test('parseRecords rejects payloads over the dispatch safety budget', () => {
   assert.throws(
-    () => parseRecords('x'.repeat(MAX_RECORD_PAYLOAD_BYTES + 1)),
+    () =>
+      parseRecords(JSON.stringify(['x'.repeat(MAX_RECORD_PAYLOAD_BYTES + 1)])),
     /exceeds/u,
   );
 });
@@ -215,4 +216,50 @@ test('STATE.md is compact and human-readable', () => {
   const markdown = renderStateMarkdown(state);
   assert.match(markdown, /\| finding \| 1 \|/u);
   assert.match(markdown, /run-1/u);
+});
+
+test('event parsing and payload generation enforce the dispatch contract', async () => {
+  const { parseEvent, createPayload } = await import('./test-qa-state.mjs');
+  const payload = createPayload([record({})]);
+  assert.deepEqual(payload, {
+    event_type: 'test-qa-state',
+    client_payload: { records: [record({})] },
+  });
+  assert.equal(parseEvent(createPayload([], true)).bootstrap, true);
+  for (const client_payload of [
+    { records: [], unknown: true },
+    { records: {} },
+    { records: [], bootstrap: 'true' },
+  ]) {
+    assert.throws(() => parseEvent({ client_payload }));
+  }
+  const records = Array.from({ length: 800 }, (_, i) =>
+    record({ workerRunId: `run-${i}` }),
+  );
+  assert.throws(() => createPayload(records), /exceeds/u);
+  assert.throws(() => parseEvent({ client_payload: { records } }), /exceeds/u);
+});
+
+test('bootstrap is explicit and never replaces existing state', async () => {
+  const { loadPrevious } = await import('./test-qa-state.mjs');
+  const { mkdtempSync, writeFileSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const root = mkdtempSync(join(tmpdir(), 'qa-state-'));
+  try {
+    const path = join(root, 'state.json');
+    assert.throws(() => loadPrevious(path), /payload --bootstrap/u);
+    assert.deepEqual(loadPrevious(path, true), emptyState());
+    const state = previousState();
+    state.runs.push({
+      workerRunId: 'retained',
+      at: '2026-09-30T00:00:00Z',
+      outcome: 'clean',
+      scopes: [],
+    });
+    writeFileSync(path, JSON.stringify(state));
+    assert.deepEqual(loadPrevious(path, true), state);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });

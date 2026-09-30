@@ -11,14 +11,14 @@ function parseArgs(argv) {
   const result = {
     state: null,
     limit: 3,
-    ref: 'HEAD',
+    ref: 'origin/main',
     repoRoot: process.cwd(),
   };
   for (let index = 0; index < argv.length; index += 1) {
     const value = argv[index];
     if (value === '--state') result.state = argv[++index] ?? null;
     else if (value === '--limit') result.limit = Number(argv[++index]);
-    else if (value === '--ref') result.ref = argv[++index] ?? 'HEAD';
+    else if (value === '--ref') result.ref = argv[++index] ?? 'origin/main';
     else if (value === '--repo')
       result.repoRoot = argv[++index] ?? process.cwd();
     else throw new Error(`unknown argument: ${value}`);
