@@ -8,13 +8,13 @@ export default defineConfig({
       reporter: ['text', 'json-summary', 'html', 'clover', 'json', 'lcov'],
       include: ['src/**/*.{ts,tsx}'],
       exclude: ['**/*.d.ts', '**/*.test.{ts,tsx}', 'src/**/__fixtures__/**'],
-      // Ratcheted from the honest 2026-09-14 denominator
-      // (83.03/74.30/85.09/83.07) with ~3 points of churn buffer.
+      // Canonical CI coverage is 100% across every reported dimension as of
+      // 2026-09-29; keep the explicit production denominator pinned there.
       thresholds: {
-        branches: 71,
-        functions: 82,
-        lines: 80,
-        statements: 80,
+        branches: 100,
+        functions: 100,
+        lines: 100,
+        statements: 100,
       },
       reportsDirectory: 'coverage',
     },

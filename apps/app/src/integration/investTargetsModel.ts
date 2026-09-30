@@ -171,6 +171,23 @@ export function targetUsd6Shares(
   const total = BigInt(totalUsd6);
   if (total <= 0n) return null;
 
+  return allocateTargetUsd6(total, allocations);
+}
+
+/** Freeze valid weights once for repeated capacity probes, including zero. */
+export function targetShareAllocator(
+  allocations: readonly TargetAllocation[],
+): ((total: bigint) => TargetUsd6Shares) | null {
+  if (!isValidTargetAllocation(allocations)) return null;
+  const weights = allocations.map((entry) => ({ ...entry }));
+  return (total) => allocateTargetUsd6(total, weights);
+}
+
+/** Split a total using weights already validated at the public boundary. */
+function allocateTargetUsd6(
+  total: bigint,
+  allocations: readonly TargetAllocation[],
+): TargetUsd6Shares {
   const funded = INVEST_POSITIONS.map((position) => ({
     id: position.id,
     weightBps: weightBpsFor(allocations, position.id),

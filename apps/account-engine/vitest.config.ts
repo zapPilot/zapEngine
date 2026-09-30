@@ -33,15 +33,13 @@ export default defineConfig({
         'src/modules/plan-orchestration/**',
         'src/common/validation/wallet-address.util.ts',
       ],
-      // Thresholds are deliberately strict — account-engine is the identity
-      // and persistence plane. Actual coverage (97.75/90.91/98.55/97.88 as of
-      // 2026-05-21) exceeds these floors with headroom for normal churn.
-      // Ratchet upward when sustained 1+ point above the current floor.
+      // Canonical CI coverage is 100% across every reported dimension as of
+      // 2026-09-29. Pin the identity/persistence plane there so regressions fail.
       thresholds: {
-        branches: 90,
-        functions: 95,
-        lines: 95,
-        statements: 95,
+        branches: 100,
+        functions: 100,
+        lines: 100,
+        statements: 100,
       },
       reportsDirectory: 'coverage',
     },

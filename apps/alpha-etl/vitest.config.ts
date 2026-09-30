@@ -25,10 +25,10 @@ const config: ViteUserConfig = {
         'src/pipelines/**',
       ],
       thresholds: {
-        statements: 92,
-        branches: 92,
-        functions: 92,
-        lines: 92,
+        statements: 100,
+        branches: 100,
+        functions: 100,
+        lines: 100,
       },
     },
     testTimeout: 30000, // ETL operations can be slow

@@ -41,13 +41,13 @@ export default defineConfig({
         'src/**/index.ts',
         'src/lib/source.ts',
       ],
-      // Ratcheted from the 2026-09-14 production denominator
-      // (86.57/78.74/91.62/87.93) with ~3 points of churn buffer.
+      // Canonical CI coverage is 100% across every reported dimension as of
+      // 2026-09-29; keep the production denominator pinned there.
       thresholds: {
-        statements: 83,
-        branches: 75,
-        functions: 89,
-        lines: 84,
+        statements: 100,
+        branches: 100,
+        functions: 100,
+        lines: 100,
       },
     },
   },

@@ -27,7 +27,7 @@ export interface EpisodeRenderQueueItem {
 
 export function aggregateRenderLane(
   lane: PipelineQueueLane<PipelineQueueItem>,
-): PipelineQueueLane<EpisodeRenderQueueItem> {
+): Required<PipelineQueueLane<EpisodeRenderQueueItem>> {
   const active = groupEpisodeWork([
     ...lane.processing,
     ...lane.queued,

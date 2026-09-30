@@ -143,6 +143,23 @@ describe('AppCtaLink', () => {
     expect(trigger).toHaveFocus();
   });
 
+  it('releases scroll locking without focusing a detached trigger on unmount', () => {
+    document.body.style.overflow = 'auto';
+    const view = render(
+      <AppCtaLink className="cta" location="hero">
+        Join waitlist
+      </AppCtaLink>,
+    );
+    const trigger = screen.getByRole('button', { name: 'Join waitlist' });
+    fireEvent.click(trigger);
+    const focus = vi.spyOn(trigger, 'focus');
+    expect(document.body.style.overflow).toBe('hidden');
+    view.unmount();
+    expect(document.body.style.overflow).toBe('auto');
+    expect(focus).not.toHaveBeenCalled();
+    document.body.style.overflow = '';
+  });
+
   it('closes from the backdrop but not from a click inside the dialog', () => {
     render(
       <AppCtaLink className="cta" location="closing">

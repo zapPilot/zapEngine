@@ -42,6 +42,8 @@ interface SocialMetricRow extends Pick<
   } | null;
 }
 
+type ViewedMetric = SocialMetricRow & { views: number };
+
 interface AccountRow {
   platform: string;
   followers: number | null;
@@ -247,7 +249,7 @@ export function buildDecisions(
   );
   const samples = metrics
     .filter(
-      (metric) =>
+      (metric): metric is ViewedMetric =>
         metric.measurement_window === '24h' &&
         metric.views !== null &&
         (metric.collection_status ?? 'collected') !== 'unavailable',
@@ -270,10 +272,8 @@ export function buildDecisions(
       return [];
     }
     const topic = bestTopic(platformSamples);
-    // The samples stream filters to metric.views !== null above (mirroring
-    // the candidates[0]! precedent below), so the assertion never lies.
     const platformMedian24hViews = evidenceSamples
-      ? median(platformSamples.map((sample) => sample.metric.views!))
+      ? median(platformSamples.map((sample) => sample.metric.views))
       : null;
     const bestTopicLiftVsPlatformMedian =
       topic && platformMedian24hViews !== null && platformMedian24hViews > 0
@@ -299,40 +299,33 @@ export function buildDecisions(
   });
 }
 
-function isLearnable(post: SocialPostRow, metric: SocialMetricRow): boolean {
+function isLearnable(post: SocialPostRow, metric: ViewedMetric): boolean {
   if (post.platform !== 'rednote') {
     return true;
   }
   if (post.review_status && SUPPRESSED_REDNOTE.has(post.review_status)) {
     return false;
   }
-  // isLearnable only runs on the filtered samples stream, where views is
-  // never null.
-  return metric.views! > 1;
+  return metric.views > 1;
 }
 
 function topExample(
-  samples: Array<{ post: SocialPostRow; metric: SocialMetricRow }>,
+  samples: Array<{ post: SocialPostRow; metric: ViewedMetric }>,
 ): string | null {
-  // Samples here carry non-null views by the filter above (same precedent as
-  // candidates[0]! below), so the assertions never lie.
-  const best = [...samples].sort(
-    (a, b) => b.metric.views! - a.metric.views!,
-  )[0];
-  if (!best || best.metric.views === null) {
+  const best = [...samples].sort((a, b) => b.metric.views - a.metric.views)[0];
+  if (!best) {
     return null;
   }
   return `“${postTitle(best.post).slice(0, 68)}” · ${best.metric.views.toLocaleString('en-US')} views`;
 }
 
 function bestTopic(
-  samples: Array<{ post: SocialPostRow; metric: SocialMetricRow }>,
+  samples: Array<{ post: SocialPostRow; metric: ViewedMetric }>,
 ): { topic: string; samples: number; medianViews: number } | null {
   const groups = new Map<string, number[]>();
   for (const sample of samples) {
     const values = groups.get(sample.post.topic) ?? [];
-    // Null-view rows never reach bestTopic (see the samples filter).
-    values.push(sample.metric.views!);
+    values.push(sample.metric.views);
     groups.set(sample.post.topic, values);
   }
   const candidates = [...groups.entries()]

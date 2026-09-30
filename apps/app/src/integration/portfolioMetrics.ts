@@ -100,9 +100,10 @@ export function sortedDailyValues(
 /** Keep every usable snapshot intact so chart consumers retain its metadata. */
 export function toTrendPoints(
   dailyValues: readonly DailyValuePoint[] | undefined,
-): DailyValuePoint[] {
-  return sortedDailyValues(dailyValues).filter((point) =>
-    isFiniteNumber(point.total_value_usd),
+): (DailyValuePoint & { total_value_usd: number })[] {
+  return sortedDailyValues(dailyValues).filter(
+    (point): point is DailyValuePoint & { total_value_usd: number } =>
+      isFiniteNumber(point.total_value_usd),
   );
 }
 
@@ -147,7 +148,7 @@ export function calculateWindowValueChangePct(
       })
       .at(-1) ?? sorted[0]!;
 
-  const startValue = start.total_value_usd!;
+  const startValue = start.total_value_usd;
   if (startValue <= 0) {
     return null;
   }

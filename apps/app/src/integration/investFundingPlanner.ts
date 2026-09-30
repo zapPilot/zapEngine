@@ -21,7 +21,7 @@ import {
   targetMinimumUsd6,
   targetUsd6Shares,
   weightBpsFor,
-  isValidTargetAllocation,
+  targetShareAllocator,
   hlpIngressFor,
   hlpMinimumShareUsd6,
   type HlpFundingRoute,
@@ -319,13 +319,17 @@ export function hyperCoreSupplyEntry(
 ): FundingSupplyEntry {
   return supply.get(HYPERCORE_SOURCE_KEY)!;
 }
+type FundingEvaluation =
+  | { rejection: null; availableUsd6: bigint; fromAmount: string }
+  | { rejection: Rejection; availableUsd6: bigint | null; fromAmount: string };
+
 function evaluate(
   c: FundingCandidate,
   id: InvestPositionId,
   usd6: bigint,
   supply: Map<string, FundingSupplyEntry>,
   reserved: Map<string, bigint>,
-): Omit<FundingOption, 'candidate' | 'selected'> & { fromAmount: string } {
+): FundingEvaluation {
   const key = sourceKey(c);
   const entry = supply.get(key)!;
   const available =
@@ -344,23 +348,27 @@ function evaluate(
           token: c.token,
           usdPrice: entry.usdPrice,
         });
-  let rejection: Rejection | null = null;
-  if (entry.unavailable) rejection = 'chain-unavailable';
-  else if (availableUsd6 === null) rejection = 'no-price';
-  else if (availableUsd6 < usd6) rejection = 'insufficient';
-  else if (fromAmount === null) rejection = 'no-price';
-  else if (c.kind === 'hypercore' && usd6 < hlpMinimumShareUsd6('hypercore'))
+  const reject = (rejection: Rejection): FundingEvaluation => ({
+    availableUsd6,
+    rejection,
+    fromAmount: fromAmount ?? '0',
+  });
+  if (entry.unavailable) return reject('chain-unavailable');
+  if (availableUsd6 === null) return reject('no-price');
+  if (availableUsd6 < usd6) return reject('insufficient');
+  if (fromAmount === null) return reject('no-price');
+  if (c.kind === 'hypercore' && usd6 < hlpMinimumShareUsd6('hypercore'))
     // The spot-funded leg's request schema refuses a share under the vault's
     // $10 floor, so HyperCore is not a candidate below it.
-    rejection = 'below-minimum';
-  else if (
+    return reject('below-minimum');
+  if (
     id === 'gmx-arbitrum' &&
     c.kind === 'evm' &&
     c.token.symbol === 'ETH' &&
     BigInt(fromAmount) <= ARBITRUM_GMX_BASKET_EXECUTION_FEE_WEI
   )
-    rejection = 'gmx-eth-budget';
-  return { availableUsd6, rejection, fromAmount: fromAmount ?? '0' };
+    return reject('gmx-eth-budget');
+  return { availableUsd6, rejection: null, fromAmount };
 }
 function candidatesFor(
   id: InvestPositionId,
@@ -420,14 +428,14 @@ function selectAssignments(
     for (const [i, source] of combo.entries()) {
       const id = funded[i]!.id;
       const check = evaluate(source, id, shares[id], supply, reserved);
-      if (check.rejection) break;
+      if (check.rejection !== null) break;
       assignments.push({
         positionId: id,
         weightBps: weightBpsFor(input.demand.allocations, id),
         usd6: shares[id],
         source,
         fromAmount: check.fromAmount,
-        availableUsd6: check.availableUsd6!,
+        availableUsd6: check.availableUsd6,
       });
       reserved.set(
         sourceKey(source),
@@ -545,7 +553,7 @@ export function planFunding(
     const blockers: FundingBlocker[] = preferenceBlockers(input, context);
     for (const p of funded) {
       const opts = result.options[p.id]!;
-      if (opts.every((o) => o.rejection === 'chain-unavailable'))
+      if (opts.every((o) => o.rejection === 'chain-unavailable')) {
         blockers.push({
           kind: 'chain-unavailable',
           positionId: p.id,
@@ -553,6 +561,8 @@ export function planFunding(
             ...new Set(opts.map((o) => candidateChainId(o.candidate))),
           ],
         });
+        continue;
+      }
       if (opts.some((o) => o.rejection === null)) continue;
       const fee = opts.find((o) => o.rejection === 'gmx-eth-budget');
       if (fee)
@@ -585,7 +595,7 @@ export function planFunding(
         kind: 'insufficient-single-source',
         positionId: p.id,
         requiredUsd6: shares[p.id],
-        bestAvailableUsd6: best.availableUsd6!,
+        bestAvailableUsd6: best.availableUsd6 ?? 0n,
         bestSource: best.candidate,
       });
     }
@@ -669,7 +679,7 @@ function hyperCoreWarnings(
   if (!offered) return [];
   if (input.supply.hyperCoreSpendableUsd6 === null)
     return [{ kind: 'hypercore-balance-unavailable' }];
-  const available = hyperCoreSupplyEntry(context.supply).spendableUsd6!;
+  const available = input.supply.hyperCoreSpendableUsd6;
   return available > 0n && available < required
     ? [
         {
@@ -681,7 +691,8 @@ function hyperCoreWarnings(
     : [];
 }
 export function fundingCapacityUsd6(input: CapacityInput): bigint | null {
-  if (!isValidTargetAllocation(input.allocations)) return 0n;
+  const allocate = targetShareAllocator(input.allocations);
+  if (!allocate) return 0n;
   const supply = buildFundingSupply(
     input.supply,
     input.constraints.gasReserveUsd,
@@ -704,6 +715,10 @@ export function fundingCapacityUsd6(input: CapacityInput): bigint | null {
           weightBpsFor(input.allocations, funded[i]!.id),
       ),
     );
+    const capacities: {
+      availableUsd6: bigint;
+      positionIds: InvestPositionId[];
+    }[] = [];
     let bound: bigint | null = null;
     let viable = true;
     for (const [key, bps] of weights) {
@@ -713,6 +728,12 @@ export function fundingCapacityUsd6(input: CapacityInput): bigint | null {
         viable = false;
         break;
       }
+      capacities.push({
+        availableUsd6: entry.spendableUsd6,
+        positionIds: combo.flatMap((c, i) =>
+          sourceKey(c) === key ? [funded[i]!.id] : [],
+        ),
+      });
       const members = combo.filter((c) => sourceKey(c) === key).length;
       const includesLast = sourceKey(combo[combo.length - 1]!) === key;
       const cap = includesLast
@@ -726,16 +747,11 @@ export function fundingCapacityUsd6(input: CapacityInput): bigint | null {
     // assuming monotonicity. At most two rounding units per token are involved.
     let exact = bound;
     const fits = (total: bigint): boolean => {
-      const shares = targetUsd6Shares(total.toString(), input.allocations)!;
-      const spent = new Map<string, bigint>();
-      combo.forEach((c, i) =>
-        spent.set(
-          sourceKey(c),
-          (spent.get(sourceKey(c)) ?? 0n) + shares[funded[i]!.id],
-        ),
-      );
-      return [...spent].every(
-        ([key, amount]) => amount <= supply.get(key)!.spendableUsd6!,
+      const shares = allocate(total);
+      return capacities.every(
+        ({ availableUsd6, positionIds }) =>
+          positionIds.reduce((sum, id) => sum + shares[id], 0n) <=
+          availableUsd6,
       );
     };
     while (exact > best && !fits(exact)) exact--;

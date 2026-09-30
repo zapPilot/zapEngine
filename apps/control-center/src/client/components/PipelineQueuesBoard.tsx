@@ -162,7 +162,7 @@ export function PipelineQueuesBoard(
           title="Render queue"
         >
           <AbandonedSection
-            items={render.abandoned!}
+            items={render.abandoned}
             onSelect={setSelectedKey}
             renderItem={(item) => <EpisodeWorkCard item={item} />}
           />
@@ -553,13 +553,13 @@ function findSelected(
 function filterLane<T extends { title: string; episodeId?: string }>(
   lane: PipelineQueueLane<T>,
   query: string,
-): PipelineQueueLane<T> {
+): Required<PipelineQueueLane<T>> {
   const matches = (item: T) => itemMatches(item.title, item.episodeId, query);
   return {
     processing: lane.processing.filter(matches),
     queued: lane.queued.filter(matches),
     attention: lane.attention.filter(matches),
-    ...(lane.abandoned ? { abandoned: lane.abandoned.filter(matches) } : {}),
+    abandoned: (lane.abandoned ?? []).filter(matches),
   };
 }
 

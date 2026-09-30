@@ -16,13 +16,13 @@ export default defineConfig({
       reportsDirectory: 'coverage',
       include: ['src/**/*.{ts,tsx}'],
       exclude: COVERAGE_EXCLUDES,
-      // Ratcheted from the 2026-09-08 measured baseline
-      // (79.71/70.58/77.91/80.86) with ~4 points of churn buffer.
+      // Canonical CI coverage is 100% across every reported dimension as of
+      // 2026-09-29; pin the shared app core there.
       thresholds: {
-        statements: 75,
-        branches: 66,
-        functions: 73,
-        lines: 76,
+        statements: 100,
+        branches: 100,
+        functions: 100,
+        lines: 100,
       },
     },
   },
