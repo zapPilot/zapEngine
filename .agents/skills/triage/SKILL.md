@@ -68,8 +68,8 @@ Unknown is unknown, never healthy.
    `missingReports` entry as unknown evidence, never as 100% coverage. Run lint only
    where the script lacks `--max-warnings 0`, and deadcode only where it lacks
    `--treat-config-hints-as-errors`. Scan files changed in the last seven days with
-   the doc-freshness and comment-discipline skills, recording `unscanned` when
-   unavailable. Never mine jscpd: its threshold is 0.
+   the `doc-freshness-audit` and `comment-discipline-check` skills, recording
+   `unscanned` when unavailable. Never mine jscpd: its threshold is 0.
 
 7. Read open operator issues and comment only when the evidence changed; never
    edit their bodies or labels. Deduplicate every candidate, classify it, then add
