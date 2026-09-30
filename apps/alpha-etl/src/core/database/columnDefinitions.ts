@@ -59,12 +59,15 @@ function buildNullableInsertValuesFor<T, K extends keyof T & string>(
   );
 }
 
-function mapTokenPriceRecord(record: TokenPriceData): TokenPriceInsertRecord {
+function mapTokenPriceRecord(
+  record: TokenPriceData,
+  seriesSource: string,
+): TokenPriceInsertRecord {
   return {
     price_usd: record.priceUsd,
     market_cap_usd: record.marketCapUsd,
     volume_24h_usd: record.volume24hUsd,
-    source: record.source,
+    source: seriesSource,
     token_symbol: record.tokenSymbol,
     token_id: record.tokenId,
     snapshot_date: formatDateToYYYYMMDD(record.timestamp),
@@ -283,8 +286,11 @@ export type TokenPriceColumn = (typeof TOKEN_PRICE_COLUMNS)[number];
 
 export function buildTokenPriceInsertValues(
   records: TokenPriceData[],
+  seriesSource: string,
 ): InsertValuesResult<TokenPriceColumn> {
-  const mappedRecords = records.map(mapTokenPriceRecord);
+  const mappedRecords = records.map((record) =>
+    mapTokenPriceRecord(record, seriesSource),
+  );
   return buildGenericInsertValues(mappedRecords, TOKEN_PRICE_COLUMNS);
 }
 

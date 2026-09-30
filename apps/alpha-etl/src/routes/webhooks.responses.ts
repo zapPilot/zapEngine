@@ -72,6 +72,13 @@ export function buildJobStatusResponse(
     response.error = buildFailedResultError(result);
   }
 
+  if (result?.success && result.data.status === 'failed') {
+    response.error = {
+      code: 'INTERNAL_ERROR',
+      message: (result.data.errors ?? []).join('; '),
+    };
+  }
+
   return response;
 }
 

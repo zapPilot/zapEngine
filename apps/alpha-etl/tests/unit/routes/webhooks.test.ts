@@ -481,6 +481,48 @@ describe('Webhooks Router', () => {
       expect(response.status).toBe(200);
     });
 
+    it('returns soft-failure reasons in the status body', async () => {
+      mockJobQueue.getJob.mockReturnValueOnce(
+        createMockJob({ status: 'failed' }),
+      );
+      mockJobQueue.getResult.mockReturnValueOnce({
+        success: true,
+        data: {
+          jobId: 'job-123',
+          status: 'failed',
+          recordsProcessed: 5,
+          recordsInserted: 5,
+          sourceResults: {},
+          errors: ['CoinGecko: 403; CoinMarketCap: quota', 'other failure'],
+          duration: 100,
+          completedAt: new Date(),
+        },
+      });
+      const response = await request(app).get('/webhooks/jobs/job-123');
+      expect(response.status).toBe(500);
+      expect(response.body.data.error).toEqual({
+        code: 'INTERNAL_ERROR',
+        message: 'CoinGecko: 403; CoinMarketCap: quota; other failure',
+      });
+      expect(response.body.error).toEqual(response.body.data.error);
+    });
+
+    it('handles a soft failure without optional errors', async () => {
+      mockJobQueue.getJob.mockReturnValueOnce(
+        createMockJob({ status: 'failed' }),
+      );
+      mockJobQueue.getResult.mockReturnValueOnce({
+        success: true,
+        data: { jobId: 'job-123', status: 'failed', sourceResults: {} },
+      });
+      const response = await request(app).get('/webhooks/jobs/job-123');
+      expect(response.status).toBe(500);
+      expect(response.body.data.error).toEqual({
+        code: 'INTERNAL_ERROR',
+        message: '',
+      });
+    });
+
     it('returns 500 with failed-result error when job failed', async () => {
       mockJobQueue.getJob.mockReturnValueOnce(
         createMockJob({ status: 'failed' }),

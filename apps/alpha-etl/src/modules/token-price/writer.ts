@@ -6,6 +6,8 @@ import { buildTokenPriceInsertValues } from '../../core/database/columnDefinitio
 import { formatDateToYYYYMMDD } from '../../utils/dateUtils.js';
 import type { TokenPriceData } from './schema.js';
 
+const TOKEN_PRICE_SERIES_SOURCE = 'coingecko';
+
 interface LatestTokenPriceSnapshot {
   date: string;
   price: number;
@@ -20,11 +22,14 @@ export class TokenPriceWriter extends BaseSnapshotWriter<
   TokenPriceData,
   LatestTokenPriceSnapshot
 > {
-  protected readonly snapshotConfig = {
+  protected readonly snapshotConfig: SnapshotWriterConfig<
+    TokenPriceData,
+    LatestTokenPriceSnapshot
+  > = {
     tableKey: 'TOKEN_PRICE_SNAPSHOTS',
     entityColumn: 'token_symbol',
     entityContextKey: 'tokenSymbol',
-    sourceLiteral: 'coingecko',
+    sourceLiteral: TOKEN_PRICE_SERIES_SOURCE,
     defaultEntity: 'BTC',
     logLabel: 'Token price',
     insertFailureMessage: 'Failed to save token price snapshot',
@@ -37,7 +42,8 @@ export class TokenPriceWriter extends BaseSnapshotWriter<
       'snapshot_time',
       'raw_data',
     ],
-    buildInsertValues: buildTokenPriceInsertValues,
+    buildInsertValues: (records) =>
+      buildTokenPriceInsertValues(records, TOKEN_PRICE_SERIES_SOURCE),
     getEntity: (data) => data.tokenSymbol,
     getSnapshotDate: (data) => formatDateToYYYYMMDD(data.timestamp),
     getPrice: (data) => data.priceUsd,
