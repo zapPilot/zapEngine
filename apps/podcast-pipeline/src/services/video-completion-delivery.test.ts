@@ -8,7 +8,7 @@ import {
 } from './video-completion-delivery.js';
 
 const episodeId = '78c0a4f6-3e10-49de-ae0d-985e2b42b460';
-const completionMessage = `🎬 三語影片完成：🇹🇼 繁中・🇯🇵 日文・🇺🇸 英文\nhttps://from-fed-to-chain-api.fly.dev/e/${episodeId}?lang=zh-Hant`;
+const completionMessage = `🎬 三語影片完成：🇹🇼 繁中・🇯🇵 日文・🇺🇸 英文\nhttps://link.zap-pilot.org/e/${episodeId}?lang=zh-Hant`;
 
 describe('grouped video completion delivery acknowledgement', () => {
   it('parses the episode-level completion message', () => {
@@ -20,7 +20,7 @@ describe('grouped video completion delivery acknowledgement', () => {
   it('ignores legacy per-language and unrelated Telegram messages', () => {
     expect(
       parseVideoCompletionDelivery(
-        `🎬 🇺🇸 英文影片完成\nhttps://from-fed-to-chain-api.fly.dev/e/${episodeId}?lang=en`,
+        `🎬 🇺🇸 英文影片完成\nhttps://link.zap-pilot.org/e/${episodeId}?lang=en`,
       ),
     ).toBeNull();
     expect(parseVideoCompletionDelivery('收到，開始處理文章。')).toBeNull();

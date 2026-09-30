@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   answerTelegramCallbackQuery,
-  buildEpisodeShareUrl,
   buildTelegramAudioReadyMessage,
   buildTelegramFailureMessage,
   buildTelegramRenderFleetWarningMessage,
@@ -104,9 +103,7 @@ describe('verifySecret', () => {
 
 describe('video lifecycle messages', () => {
   it('keeps the canonical zh-Hant share link for audio and failure updates', () => {
-    const link =
-      'https://from-fed-to-chain-api.fly.dev/e/episode%2F1?lang=zh-Hant';
-    expect(buildEpisodeShareUrl('episode/1')).toBe(link);
+    const link = 'https://link.zap-pilot.org/e/episode%2F1?lang=zh-Hant';
     expect(buildTelegramAudioReadyMessage('✅ 完成', 'episode/1')).toBe(
       `✅ 完成\n🎬 音頻完成／影片排程中\n${link}`,
     );
@@ -123,7 +120,7 @@ describe('video lifecycle messages', () => {
 
   it('groups all completed video languages into one concise message', () => {
     expect(buildTelegramVideoCompletedMessage('episode/1')).toBe(
-      '🎬 三語影片完成：🇹🇼 繁中・🇯🇵 日文・🇺🇸 英文\nhttps://from-fed-to-chain-api.fly.dev/e/episode%2F1?lang=zh-Hant',
+      '🎬 三語影片完成：🇹🇼 繁中・🇯🇵 日文・🇺🇸 英文\nhttps://link.zap-pilot.org/e/episode%2F1?lang=zh-Hant',
     );
   });
 
@@ -136,14 +133,13 @@ describe('video lifecycle messages', () => {
       expect(
         buildTelegramVideoFailedMessage('episode/1', 'boom', languageCode),
       ).toBe(
-        `⚠️ ${label}影片失敗，但音頻仍可使用\n原因：boom\nhttps://from-fed-to-chain-api.fly.dev/e/episode%2F1?lang=${languageCode}`,
+        `⚠️ ${label}影片失敗，但音頻仍可使用\n原因：boom\nhttps://link.zap-pilot.org/e/episode%2F1?lang=${languageCode}`,
       );
     },
   );
 
   it('names the stored failure reason when the job recorded one', () => {
-    const link =
-      'https://from-fed-to-chain-api.fly.dev/e/episode%2F1?lang=zh-Hant';
+    const link = 'https://link.zap-pilot.org/e/episode%2F1?lang=zh-Hant';
 
     expect(
       buildTelegramVideoFailedMessage(

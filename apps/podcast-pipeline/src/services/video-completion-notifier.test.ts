@@ -33,7 +33,7 @@ describe('video completion notifier', () => {
     expect(notify).toHaveBeenCalledTimes(1);
     expect(notify).toHaveBeenCalledWith(
       '5266667564',
-      `🎬 三語影片完成：🇹🇼 繁中・🇯🇵 日文・🇺🇸 英文\nhttps://from-fed-to-chain-api.fly.dev/e/${episodeId}?lang=zh-Hant`,
+      `🎬 三語影片完成：🇹🇼 繁中・🇯🇵 日文・🇺🇸 英文\nhttps://link.zap-pilot.org/e/${episodeId}?lang=zh-Hant`,
     );
   });
 

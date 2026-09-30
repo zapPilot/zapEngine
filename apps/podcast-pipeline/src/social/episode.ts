@@ -1,3 +1,5 @@
+import { buildPodcastEpisodeShareUrl } from '@zapengine/types/shared';
+
 import {
   findEpisodeById,
   findEpisodeLocalizationByEpisodeId,
@@ -5,7 +7,6 @@ import {
 } from '../services/db.js';
 import { stripKnownPodcastPackaging } from '../services/podcast-packaging.js';
 import { isEpisodeId } from '../services/request-validation.js';
-import { buildEpisodeShareUrl } from '../services/telegram.js';
 import type { SocialEpisode, SocialLanguageCode } from './types.js';
 
 interface EpisodeProjection {
@@ -98,7 +99,7 @@ export function buildSocialEpisode(input: {
     summary: summarize(summarySource),
     transcript,
     publishedAt: input.episode.created_at,
-    episodeUrl: buildEpisodeShareUrl(input.episode.id),
+    episodeUrl: buildPodcastEpisodeShareUrl(input.episode.id, languageCode),
     videoDurationSeconds,
     videoUrl,
     videoThumbnailUrl: thumbnailUrl,

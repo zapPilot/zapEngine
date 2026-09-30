@@ -15,6 +15,21 @@ export function isPodcastLanguageCode(
   return (PODCAST_LANGUAGE_CODES as readonly string[]).includes(value);
 }
 
+/**
+ * The public host for episode share links. iOS claims `/e/*` on it through
+ * Universal Links; every other browser is redirected to the web episode. The
+ * pipeline serves it from the same app as its API host, which is why links
+ * built against that older host keep working.
+ */
+export const PODCAST_SHARE_ORIGIN = 'https://link.zap-pilot.org';
+
+export function buildPodcastEpisodeShareUrl(
+  episodeId: string,
+  languageCode: string,
+): string {
+  return `${PODCAST_SHARE_ORIGIN}/e/${encodeURIComponent(episodeId)}?lang=${encodeURIComponent(languageCode)}`;
+}
+
 export interface PodcastLanguageLabel {
   /** English name of the language, used in LLM prompts (e.g. translation instructions). */
   english: string;

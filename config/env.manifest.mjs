@@ -391,7 +391,6 @@ export const ENV_MANIFEST = {
   PIPELINE_TELEGRAM_ALLOWED_SOURCE_HOSTS: server(['podcast-pipeline']),
   INGEST_ADMIN_TOKEN: server(['podcast-pipeline'], { sensitive: true }),
   SCRIPT_PROMPT_PATH: server(['podcast-pipeline']),
-  PODCAST_PUBLIC_BASE_URL: server(['podcast-pipeline']),
   CONTROL_CENTER_PORT: server(['control-center']),
   CONTROL_CENTER_CACHE_TTL_MS: server(['control-center']),
   FLY_COST_MODE: server(['control-center']),
