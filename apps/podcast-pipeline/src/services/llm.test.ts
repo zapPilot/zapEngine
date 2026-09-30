@@ -518,6 +518,18 @@ describe('buildLanguageClassroomUserMessage', () => {
     expect(result).toContain('文章內容：\nArticle');
     expect(result).toContain('Podcast 講稿：\nScript');
   });
+
+  it('keeps a non-zh-Hant source language code verbatim in the grounding', () => {
+    const result = buildLanguageClassroomUserMessage({
+      title: 'Title',
+      articleText: 'Article',
+      script: 'Script',
+      sourceLanguageCode: 'en',
+      targetLanguageCodes: ['ja'],
+    });
+
+    expect(result).toContain('主語言：en');
+  });
 });
 
 describe('getSystemPrompt error handling', () => {

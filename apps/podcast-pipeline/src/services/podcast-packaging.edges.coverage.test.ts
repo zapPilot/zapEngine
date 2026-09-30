@@ -131,6 +131,16 @@ describe('podcast packaging edge coverage', () => {
     expect(stripKnownPodcastPackaging(`  ${packaged}  `)).toBe(raw);
   });
 
+  it('treats an empty script as unpackaged without matching branding', () => {
+    expect(splitPodcastVisualSections('   ').isPackaged).toBe(false);
+    expect(podcastContentSceneCountRange(60_000, 4, '')).toEqual(
+      expect.objectContaining({
+        min: expect.any(Number),
+        max: expect.any(Number),
+      }),
+    );
+  });
+
   it('rejects packaging when stripping leaves no editorial body', () => {
     expect(() => packagePodcastScript('   ')).toThrow(
       'Podcast body is empty after removing generated packaging',
