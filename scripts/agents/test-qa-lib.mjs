@@ -813,7 +813,13 @@ export function locateArtifactRun({
     ),
 }) {
   const repository = gh(['api', `repos/${repo}`]);
-  const query = new URLSearchParams({ branch, event, status, per_page: '100' });
+  const query = new URLSearchParams({
+    branch,
+    event,
+    status,
+    per_page: '100',
+    page: '1',
+  });
   const pages = gh([
     'api',
     '--method',
