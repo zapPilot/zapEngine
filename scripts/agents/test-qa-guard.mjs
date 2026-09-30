@@ -33,16 +33,26 @@ function git(repoRoot, args) {
   });
 }
 
-export function changedPaths(repoRoot, base, head = 'HEAD') {
-  const raw = git(repoRoot, [
+export function changedPaths(repoRoot, base, head = null) {
+  let raw = git(repoRoot, [
     'diff',
     '--name-status',
     '-z',
     '--find-renames',
     base,
-    head,
+    ...(head ? [head] : []),
     '--',
   ]);
+  if (!head)
+    raw += git(repoRoot, [
+      'diff',
+      '--cached',
+      '--name-status',
+      '-z',
+      '--find-renames',
+      base,
+      '--',
+    ]);
   const tokens = raw.split('\0').filter(Boolean);
   const paths = [];
   for (let index = 0; index < tokens.length; ) {
@@ -54,20 +64,40 @@ export function changedPaths(repoRoot, base, head = 'HEAD') {
       paths.push(tokens[index++] ?? '');
     }
   }
+  if (!head) {
+    paths.push(
+      ...git(repoRoot, ['ls-files', '--others', '--exclude-standard', '-z'])
+        .split('\0')
+        .filter(Boolean),
+    );
+  }
   return [...new Set(paths.filter(Boolean))];
 }
 
-export function diffText(repoRoot, base, head = 'HEAD') {
-  return git(repoRoot, [
+export function diffText(repoRoot, base, head = null) {
+  const diff = git(repoRoot, [
     'diff',
     '--find-renames',
     '--unified=0',
     '--no-ext-diff',
     '--no-color',
     base,
-    head,
+    ...(head ? [head] : []),
     '--',
   ]);
+  return head
+    ? diff
+    : diff +
+        git(repoRoot, [
+          'diff',
+          '--cached',
+          '--find-renames',
+          '--unified=0',
+          '--no-ext-diff',
+          '--no-color',
+          base,
+          '--',
+        ]);
 }
 
 export function discoverConfiguredGlobalTestFiles(repoRoot, ref = 'HEAD') {
@@ -142,7 +172,7 @@ export function evaluateGuard({
 function parseArgs(argv) {
   const options = {
     base: null,
-    head: 'HEAD',
+    head: null,
     repoRoot: process.cwd(),
   };
   for (let index = 0; index < argv.length; index += 1) {
@@ -164,6 +194,22 @@ function main() {
     paths: changedPaths(options.repoRoot, options.base, options.head),
     diff: diffText(options.repoRoot, options.base, options.head),
   });
+  if (!options.head) {
+    const untracked = git(options.repoRoot, [
+      'ls-files',
+      '--others',
+      '--exclude-standard',
+      '-z',
+    ])
+      .split('\0')
+      .filter(Boolean);
+    if (untracked.length) {
+      result.decision = 'deny';
+      result.reasons.push(
+        'Stage new files before running the guard: ' + untracked.join(', '),
+      );
+    }
+  }
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
   if (result.decision !== 'allow') process.exitCode = 1;
 }

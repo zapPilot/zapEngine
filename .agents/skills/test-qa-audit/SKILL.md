@@ -63,7 +63,7 @@ A clean audit is useful work. Do not manufacture a diff.
 9. For changed tests, run the selector-provided scoped test and scoped coverage
    commands, then type-check, ESLint/Ruff, Prettier where applicable, and
    `dup:check`.
-10. Run `node scripts/agents/test-qa-guard.mjs --base <PR-base>`.
+10. Stage new files, then run `node scripts/agents/test-qa-guard.mjs --base <PR-base>`.
 11. Commit, rerun the gates after commit because lint-staged can modify files,
     then push only to the single worker PR. Never merge it.
 12. Always record this run, even with no changes, and dispatch
@@ -83,7 +83,7 @@ Selection order is:
 4. unchanged scopes not audited for more than 30 days, oldest first.
 
 `pending` scopes are not selected. A rejected scope stays skipped until its
-fingerprint changes.
+main fingerprint changes from the baseline captured when rejection is reconciled.
 
 ## Rationalizations — STOP
 

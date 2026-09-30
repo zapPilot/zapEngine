@@ -55,15 +55,15 @@ repository traps:
 - `pnpm --filter X test -- <path>` runs the package test script and may still
   execute the whole package. Use the emitted `exec vitest run <paths>`.
 - Scoped Vitest coverage uses `--coverage.enabled`,
-  `--coverage.include=<subject>`, and an external reports directory. The
-  emitted measurement command sets only its CLI report thresholds to zero so a
-  subject-only run is not compared with the workspace-wide 100% floor; it does
-  not edit or relax the canonical repository thresholds, which CI still
-  enforces at 100%.
+  `--coverage.include=<subject>`, an external reports directory, and a 100%
+  threshold. Python uses `--cov-fail-under=100`. Never lower these thresholds.
+  If other tests are needed to cover the subject, include them in verification;
+  a failing coverage command is not permission to push.
 - analytics-engine uses `exec uv run pytest <tests> -q -m "not integration"`.
-  Its scoped measurement similarly uses `--cov-fail-under=0`; test failures
-  still fail the command. Scopes requiring PostgreSQL that is unavailable are
-  audit-only.
+  Scopes requiring unavailable PostgreSQL are audit-only.
+- Stage new files before running the guard. Without `--head`, it checks the
+  working tree against the base and rejects untracked files. CI passes an
+  explicit `--head HEAD` to check only the committed merge result.
 - After committing, rerun gates: lint-staged may have modified files.
 - `dup:check` is not covered by a generic Turbo verification shortcut.
 - `pnpm contracts check` rewrites/checks generated contract snapshots; finish

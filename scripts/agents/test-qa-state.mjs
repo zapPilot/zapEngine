@@ -7,6 +7,8 @@ import { pathToFileURL } from 'node:url';
 import {
   collectScopes,
   emptyState,
+  fingerprintPaths,
+  listFilesAtRef,
   findingId,
   MAX_RECORD_PAYLOAD_BYTES,
   MAX_TEXT_LENGTH,
@@ -323,9 +325,9 @@ function readPr(repo, number) {
   );
 }
 
-export function reconcilePendingScopes(state, prReader) {
+export function reconcilePendingScopes(state, prReader, mainScopeReader) {
   const cache = new Map();
-  for (const scope of Object.values(state.scopes)) {
+  for (const [key, scope] of Object.entries(state.scopes)) {
     if (scope.status !== 'pending' || !scope.pr) continue;
     if (!cache.has(scope.pr)) cache.set(scope.pr, prReader(scope.pr));
     const pr = cache.get(scope.pr);
@@ -334,6 +336,16 @@ export function reconcilePendingScopes(state, prReader) {
       scope.auditedCommit =
         pr.mergeCommit?.oid ?? pr.headRefOid ?? scope.auditedCommit;
     } else if (pr.state === 'CLOSED') {
+      // Rejection must be compared with main, not the unmerged PR contents.
+      const baseline = mainScopeReader(key, scope);
+      if (!baseline) {
+        delete state.scopes[key];
+        continue;
+      }
+      scope.fingerprint = baseline.fingerprint;
+      scope.files = baseline.files;
+      scope.relatedPaths = baseline.relatedPaths;
+      scope.auditedCommit = baseline.auditedCommit;
       scope.status = 'rejected';
     }
   }
@@ -351,6 +363,9 @@ export function mergeState({
   records,
   github,
   prReader = () => ({ state: 'OPEN' }),
+  mainScopeReader = () => {
+    throw new Error('main scope reader required for rejected PRs');
+  },
   now = new Date(),
 }) {
   const state = structuredClone(validateState(previous));
@@ -387,7 +402,7 @@ export function mergeState({
     }
   }
 
-  reconcilePendingScopes(state, prReader);
+  reconcilePendingScopes(state, prReader, mainScopeReader);
   state.runs = state.runs
     .sort((a, b) => Date.parse(b.at) - Date.parse(a.at))
     .slice(0, 100);
@@ -457,7 +472,34 @@ function mergeMain(argv) {
     throw new Error('GITHUB_RUN_ATTEMPT is invalid');
   }
 
+  let mainScopes;
+  let mainFiles;
+  const mainSha = gitSha(process.cwd(), 'HEAD');
   const state = mergeState({
+    mainScopeReader: (key, previousScope) => {
+      mainScopes ??= new Map(
+        collectScopes(process.cwd(), { ref: mainSha }).map((scope) => [
+          scope.key,
+          { ...scope, auditedCommit: mainSha },
+        ]),
+      );
+      const scope = mainScopes.get(key);
+      if (scope) return scope;
+      mainFiles ??= new Set(listFilesAtRef(process.cwd(), mainSha));
+      const files = previousScope.files.filter((path) => mainFiles.has(path));
+      const relatedPaths = previousScope.relatedPaths.filter((path) =>
+        mainFiles.has(path),
+      );
+      return {
+        files,
+        relatedPaths,
+        auditedCommit: mainSha,
+        fingerprint: fingerprintPaths(process.cwd(), mainSha, [
+          ...files,
+          ...relatedPaths,
+        ]),
+      };
+    },
     previous,
     records,
     github,

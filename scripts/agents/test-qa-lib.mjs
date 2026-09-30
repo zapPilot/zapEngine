@@ -185,7 +185,12 @@ export function isTestFile(filePath) {
 }
 
 export function isTestHelperPath(filePath) {
-  if (!safePath(filePath)) return false;
+  if (
+    !safePath(filePath) ||
+    !/^(?:apps|packages)\//u.test(filePath) ||
+    filePath.startsWith('apps/app/tests/e2e/')
+  )
+    return false;
   if (GLOBAL_TEST_CONFIGS.includes(filePath)) return false;
   if (isTestFile(filePath) || filePath.endsWith('.snap')) return true;
   return /\/(?:__tests__|__mocks__|tests?|test-utils?|fixtures?|mocks?|snapshots?)\//u.test(
@@ -486,7 +491,7 @@ function commandSet(repoRoot, ref, scope, fileSet) {
       build: null,
       test: `pnpm --filter ${shellQuote(pkg.name)} exec uv run pytest ${tests} -q -m "not integration"`,
       coverage: relSubject
-        ? `pnpm --filter ${shellQuote(pkg.name)} exec uv run pytest ${tests} -q -m "not integration" --cov=${shellQuote(pythonModuleTarget(relSubject))} --cov-report=term-missing --cov-fail-under=0`
+        ? `pnpm --filter ${shellQuote(pkg.name)} exec uv run pytest ${tests} -q -m "not integration" --cov=${shellQuote(pythonModuleTarget(relSubject))} --cov-report=term-missing --cov-fail-under=100`
         : null,
       typeCheck: pkg.scripts['type-check']
         ? `pnpm --filter ${shellQuote(pkg.name)} type-check`
@@ -507,7 +512,7 @@ function commandSet(repoRoot, ref, scope, fileSet) {
     build: `pnpm --filter ${shellQuote(`${pkg.name}^...`)} build`,
     test: `pnpm --filter ${shellQuote(pkg.name)} exec vitest run ${tests}`,
     coverage: relSubject
-      ? `pnpm --filter ${shellQuote(pkg.name)} exec vitest run ${tests} --coverage.enabled${includes} --coverage.reportsDirectory="\${TMPDIR:-/tmp}/test-qa-coverage" --coverage.thresholds.100=false --coverage.thresholds.lines=0 --coverage.thresholds.functions=0 --coverage.thresholds.branches=0 --coverage.thresholds.statements=0`
+      ? `pnpm --filter ${shellQuote(pkg.name)} exec vitest run ${tests} --coverage.enabled${includes} --coverage.reportsDirectory="\${TMPDIR:-/tmp}/test-qa-coverage" --coverage.thresholds.100=true`
       : null,
     typeCheck: pkg.scripts['type-check']
       ? `pnpm --filter ${shellQuote(pkg.name)} type-check`

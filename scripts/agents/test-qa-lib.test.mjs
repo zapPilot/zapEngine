@@ -4,9 +4,12 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { createRecord, mergeState } from './test-qa-state.mjs';
+import { classifyScope } from './test-qa-select.mjs';
 
 import {
   collectScopes,
+  emptyState,
   fingerprintPaths,
   parseJsonc,
   primarySubject,
@@ -141,7 +144,7 @@ test('collectScopes groups sibling coverage tests around their production subjec
       github.commands.coverage,
       /--coverage\.include='src\/github\.ts'/u,
     );
-    assert.match(github.commands.coverage, /--coverage\.thresholds\.lines=0/u);
+    assert.match(github.commands.coverage, /--coverage\.thresholds\.100=true/u);
 
     const standalone = scopes.find(
       (scope) => scope.key === 'apps/foo/src/standalone.test.ts',
@@ -174,7 +177,7 @@ test('collectScopes groups sibling coverage tests around their production subjec
       python.commands.coverage,
       /--cov='src\.services\.calculator'/u,
     );
-    assert.match(python.commands.coverage, /--cov-fail-under=0/u);
+    assert.match(python.commands.coverage, /--cov-fail-under=100/u);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -198,6 +201,61 @@ test('fingerprints read content from the requested git ref', async () => {
       fingerprintPaths(root, first, ['apps/foo/src/github.ts']),
       before,
     );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('closed PR records stay rejected on unchanged main and become selectable after main changes', async () => {
+  const root = await fixture();
+  try {
+    const key = 'apps/foo/src/github.ts';
+    const mainSha = git(root, 'rev-parse', 'HEAD');
+    const mainScope = collectScopes(root, { ref: mainSha }).find(
+      (scope) => scope.key === key,
+    );
+    await put(
+      root,
+      'apps/foo/src/github-coverage.test.ts',
+      "import { value } from '@/github.js';\nif (value !== 1) throw new Error('regression');\n",
+    );
+    git(root, 'add', '.');
+    git(root, 'commit', '-qm', 'worker tests');
+    const pending = createRecord({
+      repoRoot: root,
+      key,
+      ref: 'HEAD',
+      status: 'pending',
+      pr: 12,
+      workerRunId: 'run-1',
+    });
+    assert.notEqual(pending.scope.fingerprint, mainScope.fingerprint);
+    const options = {
+      github: { runId: 1, runAttempt: 1, sha: mainSha },
+      prReader: () => ({ state: 'CLOSED' }),
+      mainScopeReader: () => ({ ...mainScope, auditedCommit: mainSha }),
+    };
+    const rejected = mergeState({
+      ...options,
+      previous: emptyState(),
+      records: [pending],
+    });
+    assert.equal(
+      classifyScope(mainScope, rejected.scopes[key]).kind,
+      'rejected',
+    );
+    const replay = mergeState({
+      ...options,
+      previous: rejected,
+      records: [pending],
+    });
+    assert.deepEqual(replay.scopes[key], rejected.scopes[key]);
+    assert.equal(replay.runs.length, 1);
+    await put(root, 'apps/foo/src/github.ts', 'export const value = 2;\n');
+    git(root, 'add', '.');
+    git(root, 'commit', '-qm', 'subject changed');
+    const changed = collectScopes(root).find((scope) => scope.key === key);
+    assert.equal(classifyScope(changed, rejected.scopes[key]).kind, 'changed');
   } finally {
     await rm(root, { recursive: true, force: true });
   }

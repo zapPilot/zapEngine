@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { classifyScope } from './test-qa-select.mjs';
 
 import { emptyState, MAX_RECORD_PAYLOAD_BYTES } from './test-qa-lib.mjs';
 import {
@@ -154,6 +155,10 @@ test('pending PRs reconcile to clean after merge and rejected after closure', ()
     previous: state,
     records: [record({ workerRunId: 'heartbeat' })],
     github: { runId: 11, runAttempt: 1, sha: 'main-sha-3' },
+    mainScopeReader: (key) => ({
+      ...stateScope({ key, fingerprint: 'b'.repeat(64) }),
+      auditedCommit: 'main-sha-3',
+    }),
     prReader: (number) =>
       number === 11
         ? {
@@ -169,7 +174,23 @@ test('pending PRs reconcile to clean after merge and rejected after closure', ()
     merged.scopes['apps/foo/src/a.ts'].auditedCommit,
     'merge-commit',
   );
-  assert.equal(merged.scopes['apps/foo/src/b.ts'].status, 'rejected');
+  const rejected = merged.scopes['apps/foo/src/b.ts'];
+  assert.equal(rejected.status, 'rejected');
+  assert.equal(rejected.auditedCommit, 'main-sha-3');
+  assert.equal(
+    classifyScope({ fingerprint: 'b'.repeat(64) }, rejected).kind,
+    'rejected',
+  );
+  assert.equal(
+    classifyScope({ fingerprint: 'c'.repeat(64) }, rejected).kind,
+    'changed',
+  );
+  const retried = mergeState({
+    previous: merged,
+    records: [],
+    github: merged.github,
+  });
+  assert.deepEqual(retried.scopes['apps/foo/src/b.ts'], rejected);
 });
 
 test('STATE.md is compact and human-readable', () => {
