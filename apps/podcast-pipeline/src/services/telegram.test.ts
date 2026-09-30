@@ -117,13 +117,13 @@ describe('video lifecycle messages', () => {
       buildTelegramAudioReadyMessage('✅ 已存在', 'episode/1', 'unavailable'),
     ).toContain('音頻完成／影片稍後補上');
     expect(buildTelegramVideoFailedMessage('episode/1')).toBe(
-      `⚠️ 🇹🇼 繁中影片失敗，但音頻仍可使用\n${link}`,
+      `⚠️ 🇨🇳 中文影片失敗，但音頻仍可使用\n${link}`,
     );
   });
 
   it('groups all completed video languages into one concise message', () => {
     expect(buildTelegramVideoCompletedMessage('episode/1')).toBe(
-      '🎬 三語影片完成：🇹🇼 繁中・🇯🇵 日文・🇺🇸 英文\nhttps://from-fed-to-chain-api.fly.dev/e/episode%2F1?lang=zh-Hant',
+      '🎬 三語影片完成：🇨🇳 中文・🇯🇵 日文・🇺🇸 英文\nhttps://from-fed-to-chain-api.fly.dev/e/episode%2F1?lang=zh-Hant',
     );
   });
 
@@ -151,13 +151,13 @@ describe('video lifecycle messages', () => {
         '/usr/bin/ffmpeg failed (signal SIGKILL, likely out of memory): Conversion failed\nframe= 201 fps=0.1',
       ),
     ).toBe(
-      `⚠️ 🇹🇼 繁中影片失敗，但音頻仍可使用\n原因：/usr/bin/ffmpeg failed (signal SIGKILL, likely out of memory): Conversion failed\n${link}`,
+      `⚠️ 🇨🇳 中文影片失敗，但音頻仍可使用\n原因：/usr/bin/ffmpeg failed (signal SIGKILL, likely out of memory): Conversion failed\n${link}`,
     );
     expect(buildTelegramVideoFailedMessage('episode/1', '   ')).toBe(
-      `⚠️ 🇹🇼 繁中影片失敗，但音頻仍可使用\n${link}`,
+      `⚠️ 🇨🇳 中文影片失敗，但音頻仍可使用\n${link}`,
     );
     expect(buildTelegramVideoFailedMessage('episode/1', null)).toBe(
-      `⚠️ 🇹🇼 繁中影片失敗，但音頻仍可使用\n${link}`,
+      `⚠️ 🇨🇳 中文影片失敗，但音頻仍可使用\n${link}`,
     );
     expect(
       buildTelegramVideoFailedMessage('episode/1', 'x'.repeat(600)),

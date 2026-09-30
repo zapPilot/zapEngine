@@ -29,7 +29,6 @@ const {
   mockUpdateLanguageClassroomAudio,
   mockUpsertLanguageClassrooms,
   mockUploadHlsToR2,
-  mockConvertArticleToZhTW,
 } = vi.hoisted(() => ({
   mockFindEpisodeBySourceUrl: vi.fn(),
   mockFindEpisodeLocalizationByEpisodeId: vi.fn(),
@@ -49,7 +48,6 @@ const {
   mockUpdateLanguageClassroomAudio: vi.fn(),
   mockUpsertLanguageClassrooms: vi.fn(),
   mockUploadHlsToR2: vi.fn(),
-  mockConvertArticleToZhTW: vi.fn(),
 }));
 
 vi.mock('./db.js', () => ({
@@ -114,10 +112,6 @@ vi.mock('./tts.js', async (importOriginal) => ({
   textToSpeech: mockTextToSpeech,
 }));
 
-vi.mock('./opencc.js', () => ({
-  convertArticleToZhTW: mockConvertArticleToZhTW,
-}));
-
 vi.mock('./translate.js', () => ({
   translateCanonicalScript: mockTranslateCanonicalScript,
 }));
@@ -134,17 +128,13 @@ describe('performIngest failure paths', () => {
       title: '软件更新',
       text: '鼠标和自行车市场',
     });
-    mockConvertArticleToZhTW.mockReturnValue({
-      title: '軟體更新',
-      text: '滑鼠和腳踏車市場',
-    });
     mockInsertEpisode.mockResolvedValue(
       episodeRow({ source_title: '软件更新' }),
     );
     mockInsertEpisodeLocalization.mockResolvedValue(
       localizationRow({
-        title: '軟體更新',
-        raw_text: '滑鼠和腳踏車市場',
+        title: '软件更新',
+        raw_text: '鼠标和自行车市场',
         hls_url: '',
         script: '',
         llm_model: '',
@@ -178,8 +168,8 @@ describe('performIngest failure paths', () => {
         if (status === 'scraped') {
           return Promise.resolve(
             localizationRow({
-              title: '軟體更新',
-              raw_text: '滑鼠和腳踏車市場',
+              title: '软件更新',
+              raw_text: '鼠标和自行车市场',
               hls_url: '',
               script: '',
               status: 'scraped',
@@ -189,8 +179,8 @@ describe('performIngest failure paths', () => {
         if (status === 'script_generated') {
           return Promise.resolve(
             localizationRow({
-              title: '軟體更新',
-              raw_text: '滑鼠和腳踏車市場',
+              title: '软件更新',
+              raw_text: '鼠标和自行车市场',
               hls_url: '',
               script:
                 typeof data?.['script'] === 'string'
@@ -221,8 +211,8 @@ describe('performIngest failure paths', () => {
         if (status === 'completed') {
           return Promise.resolve(
             localizationRow({
-              title: '軟體更新',
-              raw_text: '滑鼠和腳踏車市場',
+              title: '软件更新',
+              raw_text: '鼠标和自行车市场',
               script: PACKAGED_SCRIPT,
               hls_url: 'https://cdn.example.com/playlist.m3u8',
               r2_prefix: 'episodes/e/localizations/zh-Hant',
@@ -801,8 +791,8 @@ describe('performIngest failure paths', () => {
         if (status === 'scraped') {
           return Promise.resolve(
             localizationRow({
-              title: '軟體更新',
-              raw_text: '滑鼠和腳踏車市場',
+              title: '软件更新',
+              raw_text: '鼠标和自行车市场',
               hls_url: '',
               script: '',
               status: 'scraped',
@@ -812,8 +802,8 @@ describe('performIngest failure paths', () => {
         if (status === 'script_generated') {
           return Promise.resolve(
             localizationRow({
-              title: '軟體更新',
-              raw_text: '滑鼠和腳踏車市場',
+              title: '软件更新',
+              raw_text: '鼠标和自行车市场',
               hls_url: '',
               script: 'Generated script',
               status: 'script_generated',
@@ -841,8 +831,8 @@ describe('performIngest failure paths', () => {
         if (status === 'completed') {
           return Promise.resolve(
             localizationRow({
-              title: '軟體更新',
-              raw_text: '滑鼠和腳踏車市場',
+              title: '软件更新',
+              raw_text: '鼠标和自行车市场',
               script: 'Generated script',
               hls_url: 'https://cdn.example.com/playlist.m3u8',
               status: 'completed',
@@ -862,8 +852,8 @@ describe('performIngest failure paths', () => {
     expect(mockUpdateEpisodeLocalizationArticleContent).toHaveBeenCalledWith(
       localizationRow().id,
       {
-        title: '軟體更新',
-        text: '滑鼠和腳踏車市場',
+        title: '软件更新',
+        text: '鼠标和自行车市场',
       },
     );
     expect(mockUpdateEpisodeLocalizationStatus).toHaveBeenCalledWith(
@@ -905,7 +895,6 @@ describe('performIngest failure paths', () => {
 
     expect(result.statusCode).toBe(201);
     expect(mockScrapeArticle).not.toHaveBeenCalled();
-    expect(mockConvertArticleToZhTW).not.toHaveBeenCalled();
     expect(mockGenerateScriptWithLLM).not.toHaveBeenCalled();
     expect(mockTranslateCanonicalScript).not.toHaveBeenCalled();
     expect(mockTextToSpeech).toHaveBeenCalledWith('English script', {
@@ -1141,18 +1130,14 @@ describe('performIngest failure paths', () => {
       title: 'Software Update',
       text: 'Mouse and bicycle market',
     });
-    mockConvertArticleToZhTW.mockReturnValue({
-      title: '軟體更新',
-      text: '滑鼠和腳踏車市場',
-    });
     mockInsertEpisodeLocalization.mockImplementation(
       (localization: { languageCode: string }) =>
         Promise.resolve(
           localization.languageCode === 'en'
             ? englishPendingLocalization
             : localizationRow({
-                title: '軟體更新',
-                raw_text: '滑鼠和腳踏車市場',
+                title: 'Software Update',
+                raw_text: 'Mouse and bicycle market',
                 hls_url: '',
                 script: '',
                 llm_model: '',
@@ -1167,8 +1152,8 @@ describe('performIngest failure paths', () => {
         if (status === 'script_generated' && id !== 'en-localization') {
           return Promise.resolve(
             localizationRow({
-              title: '軟體更新',
-              raw_text: '滑鼠和腳踏車市場',
+              title: 'Software Update',
+              raw_text: 'Mouse and bicycle market',
               script: 'Generated script',
               status: 'script_generated',
             }),
@@ -1221,25 +1206,21 @@ describe('performIngest failure paths', () => {
 
     await performIngest('https://example.com/article', 'en');
 
-    expect(mockConvertArticleToZhTW).toHaveBeenCalledWith({
-      title: 'Software Update',
-      text: 'Mouse and bicycle market',
-    });
     expect(mockInsertEpisodeLocalization).toHaveBeenCalledWith(
       expect.objectContaining({
         languageCode: 'zh-Hant',
-        title: '軟體更新',
-        rawText: '滑鼠和腳踏車市場',
+        title: 'Software Update',
+        rawText: 'Mouse and bicycle market',
         status: 'scraped',
       }),
     );
     expect(mockGenerateScriptWithLLM).toHaveBeenCalledWith(
-      '軟體更新',
-      '滑鼠和腳踏車市場',
+      'Software Update',
+      'Mouse and bicycle market',
       {},
     );
     expect(mockTranslateCanonicalScript).toHaveBeenCalledWith({
-      title: '軟體更新',
+      title: 'Software Update',
       script: 'Generated script',
       targetLanguageCode: 'en',
     });
@@ -1438,7 +1419,7 @@ describe('performIngest failure paths', () => {
   it('generates every supported localization in order and returns the requested language', async () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
     const localizations = new Map<string, EpisodeLocalizationRow>();
-    const editorialTitle = '市場流動性正在重新定價';
+    const editorialTitle = '市场流动性正在重新定价';
 
     mockGenerateScriptWithLLM.mockResolvedValue({
       title: editorialTitle,
@@ -1913,8 +1894,8 @@ describe('performIngest failure paths', () => {
         if (status === 'script_generated') {
           return Promise.resolve(
             localizationRow({
-              title: '軟體更新',
-              raw_text: '滑鼠和腳踏車市場',
+              title: '软件更新',
+              raw_text: '鼠标和自行车市场',
               hls_url: '',
               script: 'Generated script',
               status: 'script_generated',

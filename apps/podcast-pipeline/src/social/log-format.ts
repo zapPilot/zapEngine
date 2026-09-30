@@ -1,7 +1,7 @@
 export function languageFlag(language: string): string {
   switch (language) {
     case 'zh-Hant':
-      return '🇹🇼';
+      return '🇨🇳';
     case 'ja':
       return '🇯🇵';
     case 'en':

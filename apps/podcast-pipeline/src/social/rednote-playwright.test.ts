@@ -326,6 +326,19 @@ beforeEach(() => {
 });
 
 describe('createPlaywrightRednotePublisher', () => {
+  it('searches the Simplified 程序员 topic verbatim', async () => {
+    const { page, keyboard, state } = fakePage({ existingTopics: ['程序员'] });
+    mocks.page = page;
+    await expect(
+      createPlaywrightRednotePublisher().publishRednote({
+        ...PAYLOAD,
+        hashtags: ['程序员'],
+      }),
+    ).resolves.toMatchObject({ hashtags: ['程序员'] });
+    expect(keyboard.type).toHaveBeenCalledWith('#程序员', expect.any(Object));
+    expect(state.attached).toEqual(['程序员']);
+  });
+
   it('fails before upload when the persistent publisher profile is logged out', async () => {
     const { page } = fakePage({ existingTopics: [] });
     mocks.page = page;

@@ -2,7 +2,6 @@ import { randomUUID } from 'node:crypto';
 
 import {
   type Article,
-  DEFAULT_LANGUAGE_CODE,
   type EpisodeLocalizationRow,
   type EpisodeRow,
   type LanguageClassroomLanguageCode,
@@ -17,7 +16,7 @@ import {
   updateEpisodeLocalizationStatus,
 } from '../db.js';
 import { generateScriptWithLLM, type LlmAttemptRecord } from '../llm.js';
-import { convertArticleToZhTW } from '../opencc.js';
+import { convertTextToZhCN } from '../opencc.js';
 import {
   packagePodcastScript,
   PODCAST_PACKAGING_VERSION,
@@ -124,7 +123,7 @@ export async function ensureEpisodeLocalizationScript(
 }> {
   let { episode, localization } =
     state ?? (await findEpisodeAndLocalization(url, languageCode));
-  const scraped = await scrapeAndNormalize(url, languageCode, localization);
+  const scraped = await scrapeArticleIfNeeded(url, localization);
 
   if (scraped.needsScrape) {
     episode = await ensureEpisodeRow(url, scraped.sourceTitle, episode);
@@ -168,9 +167,8 @@ export function needsGeneratedScript(
   );
 }
 
-async function scrapeAndNormalize(
+async function scrapeArticleIfNeeded(
   url: string,
-  languageCode: LanguageClassroomLanguageCode,
   localization: EpisodeLocalizationRow | null,
 ): Promise<ScrapedArticleState> {
   const needsScrape = !localization || localization.status === 'pending';
@@ -188,7 +186,7 @@ async function scrapeAndNormalize(
 
   const scrapedArticle = await step('scrapeArticle', () => scrapeArticle(url));
   return {
-    article: normalizeArticleForLanguage(scrapedArticle, languageCode),
+    article: scrapedArticle,
     sourceTitle: scrapedArticle.title,
     needsScrape,
   };
@@ -282,8 +280,13 @@ async function ensureLocalizationScript(input: {
             : {}),
         },
       );
-      assertGeneratedScriptQuality(result.script, input.article.text);
-      return result;
+      const normalized = {
+        ...result,
+        title: result.title === null ? null : convertTextToZhCN(result.title),
+        script: convertTextToZhCN(result.script),
+      };
+      assertGeneratedScriptQuality(normalized.script, input.article.text);
+      return normalized;
     });
     input.costBreakdown.push(
       buildLlmCostLine('LLM script', {
@@ -356,15 +359,4 @@ async function persistScrapedLocalization(
       ttsVoiceName: null,
     });
   });
-}
-
-export function normalizeArticleForLanguage(
-  article: Article,
-  languageCode: string,
-): Article {
-  if (languageCode !== DEFAULT_LANGUAGE_CODE) {
-    return article;
-  }
-
-  return convertArticleToZhTW(article);
 }

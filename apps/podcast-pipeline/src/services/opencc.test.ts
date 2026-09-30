@@ -1,23 +1,20 @@
 import { describe, expect, it } from 'vitest';
 
-import { convertArticleToZhTW, convertTextToZhTW } from './opencc.js';
+import { convertTextToZhCN, convertTextToZhTW } from './opencc.js';
 
-describe('convertTextToZhTW', () => {
-  it('converts Simplified Chinese words to Taiwan Traditional Chinese phrases', () => {
-    expect(convertTextToZhTW('软件 鼠标 自行车')).toBe('軟體 滑鼠 腳踏車');
+describe('Chinese character contracts', () => {
+  it.each(['程序员', '影片', '什么', '显著', '硅基', '意味着'])(
+    'preserves Simplified source vocabulary: %s',
+    (text) => expect(convertTextToZhCN(text)).toBe(text),
+  );
+
+  it('changes Traditional character forms without Taiwan vocabulary rewrites', () => {
+    expect(convertTextToZhCN('這個網路 什麼')).toBe('这个网路 什么');
   });
-});
 
-describe('convertArticleToZhTW', () => {
-  it('converts both article title and text', () => {
-    expect(
-      convertArticleToZhTW({
-        title: '软件更新',
-        text: '鼠标和自行车市场',
-      }),
-    ).toEqual({
-      title: '軟體更新',
-      text: '滑鼠和腳踏車市場',
-    });
+  it('still applies Taiwan vocabulary for Threads', () => {
+    expect(convertTextToZhTW('网络 软件 鼠标 自行车')).toBe(
+      '網路 軟體 滑鼠 腳踏車',
+    );
   });
 });

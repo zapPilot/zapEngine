@@ -85,8 +85,10 @@ Language is fixed per platform by `SOCIAL_LANGUAGE_BY_PLATFORM` in `policy.ts`:
 | X        | `ja`      |
 | YouTube  | `en`      |
 
-Every article covers all three primary languages: Traditional Chinese on Rednote
-and Threads, Japanese on X, and English on YouTube. `resolveReleaseCohortLanes()`
+Every article covers all three primary languages: the main Chinese lane (`zh-Hant`)
+on Rednote and Threads, Japanese on X, and English on YouTube. Since 2026-09-30,
+new Chinese content uses Simplified Chinese. Rednote publishes Simplified copy;
+only Threads copy converts to Taiwan Traditional Chinese. `resolveReleaseCohortLanes()`
 reads nothing else — no clock, no durable assignment — and no lane carries a
 language `experiment_key` / `experiment_variant`.
 
@@ -236,7 +238,7 @@ all eight attempts of every `zh-Hant` article behind a green daemon.
 The operator sees one line per held article and the reason in `last_error`:
 
 ```text
-⏸️ [social-daemon] “標題” · release held · copy generation failed 🇹🇼 zh-Hant · Rednote copy breaks investment-direction red lines (…)
+⏸️ [social-daemon] “標題” · release held · copy generation failed 🇨🇳 zh-Hant · Rednote copy breaks investment-direction red lines (…)
 ```
 
 ```text
@@ -430,9 +432,10 @@ Current media shape is owned by `platforms.ts`:
 | YouTube  | yes                | English full video                                   |
 
 X and Threads share the deterministic teaser path where possible. Rednote always
-publishes the Traditional Chinese full video, Threads publishes the Traditional
-Chinese teaser, X publishes Japanese, and YouTube publishes English under the
-fixed language policy.
+publishes the main Chinese full video, and Threads publishes its teaser. New
+Chinese videos and Threads teasers have Simplified subtitles (an accepted
+trade-off); older videos retain their original script. X publishes Japanese and
+YouTube publishes English under the fixed language policy.
 
 ## Duplicate state and telemetry
 

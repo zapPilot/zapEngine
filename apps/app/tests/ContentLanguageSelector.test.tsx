@@ -96,6 +96,20 @@ async function openMenuAndPick(label: string): Promise<void> {
 }
 
 describe('PodcastLanguageDropdown', () => {
+  it('displays Chinese while preserving the stored zh-Hant lane ID', async () => {
+    await act(async () => root.render(<PodcastLanguageDropdown />));
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('[aria-label="language.choose"]')
+        ?.click();
+    });
+    const chineseOption =
+      container.querySelector<HTMLButtonElement>('[aria-label="中文"]');
+    expect(chineseOption?.textContent).toContain('中文');
+    await act(async () => chineseOption?.click());
+    expect(setLanguageCode).toHaveBeenCalledWith('zh-Hant');
+  });
+
   it('notifies onLanguageSelected with the picked code', async () => {
     const onLanguageSelected = vi.fn();
 

@@ -34,7 +34,7 @@ describe('Zap Pilot brand CTA', () => {
 
   it('localizes the video headline while preserving the same destination', () => {
     expect(videoBrandCtaFor('zh-Hant')).toEqual({
-      title: '更多市場洞察與工具',
+      title: '更多市场洞察与工具',
       callToAction: 'www.zap-pilot.org',
     });
     expect(videoBrandCtaFor('ja').callToAction).toBe('www.zap-pilot.org');

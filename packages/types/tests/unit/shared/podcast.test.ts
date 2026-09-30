@@ -33,10 +33,10 @@ describe('podcast language vocabulary', () => {
   it('carries the exact label shape every consumer relies on', () => {
     expect(PODCAST_LANGUAGE_LABELS).toEqual({
       'zh-Hant': {
-        english: 'Traditional Chinese',
-        native: '繁體中文',
+        english: 'Chinese',
+        native: '中文',
         badge: '中',
-        intlLocale: 'zh-TW',
+        intlLocale: 'zh-CN',
       },
       ja: {
         english: 'Japanese',

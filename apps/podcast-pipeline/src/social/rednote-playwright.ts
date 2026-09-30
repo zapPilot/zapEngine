@@ -225,8 +225,8 @@ async function attachTopic(
 ): Promise<boolean> {
   // Topic search is script-sensitive and the audience is on the Simplified side:
   // 「宏觀經濟」 and 「宏观经济」 are two different topics, and the Simplified one
-  // carried 5.2亿 views against 8.3万 when this was measured. Copy stays
-  // Traditional; only the topic query is converted.
+  // carried 5.2亿 views against 8.3万 when this was measured. Normalize character
+  // forms only, preserving Simplified topic names such as 程序员 unchanged.
   const query = convertTextToZhCN(tag);
   await body.click();
   await moveCaretToEnd(body);

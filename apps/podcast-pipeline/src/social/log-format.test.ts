@@ -10,7 +10,7 @@ import {
 
 describe('log-format', () => {
   it('maps known languages to flags', () => {
-    expect(languageFlag('zh-Hant')).toBe('🇹🇼');
+    expect(languageFlag('zh-Hant')).toBe('🇨🇳');
     expect(languageFlag('ja')).toBe('🇯🇵');
     expect(languageFlag('en')).toBe('🇺🇸');
   });
@@ -33,12 +33,12 @@ describe('log-format', () => {
 
   it('formats platform and language labels', () => {
     expect(platformLabel('rednote')).toBe('📕 rednote');
-    expect(languageLabel('zh-Hant')).toBe('🇹🇼 zh-Hant');
+    expect(languageLabel('zh-Hant')).toBe('🇨🇳 zh-Hant');
     expect(languageLabel('en')).toBe('🇺🇸 en');
   });
 
   it('formats lane labels', () => {
-    expect(laneLabel('rednote', 'zh-Hant')).toBe('📕 rednote 🇹🇼 zh-Hant');
+    expect(laneLabel('rednote', 'zh-Hant')).toBe('📕 rednote 🇨🇳 zh-Hant');
     expect(laneLabel('x', 'ja')).toBe('𝕏 x 🇯🇵 ja');
     expect(laneLabel('youtube', 'en')).toBe('▶️ youtube 🇺🇸 en');
   });

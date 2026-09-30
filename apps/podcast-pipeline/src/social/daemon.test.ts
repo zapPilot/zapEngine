@@ -508,7 +508,7 @@ describe('social daemon', () => {
     expect(mocks.publishSocialBatch).not.toHaveBeenCalled();
     expect(mocks.failSocialPublishJob).not.toHaveBeenCalled();
     expect(log).toHaveBeenCalledWith(
-      '✅ [social-daemon] ▶️ youtube 🇹🇼 zh-Hant · “穩定幣真實使用場景” · reconciled · already published',
+      '✅ [social-daemon] ▶️ youtube 🇨🇳 zh-Hant · “穩定幣真實使用場景” · reconciled · already published',
     );
   });
 
@@ -598,7 +598,7 @@ describe('social daemon', () => {
     });
     expect(mocks.failSocialPublishJob).not.toHaveBeenCalled();
     expect(log).toHaveBeenCalledWith(
-      '✅ [social-daemon] ▶️ youtube 🇹🇼 zh-Hant · “穩定幣真實使用場景” · reconciled · already published',
+      '✅ [social-daemon] ▶️ youtube 🇨🇳 zh-Hant · “穩定幣真實使用場景” · reconciled · already published',
     );
   });
 
@@ -765,7 +765,7 @@ describe('social daemon', () => {
       '📥 [social-daemon]   2. “AI安全之爭：集中控制與分散競爭誰更危險？” · 08/16 19:35 JST (in 35m)',
     );
     expect(log).toHaveBeenCalledWith(
-      '📥 [social-daemon]      ↳ 2 lanes · 📕 rednote 🇹🇼 zh-Hant · ▶️ youtube 🇺🇸 en',
+      '📥 [social-daemon]      ↳ 2 lanes · 📕 rednote 🇨🇳 zh-Hant · ▶️ youtube 🇺🇸 en',
     );
     expect(log.mock.calls.map(([line]) => String(line))).not.toEqual(
       expect.arrayContaining([expect.stringContaining('next 𝕏 x')]),
@@ -830,7 +830,7 @@ describe('social daemon', () => {
     ).rejects.toThrow('stop-loop');
 
     expect(log).toHaveBeenCalledWith(
-      '⏳ [social-daemon] “從巴菲特到但斌：七大基金持倉揭示人工智慧投資輪動” · waiting video · 🇹🇼 zh-Hant · 🇯🇵 ja · 🇺🇸 en',
+      '⏳ [social-daemon] “從巴菲特到但斌：七大基金持倉揭示人工智慧投資輪動” · waiting video · 🇨🇳 zh-Hant · 🇯🇵 ja · 🇺🇸 en',
     );
     expect(
       log.mock.calls.map(([line]) => String(line)).join('\n'),
@@ -874,7 +874,7 @@ describe('social daemon', () => {
     ).rejects.toThrow('stop-loop');
 
     expect(log).toHaveBeenCalledWith(
-      '⚠️ [social-daemon] 𝕏 x 🇹🇼 zh-Hant · “穩定幣真實使用場景” · blocked (8 attempts exhausted; failed)',
+      '⚠️ [social-daemon] 𝕏 x 🇨🇳 zh-Hant · “穩定幣真實使用場景” · blocked (8 attempts exhausted; failed)',
     );
   });
 

@@ -132,7 +132,7 @@ describe('refreshSocialStrategies', () => {
     );
     expect(log).toHaveBeenCalledWith(
       expect.stringContaining(
-        '🧠 [strategy] 📕 rednote 🇹🇼 zh-Hant · activated v2 · 5 × 24h samples',
+        '🧠 [strategy] 📕 rednote 🇨🇳 zh-Hant · activated v2 · 5 × 24h samples',
       ),
     );
   });
@@ -297,7 +297,7 @@ describe('refreshSocialStrategies', () => {
       expect.stringContaining('no longer in the publish policy'),
     );
     expect(log).toHaveBeenCalledWith(
-      expect.stringContaining('▶️ youtube 🇹🇼 zh-Hant'),
+      expect.stringContaining('▶️ youtube 🇨🇳 zh-Hant'),
     );
   });
 });

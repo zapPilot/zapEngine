@@ -11,7 +11,7 @@ import {
   stripJsonFence,
   unwrapNestedJsonPayload,
 } from '../services/llm.js';
-import { convertTextToZhTW } from '../services/opencc.js';
+import { convertTextToZhCN, convertTextToZhTW } from '../services/opencc.js';
 import {
   describeSensitiveMatches,
   findSensitiveTerms,
@@ -111,13 +111,13 @@ export function latinLetterRatio(value: string): number {
   return (visible.match(LATIN_LETTER_PATTERN)?.length ?? 0) / visible.length;
 }
 
-// A model can answer in Simplified Chinese, so every published field is
-// normalized through OpenCC before it is measured or shown for review.
-const TraditionalChineseLine = z
+// The main Chinese lane uses Simplified character forms, preserving vocabulary.
+// Threads applies its Taiwan vocabulary conversion before measuring final copy.
+const SimplifiedChineseLine = z
   .string()
   .trim()
   .min(1)
-  .transform(convertTextToZhTW)
+  .transform(convertTextToZhCN)
   .superRefine(addAccentedLatinIssue);
 
 // OpenCC only rewrites Chinese, so a model that drifts into another language
@@ -150,7 +150,10 @@ function xTextSchema(languageCode: SocialLanguageCode): z.ZodType<string> {
 function threadsTextSchema(
   languageCode: SocialLanguageCode,
 ): z.ZodType<string> {
-  return languageLine(languageCode).superRefine((text, context) => {
+  const line = languageLine(languageCode);
+  const publishedLine =
+    languageCode === 'zh-Hant' ? line.transform(convertTextToZhTW) : line;
+  return publishedLine.superRefine((text, context) => {
     addNoUrlIssue(text, context);
     const maximum =
       THREADS_TOTAL_MAX_CHARACTERS -
@@ -165,15 +168,13 @@ function threadsTextSchema(
   });
 }
 
-const RednoteBodySchema = TraditionalChineseLine.superRefine(
-  (body, context) => {
-    if (!SINGLE_URL_PATTERN.test(body)) return;
-    context.addIssue({
-      code: 'custom',
-      message: 'Rednote body must not contain a URL or website CTA.',
-    });
-  },
-);
+const RednoteBodySchema = SimplifiedChineseLine.superRefine((body, context) => {
+  if (!SINGLE_URL_PATTERN.test(body)) return;
+  context.addIssue({
+    code: 'custom',
+    message: 'Rednote body must not contain a URL or website CTA.',
+  });
+});
 
 export interface SocialCopyBlocks {
   x: boolean;
@@ -259,7 +260,11 @@ function generatedSocialCopySchema(
       });
     })
     .superRefine((copy, context) => {
-      if (copy.x && copy.x.text.trim() === copy.threads?.text.trim()) {
+      const xText =
+        languageCode === 'zh-Hant' && copy.x
+          ? convertTextToZhTW(copy.x.text)
+          : copy.x?.text;
+      if (xText && xText.trim() === copy.threads?.text.trim()) {
         context.addIssue({
           code: 'custom',
           path: ['threads', 'text'],
@@ -274,7 +279,7 @@ const KANA_PATTERN = /[\u3040-\u30ff]/u;
 const CJK_PATTERN = /[\u3040-\u30ff\u3400-\u9fff]/u;
 
 function languageLine(languageCode: SocialLanguageCode): z.ZodType<string> {
-  if (languageCode === 'zh-Hant') return TraditionalChineseLine;
+  if (languageCode === 'zh-Hant') return SimplifiedChineseLine;
   return z
     .string()
     .trim()

@@ -482,9 +482,9 @@ describe('buildUserMessage', () => {
 });
 
 describe('normalizeEditorialTitle', () => {
-  it('trims wrapping quotes and converts Simplified Chinese to zh-TW', () => {
+  it('trims wrapping quotes without changing Chinese character forms', () => {
     expect(normalizeEditorialTitle('  ‘「软件市场进入新阶段」’  ')).toBe(
-      '軟體市場進入新階段',
+      '软件市场进入新阶段',
     );
   });
 
@@ -512,7 +512,7 @@ describe('buildLanguageClassroomUserMessage', () => {
       targetLanguageCodes: ['ja', 'en'],
     });
 
-    expect(result).toContain('主語言：zh-Hant');
+    expect(result).toContain('主語言：简体中文');
     expect(result).toContain('目標語言：ja, en');
     expect(result).toContain('標題：Title');
     expect(result).toContain('文章內容：\nArticle');
@@ -883,7 +883,7 @@ ${scriptPayload('「软件市场进入新阶段」', '生成講稿')}
     const result = await generateScriptWithLLM('Title', 'Text');
 
     expect(result).toMatchObject({
-      title: '軟體市場進入新階段',
+      title: '软件市场进入新阶段',
       script: '生成講稿',
     });
   });

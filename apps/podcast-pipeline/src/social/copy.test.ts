@@ -427,7 +427,7 @@ describe('generateSocialCopy', () => {
           videoThumbnailUrl: 'https://example.com/thumbnail.jpg',
         },
       }),
-    ).resolves.toMatchObject({ copy: { x: { text: '恢復文案' } } });
+    ).resolves.toMatchObject({ copy: { x: { text: '恢复文案' } } });
     expect(
       llmMocks.createOpenRouterChatCompletion.mock.calls[1]?.[1]?.messages.at(
         -1,
@@ -649,7 +649,7 @@ describe('generateSocialCopy', () => {
       )?.content,
     );
     expect(retryPrompt).toContain('Your previous rednote note was:');
-    expect(retryPrompt).toContain('正文內容');
+    expect(retryPrompt).toContain('正文内容');
     expect(retryPrompt).toContain('Edit only the part that was flagged.');
   });
 });
@@ -659,6 +659,37 @@ function socialCompletion(content: string): object {
 }
 
 describe('parseGeneratedSocialCopy', () => {
+  it('converts only Threads to Taiwan vocabulary and keeps Rednote Simplified', () => {
+    const payload = JSON.parse(socialCopyJson('硅基程序员讨论网络'));
+    payload.threads.text = '网络程序员讨论软件';
+    payload.rednote.body = '這個網路討論軟件與數據。';
+    payload.rednote.hashtags = ['程序员', '網路', '软件'];
+    const copy = parseGeneratedSocialCopy(JSON.stringify(payload));
+    expect(copy.threads!.text).toBe('網路程式設計師討論軟體');
+    expect(copy.rednote!.body).toBe('这个网路讨论软件与数据。');
+    expect(copy.rednote!.hashtags).toEqual(['程序员', '网路', '软件']);
+  });
+
+  it('measures Threads after Taiwan conversion expands the text', () => {
+    const payload = JSON.parse(socialCopyJson('有效文案'));
+    payload.threads.text = '程序员'.repeat(100);
+    expect(payload.threads.text).toHaveLength(300);
+    expect(() => parseGeneratedSocialCopy(JSON.stringify(payload))).toThrow(
+      /Threads text is 500 characters/,
+    );
+  });
+
+  it('rejects accented Latin in Threads as well as Rednote', () => {
+    for (const platform of ['threads', 'rednote']) {
+      const payload = JSON.parse(socialCopyJson('有效文案'));
+      payload[platform][platform === 'threads' ? 'text' : 'body'] =
+        '网络讨论 código';
+      expect(() => parseGeneratedSocialCopy(JSON.stringify(payload))).toThrow(
+        /must not contain accented Latin letters/,
+      );
+    }
+  });
+
   it('ignores legacy generated title output for a YouTube-only batch', () => {
     expect(
       parseGeneratedSocialCopy(
@@ -730,7 +761,7 @@ describe('parseGeneratedSocialCopy', () => {
       }),
     );
 
-    expect(copy.rednote!.hashtags).toEqual(['以太坊', '美聯儲', '投資']);
+    expect(copy.rednote!.hashtags).toEqual(['以太坊', '美联储', '投资']);
   });
 
   it('rejects invalid JSON', () => {
@@ -780,7 +811,7 @@ describe('parseGeneratedSocialCopy', () => {
         text: `\`\`\`json\n${socialCopyJson('巢狀文案')}\n\`\`\``,
       }),
     );
-    expect(copy.x!.text).toBe('巢狀文案');
+    expect(copy.x!.text).toBe('巢状文案');
   });
 
   it('accepts JSON wrapped in a markdown fence', () => {
@@ -820,7 +851,7 @@ describe('parseGeneratedSocialCopy', () => {
   });
 
   // Regression: this exact copy reached X in mixed Simplified/Traditional form.
-  it('converts Simplified Chinese in X text to Traditional', () => {
+  it('normalizes mixed Chinese in historical X lanes to Simplified', () => {
     expect(
       parseGeneratedSocialCopy(
         socialCopyJson(
@@ -828,11 +859,11 @@ describe('parseGeneratedSocialCopy', () => {
         ),
       ).x!.text,
     ).toBe(
-      '以太坊提出EIP-8363提案：當質押率達50%時燃燒所有收益，迫使驗證者轉型。',
+      '以太坊提出EIP-8363提案：当质押率达50%时燃烧所有收益，迫使验证者转型。',
     );
   });
 
-  it('converts Simplified Chinese in Rednote hashtags', () => {
+  it('preserves Simplified Chinese in Rednote hashtags', () => {
     expect(
       parseGeneratedSocialCopy(
         JSON.stringify({
@@ -847,14 +878,14 @@ describe('parseGeneratedSocialCopy', () => {
           youtube: { hookType: 'explainer' },
         }),
       ).rednote!.hashtags,
-    ).toEqual(['以太坊', '質押', '加密貨幣']);
+    ).toEqual(['以太坊', '质押', '加密货币']);
   });
 
-  it('normalizes wording to the Taiwan phrase set', () => {
+  it('changes character forms without rewriting vocabulary', () => {
     expect(
       parseGeneratedSocialCopy(socialCopyJson('以太坊社區在台灣的討論')).x!
         .text,
-    ).toBe('以太坊社群在臺灣的討論');
+    ).toBe('以太坊社区在台湾的讨论');
   });
 
   it('rejects accented Latin letters drifting in from another language', () => {
@@ -903,7 +934,7 @@ describe('parseGeneratedSocialCopy', () => {
   });
 
   it('rejects identical X and Threads copy', () => {
-    const payload = JSON.parse(socialCopyJson('相同文案'));
+    const payload = JSON.parse(socialCopyJson('网络程序员的相同文案'));
     payload.threads.text = payload.x.text;
     expect(() => parseGeneratedSocialCopy(JSON.stringify(payload))).toThrow(
       /Threads text must be native to Threads, not identical to X text/u,
@@ -946,8 +977,8 @@ describe('parseGeneratedSocialCopy', () => {
       ).rednote,
     ).toMatchObject({
       hookType: 'explainer',
-      body: '正文內容',
-      hashtags: ['以太坊', '市場', '研究'],
+      body: '正文内容',
+      hashtags: ['以太坊', '市场', '研究'],
     });
   });
 

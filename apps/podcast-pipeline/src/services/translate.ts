@@ -123,7 +123,7 @@ export async function translateChineseText(
 }
 
 /**
- * Translate named Traditional Chinese fields through OpenRouter's free router.
+ * Translate named Chinese fields through OpenRouter's free router.
  * Retryable transport failures are handled by the same shared model chain as
  * every other workload: openrouter/free -> LLM_FALLBACK_MODELS. This layer only
  * owns response-validation retries, so a malformed answer can be re-prompted
@@ -407,7 +407,7 @@ function buildTranslationSystemPrompt(
   const titleMaxCharacters =
     TRANSLATED_TITLE_MAX_CHARACTERS[targetLanguageCode];
   return [
-    `Translate Traditional Chinese into ${TARGET_LANGUAGE_NAMES[targetLanguageCode]}.`,
+    `Translate Chinese into ${TARGET_LANGUAGE_NAMES[targetLanguageCode]}.`,
     'Preserve meaning, paragraph breaks, URLs, numbers, tickers, names, and technical terms.',
     'Do not summarize, explain, or add markdown.',
     'Keep any field whose input value is empty as an empty string.',

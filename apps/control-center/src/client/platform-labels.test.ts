@@ -29,7 +29,7 @@ describe('platform labels, icons and language flags', () => {
   it.each([
     ['en', '🇺🇸'],
     ['ja', '🇯🇵'],
-    ['zh-Hant', '🇹🇼'],
+    ['zh-Hant', '🇨🇳'],
     ['zh-Hans', '🇨🇳'],
     ['ko', '🌐'],
     ['', '🌐'],

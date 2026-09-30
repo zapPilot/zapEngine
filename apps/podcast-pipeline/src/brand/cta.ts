@@ -30,13 +30,13 @@ const YOUTUBE_DESCRIPTION_CTA_PREFIX_BY_LANGUAGE: Record<
   LanguageClassroomLanguageCode,
   string
 > = {
-  'zh-Hant': '更多市場洞察與工具：',
+  'zh-Hant': '更多市场洞察与工具：',
   ja: '市場インサイトとツールをもっと：',
   en: 'More market insights and tools: ',
 };
 
 const VIDEO_CTA_TITLES: Record<LanguageClassroomLanguageCode, string> = {
-  'zh-Hant': '更多市場洞察與工具',
+  'zh-Hant': '更多市场洞察与工具',
   ja: '市場インサイトとツールをもっと',
   en: 'MORE MARKET INSIGHTS & TOOLS',
 };

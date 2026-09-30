@@ -160,6 +160,8 @@ describe('language classroom content contract (strict)', () => {
     expect(system).toMatch(/不必來自\s*oneLiner\s*或標題/);
     // Every target language teaches the same shared concept set.
     expect(system).toContain('所有目標語言共用同一組概念');
+    expect(system).toContain('meaning 和 note 一律使用主語言 简体中文');
+    expect(system).not.toContain('zh-Hant');
     // The retired "keywords must come from oneLiner" rule must not reappear.
     expect(system).not.toContain('keywords 必須來自 oneLiner');
   });

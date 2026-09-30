@@ -8,7 +8,7 @@ import {
 export const VIDEO_COMPLETION_MARK_RPC =
   'mark_episode_video_completion_group_notified';
 
-const HEADLINE = '🎬 三語影片完成：🇹🇼 繁中・🇯🇵 日文・🇺🇸 英文';
+const HEADLINE = '🎬 三語影片完成：🇨🇳 中文・🇯🇵 日文・🇺🇸 英文';
 
 const EPISODE_ID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;

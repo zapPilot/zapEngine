@@ -351,13 +351,13 @@ test('renders the web app shell and primary routes without page errors', async (
     await expect(languageTrigger).toContainText('0%');
     await languageTrigger.click();
 
-    for (const language of ['English', '繁體中文', '日本語']) {
+    for (const language of ['English', '中文', '日本語']) {
       const option = page.getByRole('button', { name: new RegExp(language) });
       await expect(option).toBeVisible();
       await expect(option).toContainText('0%');
     }
 
-    await page.getByRole('button', { name: /繁體中文/ }).click();
+    await page.getByRole('button', { name: /中文/ }).click();
     await expect(page.getByRole('tab', { name: '首頁' })).toBeVisible();
     await expect(page.getByText('語言里程碑')).toHaveCount(0);
     await expect(
@@ -571,7 +571,7 @@ test('choosing a language on the episode detail screen switches the displayed lo
   await page.goto('/podcast');
   await expect(page).toHaveURL(/\/podcast$/, { timeout: APP_BOOT_TIMEOUT });
   await page.getByRole('button', { name: 'Choose app language' }).click();
-  await page.getByRole('button', { name: /繁體中文/ }).click();
+  await page.getByRole('button', { name: /中文/ }).click();
 
   await page
     .getByRole('button', { name: '開啟「E2E Fed to Chain briefing」' })

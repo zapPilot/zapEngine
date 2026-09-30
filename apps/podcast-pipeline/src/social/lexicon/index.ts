@@ -1,4 +1,4 @@
-import { convertTextToZhCN, convertTextToZhTW } from '../../services/opencc.js';
+import { convertTextToZhCN } from '../../services/opencc.js';
 import { AD_LAW_TERMS } from './ad-law.js';
 import { ASSET_ALLOCATION_TERMS } from './asset-allocation.js';
 import { FINANCE_TERMS } from './finance.js';
@@ -50,8 +50,8 @@ const CATEGORY_LABELS: Record<SensitiveCategory, string> = {
 };
 
 // Matching is script- and width-insensitive: the lists are authored in the
-// Mainland vocabulary Rednote reviews against, while published copy is
-// Traditional, so both sides run through the same normalization.
+// Mainland vocabulary Rednote reviews against. Published Rednote copy is
+// Simplified; normalization changes character forms, never vocabulary.
 function normalize(value: string): string {
   return convertTextToZhCN(value).normalize('NFKC').toLowerCase();
 }
@@ -97,13 +97,9 @@ export function findSensitiveTerms(text: string): SensitiveMatch[] {
 export function describeSensitiveMatches(
   matches: readonly SensitiveMatch[],
 ): string {
-  // Quoted back in the script the copy is written in, so the rewrite instruction
-  // reads as the writer's own wording rather than as a Simplified lookup key.
+  // Quote the Simplified lexicon term in the rewrite instruction.
   const detail = matches
-    .map(
-      (match) =>
-        `${CATEGORY_LABELS[match.category]} "${convertTextToZhTW(match.term)}"`,
-    )
+    .map((match) => `${CATEGORY_LABELS[match.category]} "${match.term}"`)
     .join('; ');
   return `Rednote copy must not contain moderation-risk wording (${detail}). Restate it as neutral information; never evade review with homophones, pinyin, spacing or symbol substitutions.`;
 }

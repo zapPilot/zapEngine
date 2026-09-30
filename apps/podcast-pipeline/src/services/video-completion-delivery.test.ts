@@ -8,7 +8,7 @@ import {
 } from './video-completion-delivery.js';
 
 const episodeId = '78c0a4f6-3e10-49de-ae0d-985e2b42b460';
-const completionMessage = `🎬 三語影片完成：🇹🇼 繁中・🇯🇵 日文・🇺🇸 英文\nhttps://from-fed-to-chain-api.fly.dev/e/${episodeId}?lang=zh-Hant`;
+const completionMessage = `🎬 三語影片完成：🇨🇳 中文・🇯🇵 日文・🇺🇸 英文\nhttps://from-fed-to-chain-api.fly.dev/e/${episodeId}?lang=zh-Hant`;
 
 describe('grouped video completion delivery acknowledgement', () => {
   it('parses the episode-level completion message', () => {
@@ -27,7 +27,7 @@ describe('grouped video completion delivery acknowledgement', () => {
   });
 
   it('rejects malformed, unrelated-path, and invalid-id completion URLs', () => {
-    const headline = '🎬 三語影片完成：🇹🇼 繁中・🇯🇵 日文・🇺🇸 英文';
+    const headline = '🎬 三語影片完成：🇨🇳 中文・🇯🇵 日文・🇺🇸 英文';
     expect(parseVideoCompletionDelivery(`${headline}\nnot-a-url`)).toBeNull();
     expect(
       parseVideoCompletionDelivery(

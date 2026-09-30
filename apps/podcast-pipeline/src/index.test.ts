@@ -58,7 +58,6 @@ const {
   mockUpdateLanguageClassroomAudio,
   mockUpsertLanguageClassrooms,
   mockUploadHlsToR2,
-  mockConvertArticleToZhTW,
   mockSearchEpisodes,
   mockTelegramFetch,
   mockListHydratedEpisodeFeedPage,
@@ -104,7 +103,6 @@ const {
   mockUpdateLanguageClassroomAudio: vi.fn(),
   mockUpsertLanguageClassrooms: vi.fn(),
   mockUploadHlsToR2: vi.fn(),
-  mockConvertArticleToZhTW: vi.fn(),
   mockSearchEpisodes: vi.fn(),
   mockTelegramFetch: vi.fn(),
   mockListHydratedEpisodeFeedPage: vi
@@ -220,10 +218,6 @@ vi.mock('./services/tts/audio-concat.js', () => ({
 vi.mock('./services/tts.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./services/tts.js')>()),
   textToSpeech: mockTextToSpeech,
-}));
-
-vi.mock('./services/opencc.js', () => ({
-  convertArticleToZhTW: mockConvertArticleToZhTW,
 }));
 
 vi.mock('./services/episode-search.js', () => ({
@@ -728,17 +722,13 @@ describe('POST /ingest pipeline', () => {
       title: '软件更新',
       text: '鼠标和自行车市场',
     });
-    mockConvertArticleToZhTW.mockReturnValue({
-      title: '軟體更新',
-      text: '滑鼠和腳踏車市場',
-    });
     mockInsertEpisode.mockResolvedValue(
       episodeRow({ source_title: '软件更新' }),
     );
     mockInsertEpisodeLocalization.mockResolvedValue(
       localizationRow({
-        title: '軟體更新',
-        raw_text: '滑鼠和腳踏車市場',
+        title: '软件更新',
+        raw_text: '鼠标和自行车市场',
         hls_url: '',
         script: '',
         llm_model: '',
@@ -747,7 +737,7 @@ describe('POST /ingest pipeline', () => {
       }),
     );
     mockGenerateScriptWithLLM.mockResolvedValue({
-      title: '市場流動性正在重新定價',
+      title: '市场流动性正在重新定价',
       script: 'Generated script',
       model: 'test-model',
       thinkingModel: null,
@@ -762,8 +752,8 @@ describe('POST /ingest pipeline', () => {
               title:
                 typeof data?.['title'] === 'string'
                   ? data['title']
-                  : '軟體更新',
-              raw_text: '滑鼠和腳踏車市場',
+                  : '软件更新',
+              raw_text: '鼠标和自行车市场',
               hls_url: '',
               script:
                 typeof data?.['script'] === 'string'
@@ -794,8 +784,8 @@ describe('POST /ingest pipeline', () => {
         if (status === 'completed') {
           return Promise.resolve(
             localizationRow({
-              title: '市場流動性正在重新定價',
-              raw_text: '滑鼠和腳踏車市場',
+              title: '市场流动性正在重新定价',
+              raw_text: '鼠标和自行车市场',
               script: PACKAGED_SCRIPT,
               hls_url:
                 'https://cdn.example.com/episodes/e/localizations/zh-Hant/main/playlist.m3u8',
@@ -898,10 +888,6 @@ describe('POST /ingest pipeline', () => {
     const body = (await response.json()) as { episode: EpisodeResponse };
 
     expect(response.status).toBe(201);
-    expect(mockConvertArticleToZhTW).toHaveBeenCalledWith({
-      title: '软件更新',
-      text: '鼠标和自行车市场',
-    });
     expect(mockInsertEpisode).toHaveBeenCalledWith({
       id: expect.any(String),
       sourceUrl: 'https://example.com/article',
@@ -911,15 +897,15 @@ describe('POST /ingest pipeline', () => {
       expect.objectContaining({
         episodeId: episodeRow().id,
         languageCode: 'zh-Hant',
-        title: '軟體更新',
-        rawText: '滑鼠和腳踏車市場',
+        title: '软件更新',
+        rawText: '鼠标和自行车市场',
       }),
     );
     expect(mockUpdateEpisodeLocalizationStatus).toHaveBeenCalledWith(
       localizationRow().id,
       'script_generated',
       expect.objectContaining({
-        title: '市場流動性正在重新定價',
+        title: '市场流动性正在重新定价',
         script: PACKAGED_SCRIPT,
       }),
     );
@@ -966,8 +952,8 @@ describe('POST /ingest pipeline', () => {
     );
     expect(mockGenerateLanguageClassroomsWithLLM).toHaveBeenCalledWith(
       expect.objectContaining({
-        title: '市場流動性正在重新定價',
-        articleText: '滑鼠和腳踏車市場',
+        title: '市场流动性正在重新定价',
+        articleText: '鼠标和自行车市场',
         script: 'Generated script',
         sourceLanguageCode: 'zh-Hant',
         targetLanguageCodes: ['ja', 'en'],
@@ -1210,7 +1196,6 @@ describe('POST /ingest pipeline', () => {
       [enLocalization.id, null],
     ]);
     expect(mockScrapeArticle).not.toHaveBeenCalled();
-    expect(mockConvertArticleToZhTW).not.toHaveBeenCalled();
     expect(mockInsertEpisode).not.toHaveBeenCalled();
     expect(mockInsertEpisodeLocalization).not.toHaveBeenCalled();
     expect(mockGenerateScriptWithLLM).not.toHaveBeenCalled();
@@ -2508,10 +2493,6 @@ function configureFreshTelegramIngest(): void {
   mockScrapeArticle.mockResolvedValue({
     title: '软件更新',
     text: '鼠标和自行车市场',
-  });
-  mockConvertArticleToZhTW.mockReturnValue({
-    title: '軟體更新',
-    text: '滑鼠和腳踏車市場',
   });
   mockInsertEpisodeLocalization.mockImplementation(
     (localization: {

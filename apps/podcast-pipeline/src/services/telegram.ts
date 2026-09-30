@@ -107,7 +107,7 @@ export function parseTelegramCommand(text: string): TelegramCommand | null {
 const DEFAULT_EPISODE_SHARE_BASE_URL = 'https://from-fed-to-chain-api.fly.dev';
 
 const VIDEO_LANGUAGE_LABELS: Record<LanguageClassroomLanguageCode, string> = {
-  'zh-Hant': '🇹🇼 繁中',
+  'zh-Hant': '🇨🇳 中文',
   ja: '🇯🇵 日文',
   en: '🇺🇸 英文',
 };
@@ -141,7 +141,7 @@ export function buildTelegramAudioReadyMessage(
 
 export function buildTelegramVideoCompletedMessage(episodeId: string): string {
   return [
-    '🎬 三語影片完成：🇹🇼 繁中・🇯🇵 日文・🇺🇸 英文',
+    '🎬 三語影片完成：🇨🇳 中文・🇯🇵 日文・🇺🇸 英文',
     buildEpisodeShareUrl(episodeId),
   ].join('\n');
 }

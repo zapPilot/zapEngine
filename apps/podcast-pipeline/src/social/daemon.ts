@@ -2055,7 +2055,7 @@ function operatorPlatformLabel(platform: SocialPlatform): string {
 function operatorLanguageLabel(language: string): string {
   switch (language) {
     case 'zh-Hant':
-      return '🇹🇼 Traditional Chinese';
+      return '🇨🇳 Chinese';
     case 'ja':
       return '🇯🇵 Japanese';
     case 'en':

@@ -236,7 +236,7 @@ describe('createSocialPublishJobs', () => {
     await job?.publish();
     expect(mocks.publishYouTube).toHaveBeenCalledWith({
       title: '市場更新',
-      description: '完整說明\n\n更多市場洞察與工具：https://www.zap-pilot.org',
+      description: '完整說明\n\n更多市场洞察与工具：https://www.zap-pilot.org',
       videoPath: VIDEO_PATH,
       thumbnailUrl: THUMBNAIL_URL,
       languageCode: 'zh-Hant',

@@ -19,15 +19,10 @@ const mocks = vi.hoisted(() => ({
   generateScriptWithLLM: vi.fn(),
   insertEpisode: vi.fn(),
   insertEpisodeLocalization: vi.fn(),
-  convertArticleToZhTW: vi.fn(),
   scrapeArticle: vi.fn(),
   step: vi.fn(),
   updateEpisodeLocalizationArticleContent: vi.fn(),
   updateEpisodeLocalizationStatus: vi.fn(),
-}));
-
-vi.mock('../opencc.js', () => ({
-  convertArticleToZhTW: mocks.convertArticleToZhTW,
 }));
 
 vi.mock('../db.js', () => ({
@@ -53,37 +48,99 @@ vi.mock('./step.js', () => ({
   step: mocks.step,
 }));
 
-import {
-  ensureEpisodeLocalizationScript,
-  normalizeArticleForLanguage,
-} from './script-stage.js';
+import { ensureEpisodeLocalizationScript } from './script-stage.js';
 
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.step.mockImplementation((_name: string, work: () => unknown) => work());
-  mocks.convertArticleToZhTW.mockImplementation((article: Article) => article);
-});
-
-describe('normalizeArticleForLanguage', () => {
-  it('returns the article unchanged for a non-default language code', () => {
-    const article: Article = { title: 'Test', text: 'Body' };
-    expect(normalizeArticleForLanguage(article, 'en')).toBe(article);
-  });
-
-  it('normalizes the canonical article to zh-TW', () => {
-    const article: Article = { title: '软件更新', text: '鼠标市场' };
-    const converted: Article = { title: '軟體更新', text: '滑鼠市場' };
-    mocks.convertArticleToZhTW.mockReturnValue(converted);
-
-    expect(normalizeArticleForLanguage(article, 'zh-Hant')).toBe(converted);
-    expect(mocks.convertArticleToZhTW).toHaveBeenCalledWith(article);
-  });
 });
 
 describe('ensureEpisodeLocalizationScript editorial title persistence', () => {
+  it.each([
+    [
+      '硅基程序员意味着什么',
+      '硅基程序员的影片显著改变了网络软件。',
+      '硅基程序员意味着什么',
+      '硅基程序员的影片显著改变了网络软件。',
+    ],
+    [
+      '這個網路是什麼',
+      '這個網路連接軟件與數據。',
+      '这个网路是什么',
+      '这个网路连接软件与数据。',
+    ],
+  ])(
+    'normalizes generated title and body while preserving scraped input: %s',
+    async (title, script, expectedTitle, expectedBody) => {
+      const article: Article = {
+        title: '原始硅基與網路標題',
+        text: '原始硅基与网络内容，保留來源字形。',
+      };
+      const scraped = localizationRow({
+        title: article.title,
+        raw_text: article.text,
+      });
+      mocks.scrapeArticle.mockResolvedValue(article);
+      mocks.insertEpisodeLocalization.mockResolvedValue(scraped);
+      mocks.generateScriptWithLLM.mockResolvedValue({
+        ...generatedScript({ title }),
+        script,
+      });
+      mocks.updateEpisodeLocalizationStatus.mockResolvedValue(
+        localizationRow({ status: 'script_generated' }),
+      );
+
+      await ensureEpisodeLocalizationScript(
+        'https://example.com/article',
+        'zh-Hant',
+        [],
+        { episode: episodeRow(), localization: null },
+      );
+
+      expect(mocks.insertEpisodeLocalization).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: article.title,
+          rawText: article.text,
+        }),
+      );
+      expect(mocks.generateScriptWithLLM).toHaveBeenCalledWith(
+        article.title,
+        article.text,
+        expect.any(Object),
+      );
+      expect(mocks.updateEpisodeLocalizationStatus).toHaveBeenCalledWith(
+        scraped.id,
+        'script_generated',
+        expect.objectContaining({
+          title: expectedTitle,
+          scriptBody: expectedBody,
+          script: `${PODCAST_INTRO}\n\n${expectedBody}\n\n${ZAP_PILOT_OUTRO}`,
+        }),
+      );
+    },
+  );
+
+  it('does not repackage or regenerate a completed Traditional v1 episode', async () => {
+    const existing = localizationRow({
+      status: 'completed',
+      script: '歡迎收聽 Zap Podcast。\n\n舊講稿。\n\n舊片尾。',
+      script_body: '舊講稿。',
+      packaging_version: 'podcast-script.v1',
+    });
+    const result = await ensureEpisodeLocalizationScript(
+      'https://example.com/article',
+      'zh-Hant',
+      [],
+      { episode: episodeRow(), localization: existing },
+    );
+    expect(result.localization).toBe(existing);
+    expect(mocks.generateScriptWithLLM).not.toHaveBeenCalled();
+    expect(mocks.updateEpisodeLocalizationStatus).not.toHaveBeenCalled();
+  });
+
   it('persists a valid editorial title with the generated script atomically', async () => {
     const existing = localizationRow({ status: 'scraped', script: '' });
-    const editorialTitle = '市場流動性正在重新定價';
+    const editorialTitle = '市场流动性正在重新定价';
     mocks.generateScriptWithLLM.mockResolvedValue(
       generatedScript({ title: editorialTitle }),
     );
@@ -321,7 +378,7 @@ describe('ensureEpisodeLocalizationScript editorial title persistence', () => {
       title: '重新抓取的來源標題',
       text: '重新抓取的文章',
     };
-    const editorialTitle = '重新抓取後的編輯觀點';
+    const editorialTitle = '重新抓取后的编辑观点';
     mocks.scrapeArticle.mockResolvedValue(scrapedArticle);
     mocks.generateScriptWithLLM.mockResolvedValue(
       generatedScript({ title: editorialTitle }),

@@ -9,7 +9,9 @@ import {
   PODCAST_INTRO,
   PODCAST_INTRO_VISUAL_INTENT,
   PODCAST_OUTRO_VISUAL_INTENT,
+  PODCAST_PACKAGING_VERSION,
   splitPodcastVisualSections,
+  stripKnownPodcastPackaging,
   ZAP_PILOT_OUTRO,
 } from './podcast-packaging.js';
 import type { StoryboardDraft } from './video/storyboard/draft.js';
@@ -17,6 +19,30 @@ import { createDeterministicStoryboard } from './video/storyboard/fallback.js';
 import { splitCanonicalSentences } from './video/storyboard/sentences.js';
 
 describe('packagePodcastScript', () => {
+  it('uses Simplified branding without changing the packaging version', () => {
+    expect(PODCAST_PACKAGING_VERSION).toBe('podcast-script.v1');
+    expect(PODCAST_INTRO).toBe('欢迎收听 Zap Podcast。');
+    expect(ZAP_PILOT_OUTRO).toBe(
+      '如果你也在管理多个钱包、DeFi 仓位和投资组合，可以到 Zap Pilot 官网，让投资组合管理更简单、更清楚。',
+    );
+  });
+
+  it('recognizes and strips the published Traditional packaging', () => {
+    const intro = '歡迎收聽 Zap Podcast。';
+    const outro =
+      '如果你也在管理多個錢包、DeFi 部位和投資組合，可以到 Zap Pilot 官網，讓投資組合管理更簡單、更清楚。';
+    const script = `${intro}\n\n這是舊正文。\n\n${outro}`;
+    const sections = splitPodcastVisualSections(script);
+    expect(sections.isPackaged).toBe(true);
+    expect(sections.intro?.text).toBe(intro);
+    expect(sections.outro?.text).toBe(outro);
+    expect(sections.body.map((sentence) => sentence.text)).toEqual([
+      '這是舊正文。',
+    ]);
+    expect(stripKnownPodcastPackaging(script)).toBe('這是舊正文。');
+    expect(getPodcastEditorialScript(script)).toBe('這是舊正文。');
+  });
+
   it('wraps only the generated body with application-owned branding', () => {
     expect(packagePodcastScript('正文第一句。\n正文第二句。')).toBe(
       `${PODCAST_INTRO}\n\n正文第一句。\n正文第二句。\n\n${ZAP_PILOT_OUTRO}`,

@@ -33,8 +33,11 @@ Language is a constant, not an experiment. `SOCIAL_LANGUAGE_BY_PLATFORM` in
 - X: `ja`
 - YouTube: `en`
 
-Each article must cover all three languages: Traditional Chinese reaches two
-platforms, Japanese one, English one. `SOCIAL_REQUIRED_RELEASE_LANGUAGES` is
+Each article must cover all three languages: the main Chinese lane (`zh-Hant`)
+reaches two platforms, Japanese one, English one. Since 2026-09-30, new Chinese
+content is Simplified: Rednote publishes Simplified copy; only Threads copy is
+converted to Taiwan Traditional Chinese. Threads teasers retain the main video’s
+Simplified subtitles (accepted product trade-off). `SOCIAL_REQUIRED_RELEASE_LANGUAGES` is
 derived from the mapping so readiness and lanes cannot disagree.
 
 `resolveReleaseCohortLanes()` reads nothing but this mapping — no clock, no

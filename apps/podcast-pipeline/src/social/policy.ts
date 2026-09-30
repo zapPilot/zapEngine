@@ -16,7 +16,9 @@ export const SOCIAL_RELEASE_MIN_EPISODE_CREATED_AT = '2026-08-24T00:00:00.000Z';
  * product decision that has to change this constant and the scoped AGENTS.md
  * contract together.
  *
- * Traditional Chinese reaches two platforms, Japanese one, English one, so a
+ * The main Chinese lane (zh-Hant) reaches Rednote in Simplified and Threads in
+ * Taiwan Traditional copy (with Simplified teaser subtitles); Japanese and
+ * English each reach one platform, so a
  * single article still covers all three localizations.
  */
 export const SOCIAL_LANGUAGE_BY_PLATFORM = {

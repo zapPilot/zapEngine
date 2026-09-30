@@ -15,7 +15,7 @@ vi.mock('./supabase-client.js', () => ({
 import { recordVideoCompletionDelivery } from './video-completion-delivery.js';
 
 const episodeId = '78c0a4f6-3e10-49de-ae0d-985e2b42b460';
-const message = `🎬 三語影片完成：🇹🇼 繁中・🇯🇵 日文・🇺🇸 英文\nhttps://example.test/e/${episodeId}`;
+const message = `🎬 三語影片完成：🇨🇳 中文・🇯🇵 日文・🇺🇸 英文\nhttps://example.test/e/${episodeId}`;
 
 afterEach(() => {
   vi.restoreAllMocks();

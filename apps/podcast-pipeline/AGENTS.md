@@ -2,6 +2,8 @@ See @README.md for project overview.
 
 # Gotchas
 
+- **Chinese script contract (2026-09-30).** `zh-Hant` is the main Chinese lane ID, not a character-form promise: new titles, narration, TTS/subtitles, Rednote copy and classroom explanations use Simplified Chinese. Only Threads copy converts to Taiwan Traditional Chinese; its teaser retains the main video’s Simplified subtitles. Never add Traditional conversion to ingest. Preserve scraped articles verbatim. Simplified normalization must use `convertTextToZhCN` (`t→cn`); never apply `twp→cn` or `tw→cn` to Simplified text because they corrupt source vocabulary. Renaming the lane is a separate migration.
+
 - `supabase/migrations/` and `supabase/schema.sql` are a frozen snapshot as of migration 035; parity tests read them in place. Current schema truth is the live database plus root `supabase/migrations/` (see CONTRIBUTING.md "Adding a database migration").
 - **Telegram env vars are namespaced.** This service uses `PIPELINE_TELEGRAM_*` (bot token, webhook secret, allowed user IDs) deliberately so it does not collide with `apps/account-engine`'s `TELEGRAM_*` bot. Do not introduce unprefixed `TELEGRAM_*` vars here — they would be read by both processes.
 - **Webhook is fire-and-forget.** `/telegram/webhook` returns 200 immediately and then runs `runIngestPipeline` in the background. Adding `await` on the pipeline call from the handler breaks Telegram's webhook timeout contract — keep new long-running work behind the same fast-ack pattern.

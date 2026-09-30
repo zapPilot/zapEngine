@@ -8,7 +8,7 @@ platform boundary.
 
 Output fields:
 
-- `body`: roughly 100 to 400 Traditional Chinese characters.
+- `body`: roughly 100 to 400 Simplified Chinese characters.
 - `hashtags`: 3 to 5 relevant topics, without hashtag spam.
 
 ## Financial / crypto framing

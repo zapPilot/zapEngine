@@ -37,7 +37,7 @@ export function languageFlag(languageCode: string): string {
     case 'ja':
       return '🇯🇵';
     case 'zh-Hant':
-      return '🇹🇼';
+      return '🇨🇳';
     case 'zh-Hans':
       return '🇨🇳';
     default:

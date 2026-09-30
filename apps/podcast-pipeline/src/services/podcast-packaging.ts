@@ -13,18 +13,24 @@ import {
   validateStoryboardDraft,
 } from './video/storyboard/validation.js';
 
-export const PODCAST_INTRO = '歡迎收聽 Zap Podcast。';
+export const PODCAST_INTRO = '欢迎收听 Zap Podcast。';
 export const PODCAST_PACKAGING_VERSION = 'podcast-script.v1';
 export const ZAP_PILOT_OUTRO =
-  '如果你也在管理多個錢包、DeFi 部位和投資組合，可以到 Zap Pilot 官網，讓投資組合管理更簡單、更清楚。';
+  '如果你也在管理多个钱包、DeFi 仓位和投资组合，可以到 Zap Pilot 官网，让投资组合管理更简单、更清楚。';
 
 export const PODCAST_INTRO_VISUAL_INTENT = 'brand:zap-podcast-intro';
 export const PODCAST_OUTRO_VISUAL_INTENT = 'brand:zap-pilot-outro';
 
-const STRIPPABLE_PODCAST_INTROS = [
+const STRIPPABLE_PODCAST_INTROS: readonly string[] = [
   '各位觀眾朋友，歡迎收聽今天的 Zap Podcast。',
+  '歡迎收聽 Zap Podcast。',
   PODCAST_INTRO,
 ] as const;
+
+const STRIPPABLE_PODCAST_OUTROS: readonly string[] = [
+  ZAP_PILOT_OUTRO,
+  '如果你也在管理多個錢包、DeFi 部位和投資組合，可以到 Zap Pilot 官網，讓投資組合管理更簡單、更清楚。',
+];
 
 export type PodcastBrandVisualKind = 'intro' | 'outro';
 
@@ -41,11 +47,11 @@ export function splitPodcastVisualSections(
   const sentences = splitCanonicalSentences(script);
   if (
     sentences.length >= 3 &&
-    sentences[0]?.text === PODCAST_INTRO &&
-    sentences.at(-1)?.text === ZAP_PILOT_OUTRO
+    STRIPPABLE_PODCAST_INTROS.includes(sentences[0]?.text ?? '') &&
+    STRIPPABLE_PODCAST_OUTROS.includes(sentences.at(-1)?.text ?? '')
   ) {
     return {
-      intro: sentences[0],
+      intro: sentences[0]!,
       body: sentences.slice(1, -1),
       outro: sentences.at(-1)!,
       isPackaged: true,
@@ -221,8 +227,11 @@ export function stripKnownPodcastPackaging(rawScript: string): string {
       break;
     }
   }
-  if (body.endsWith(ZAP_PILOT_OUTRO)) {
-    body = body.slice(0, -ZAP_PILOT_OUTRO.length).trim();
+  for (const outro of STRIPPABLE_PODCAST_OUTROS) {
+    if (body.endsWith(outro)) {
+      body = body.slice(0, -outro.length).trim();
+      break;
+    }
   }
   return body;
 }
@@ -287,7 +296,7 @@ function podcastBrandedSceneCountRange(
 function hasCurrentPodcastPackaging(script: string): boolean {
   const sentences = splitCanonicalSentences(script);
   return (
-    sentences[0]?.text === PODCAST_INTRO &&
-    sentences.at(-1)?.text === ZAP_PILOT_OUTRO
+    STRIPPABLE_PODCAST_INTROS.includes(sentences[0]?.text ?? '') &&
+    STRIPPABLE_PODCAST_OUTROS.includes(sentences.at(-1)?.text ?? '')
   );
 }

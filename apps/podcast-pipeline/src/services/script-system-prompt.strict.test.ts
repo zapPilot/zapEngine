@@ -55,6 +55,9 @@ describe('script system prompt output contract', () => {
     );
     expect(prompt).toContain('用自問自答推進');
     expect(prompt).toContain(
+      'title 与 script 一律使用简体中文，保留原文用词（例如：硅基、网络、软件、数据），不要改写成台湾用语。',
+    );
+    expect(prompt).toContain(
       '只問原文答得出來的問題，答案必須來自原文；原文沒有交代的原因或細節，不要自己補一個答案。',
     );
     expect(prompt).toContain(

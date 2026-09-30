@@ -1,7 +1,8 @@
 /**
  * The three languages every canonical podcast episode is produced in. Order
  * is source-language-first (`zh-Hant`), matching how the pipeline localizes:
- * script -> translation targets.
+ * script -> translation targets. `zh-Hant` is a lane ID; new content uses
+ * Simplified Chinese since 2026-09-30, while older episodes retain their script.
  */
 export const PODCAST_LANGUAGE_CODES = ['zh-Hant', 'ja', 'en'] as const;
 
@@ -31,10 +32,10 @@ export const PODCAST_LANGUAGE_LABELS: Record<
   PodcastLanguageLabel
 > = {
   'zh-Hant': {
-    english: 'Traditional Chinese',
-    native: '繁體中文',
+    english: 'Chinese',
+    native: '中文',
     badge: '中',
-    intlLocale: 'zh-TW',
+    intlLocale: 'zh-CN',
   },
   ja: {
     english: 'Japanese',

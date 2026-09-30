@@ -20,7 +20,6 @@ import {
   logPipelineEvent,
 } from './ingest/step.js';
 import { getOpenRouterModelCandidates } from './llm-model-fallback.js';
-import { convertTextToZhTW } from './opencc.js';
 
 export interface ScriptResult {
   title: string | null;
@@ -336,7 +335,7 @@ export function normalizeEditorialTitle(value: unknown): string | null {
   const characterCount = [...normalized].length;
   if (characterCount < 4 || characterCount > 60) return null;
 
-  return convertTextToZhTW(normalized);
+  return normalized;
 }
 
 function parseScriptPayload(content: string): ParsedScriptPayload {
@@ -1215,7 +1214,7 @@ export function buildLanguageClassroomUserMessage(
   retryReason: string | null = null,
 ): string {
   const grounding = [
-    `主語言：${input.sourceLanguageCode}`,
+    `主語言：${classroomSourceLanguageName(input.sourceLanguageCode)}`,
     `目標語言：${input.targetLanguageCodes.join(', ')}`,
     `標題：${input.title}`,
     '',
@@ -1317,13 +1316,18 @@ function logLanguageClassroomRetry(
   });
 }
 
+function classroomSourceLanguageName(sourceLanguageCode: string): string {
+  return sourceLanguageCode === 'zh-Hant' ? '简体中文' : sourceLanguageCode;
+}
+
 function languageClassroomSystemPrompt(sourceLanguageCode: string): string {
-  return `你是語言小教室編輯。請閱讀文章內容與 Podcast 講稿，為 ${sourceLanguageCode} 使用者挑選本集最值得學的外語詞彙，並產生外語學習卡片與一段目標語言講稿。
+  const sourceLanguageName = classroomSourceLanguageName(sourceLanguageCode);
+  return `你是語言小教室編輯。請閱讀文章內容與 Podcast 講稿，為 ${sourceLanguageName} 使用者挑選本集最值得學的外語詞彙，並產生外語學習卡片與一段目標語言講稿。
 
 工作流程：
-1. 先用 ${sourceLanguageCode} 通讀文章與講稿，選出 3 到 5 個本集最核心、最實用的概念詞彙。優先挑本集主題的財經／加密貨幣關鍵概念；避免虛詞、寒暄語，以及過度在地、換個語言就失去意義的專有名詞。這一組概念是所有目標語言共用的。
+1. 先用 ${sourceLanguageName} 通讀文章與講稿，選出 3 到 5 個本集最核心、最實用的概念詞彙。優先挑本集主題的財經／加密貨幣關鍵概念；避免虛詞、寒暄語，以及過度在地、換個語言就失去意義的專有名詞。這一組概念是所有目標語言共用的。
 2. oneLiner 是原始文章標題在目標語言的直譯，只當作開場句，不是選詞的依據。
-3. 對每個 targetLanguageCode，用「同一組概念」產生 keywords：term 是該概念在目標語言的實際說法，meaning／note 用 ${sourceLanguageCode} 解釋。各語言的 lesson 必須對應同一組概念、同樣的數量與順序。
+3. 對每個 targetLanguageCode，用「同一組概念」產生 keywords：term 是該概念在目標語言的實際說法，meaning／note 用 ${sourceLanguageName} 解釋。各語言的 lesson 必須對應同一組概念、同樣的數量與順序。
 4. 對每個 targetLanguageCode，再用同一組概念寫一段 script：約 1.5 到 3 分鐘的口語旁白（日文約 500 到 900 字，英文約 220 到 450 words），內容必須根據文章與講稿，逐一講解這堂課選出的每個概念，用自然口語呈現，不是逐字翻譯 oneLiner 或 keywords。
 
 請只輸出有效 JSON，不要 Markdown，不要註解。格式：
@@ -1350,9 +1354,9 @@ function languageClassroomSystemPrompt(sourceLanguageCode: string): string {
 - keywords 從文章與講稿選出的核心概念而來，不必來自 oneLiner 或標題；重點是實用、能帶著走的外語詞彙。
 - 所有目標語言共用同一組概念：每個 lesson 的 keywords 數量、順序、對應的概念都必須一致。
 - oneLiner 是標題的直譯，盡量保留原意，不要自行擴寫成描述句。
-- meaning 和 note 一律使用主語言 ${sourceLanguageCode}。
+- meaning 和 note 一律使用主語言 ${sourceLanguageName}。
 - reading: targetLanguageCode === 'ja' 時填假名讀音；其他語言一律 null。
-- script 一律只使用目標語言，不可混入 ${sourceLanguageCode} 或其他語言，也不可包含 Markdown 或條列符號，要寫成適合朗讀的自然口語段落。
+- script 一律只使用目標語言，不可混入 ${sourceLanguageName} 或其他語言，也不可包含 Markdown 或條列符號，要寫成適合朗讀的自然口語段落。
 - script 內容必須根據文章與講稿，涵蓋這堂課選出的每一個 keyword 概念，不能只根據標題或 oneLiner 隨意發揮。`;
 }
 

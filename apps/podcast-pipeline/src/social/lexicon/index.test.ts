@@ -13,8 +13,8 @@ describe('findSensitiveTerms', () => {
     ]);
   });
 
-  it('matches across the Taiwan phrase set, not just character variants', () => {
-    expect(findSensitiveTerms('請用翻牆軟體觀看')).toEqual([
+  it('matches character variants while preserving source vocabulary', () => {
+    expect(findSensitiveTerms('請用翻牆軟件觀看')).toEqual([
       { term: '翻墙软件', category: 'political' },
     ]);
   });
@@ -113,7 +113,7 @@ describe('describeSensitiveMatches', () => {
       findSensitiveTerms('加我微信帶單，財富自由'),
     );
     expect(message).toContain('financial solicitation "加我微信"');
-    expect(message).toContain('financial solicitation "財富自由"');
+    expect(message).toContain('financial solicitation "财富自由"');
     expect(message).toContain('never evade review with homophones');
   });
 });
@@ -130,7 +130,7 @@ describe('assertRednoteCopySafe', () => {
   it('throws before publishing when any part of the composition matches', () => {
     expect(() =>
       assertRednoteCopySafe('支付結算的真實成本\n\n這集拆解了路徑。\n穩賺不賠'),
-    ).toThrow(/moderation-risk wording .*穩賺不賠/);
+    ).toThrow(/moderation-risk wording .*稳赚不赔/);
   });
 
   it('throws on an allocation instruction the composition introduced', () => {
