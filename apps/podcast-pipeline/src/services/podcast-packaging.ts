@@ -47,8 +47,8 @@ export function splitPodcastVisualSections(
   const sentences = splitCanonicalSentences(script);
   if (
     sentences.length >= 3 &&
-    STRIPPABLE_PODCAST_INTROS.includes(sentences[0]?.text ?? '') &&
-    STRIPPABLE_PODCAST_OUTROS.includes(sentences.at(-1)?.text ?? '')
+    STRIPPABLE_PODCAST_INTROS.includes(sentences[0]!.text) &&
+    STRIPPABLE_PODCAST_OUTROS.includes(sentences.at(-1)!.text)
   ) {
     return {
       intro: sentences[0]!,
@@ -297,6 +297,6 @@ function hasCurrentPodcastPackaging(script: string): boolean {
   const sentences = splitCanonicalSentences(script);
   return (
     STRIPPABLE_PODCAST_INTROS.includes(sentences[0]?.text ?? '') &&
-    STRIPPABLE_PODCAST_OUTROS.includes(sentences.at(-1)?.text ?? '')
+    STRIPPABLE_PODCAST_OUTROS.includes(sentences.at(-1)!.text)
   );
 }
