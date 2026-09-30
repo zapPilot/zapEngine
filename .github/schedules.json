@@ -96,6 +96,16 @@
     "entrypoint": "apps/podcast-pipeline/src/social/daemon.ts"
   },
   {
+    "name": "test-qa-hourly",
+    "purpose": "Audit test quality incrementally while preserving the 100% coverage gates and Phase 1 test-only boundary.",
+    "schedule_kind": "cron",
+    "schedule": "30 * * * *",
+    "schedule_source": "external",
+    "runtime": "chatgpt",
+    "workspace": "root",
+    "entrypoint": ".agents/skills/test-qa-audit/SKILL.md"
+  },
+  {
     "name": "daily-suggestion",
     "purpose": "Queue the operator's daily decision packet and Telegram notification evaluation.",
     "schedule_kind": "cron",

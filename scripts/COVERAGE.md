@@ -84,6 +84,28 @@ monorepo-wide coverage solely to discover gaps. During implementation, run only
 scoped tests or scoped coverage and let CI produce the next canonical full-repo
 state.
 
+To download the latest canonical artifact, query repository artifacts, keep only
+unexpired entries whose `workflow_run.head_branch` is `main`, sort by artifact
+id locally, then download that run:
+
+```bash
+pages="$(gh api --method GET repos/zapPilot/zapEngine/actions/artifacts \
+  -f name=coverage-handoff -f per_page=100 --paginate --slurp)"
+run_id="$(printf '%s' "$pages" | jq -r '
+  [.[].artifacts[]
+    | select(.expired == false)
+    | select(.workflow_run.head_branch == "main")]
+  | sort_by(.id) | last | .workflow_run.id // empty
+')"
+gh run download "$run_id" --repo zapPilot/zapEngine \
+  --name coverage-handoff --dir "$TMPDIR/coverage-handoff"
+```
+
+Once all supported floors are green, the recurring test-quality worker is
+defined by `.agents/skills/test-qa-audit/SKILL.md`. It uses the separate
+`test-qa-state` artifact rather than treating 100% coverage as proof of test
+quality.
+
 ## CI behavior
 
 Coverage is a standalone GitHub job, parallel to the core quality jobs and
