@@ -1,0 +1,63 @@
+name: Test QA State
+
+on:
+  repository_dispatch:
+    types: [test-qa-state]
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+
+concurrency:
+  group: test-qa-state
+  cancel-in-progress: false
+  queue: max
+
+jobs:
+  persist:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+
+      - name: Download newest main state artifact
+        run: |
+          mkdir -p "$RUNNER_TEMP/test-qa-previous"
+          status=0
+          run_id="$(node scripts/agents/test-qa-state.mjs locate \
+            --repo "$GITHUB_REPOSITORY" --workflow test-qa-state.yml \
+            --event repository_dispatch --status success --artifact test-qa-state)" || status=$?
+          if [ "$status" -eq 3 ]; then
+            echo "No previous state; merge requires an explicit bootstrap."
+            exit 0
+          fi
+          if [ "$status" -ne 0 ]; then exit "$status"; fi
+          gh run download "$run_id" \
+            --repo "$GITHUB_REPOSITORY" \
+            --name test-qa-state \
+            --dir "$RUNNER_TEMP/test-qa-previous"
+
+      - name: Merge worker records
+        run: |
+          node scripts/agents/test-qa-state.mjs merge \
+            --event "$GITHUB_EVENT_PATH" \
+            --previous "$RUNNER_TEMP/test-qa-previous/state.json" \
+            --output "$RUNNER_TEMP/test-qa-state"
+
+      - name: Upload state artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-qa-state
+          path: |
+            ${{ runner.temp }}/test-qa-state/state.json
+            ${{ runner.temp }}/test-qa-state/STATE.md
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 90

@@ -25,7 +25,7 @@ if ! jq -e '
     (.schedule_kind | IN("cron", "interval", "continuous")) and
     (.schedule | type == "string" and length > 0) and
     (.schedule_source | IN("workflow", "code", "external")) and
-    (.runtime | IN("github-actions", "pipedream", "pg_cron", "fly-process", "local-mac", "electron")) and
+    (.runtime | IN("github-actions", "pipedream", "pg_cron", "fly-process", "local-mac", "electron", "chatgpt")) and
     (.workspace | type == "string" and length > 0) and
     (.entrypoint | type == "string" and length > 0) and
     ((.endpoint? // "") | type == "string") and
@@ -42,7 +42,7 @@ if ! jq -e '
   echo "  Optional: endpoint, docs (strings), skipExpected (boolean). No other keys." >&2
   echo "  schedule_kind: cron | interval | continuous" >&2
   echo "  schedule_source: workflow | code | external (trust order, workflow first)" >&2
-  echo "  runtime: github-actions | pipedream | pg_cron | fly-process | local-mac | electron" >&2
+  echo "  runtime: github-actions | pipedream | pg_cron | fly-process | local-mac | electron | chatgpt" >&2
   echo "  schedule_source=workflow <=> runtime=github-actions; workflow requires cron." >&2
   exit 1
 fi

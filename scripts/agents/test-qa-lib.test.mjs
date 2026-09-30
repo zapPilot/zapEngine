@@ -1,0 +1,397 @@
+import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { test } from 'node:test';
+import { createRecord, mergeState } from './test-qa-state.mjs';
+import { classifyScope } from './test-qa-select.mjs';
+
+import {
+  collectScopes,
+  emptyState,
+  fingerprintPaths,
+  parseJsonc,
+  primarySubject,
+  safePath,
+} from './test-qa-lib.mjs';
+
+function git(root, ...args) {
+  return execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
+}
+
+async function put(root, path, content) {
+  const absolute = join(root, path);
+  await mkdir(join(absolute, '..'), { recursive: true }).catch(() => {});
+  await mkdir(absolute.slice(0, absolute.lastIndexOf('/')), {
+    recursive: true,
+  });
+  await writeFile(absolute, content);
+}
+
+async function fixture() {
+  const root = await mkdtemp(join(tmpdir(), 'test-qa-lib-'));
+  git(root, 'init', '-q');
+  git(root, 'config', 'user.email', 'test@example.com');
+  git(root, 'config', 'user.name', 'Test');
+  await put(
+    root,
+    'apps/foo/package.json',
+    JSON.stringify({
+      name: '@zapengine/foo',
+      scripts: {
+        'type-check': 'tsc --noEmit',
+        'test:coverage': 'vitest run --coverage',
+        'dup:check': 'echo dup',
+      },
+    }),
+  );
+  await put(
+    root,
+    'apps/foo/tsconfig.json',
+    `{
+      // inherited configs may have comments
+      "compilerOptions": {
+        "baseUrl": ".",
+        "paths": { "@/*": ["src/*"], },
+      },
+    }`,
+  );
+  await put(root, 'apps/foo/src/github.ts', 'export const value = 1;\n');
+  await put(root, 'apps/foo/src/other.ts', 'export const other = 2;\n');
+  await put(root, 'apps/foo/tests/helpers.ts', 'export const helper = 1;\n');
+  await put(
+    root,
+    'apps/foo/src/github.test.ts',
+    "import { value } from './github.js';\nimport { helper } from '../tests/helpers.js';\nvoid value; void helper;\n",
+  );
+  await put(
+    root,
+    'apps/foo/src/github-coverage.test.ts',
+    "import { value } from '@/github.js';\nvoid value;\n",
+  );
+  await put(
+    root,
+    'apps/foo/src/standalone.test.ts',
+    "test('standalone', () => {});\n",
+  );
+  await put(
+    root,
+    'apps/foo/src/ambiguous.test.ts',
+    "import './github.js';\nimport './other.js';\n",
+  );
+  await put(
+    root,
+    'apps/analytics-engine/src/services/calculator.py',
+    'def calculate():\n    return 1\n',
+  );
+  await put(
+    root,
+    'apps/analytics-engine/tests/test_calculator.py',
+    'from src.services.calculator import calculate\n\nassert calculate\n',
+  );
+  git(root, 'add', '.');
+  git(root, 'commit', '-qm', 'fixture');
+  return root;
+}
+
+test('safePath rejects traversal and absolute paths', () => {
+  assert.equal(safePath('apps/foo/src/a.test.ts'), true);
+  assert.equal(safePath('../a.test.ts'), false);
+  assert.equal(safePath('/tmp/a.test.ts'), false);
+  assert.equal(safePath('apps/foo/../bar.test.ts'), false);
+});
+
+test('parseJsonc accepts comments and trailing commas', () => {
+  assert.deepEqual(parseJsonc('{"a": 1, // x\n "b": [2,],}'), {
+    a: 1,
+    b: [2],
+  });
+});
+
+test('primarySubject prefers the longest filename prefix, then unique imports', () => {
+  assert.equal(
+    primarySubject('apps/foo/src/github-extra.test.ts', [
+      'apps/foo/src/git.ts',
+      'apps/foo/src/github.ts',
+    ]),
+    'apps/foo/src/github.ts',
+  );
+  assert.equal(
+    primarySubject('apps/foo/src/no-match.test.ts', ['apps/foo/src/other.ts']),
+    'apps/foo/src/other.ts',
+  );
+});
+
+test('collectScopes groups sibling coverage tests around their production subject', async () => {
+  const root = await fixture();
+  try {
+    const scopes = collectScopes(root);
+    const github = scopes.find(
+      (scope) => scope.key === 'apps/foo/src/github.ts',
+    );
+    assert.ok(github);
+    assert.deepEqual(github.files, [
+      'apps/foo/src/github-coverage.test.ts',
+      'apps/foo/src/github.test.ts',
+    ]);
+    assert.deepEqual(github.relatedPaths, [
+      'apps/foo/src/github.ts',
+      'apps/foo/tests/helpers.ts',
+    ]);
+    assert.equal(github.risk.coverageNamed, 1);
+    assert.match(github.commands.test, /exec vitest run/u);
+    assert.match(
+      github.commands.coverageReport,
+      /--coverage\.include='src\/github\.ts'/u,
+    );
+    assert.match(
+      github.commands.coverageReport,
+      /--coverage\.thresholds\.lines=0/u,
+    );
+
+    assert.equal(
+      github.commands.coverage,
+      "pnpm --filter '@zapengine/foo' test:coverage",
+    );
+    const standalone = scopes.find(
+      (scope) => scope.key === 'apps/foo/src/standalone.test.ts',
+    );
+    assert.ok(standalone);
+    assert.deepEqual(standalone.relatedPaths, []);
+
+    const ambiguous = scopes.find(
+      (scope) => scope.key === 'apps/foo/src/ambiguous.test.ts',
+    );
+    assert.ok(ambiguous);
+    assert.deepEqual(ambiguous.relatedPaths, [
+      'apps/foo/src/github.ts',
+      'apps/foo/src/other.ts',
+    ]);
+
+    const python = scopes.find(
+      (scope) =>
+        scope.key === 'apps/analytics-engine/src/services/calculator.py',
+    );
+    assert.ok(python);
+    assert.deepEqual(python.files, [
+      'apps/analytics-engine/tests/test_calculator.py',
+    ]);
+    assert.deepEqual(python.relatedPaths, [
+      'apps/analytics-engine/src/services/calculator.py',
+    ]);
+    assert.match(python.commands.test, /exec uv run pytest/u);
+    assert.match(
+      python.commands.coverageReport,
+      /--cov='src\.services\.calculator'/u,
+    );
+    assert.match(python.commands.coverageReport, /--cov-fail-under=0/u);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('fingerprints read content from the requested git ref', async () => {
+  const root = await fixture();
+  try {
+    const first = git(root, 'rev-parse', 'HEAD');
+    const before = fingerprintPaths(root, first, ['apps/foo/src/github.ts']);
+    await writeFile(
+      join(root, 'apps/foo/src/github.ts'),
+      'export const value = 9;\n',
+    );
+    git(root, 'add', '.');
+    git(root, 'commit', '-qm', 'change');
+    const second = git(root, 'rev-parse', 'HEAD');
+    const after = fingerprintPaths(root, second, ['apps/foo/src/github.ts']);
+    assert.notEqual(before, after);
+    assert.equal(
+      fingerprintPaths(root, first, ['apps/foo/src/github.ts']),
+      before,
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('closed PR records stay rejected on unchanged main and become selectable after main changes', async () => {
+  const root = await fixture();
+  try {
+    const key = 'apps/foo/src/github.ts';
+    const mainSha = git(root, 'rev-parse', 'HEAD');
+    const mainScope = collectScopes(root, { ref: mainSha }).find(
+      (scope) => scope.key === key,
+    );
+    await put(
+      root,
+      'apps/foo/src/github-coverage.test.ts',
+      "import { value } from '@/github.js';\nif (value !== 1) throw new Error('regression');\n",
+    );
+    git(root, 'add', '.');
+    git(root, 'commit', '-qm', 'worker tests');
+    const pending = createRecord({
+      repoRoot: root,
+      key,
+      ref: 'HEAD',
+      status: 'pending',
+      pr: 12,
+      workerRunId: 'run-1',
+    });
+    assert.notEqual(pending.scope.fingerprint, mainScope.fingerprint);
+    const options = {
+      github: { runId: 1, runAttempt: 1, sha: mainSha },
+      prReader: () => ({ state: 'CLOSED' }),
+      mainScopeReader: () => ({ ...mainScope, auditedCommit: mainSha }),
+    };
+    const rejected = mergeState({
+      ...options,
+      previous: emptyState(),
+      records: [pending],
+    });
+    assert.equal(
+      classifyScope(mainScope, rejected.scopes[key]).kind,
+      'rejected',
+    );
+    const replay = mergeState({
+      ...options,
+      previous: rejected,
+      records: [pending],
+    });
+    assert.deepEqual(replay.scopes[key], rejected.scopes[key]);
+    assert.equal(replay.runs.length, 1);
+    await put(root, 'apps/foo/src/github.ts', 'export const value = 2;\n');
+    git(root, 'add', '.');
+    git(root, 'commit', '-qm', 'subject changed');
+    const changed = collectScopes(root).find((scope) => scope.key === key);
+    assert.equal(classifyScope(changed, rejected.scopes[key]).kind, 'changed');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('artifact lookup excludes fork/branch/event runs and expired artifacts', async () => {
+  const { locateArtifactRun } = await import('./test-qa-lib.mjs');
+  const run = (id, overrides = {}) => ({
+    id,
+    created_at: '2026-09-30T00:00:00Z',
+    head_repository: { id: 1 },
+    head_branch: 'main',
+    event: 'push',
+    status: 'completed',
+    ...overrides,
+  });
+  const checked = [];
+  const options = {
+    repo: 'org/repo',
+    workflow: 'ci.yml',
+    event: 'push',
+    status: 'completed',
+    artifact: 'coverage-handoff',
+  };
+  const gh = (args) => {
+    if (args[1] === 'repos/org/repo') return { id: 1 };
+    if (args.includes('--method'))
+      return [
+        {
+          workflow_runs: [
+            run(99, { head_repository: { id: 2 } }),
+            run(98, { head_branch: 'other' }),
+            run(97, { event: 'pull_request' }),
+            run(4),
+            run(3),
+            run(2),
+          ],
+        },
+      ];
+    const id = Number(args[1].match(/runs\/(\d+)/u)[1]);
+    checked.push(id);
+    return [{ artifacts: [{ name: 'coverage-handoff', expired: id === 4 }] }];
+  };
+  assert.equal(locateArtifactRun({ ...options, gh }), 3);
+  assert.deepEqual(checked, [4, 3]);
+  assert.equal(
+    locateArtifactRun({
+      ...options,
+      gh: (args) =>
+        args[1] === 'repos/org/repo' ? { id: 1 } : [{ workflow_runs: [] }],
+    }),
+    null,
+  );
+  assert.throws(
+    () =>
+      locateArtifactRun({
+        ...options,
+        gh: () => {
+          throw new Error('API error');
+        },
+      }),
+    /API error/u,
+  );
+});
+
+test('shared imports do not invalidate scope, while test and subject changes do', async () => {
+  const root = await fixture();
+  try {
+    const key = 'apps/foo/src/github.ts';
+    const fingerprint = () =>
+      collectScopes(root).find((scope) => scope.key === key).fingerprint;
+    await put(
+      root,
+      'apps/foo/src/github.test.ts',
+      "import './github.js';\nimport './other.js';\n",
+    );
+    git(root, 'add', '.');
+    git(root, 'commit', '-qm', 'shared import');
+    const before = fingerprint();
+    await put(root, 'apps/foo/tests/helpers.ts', 'export const helper = 9;\n');
+    git(root, 'add', '.');
+    git(root, 'commit', '-qm', 'shared helper');
+    assert.equal(fingerprint(), before);
+    await put(root, 'apps/foo/src/other.ts', 'export const other = 9;\n');
+    git(root, 'add', '.');
+    git(root, 'commit', '-qm', 'shared production change');
+    assert.equal(fingerprint(), before);
+    await put(
+      root,
+      'apps/foo/src/github.test.ts',
+      "import './github.js';\ntest('behavior',()=>{});\n",
+    );
+    git(root, 'add', '.');
+    git(root, 'commit', '-qm', 'test change');
+    const changed = fingerprint();
+    assert.notEqual(changed, before);
+    await put(root, key, 'export const value = 9;\n');
+    git(root, 'add', '.');
+    git(root, 'commit', '-qm', 'subject change');
+    assert.notEqual(fingerprint(), changed);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('record defaults use audited main except for pending PR contents', async () => {
+  const root = await fixture();
+  try {
+    const mainSha = git(root, 'rev-parse', 'HEAD');
+    git(root, 'update-ref', 'refs/remotes/origin/main', mainSha);
+    await put(root, 'apps/foo/src/github.ts', 'export const value = 99;\n');
+    git(root, 'add', '.');
+    git(root, 'commit', '-qm', 'PR subject');
+    const options = {
+      repoRoot: root,
+      key: 'apps/foo/src/github.ts',
+      workerRunId: 'defaults',
+    };
+    assert.equal(
+      createRecord({ ...options, status: 'clean' }).scope.auditedCommit,
+      mainSha,
+    );
+    assert.equal(
+      createRecord({ ...options, status: 'pending', pr: 661 }).scope
+        .auditedCommit,
+      git(root, 'rev-parse', 'HEAD'),
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
