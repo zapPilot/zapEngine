@@ -1,0 +1,27 @@
+name: Test QA Guard
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    if: startsWith(github.head_ref, 'test-qa/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+
+      - name: Run the guard from current main
+        run: |
+          mkdir -p "$RUNNER_TEMP/test-qa-main"
+          git archive HEAD^1 scripts/agents | tar -x -C "$RUNNER_TEMP/test-qa-main"
+          node "$RUNNER_TEMP/test-qa-main/scripts/agents/test-qa-guard.mjs" \
+            --repo "$GITHUB_WORKSPACE" \
+            --base HEAD^1 \
+            --head HEAD
