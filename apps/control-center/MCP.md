@@ -1,6 +1,6 @@
 # Ops MCP
 
-The Control Center exposes the normalized operations model to agents over two MCP transports. Reads remain the default. Mutations are narrowly allowlisted: backlog lifecycle actions are constrained to low-risk `zapPilot/zapEngine` Issues, while Sentry resolution remains a separately verified single-issue action.
+The Control Center exposes the normalized operations model to agents over two MCP transports. Reads remain the default. The only mutation is a separately verified single-issue Sentry resolution; code fixes reach production only through reviewed pull requests.
 
 The last row is not a Control Center surface. It is the one third-party MCP
 the agent profiles register beside ours, and it never proxies through
@@ -24,10 +24,6 @@ Read-only provider credentials stay server-side and are used by the operations a
 - `SENTRY_OPS_AUTH_TOKEN` + `SENTRY_ORG_SLUG`
 - `POSTHOG_PERSONAL_API_KEY` + `POSTHOG_PROJECT_ID`
 
-Agent backlog access deliberately does **not** privilege-raise `OPS_GITHUB_TOKEN`:
-
-- `OPS_GITHUB_BACKLOG_TOKEN` — fine-grained token for `zapPilot/zapEngine` with Issues read/write only. It backs both the normalized backlog read and the bounded issue mutations. If it is absent, reads degrade to `unconfigured` and mutations fail closed.
-
 Sentry remediation uses a separate server-side credential:
 
 - `SENTRY_OPS_WRITE_TOKEN` — create this with Sentry `event:write` scope only. Do not replace the read token with it and do not grant `event:admin`.
@@ -46,36 +42,13 @@ The remote deployment receives the same provider credentials through the Control
 
 ## Recommended agent flow
 
-There are two user-facing engineering roles: strong-model `triage` and weak-model `worker`.
+Engineering agents run the [ops-sweep skill](../../.agents/skills/ops-sweep/SKILL.md): it reads these tools and delivers every fix as a reviewed pull request.
 
-1. `triage` calls `ops_status` first to get all eight domains, signals, deterministic priorities, and the agent backlog summary.
-2. For a priority incident, call `ops_investigate` with the stable signal fingerprint. This is the normal bounded incident packet and may use `force: true` when fresh provider reads are required. Read its `correlation` and `remediation` blocks before classifying the work.
+1. Call `ops_status` first to get all eight domains, signals and deterministic priorities.
+2. For a priority incident, call `ops_investigate` with the stable signal fingerprint. This is the normal bounded incident packet and may use `force: true` when fresh provider reads are required. Read its `correlation` and `remediation` blocks before choosing a fix.
 3. Call `ops_inspect_signal` only when extra provider-specific evidence is needed. For Sentry it returns the internal numeric issue IDs needed for remediation.
 4. Use `ops_domain`, `ops_signal`, `ops_customers`, `ops_social`, or the `ops_costs` compatibility alias for narrower operational reads.
-5. `/triage` is the normal strong-model producer. It may use `ops_backlog_create` only for bounded low-risk work a weak model can finish and verify locally. A strong model in a larger investigation may also use it to park such bounded follow-up work instead of expanding the current PR's scope. CI failures are ordinary triage input; there is no separate CI-fix workflow.
-6. `/worker` consumes that backlog. Use a stable harness/hostname agentId and check for existing PRs before coding. Call `ops_backlog_claim`; it picks the oldest ready issue, optionally restricted by `area:*`, and marks it `status:working`. If the task is unsuitable, use `ops_backlog_release` with `released` or `blocked` plus a reason. There is no lease, TTL, or renew protocol.
-7. Use `ops_resolve_sentry_issue` only when the user explicitly asks to close/resolve that issue or delegates Sentry cleanup after the fix has been verified. This remains a strong-model/operator action, never worker backlog execution.
-
-## Agent backlog
-
-GitHub Issues is the only backlog source of truth. The server recognizes open issues carrying `agent-backlog`; newly created MCP backlog issues always receive `agent-backlog`, `agent:weak`, and `risk:low`, plus an optional `area:<slug>`.
-
-Backlog state is deliberately small and label-only:
-
-- no `status:working` and no `blocked` -> `ready`
-- `status:working` -> `working`
-- `blocked` -> `blocked`
-- closed issue -> completed; the Reliability card counts completions from the last seven days
-
-`ops_backlog_claim` reads the current GitHub backlog, selects the oldest eligible ready issue, and adds `status:working`. `ops_backlog_release` re-reads the issue first, refuses anything outside `agent-backlog` or not currently working, then either removes `status:working` or adds `blocked` before removing it. Claim/release comments are audit convenience only; the labels are authoritative.
-
-This intentionally does **not** implement distributed locking. Two agents claiming at nearly the same instant can theoretically observe the same ready issue before GitHub applies the first label. That trade-off is accepted for the small number of background agents this repository runs. The worker skill therefore checks for an already-open PR referencing the issue before writing code, and releases blocked with that PR as evidence when one exists. If concurrency ever becomes material, add a stronger claim primitive then rather than maintaining a database scheduler pre-emptively.
-
-There is deliberately no `ops_backlog_complete` tool. The implementation PR should use `Fixes #<issue>` and GitHub closes the issue on merge. The sole exception is `ops_backlog_release outcome: already-fixed` with commitSha and/or prNumber evidence: the server checks main ancestry (`identical`/`behind`) or a merged main PR before adding `resolution:already-fixed`, closing, then removing `status:working`. Run acceptance on main first. This is repository completion, not production verification. The public repository permits read-only compare/PR access with the Issues token; a private repository would also need Contents and Pull requests read permissions.
-
-`ops_backlog_create` is not a generic GitHub Issues API. The repository and low-risk labels are server-owned, callers cannot select another repository, and mutations require the dedicated `OPS_GITHUB_BACKLOG_TOKEN`. Backlog membership grants no production, deployment, schema, auth, financial, or incident-remediation authority.
-
-Before using backlog mutations, create the repository labels used by the contract: `agent-backlog`, `agent:weak`, `risk:low`, `blocked`, `status:working`, `resolution:already-fixed`, `operator`, `triage-log`, and `wontfix`, plus the `effort:xs`/`effort:s`/`effort:m` and any desired `area:*` labels.
+5. Use `ops_resolve_sentry_issue` only when the user explicitly asks to close/resolve that issue or delegates Sentry cleanup after the fix has been verified. It is never part of an unattended sweep.
 
 ## Incident correlation
 
@@ -108,7 +81,7 @@ The block reports:
 - `blockers` — a non-empty list means the server can prove the incident is not safe to act on yet;
 - `reasons` — context that does not block, including the coverage caveat below.
 
-The server deliberately grades no autonomy level. Whether a repair is safe depends on the kind of change it needs, and one signal can require either a one-line guard or a schema migration. Change kind is only knowable after a strong model has diagnosed the root cause, so `.agents/skills/triage` owns that classification judgement while this block owns the facts a skill cannot see for itself.
+The server deliberately grades no autonomy level. Whether a repair is safe depends on the kind of change it needs, and one signal can require either a one-line guard or a schema migration. Change kind is only knowable after an agent has diagnosed the root cause, so `.agents/skills/ops-sweep` owns that judgement and delivers it as a reviewed pull request, while this block owns the facts a skill cannot see for itself.
 
 Fail-closed rules:
 
@@ -119,11 +92,11 @@ Fail-closed rules:
 - every unresolved evidence gap becomes a blocker;
 - any signal carrying non-zero `aumAtRiskUsd` stays on a human-controlled rail even when its operational priority is high.
 
-`exposure` reports only what the investigated signal itself proves. Customer impact correlated through service topology is reported separately in the packet's `customerImpact`, and triage weighing a repair must read both: a job failure can carry no exposure of its own while the same packet shows stale priority portfolios behind it.
+`exposure` reports only what the investigated signal itself proves. Customer impact correlated through service topology is reported separately in the packet's `customerImpact`, and an agent weighing a repair must read both: a job failure can carry no exposure of its own while the same packet shows stale priority portfolios behind it.
 
 `no-inspector` is a caveat rather than a blocker. Only `github-actions`, `sentry`, and `fly` have deep inspectors, so for every other source an empty gap list means nothing was gathered rather than that nothing is wrong. Such an incident may still be classified from repository evidence, but it must never be described as production-verified.
 
-`ops_resolve_sentry_issue` remains a separate, explicit delegated mutation. Empty `blockers` does not bypass the Sentry resolve gate documented below, the triage skill's Sentry cleanup section, or the fix registration rules in [the operator runbook](./OPERATOR.md).
+`ops_resolve_sentry_issue` remains a separate, explicit delegated mutation. Empty `blockers` does not bypass the Sentry resolve gate documented below or the fix registration rules in [the operator runbook](./OPERATOR.md).
 
 `ops_resolve_sentry_issue` takes one numeric Sentry issue ID plus a required human-readable `reason`. The implementation always sends exactly `{ "status": "resolved" }` to that one issue. The caller cannot choose `ignored`, merge issues, assign ownership, make an issue public, delete it, or bulk-mutate issues through MCP.
 
@@ -157,8 +130,6 @@ Withholding is not suppression: both cases stay fully readable through the ordin
 
 `ops_investigate` performs the forced provider refresh once, then reads the normalized cached snapshot to build the correlation envelope. It must not fan out to every provider a second time merely to add context.
 
-The agent backlog has its own 30-second GitHub cache. `force: true` on `ops_backlog` bypasses that cache and fetches fresh issue labels.
-
 The Vercel MCP function therefore has a 30-second maximum duration. Provider calls remain individually bounded by their adapter limits.
 
 ## Local verification
@@ -168,11 +139,9 @@ From Claude Code or OpenCode at the repository root:
 1. Confirm `zap-pilot-ops` appears in `tools/list`.
 2. Call `ops_status` and confirm all eight domains are present.
 3. Confirm configured production providers do not all report `unknown` because of missing environment injection.
-4. Call `ops_backlog` and confirm GitHub issue counts and ready/working/blocked state match the Reliability view.
-5. Pick an active priority fingerprint and call `ops_investigate`; confirm the packet exposes explicit correlation for mapped services, separates `operationalPriorityScore` from the rest of the `remediation` block, and keeps `directMutationAllowed` `false`.
-6. Pick a real Sentry signal fingerprint and call `ops_inspect_signal`; confirm the issue evidence includes a numeric issue ID.
-7. With `OPS_GITHUB_BACKLOG_TOKEN` configured, claim a disposable low-risk backlog issue, confirm the `status:working` label landed on it, then release it and confirm the label is removed (or `blocked` is added for a blocked release).
-8. With `SENTRY_OPS_WRITE_TOKEN` configured, resolve a disposable/test issue through `ops_resolve_sentry_issue` and confirm only that issue changes to `resolved`.
+4. Pick an active priority fingerprint and call `ops_investigate`; confirm the packet exposes explicit correlation for mapped services, separates `operationalPriorityScore` from the rest of the `remediation` block, and keeps `directMutationAllowed` `false`.
+5. Pick a real Sentry signal fingerprint and call `ops_inspect_signal`; confirm the issue evidence includes a numeric issue ID.
+6. With `SENTRY_OPS_WRITE_TOKEN` configured, resolve a disposable/test issue through `ops_resolve_sentry_issue` and confirm only that issue changes to `resolved`.
 
 The repository tests lock both client discovery files to the canonical launcher and assert that the launcher explicitly selects the production environment.
 
@@ -180,7 +149,7 @@ The repository tests lock both client discovery files to the canonical launcher 
 
 Send MCP requests to `/api/mcp` with the bearer token from `OPS_MCP_TOKEN`. Missing configuration, missing authorization, and incorrect authorization all return the same `401 Unauthorized` response so the endpoint does not disclose whether a token is configured.
 
-The HTTP integration tests cover protocol initialization, tool discovery, `ops_status`, `ops_backlog`, `ops_investigate` including its correlation/remediation facts, and the bounded Sentry resolve tool, including `structuredContent`.
+The HTTP integration tests cover protocol initialization, tool discovery, `ops_status`, `ops_investigate` including its correlation/remediation facts, and the bounded Sentry resolve tool, including `structuredContent`.
 
 ### Sentry history and pagination
 
@@ -190,7 +159,7 @@ Each call returns up to 25 issue summaries. Read `evidence.nextCursor` and `evid
 
 ## Operator lifecycle and runtime evidence
 
-`operator.actions[].allowed` describes the `ops-operator-runner` automatic execution catalog. `allowed:false` means that server runner does not execute the action; agents may still deliver reviewed pull requests through a backlog item that `triage` created and `worker` consumed. Work outside that contract is operator work. Both available and unavailable contexts include this note.
+`operator.actions[].allowed` describes the `ops-operator-runner` automatic execution catalog. `allowed:false` means that server runner does not execute the action; agents may still deliver code fixes as reviewed pull requests through the ops-sweep skill. Both available and unavailable contexts include this note.
 
 `ops_investigate` includes `runtimeCorrelation` (producer-attested records, namespaced exact-ID edges, explicit gaps) and `operator` (durable history and action catalog). Service topology remains context, not a runtime causal edge. The same normalized snapshot builds the incident and service correlation. Reads never record a cycle or mutate provider state.
 
@@ -206,41 +175,10 @@ See [operator runbook](./OPERATOR.md) for local commands, deployment prerequisit
 
 GitHub workflow inspection selects scheduled runs; recent-failure selects main runs. Both expose failed jobs, steps, redacted log excerpts and a bounded main comparison after the failed SHA. `commitsSinceFailure` does not claim those commits fixed the failure. Compare failure returns unavailable without hiding job evidence.
 
-## Triage and worker audit contract
-
-`/triage` is the normal manual producer. `ops_backlog_create` accepts optional effort (`xs`/`s`/`m`) and fingerprint, returning `{ created, item }`. Effort is projected from `effort:*` labels; fingerprint from the server-written HTML comment. A fingerprint forces a fresh open-backlog read; unavailable or truncated snapshots fail closed. Matching open issues return `created:false` without creating an issue. Run producers sequentially: GitHub labels do not provide distributed transactions. Use closed-within-14d and wontfix searches as the additional recurrence fence.
-
-Each triage/worker run comments on the single pinned `triage-log` issue. Workers use a stable harness/hostname agentId, claim through MCP, and inspect open PRs before coding. New work closes via `Fixes` references; already-fixed is the verified exception above.
-
-Both `/triage` and `/worker` are manual, with no headless runner or schedule.
-The four-hourly `ops-operator` schedule in [OPERATOR.md](./OPERATOR.md) is a separate system.
-GitHub Issues and labels are the work state; there is no lease DB and labels are
-not transactions.
-
-| Label or marker                             | Meaning                                            |
-| ------------------------------------------- | -------------------------------------------------- |
-| `agent-backlog` + `agent:weak` + `risk:low` | Eligible bounded worker work                       |
-| `status:working`                            | Claimed through MCP                                |
-| `blocked`                                   | Needs stronger judgement or unavailable validation |
-| `resolution:already-fixed`                  | Server verified a fix on main before closing       |
-| `operator`                                  | Human/strong-model decision or production action   |
-| `triage-log`                                | Exactly one open audit/report issue                |
-| ops-fingerprint HTML comment                | Server-written deduplication key                   |
-| `Agent-Backlog-PR: true`                    | Worker PR contract marker                          |
-
-For an orphan `status:working`, inspect open PRs before releasing through MCP.
-If already-fixed closure is rejected, supply the main commit or a PR merged into
-main and rerun acceptance. A merged patch does not prove production recovery.
-
-Additional local verification:
-
-9. `node scripts/agents/backlog-pr-merge-check.mjs 499` must deny an already merged or unmarked PR and print reasons; run its node:test suite through contracts.
-10. In an explicitly authorized isolated worker session, use a disposable issue with local acceptance; verify claim, marked PR, allowed merge or reasoned deny, triage-log comment and no orphan working claim. This is a live integration exercise; unit tests alone do not establish harness configuration.
-
 ## Growth and coverage review
 
 `ops_growth` is a separate lazy read with a 15-minute cache and `force` refresh.
-Version 0.10.0 returns observation time, `windowDays: 30`, `journey`,
+Version 0.11.0 returns observation time, `windowDays: 30`, `journey`,
 `community`, `lanes`, and `laneSources`. Journey contains separate ordered one-day
 landing → waitlist CTA and landing → Discord CTA funnels. Lanes join first-touch
 episode/platform/language across PostHog 30-day unique people, recent social posts,

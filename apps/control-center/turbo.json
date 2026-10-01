@@ -19,7 +19,6 @@
         "FLY_COST_MODE",
         "FLY_API_TOKEN",
         "OPS_GITHUB_TOKEN",
-        "OPS_GITHUB_BACKLOG_TOKEN",
         "FLY_OPS_TOKEN",
         "SENTRY_OPS_AUTH_TOKEN",
         "SENTRY_ORG_SLUG",

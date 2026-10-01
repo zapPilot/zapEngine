@@ -30,10 +30,10 @@ JSON before treating that as a command failure.
 Provider MCP exploration belongs only in a separately configured interactive
 exploration session with writes denied. Availability is session-specific; do not
 infer that a provider lacks an API or MCP from its absence here. Do not enable or
-reconfigure providers during this review, or expose them to triage/worker.
+reconfigure providers during this review, or expose them to the ops sweep.
 
 Cloudflare is the one deliberate exception: its vendor MCP is registered in the
-triage and worker profiles too, so a session there may already hold it. It stays
+default repository profiles too, so an ops-sweep session may already hold it. It stays
 read-only by grant, not by an allowlist -- never authorize a write permission on
 it, and it remains out of scope for this review's own changes.
 
@@ -53,7 +53,7 @@ Do not change `prioritize.ts`, adapter statuses or reliability thresholds.
 
 ## Output and boundaries
 
-Produce proposed detectors, not implementation or agent-backlog work. For each:
+Produce proposed detectors, not implementation. For each:
 
 - Identify the failure class or outcome question and existing detector's limit.
 - Label evidence observed, correlated, inferred or unobserved; include source,
@@ -69,7 +69,7 @@ Return the proposal in the review. When issue publication is authorized, dedupe
 against existing operator issues and publish a proposed-detector issue using
 existing labels. Otherwise leave
 an issue-ready draft. Do not write provider state, change adapters, create PRs,
-claim backlog work, deploy or spend money.
+deploy or spend money.
 
 Report each checklist result and unresolved evidence. A deployment SHA provides
 version correlation, not causal attribution; main HEAD is not proof of deployment.

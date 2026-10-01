@@ -3,13 +3,11 @@ import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { sessionArgs } from './agent-session.mjs';
 const root = new URL('../../', import.meta.url).pathname;
-test('normal sessions expose only canonical MCP configuration', () => {
-  for (const mode of ['triage', 'worker', 'growth']) {
-    const args = sessionArgs(mode, root);
-    assert(args.includes('--strict-mcp-config'));
-    assert(args.includes(`${root}.mcp.json`));
-    assert(!args.some((arg) => arg.includes('mcp.coverage-review.json')));
-  }
+test('growth sessions expose only canonical MCP configuration', () => {
+  const args = sessionArgs('growth', root);
+  assert(args.includes('--strict-mcp-config'));
+  assert(args.includes(`${root}.mcp.json`));
+  assert(!args.some((arg) => arg.includes('mcp.coverage-review.json')));
   assert.throws(() => sessionArgs('other', root));
 });
 test('exploration scopes Supabase to read-only and routes Fly through the read-only proxy', () => {

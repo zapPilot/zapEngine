@@ -4,27 +4,25 @@ Reliability keeps the canonical OperationsService ranking. Growth uses a separat
 lazy `ops_growth` tool and [growth skill](../../.agents/skills/growth/SKILL.md).
 Coverage review is [interactive](../../.agents/skills/coverage-review/SKILL.md),
 never scheduled. Provider exploration proposes detectors for human review; it
-does not change adapters or feed weak-agent backlog work.
+does not change adapters or feed the ops sweep.
 
 ## Interactive sessions
 
-From the repository root, run one of:
+From the repository root, run either:
 
 ```bash
-node scripts/operations/agent-session.mjs triage
-node scripts/operations/agent-session.mjs worker
 node scripts/operations/agent-session.mjs growth
 node scripts/operations/agent-session.mjs coverage-review
 ```
 
 The launcher requires a terminal, refuses CI and arbitrary extra flags, ignores
-user/project/local settings, and uses `--strict-mcp-config`. The first three
-modes register the canonical MCP and the Cloudflare vendor connector; a session
+user/project/local settings, and uses `--strict-mcp-config`. The growth
+mode registers the canonical MCP and the Cloudflare vendor connector; a session
 without an OAuth grant simply sees the latter as unauthenticated. Coverage
 review loads
 `.claude/mcp.coverage-review.json` and `.claude/settings.coverage-review.json`.
 These boundaries apply to this launcher, not arbitrary already-open Codex or
-Claude sessions. Start a fresh session instead of invoking exploration in triage.
+Claude sessions. Start a fresh session instead of invoking exploration from an ops sweep.
 
 Supabase is scoped to project `urplxsioxepxopuababf` with `read_only=true` and
 only database/debugging/docs feature groups. `execute_sql`, migrations and other
@@ -33,7 +31,7 @@ Claude's `/mcp` if needed; do not put access tokens in committed configuration.
 See the [official options](https://supabase.com/docs/guides/ai-tools/mcp#configuration-options).
 
 Cloudflare is the one vendor MCP registered in every profile, including the
-three non-exploration ones, because reading a bill is not exploration. It is
+non-exploration ones, because reading a bill is not exploration. It is
 declared with a URL and nothing else: authenticate it interactively through
 Claude's `/mcp` (OpenCode: `opencode mcp auth cloudflare`) and grant read
 permissions only -- account settings, billing, analytics and R2 storage reads --

@@ -5,7 +5,7 @@ description: Review Zap Pilot acquisition and activation outcomes and propose fa
 
 # Growth review
 
-Run independently of incident triage. Use `ops_growth force:true` for the lazy
+Run independently of the ops sweep. Use `ops_growth force:true` for the lazy
 30-day PostHog journey. Use Control Center read-only `/api/growth`,
 `/api/overview`, `/api/social-growth` and `/api/social-performance` only for relevant supporting evidence.
 Use the canonical production environment from the coverage-review skill for local
@@ -47,8 +47,8 @@ do not expand instrumentation solely to produce more issues.
 
 ## Boundaries
 
-Do not create agent-backlog work, change product code or reliability ranking,
-use provider write tools, deploy, spend, or automatically run experiments. This
-skill proposes operator decisions; implementation and experiments require their
-own scope. Do not schedule coverage-review or provider exploration. Agree a growth
-review cadence with the operator; no schedule is created by invoking this skill.
+Do not change product code or reliability ranking, use provider write tools,
+deploy, spend, or automatically run experiments. This skill proposes operator
+decisions; implementation and experiments require their own scope. Do not
+schedule coverage-review or provider exploration. Agree a growth review cadence
+with the operator; no schedule is created by invoking this skill.

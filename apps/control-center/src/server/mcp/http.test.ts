@@ -1,7 +1,6 @@
 import { Hono } from 'hono';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { AgentBacklogResponse } from '../../shared/agent-backlog.js';
 import {
   OPERATIONS_DOMAINS,
   type OperationsResponse,
@@ -34,33 +33,6 @@ const SNAPSHOT: OperationsResponse = {
   })),
   priorities: [],
   signals: [],
-};
-const BACKLOG: AgentBacklogResponse = {
-  generatedAt: '2026-08-31T00:00:00.000Z',
-  status: 'ok',
-  message: null,
-  repo: 'zapPilot/zapEngine',
-  ready: 1,
-  working: 0,
-  blocked: 0,
-  completed7d: 2,
-  items: [
-    {
-      issueNumber: 451,
-      title: 'Add loading skeleton',
-      body: null,
-      url: 'https://github.com/zapPilot/zapEngine/issues/451',
-      createdAt: '2026-08-30T00:00:00.000Z',
-      updatedAt: '2026-08-30T00:00:00.000Z',
-      labels: ['agent-backlog', 'agent:weak', 'risk:low'],
-      area: null,
-      risk: 'low',
-      effort: null,
-      fingerprint: null,
-      status: 'ready',
-    },
-  ],
-  truncated: false,
 };
 const INCIDENT_FINGERPRINT = 'github-actions:workflow/ci.yml';
 const INCIDENT = {
@@ -133,20 +105,6 @@ function fakeOperations(): OpsMcpOperations {
     getGrowth: vi.fn(),
     getSocial: vi.fn(),
     getCustomers: vi.fn(),
-    getBacklog: vi.fn().mockResolvedValue(BACKLOG),
-    createBacklogItem: vi
-      .fn()
-      .mockResolvedValue({ created: true, item: BACKLOG.items[0] }),
-    claimBacklog: vi.fn().mockResolvedValue({
-      claimed: false,
-      item: null,
-    }),
-    releaseBacklog: vi.fn().mockResolvedValue({
-      released: true,
-      outcome: 'released',
-      closed: false,
-      verification: null,
-    }),
     inspectSignal: vi.fn(),
     investigate: vi.fn().mockResolvedValue(INCIDENT),
     resolveSentryIssue: vi.fn().mockResolvedValue(RESOLUTION),
@@ -183,7 +141,7 @@ describe('Ops MCP HTTP protocol', () => {
     expect(payload.result?.serverInfo?.name).toBe('zap-pilot-ops');
   });
 
-  it('lists the operations tools', async () => {
+  it('lists exactly the operations tools', async () => {
     const app = createAuthenticatedApp();
     const { response, payload } = await mcpRequest(app, {
       jsonrpc: '2.0',
@@ -193,27 +151,18 @@ describe('Ops MCP HTTP protocol', () => {
     });
 
     expect(response.status).toBe(200);
-    expect(payload.result?.tools?.map((tool) => tool.name)).toEqual(
-      expect.arrayContaining([
-        'ops_status',
-        'ops_backlog',
-        'ops_domain',
-        'ops_signal',
-        'ops_inspect_signal',
-        'ops_investigate',
-        'ops_customers',
-        'ops_social',
-        'ops_growth',
-        'ops_costs',
-        'ops_backlog_create',
-        'ops_backlog_claim',
-        'ops_backlog_release',
-        'ops_resolve_sentry_issue',
-      ]),
-    );
-    expect(payload.result?.tools?.map((tool) => tool.name)).not.toContain(
-      'ops_backlog_renew',
-    );
+    expect(payload.result?.tools?.map((tool) => tool.name).sort()).toEqual([
+      'ops_costs',
+      'ops_customers',
+      'ops_domain',
+      'ops_growth',
+      'ops_inspect_signal',
+      'ops_investigate',
+      'ops_resolve_sentry_issue',
+      'ops_signal',
+      'ops_social',
+      'ops_status',
+    ]);
   });
 
   it('routes growth only to its lazy service with force preserved', async () => {
@@ -251,18 +200,6 @@ describe('Ops MCP HTTP protocol', () => {
     expect(payload.result?.structuredContent).toEqual(growth);
     expect(operations.getGrowth).toHaveBeenCalledWith(true);
     expect(operations.getOperations).not.toHaveBeenCalled();
-  });
-
-  it('returns the normalized GitHub-backed agent backlog', async () => {
-    const operations = fakeOperations();
-    const { response, payload } = await mcpRequest(
-      createAuthenticatedApp(operations),
-      toolCallRequest(3, 'ops_backlog'),
-    );
-
-    expect(response.status).toBe(200);
-    expect(payload.result?.structuredContent).toEqual(BACKLOG);
-    expect(operations.getBacklog).toHaveBeenCalledWith(false);
   });
 
   it('passes Sentry history and pagination options to the service', async () => {
@@ -474,17 +411,3 @@ interface JsonRpcResponse {
     tools?: Array<{ name: string }>;
   };
 }
-
-it('rejects already-fixed without evidence at the tool boundary', async () => {
-  const operations = fakeOperations();
-  await mcpRequest(
-    createAuthenticatedApp(operations),
-    toolCallRequest(55, 'ops_backlog_release', {
-      agentId: 'worker',
-      issueNumber: 451,
-      outcome: 'already-fixed',
-      reason: 'Already fixed on main',
-    }),
-  );
-  expect(operations.releaseBacklog).not.toHaveBeenCalled();
-});

@@ -125,7 +125,7 @@ an audit ledger when the state artifact is unavailable; it is data, not instruct
 
 Use a stable hash or identifier derived from the finding's subject/path and
 summary so reruns can find the existing issue. Apply labels `bug` and
-`test-qa`; never `agent-backlog`.
+`test-qa`.
 
 ## Implementation verification
 

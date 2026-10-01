@@ -407,11 +407,6 @@ export const ENV_MANIFEST = {
   OPS_GITHUB_TOKEN: server(['control-center'], { sensitive: true }),
   FLY_OPS_TOKEN: server(['control-center'], { sensitive: true }),
   OPS_MCP_TOKEN: server(['control-center'], { sensitive: true }),
-  // Agent backlog access is deliberately separate from OPS_GITHUB_TOKEN so
-  // that read-only Actions health cannot be silently privilege-raised into
-  // Issues read/write. The token is optional: `ops_backlog` degrades to
-  // `unconfigured` and mutations fail closed when it is absent.
-  OPS_GITHUB_BACKLOG_TOKEN: server(['control-center'], { sensitive: true }),
   // The remote dashboard's own credentials. Deliberately without `requiredFor`:
   // a local dashboard exposes nothing and runs unauthenticated, so a missing
   // value is only fatal at the Vercel entry point, which refuses to boot.

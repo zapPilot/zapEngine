@@ -110,10 +110,9 @@ Compare new provider evidence with prior resolution history. A new event after t
 recorded resolution/deployment boundary is recurrence evidence even if the same
 fingerprint or GitHub issue was recently closed.
 
-Triage's normal closed-within-14-days dedupe fence must not suppress a **proven new
-occurrence**. When a new GitHub issue is genuinely required, use the documented
-`:rYYYYMMDD` recurrence suffix and link the prior issue/fix. Do not manufacture a
-recurrence suffix merely to bypass dedupe.
+A recently closed issue or merged fix must not suppress a **proven new
+occurrence**. Link the prior issue/fix in the new evidence instead of treating the
+recurrence as already handled.
 
 The operator store currently uses stable unique incident fingerprints and a bounded
 one-repair budget. Until an explicit incident-epoch/recurrence model exists, a
@@ -145,12 +144,12 @@ is measured but below its target. Without a target or sufficient evidence, recor
 an outcome hypothesis or coverage gap rather than a verified incident.
 
 Propose an observable success criterion and a falsifiable experiment or detector.
-Keep growth decisions outside reliability ranking and weak-agent backlog work.
+Keep growth decisions outside reliability ranking and the ops sweep.
 
 ## Evidence classification
 
-For every important claim, label the evidence mentally (and in a triage report when
-it changes the conclusion):
+For every important claim, label the evidence mentally (and in the review report
+when it changes the conclusion):
 
 | Level          | Meaning                                                           | Safe conclusion                                    |
 | -------------- | ----------------------------------------------------------------- | -------------------------------------------------- |

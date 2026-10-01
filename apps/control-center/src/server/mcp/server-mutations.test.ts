@@ -1,7 +1,6 @@
 import { Hono } from 'hono';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { AgentBacklogResponse } from '../../shared/agent-backlog.js';
 import {
   OPERATIONS_DOMAINS,
   type OperationsResponse,
@@ -24,19 +23,6 @@ const SNAPSHOT: OperationsResponse = {
   signals: [],
 };
 
-const BACKLOG: AgentBacklogResponse = {
-  generatedAt: '2026-09-10T00:00:00.000Z',
-  status: 'ok',
-  message: null,
-  repo: 'zapPilot/zapEngine',
-  ready: 0,
-  working: 0,
-  blocked: 0,
-  completed7d: 0,
-  items: [],
-  truncated: false,
-};
-
 function fakeOperations(): OpsMcpOperations {
   return {
     getOperations: vi.fn().mockResolvedValue(SNAPSHOT),
@@ -45,15 +31,6 @@ function fakeOperations(): OpsMcpOperations {
     getCustomers: vi
       .fn()
       .mockResolvedValue({ generatedAt: SNAPSHOT.generatedAt }),
-    getBacklog: vi.fn().mockResolvedValue(BACKLOG),
-    createBacklogItem: vi.fn().mockResolvedValue({ created: true, item: null }),
-    claimBacklog: vi.fn().mockResolvedValue({ claimed: false, item: null }),
-    releaseBacklog: vi.fn().mockResolvedValue({
-      released: true,
-      outcome: 'released',
-      closed: false,
-      verification: null,
-    }),
     inspectSignal: vi.fn(),
     investigate: vi.fn(),
     resolveSentryIssue: vi.fn().mockResolvedValue({
@@ -102,106 +79,7 @@ async function call(
   return { response, payload };
 }
 
-const CREATE = {
-  title: 'Tighten render retry guard',
-  problem: 'Operators retry renders without a bounded guard.',
-  expectedOutcome: 'Retries stay bounded to one eligible render.',
-  acceptanceCriteria: ['Retry refuses abandoned episodes'],
-};
-
 describe('ops MCP mutation boundary', () => {
-  it('creates a backlog item through the mutation tool', async () => {
-    const { hono, operations } = app();
-    const { response, payload } = await call(
-      hono,
-      'ops_backlog_create',
-      CREATE,
-    );
-
-    expect(response.status).toBe(200);
-    expect(operations.createBacklogItem).toHaveBeenCalledWith(CREATE);
-    expect(payload.result?.structuredContent).toMatchObject({ created: true });
-  });
-
-  it('rejects a fingerprint that smuggles markup or newlines', async () => {
-    const { hono, operations } = app();
-    for (const fingerprint of ['line-one\nline-two', 'abc-->def']) {
-      const { payload } = await call(hono, 'ops_backlog_create', {
-        ...CREATE,
-        fingerprint,
-      });
-      expect(JSON.stringify(payload)).not.toContain('"created":true');
-    }
-    expect(operations.createBacklogItem).not.toHaveBeenCalled();
-  });
-
-  it('claims backlog work with an area filter', async () => {
-    const { hono, operations } = app();
-    const args = { agentId: 'worker-1', areas: ['social'] };
-    const { response, payload } = await call(hono, 'ops_backlog_claim', args);
-
-    expect(response.status).toBe(200);
-    expect(operations.claimBacklog).toHaveBeenCalledWith(args);
-    expect(payload.result?.structuredContent).toMatchObject({
-      claimed: false,
-    });
-  });
-
-  it('rejects an invalid worker identity at the boundary', async () => {
-    const { hono, operations } = app();
-    const { payload } = await call(hono, 'ops_backlog_claim', {
-      agentId: 'not an id!!',
-    });
-
-    expect(JSON.stringify(payload)).not.toContain('"claimed":true');
-    expect(operations.claimBacklog).not.toHaveBeenCalled();
-  });
-
-  it.each([
-    { outcome: 'released', evidence: undefined, closed: false },
-    {
-      outcome: 'blocked',
-      evidence: undefined,
-      closed: false,
-    },
-    {
-      outcome: 'already-fixed',
-      evidence: { commitSha: 'abc1234' },
-      closed: false,
-    },
-    {
-      outcome: 'already-fixed',
-      evidence: { prNumber: 451 },
-      closed: false,
-    },
-  ])('releases backlog work for outcome $outcome', async (row) => {
-    const { hono, operations } = app();
-    const args = {
-      agentId: 'worker-1',
-      issueNumber: 451,
-      outcome: row.outcome,
-      reason: 'No longer reproducible on main branch.',
-      ...(row.evidence ? { evidence: row.evidence } : {}),
-    };
-    const { response } = await call(hono, 'ops_backlog_release', args);
-
-    expect(response.status).toBe(200);
-    expect(operations.releaseBacklog).toHaveBeenCalledWith(args);
-  });
-
-  it('rejects already-fixed without evidence at the boundary', async () => {
-    const { hono, operations } = app();
-    const { payload } = await call(hono, 'ops_backlog_release', {
-      agentId: 'worker-1',
-      issueNumber: 451,
-      outcome: 'already-fixed',
-      reason: 'Already fixed on main branch.',
-    });
-
-    expect(JSON.stringify(payload)).not.toContain('"released":true');
-    expect(operations.releaseBacklog).not.toHaveBeenCalled();
-  });
-
   it.each([['customers'], ['social'], ['costs'], ['domain'], ['signal']])(
     'serves read tool %s',
     async (name) => {

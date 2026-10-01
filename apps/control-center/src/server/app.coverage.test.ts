@@ -75,10 +75,6 @@ function buildApp(input: {
       inspectSignal: vi.fn(),
       resolveSentryIssue: vi.fn(),
       investigate: vi.fn(),
-      getBacklog: vi.fn(),
-      createBacklogItem: vi.fn(),
-      claimBacklog: vi.fn(),
-      releaseBacklog: vi.fn(),
       ...input.operations,
     } as never,
     socialGrowth: {
