@@ -54,8 +54,46 @@ describe('BTC Price Pipeline', () => {
       vi.spyOn(fetcher as unknown, 'fetchWithRetry').mockResolvedValue({});
     });
 
-    // --- fetchCurrentPrice tests ---
-    it('fetchCurrentPrice should return valid data on success', async () => {
+    // --- fetchCurrentPrices tests ---
+    it('fetches BTC and ETH in a single batch request', async () => {
+      const requestSpy = vi
+        .spyOn(fetcher as unknown, 'fetchWithRetry')
+        .mockResolvedValue({
+          bitcoin: { usd: 60000, usd_market_cap: 1000, usd_24h_vol: 200 },
+          ethereum: { usd: 3000, usd_market_cap: 500, usd_24h_vol: 100 },
+        });
+      const prices = await fetcher.fetchCurrentPrices([
+        { tokenId: 'bitcoin', tokenSymbol: 'BTC' },
+        { tokenId: 'ethereum', tokenSymbol: 'ETH' },
+      ]);
+      expect(requestSpy).toHaveBeenCalledTimes(1);
+      expect(requestSpy).toHaveBeenCalledWith(
+        expect.stringContaining('ids=bitcoin,ethereum&vs_currencies=usd'),
+        {},
+        3,
+        1000,
+      );
+      expect(
+        prices.map((price) => [price.tokenSymbol, price.priceUsd]),
+      ).toEqual([
+        ['BTC', 60000],
+        ['ETH', 3000],
+      ]);
+    });
+
+    it('rejects the batch if any CoinGecko token is missing', async () => {
+      vi.spyOn(fetcher as unknown, 'fetchWithRetry').mockResolvedValue({
+        bitcoin: { usd: 60000 },
+      });
+      await expect(
+        fetcher.fetchCurrentPrices([
+          { tokenId: 'bitcoin', tokenSymbol: 'BTC' },
+          { tokenId: 'ethereum', tokenSymbol: 'ETH' },
+        ]),
+      ).rejects.toThrow('missing ethereum.usd');
+    });
+
+    it('fetchCurrentPrices should return valid data on success', async () => {
       const mockResponse = {
         bitcoin: {
           usd: 50000,
@@ -67,13 +105,15 @@ describe('BTC Price Pipeline', () => {
         mockResponse,
       );
 
-      const result = await fetcher.fetchCurrentPrice();
+      const [result] = await fetcher.fetchCurrentPrices([
+        { tokenId: 'bitcoin', tokenSymbol: 'BTC' },
+      ]);
       expect(result.priceUsd).toBe(50000);
       expect(result.tokenSymbol).toBe('BTC');
       expect(result.source).toBe('coingecko');
     });
 
-    it('fetchCurrentPrice should default market_cap and volume to 0 when null', async () => {
+    it('fetchCurrentPrices should default market_cap and volume to 0 when null', async () => {
       const mockResponse = {
         bitcoin: {
           usd: 50000,
@@ -85,45 +125,55 @@ describe('BTC Price Pipeline', () => {
         mockResponse,
       );
 
-      const result = await fetcher.fetchCurrentPrice();
+      const [result] = await fetcher.fetchCurrentPrices([
+        { tokenId: 'bitcoin', tokenSymbol: 'BTC' },
+      ]);
       expect(result.priceUsd).toBe(50000);
       expect(result.marketCapUsd).toBe(0);
       expect(result.volume24hUsd).toBe(0);
     });
 
-    it('fetchCurrentPrice should throw if required fields missing', async () => {
+    it('fetchCurrentPrices should throw if required fields missing', async () => {
       const mockResponse = {}; // Empty object
       vi.spyOn(fetcher as unknown, 'fetchWithRetry').mockResolvedValue(
         mockResponse,
       );
-      await expect(fetcher.fetchCurrentPrice()).rejects.toThrow(
-        'missing bitcoin.usd field',
-      );
+      await expect(
+        fetcher.fetchCurrentPrices([
+          { tokenId: 'bitcoin', tokenSymbol: 'BTC' },
+        ]),
+      ).rejects.toThrow('missing bitcoin.usd field');
     });
 
-    it('fetchCurrentPrice should throw on invalid response format', async () => {
+    it('fetchCurrentPrices should throw on invalid response format', async () => {
       vi.spyOn(fetcher as unknown, 'fetchWithRetry').mockResolvedValue(null);
-      await expect(fetcher.fetchCurrentPrice()).rejects.toThrow(
-        'Invalid CoinGecko response',
-      );
+      await expect(
+        fetcher.fetchCurrentPrices([
+          { tokenId: 'bitcoin', tokenSymbol: 'BTC' },
+        ]),
+      ).rejects.toThrow('Invalid CoinGecko response');
     });
 
-    it('fetchCurrentPrice should throw on API error', async () => {
+    it('fetchCurrentPrices should throw on API error', async () => {
       const apiError = new APIError('Rate limited', 429);
       vi.spyOn(fetcher as unknown, 'fetchWithRetry').mockRejectedValue(
         apiError,
       );
-      await expect(fetcher.fetchCurrentPrice()).rejects.toThrow(
-        'CoinGecko API error',
-      );
+      await expect(
+        fetcher.fetchCurrentPrices([
+          { tokenId: 'bitcoin', tokenSymbol: 'BTC' },
+        ]),
+      ).rejects.toThrow('CoinGecko API error');
     });
 
-    it('fetchCurrentPrice should propagate unknown errors', async () => {
+    it('fetchCurrentPrices should propagate unknown errors', async () => {
       const error = new Error('Network error');
       vi.spyOn(fetcher as unknown, 'fetchWithRetry').mockRejectedValue(error);
-      await expect(fetcher.fetchCurrentPrice()).rejects.toThrow(
-        'Network error',
-      );
+      await expect(
+        fetcher.fetchCurrentPrices([
+          { tokenId: 'bitcoin', tokenSymbol: 'BTC' },
+        ]),
+      ).rejects.toThrow('Network error');
     });
 
     // --- fetchHistoricalPrice tests ---
@@ -233,7 +283,9 @@ describe('BTC Price Pipeline', () => {
         tokenSymbol: 'BTC',
         tokenId: 'bitcoin',
       };
-      vi.spyOn(fetcher, 'fetchCurrentPrice').mockResolvedValue(mockPriceData);
+      vi.spyOn(fetcher, 'fetchCurrentPrices').mockResolvedValue([
+        mockPriceData,
+      ]);
 
       const result = await fetcher.healthCheck();
       expect(result.status).toBe('healthy');
@@ -250,7 +302,9 @@ describe('BTC Price Pipeline', () => {
         tokenSymbol: 'BTC',
         tokenId: 'bitcoin',
       };
-      vi.spyOn(fetcher, 'fetchCurrentPrice').mockResolvedValue(mockPriceData);
+      vi.spyOn(fetcher, 'fetchCurrentPrices').mockResolvedValue([
+        mockPriceData,
+      ]);
 
       const result = await fetcher.healthCheck();
       expect(result.status).toBe('unhealthy');
@@ -285,6 +339,31 @@ describe('BTC Price Pipeline', () => {
       expect(mockPool.query).toHaveBeenCalledWith(
         expect.stringContaining('INSERT INTO token_price_snapshots'),
         expect.arrayContaining([50000, 'BTC', 'bitcoin']),
+      );
+    });
+
+    it('stores CMC provenance in raw_data within the CoinGecko daily series', async () => {
+      const record = {
+        priceUsd: 50000,
+        marketCapUsd: 1000000,
+        volume24hUsd: 500,
+        timestamp: new Date('2026-09-30T00:00:00Z'),
+        source: 'coinmarketcap',
+        tokenSymbol: 'BTC',
+        tokenId: 'bitcoin',
+      };
+      (mockPool.query as unknown).mockResolvedValue({
+        rows: [{ id: 1, snapshot_date: '2026-09-30' }],
+      });
+      await writer.insertSnapshot(record);
+      const [query, values] = (mockPool.query as unknown).mock.calls.at(-1);
+      const columns = query
+        .match(/INSERT INTO .*?\(([^)]+)\)/s)[1]
+        .split(',')
+        .map((value: string) => value.trim());
+      expect(values[columns.indexOf('source')]).toBe('coingecko');
+      expect(JSON.parse(values[columns.indexOf('raw_data')]).source).toBe(
+        'coinmarketcap',
       );
     });
 
@@ -495,9 +574,10 @@ describe('BTC Price Pipeline', () => {
         tokenId: 'ethereum',
       };
 
-      vi.spyOn(CoinGeckoFetcher.prototype, 'fetchCurrentPrice')
-        .mockResolvedValueOnce(mockPriceData)
-        .mockResolvedValueOnce(mockEthPriceData);
+      vi.spyOn(
+        CoinGeckoFetcher.prototype,
+        'fetchCurrentPrices',
+      ).mockResolvedValueOnce([mockPriceData, mockEthPriceData]);
       vi.spyOn(TokenPriceWriter.prototype, 'insertSnapshot')
         .mockResolvedValueOnce(undefined)
         .mockResolvedValueOnce(undefined);
@@ -527,8 +607,8 @@ describe('BTC Price Pipeline', () => {
 
       vi.spyOn(
         CoinGeckoFetcher.prototype,
-        'fetchCurrentPrice',
-      ).mockResolvedValue(mockPriceData);
+        'fetchCurrentPrices',
+      ).mockResolvedValue([mockPriceData]);
       vi.spyOn(
         TokenPriceWriter.prototype,
         'insertSnapshot',
@@ -562,8 +642,8 @@ describe('BTC Price Pipeline', () => {
 
       vi.spyOn(
         CoinGeckoFetcher.prototype,
-        'fetchCurrentPrice',
-      ).mockResolvedValue(mockPriceData);
+        'fetchCurrentPrices',
+      ).mockResolvedValue([mockPriceData]);
       vi.spyOn(
         TokenPriceWriter.prototype,
         'insertSnapshot',
@@ -603,7 +683,7 @@ describe('BTC Price Pipeline', () => {
 
       vi.spyOn(
         CoinGeckoFetcher.prototype,
-        'fetchCurrentPrice',
+        'fetchCurrentPrices',
       ).mockRejectedValue(new Error('Fetch failed'));
 
       const result = await pipeline.process(job);
@@ -653,7 +733,7 @@ describe('BTC Price Pipeline', () => {
       vi.spyOn(
         CoinGeckoFetcher.prototype,
         'fetchHistoricalPrice',
-      ).mockResolvedValue(mockPriceData);
+      ).mockResolvedValue([mockPriceData]);
       vi.spyOn(TokenPriceWriter.prototype, 'insertBatch').mockResolvedValue(1);
       vi.spyOn(CoinGeckoFetcher.prototype, 'formatDateForApi').mockReturnValue(
         '02-01-2023',
@@ -869,8 +949,8 @@ describe('BTC Price Pipeline', () => {
 
       vi.spyOn(
         CoinGeckoFetcher.prototype,
-        'fetchCurrentPrice',
-      ).mockResolvedValue(mockPriceData);
+        'fetchCurrentPrices',
+      ).mockResolvedValue([mockPriceData]);
       vi.spyOn(
         TokenPriceWriter.prototype,
         'insertSnapshot',

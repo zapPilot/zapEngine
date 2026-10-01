@@ -28,6 +28,7 @@ import {
   getExistingDates,
   logGapDetectionSummary,
 } from './backfill.helpers.js';
+import { CoinMarketCapPriceFetcher } from './coinMarketCapFetcher.js';
 import { TokenPriceDmaService } from './dmaService.js';
 import { CoinGeckoFetcher, type TokenPriceData } from './fetcher.js';
 import {
@@ -42,14 +43,16 @@ export class TokenPriceETLProcessor implements BaseETLProcessor {
   private static readonly DEFAULT_TOKENS: readonly {
     tokenId: string;
     tokenSymbol: string;
+    coinMarketCapId: number;
   }[] = [
-    { tokenId: 'bitcoin', tokenSymbol: 'BTC' },
-    { tokenId: 'ethereum', tokenSymbol: 'ETH' },
+    { tokenId: 'bitcoin', tokenSymbol: 'BTC', coinMarketCapId: 1 },
+    { tokenId: 'ethereum', tokenSymbol: 'ETH', coinMarketCapId: 1027 },
   ];
   private static readonly DEFAULT_TOKEN_ID = 'bitcoin';
   private static readonly DEFAULT_TOKEN_SYMBOL = 'BTC';
 
   private fetcher: CoinGeckoFetcher;
+  private readonly coinMarketCapFetcher = new CoinMarketCapPriceFetcher();
   private writer: TokenPriceWriter;
   private dmaService: TokenPriceDmaService;
   private stats = createProcessorStats();
@@ -63,7 +66,7 @@ export class TokenPriceETLProcessor implements BaseETLProcessor {
   /**
    * Process token price snapshot for an ETL job
    *
-   * Fetches current price for the default token (BTC) and stores it.
+   * Fetches BTC/ETH prices with CoinMarketCap fallback and stores the daily series.
    */
   async process(job: ETLJob): Promise<ETLProcessResult> {
     return withValidatedJob(job, 'token-price', async () => {
@@ -255,12 +258,26 @@ export class TokenPriceETLProcessor implements BaseETLProcessor {
       job,
       'token-price',
       async () => {
-        const prices = await Promise.all(
-          TokenPriceETLProcessor.DEFAULT_TOKENS.map((token) =>
-            this.fetcher.fetchCurrentPrice(token.tokenId, token.tokenSymbol),
-          ),
-        );
-        return prices;
+        try {
+          return await this.fetcher.fetchCurrentPrices(
+            TokenPriceETLProcessor.DEFAULT_TOKENS,
+          );
+        } catch (error) {
+          const coinGeckoError = toErrorMessage(error);
+          logger.warn(
+            'CoinGecko price fetch failed; falling back to CoinMarketCap',
+            { error: coinGeckoError },
+          );
+          try {
+            return await this.coinMarketCapFetcher.fetchCurrentPrices(
+              TokenPriceETLProcessor.DEFAULT_TOKENS,
+            );
+          } catch (fallbackError) {
+            throw new Error(
+              `CoinGecko: ${coinGeckoError}; CoinMarketCap: ${toErrorMessage(fallbackError)}`,
+            );
+          }
+        }
       },
       async (rawData) => rawData,
       async (data) => writeSnapshotData(data, this.writer),

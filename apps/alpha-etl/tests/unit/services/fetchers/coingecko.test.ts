@@ -22,7 +22,7 @@ describe('CoinGeckoFetcher', () => {
     vi.restoreAllMocks();
   });
 
-  describe('fetchCurrentPrice', () => {
+  describe('fetchCurrentPrices', () => {
     it('should fetch and return current price data', async () => {
       fetchMock.mockResolvedValue({
         ok: true,
@@ -35,7 +35,9 @@ describe('CoinGeckoFetcher', () => {
         }),
       });
 
-      const result = await fetcher.fetchCurrentPrice('bitcoin', 'BTC');
+      const [result] = await fetcher.fetchCurrentPrices([
+        { tokenId: 'bitcoin', tokenSymbol: 'BTC' },
+      ]);
 
       expect(result.priceUsd).toBe(97500);
       expect(result.marketCapUsd).toBe(1900000000000);
@@ -57,7 +59,9 @@ describe('CoinGeckoFetcher', () => {
         }),
       });
 
-      const result = await fetcher.fetchCurrentPrice('ethereum', 'ETH');
+      const [result] = await fetcher.fetchCurrentPrices([
+        { tokenId: 'ethereum', tokenSymbol: 'ETH' },
+      ]);
 
       expect(result.priceUsd).toBe(3500);
       expect(result.tokenSymbol).toBe('ETH');
@@ -72,9 +76,11 @@ describe('CoinGeckoFetcher', () => {
         }),
       });
 
-      await expect(fetcher.fetchCurrentPrice('bitcoin', 'BTC')).rejects.toThrow(
-        'Invalid CoinGecko response',
-      );
+      await expect(
+        fetcher.fetchCurrentPrices([
+          { tokenId: 'bitcoin', tokenSymbol: 'BTC' },
+        ]),
+      ).rejects.toThrow('Invalid CoinGecko response');
     });
 
     it('should throw error on API failure', async () => {
@@ -85,7 +91,9 @@ describe('CoinGeckoFetcher', () => {
       });
 
       await expect(
-        fetcher.fetchCurrentPrice('bitcoin', 'BTC'),
+        fetcher.fetchCurrentPrices([
+          { tokenId: 'bitcoin', tokenSymbol: 'BTC' },
+        ]),
       ).rejects.toThrow();
     });
 
@@ -100,7 +108,9 @@ describe('CoinGeckoFetcher', () => {
         }),
       });
 
-      const result = await fetcher.fetchCurrentPrice('bitcoin', 'BTC');
+      const [result] = await fetcher.fetchCurrentPrices([
+        { tokenId: 'bitcoin', tokenSymbol: 'BTC' },
+      ]);
 
       expect(result.priceUsd).toBe(97500);
       expect(result.marketCapUsd).toBe(0);
@@ -119,9 +129,11 @@ describe('CoinGeckoFetcher', () => {
         }),
       });
 
-      await expect(fetcher.fetchCurrentPrice('bitcoin', 'BTC')).rejects.toThrow(
-        'Invalid CoinGecko response',
-      );
+      await expect(
+        fetcher.fetchCurrentPrices([
+          { tokenId: 'bitcoin', tokenSymbol: 'BTC' },
+        ]),
+      ).rejects.toThrow('Invalid CoinGecko response');
     });
 
     it('should use default parameters', async () => {
@@ -136,7 +148,9 @@ describe('CoinGeckoFetcher', () => {
         }),
       });
 
-      const result = await fetcher.fetchCurrentPrice();
+      const [result] = await fetcher.fetchCurrentPrices([
+        { tokenId: 'bitcoin', tokenSymbol: 'BTC' },
+      ]);
 
       expect(result.tokenId).toBe('bitcoin');
       expect(result.tokenSymbol).toBe('BTC');

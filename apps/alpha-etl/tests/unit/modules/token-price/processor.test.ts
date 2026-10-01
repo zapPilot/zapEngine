@@ -3,12 +3,13 @@ import { logger as mockLogger } from '../../../../src/utils/logger.js';
 
 const mocks = vi.hoisted(() => ({
   fetcher: {
-    fetchCurrentPrice: vi.fn(),
+    fetchCurrentPrices: vi.fn(),
     fetchHistoricalPrice: vi.fn(),
     formatDateForApi: vi.fn((d: Date) => d.toISOString().split('T')[0]),
     healthCheck: vi.fn(),
     getRequestStats: vi.fn(() => ({})),
   },
+  cmc: { fetchCurrentPrices: vi.fn() },
   writer: {
     insertSnapshot: vi.fn(),
     getExistingDatesInRange: vi.fn(),
@@ -32,6 +33,14 @@ vi.mock('../../../../src/modules/token-price/fetcher.js', () => ({
   CoinGeckoFetcher: class {
     constructor() {
       return mocks.fetcher;
+    }
+  },
+}));
+
+vi.mock('../../../../src/modules/token-price/coinMarketCapFetcher.js', () => ({
+  CoinMarketCapPriceFetcher: class {
+    constructor() {
+      return mocks.cmc;
     }
   },
 }));
@@ -71,6 +80,74 @@ describe('TokenPriceETLProcessor error paths', () => {
     processor = new TokenPriceETLProcessor({} as unknown);
   });
 
+  describe('provider fallback', () => {
+    const job = {
+      jobId: 'fallback-job',
+      trigger: 'manual',
+      sources: ['token-price'],
+      createdAt: new Date(),
+      status: 'pending',
+    };
+    const prices = ['BTC', 'ETH'].map((tokenSymbol) => ({
+      tokenSymbol,
+      tokenId: tokenSymbol === 'BTC' ? 'bitcoin' : 'ethereum',
+      priceUsd: 100,
+      marketCapUsd: 1000,
+      volume24hUsd: 100,
+      timestamp: new Date(),
+      source: 'coinmarketcap',
+    }));
+
+    it('writes fallback prices and runs DMA without errors', async () => {
+      mocks.fetcher.fetchCurrentPrices.mockRejectedValueOnce(new Error('403'));
+      mocks.cmc.fetchCurrentPrices.mockResolvedValueOnce(prices);
+      mocks.writer.insertSnapshot.mockResolvedValue(undefined);
+      mocks.dmaService.updateDmaForToken.mockResolvedValue({
+        recordsInserted: 1,
+      });
+      mocks.dmaService.updateEthBtcRatioDma.mockResolvedValue({
+        recordsInserted: 1,
+      });
+      const result = await processor.process(job as unknown);
+      expect(result).toMatchObject({
+        success: true,
+        errors: [],
+        recordsInserted: 2,
+      });
+      expect(mocks.cmc.fetchCurrentPrices).toHaveBeenCalledWith([
+        { tokenId: 'bitcoin', tokenSymbol: 'BTC', coinMarketCapId: 1 },
+        { tokenId: 'ethereum', tokenSymbol: 'ETH', coinMarketCapId: 1027 },
+      ]);
+      expect(mocks.dmaService.updateDmaForToken).toHaveBeenCalledTimes(2);
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('falling back'),
+        { error: '403' },
+      );
+    });
+
+    it('combines errors when both providers fail', async () => {
+      mocks.fetcher.fetchCurrentPrices.mockRejectedValueOnce(
+        new Error('blocked'),
+      );
+      mocks.cmc.fetchCurrentPrices.mockRejectedValueOnce(new Error('quota'));
+      const result = await processor.process(job as unknown);
+      expect(result.success).toBe(false);
+      expect(result.errors.join('; ')).toContain(
+        'CoinGecko: blocked; CoinMarketCap: quota',
+      );
+      expect(mocks.writer.insertSnapshot).not.toHaveBeenCalled();
+      expect(mocks.dmaService.updateDmaForToken).not.toHaveBeenCalled();
+    });
+
+    it('does not call CMC when CoinGecko succeeds', async () => {
+      mocks.fetcher.fetchCurrentPrices.mockResolvedValueOnce(prices);
+      mocks.writer.insertSnapshot.mockResolvedValue(undefined);
+      const result = await processor.process(job as unknown);
+      expect(result.success).toBe(true);
+      expect(mocks.cmc.fetchCurrentPrices).not.toHaveBeenCalled();
+    });
+  });
+
   describe('healthCheck', () => {
     it('should return unhealthy on exception', async () => {
       mocks.fetcher.healthCheck.mockRejectedValueOnce(new Error('health boom'));
@@ -96,8 +173,8 @@ describe('TokenPriceETLProcessor error paths', () => {
         status: 'pending',
       };
 
-      mocks.fetcher.fetchCurrentPrice
-        .mockResolvedValueOnce({
+      mocks.fetcher.fetchCurrentPrices.mockResolvedValueOnce([
+        {
           priceUsd: 100,
           marketCapUsd: 1000,
           volume24hUsd: 500,
@@ -105,8 +182,8 @@ describe('TokenPriceETLProcessor error paths', () => {
           tokenSymbol: 'BTC',
           tokenId: 'bitcoin',
           timestamp: new Date(),
-        })
-        .mockResolvedValueOnce({
+        },
+        {
           priceUsd: 2000,
           marketCapUsd: 200000,
           volume24hUsd: 50000,
@@ -114,7 +191,8 @@ describe('TokenPriceETLProcessor error paths', () => {
           tokenSymbol: 'ETH',
           tokenId: 'ethereum',
           timestamp: new Date(),
-        });
+        },
+      ]);
       mocks.writer.insertSnapshot
         .mockResolvedValueOnce(undefined)
         .mockResolvedValueOnce(undefined);
