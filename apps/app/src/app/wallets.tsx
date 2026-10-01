@@ -1,3 +1,4 @@
+import { ScreenCrashBoundary } from '@/components/ui/ScreenCrashBoundary';
 import type { ReactElement } from 'react';
 
 import { AuthenticatedRoute } from '@/components/auth/AuthenticatedRoute';
@@ -6,10 +7,12 @@ import { WalletsScreen } from '@/screens/WalletsScreen';
 
 export default function WalletsRoute(): ReactElement {
   return (
-    <FinancialFeatureRoute title="Wallets">
-      <AuthenticatedRoute>
-        <WalletsScreen />
-      </AuthenticatedRoute>
-    </FinancialFeatureRoute>
+    <ScreenCrashBoundary screen="wallets">
+      <FinancialFeatureRoute title="Wallets">
+        <AuthenticatedRoute>
+          <WalletsScreen />
+        </AuthenticatedRoute>
+      </FinancialFeatureRoute>
+    </ScreenCrashBoundary>
   );
 }

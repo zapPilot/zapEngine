@@ -1,4 +1,4 @@
-// Temporary migration debt. Remove fingerprints as their consumers migrate.
+// Temporary design-system debt: exact normalized-node fingerprint counts. Remove after the UI migration.
 export default {
   'src/components/home/AssetRow.tsx': {
     'zap-ui/no-raw-text:71988c4d8e0803ba4519': 1,
@@ -58,7 +58,6 @@ export default {
     'react/jsx-no-literals:b83aa5eb47a448c0ffef': 1,
     'react/jsx-no-literals:b97353ae99645741b25d': 1,
     'zap-ui/no-raw-design-values:1e80faaf893c134efe48': 1,
-    'react/jsx-no-literals:1b3c905b650d3336e725': 1,
     'zap-ui/no-raw-design-values:98605b8a3d093ea91bc2': 1,
     'react/jsx-no-literals:7dbaa7e99a073888066f': 1,
     'react/jsx-no-literals:604f0abcc4e32600b321': 1,
@@ -70,11 +69,12 @@ export default {
     'react/jsx-no-literals:32b020cd217aef3b6ecd': 2,
     'zap-ui/no-raw-design-values:4ed49b8b7d2d5fbb5f4b': 2,
     'react/jsx-no-literals:80ad7d74c5a42dad7054': 1,
-    'zap-ui/no-direct-icon:37a19288cc8b56b24254': 1,
-    'react/jsx-no-literals:7acc4b133f50667d497a': 1,
-    'zap-ui/no-raw-design-values:f7eafd4a673fb1307e4a': 1,
     'react/jsx-no-literals:08b383f44fc8ea50ad72': 1,
     'zap-ui/no-raw-design-values:f3f506a768ff811fbb02': 1,
+    'react/jsx-no-literals:9b90c179a6252957c8d5': 1,
+    'zap-ui/no-direct-icon:0b249e82e96f01a950e9': 1,
+    'react/jsx-no-literals:497bfef7a1a1640b2d4c': 1,
+    'zap-ui/no-raw-design-values:206180ec962646fd3f26': 1,
   },
   'src/components/home/HomeIncomeCard.tsx': {
     'zap-ui/no-raw-text:71988c4d8e0803ba4519': 1,
@@ -182,7 +182,6 @@ export default {
     'react/jsx-no-literals:5c8cf38e4308600a353f': 1,
     'react/jsx-no-literals:36fcf2064610d7b339ed': 1,
     'zap-ui/no-direct-icon:5e11a1bf51ae5d8a48db': 1,
-    'zap-ui/no-direct-icon:f541d0105eef3303a5c8': 1,
     'zap-ui/no-direct-icon:f98b40ca3127b64d503f': 1,
     'react/jsx-no-literals:2968d12b56e281262f2a': 1,
     'react/jsx-no-literals:d9c8c1265b78ece68a58': 1,
@@ -210,6 +209,7 @@ export default {
     'zap-ui/no-raw-design-values:cfc8403a152dea5f1147': 1,
     'react/jsx-no-literals:d08f4384e15983eaf5ad': 1,
     'zap-ui/no-raw-design-values:baaaae679bd07cb6f8c9': 1,
+    'zap-ui/no-direct-icon:82ebe14b9591ce8b940b': 1,
   },
   'src/components/share/SharePortfolioButton.tsx': {
     'react/jsx-no-literals:2968d12b56e281262f2a': 1,
@@ -238,7 +238,6 @@ export default {
     'zap-ui/no-raw-design-values:03ca03a7900f5bd50bc1': 1,
     'react/jsx-no-literals:4090b1d2e1a6b9deae08': 1,
     'react/jsx-no-literals:9c3065b1a50b683a0b43': 1,
-    'react/jsx-no-literals:aa2d912daa3528287b1e': 1,
     'zap-ui/no-raw-design-values:7e422b98df9451bda6ee': 1,
     'react/jsx-no-literals:620731c5e04b5a227a18': 1,
     'zap-ui/no-raw-design-values:f7d71ed6332e6d04889e': 1,
@@ -263,6 +262,7 @@ export default {
     'zap-ui/no-raw-design-values:408edd6f51f89548156d': 1,
     'react/jsx-no-literals:599321acca2c167f7f3c': 1,
     'zap-ui/no-raw-design-values:797fceb2fade9f9b04d3': 1,
+    'react/jsx-no-literals:b194b33ebf6079d4750e': 1,
   },
   'src/screens/PortfolioScreen.shared.tsx': {
     'zap-ui/no-raw-text:71988c4d8e0803ba4519': 1,
@@ -277,7 +277,6 @@ export default {
     'zap-ui/no-raw-design-values:96dfa692aebb5bc91107': 1,
     'react/jsx-no-literals:4090b1d2e1a6b9deae08': 1,
     'react/jsx-no-literals:9c3065b1a50b683a0b43': 1,
-    'react/jsx-no-literals:689df955526c9022fc05': 1,
     'zap-ui/no-raw-design-values:7e422b98df9451bda6ee': 1,
     'react/jsx-no-literals:620731c5e04b5a227a18': 2,
     'zap-ui/no-raw-design-values:f7d71ed6332e6d04889e': 2,
@@ -304,6 +303,7 @@ export default {
     'react/jsx-no-literals:440ab0f98053fe5e7acc': 1,
     'zap-ui/no-raw-design-values:189b7547a92fdf4d9141': 1,
     'react/jsx-no-literals:3835f6a4f59c53108860': 1,
+    'react/jsx-no-literals:abe112abbb3b8e1ae957': 1,
   },
   'src/screens/SendScreen.tsx': {
     'zap-ui/no-raw-text:71988c4d8e0803ba4519': 1,
@@ -335,9 +335,9 @@ export default {
     'react/jsx-no-literals:bf2ba7639e7580109813': 1,
     'zap-ui/no-raw-design-values:46da3b7e07b052110fb3': 1,
     'react/jsx-no-literals:3835f6a4f59c53108860': 1,
-    'react/jsx-no-literals:0a833f47f14804104c12': 1,
     'react/jsx-no-literals:7fda81c45bd363577811': 1,
     'react/jsx-no-literals:d6c6c15f2942d444a428': 1,
     'react/jsx-no-literals:f6160bb4a64cf0ac9ca6': 1,
+    'react/jsx-no-literals:59db822072cbfa5079d9': 1,
   },
 };

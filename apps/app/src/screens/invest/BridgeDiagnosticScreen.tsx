@@ -2,7 +2,7 @@ import { Redirect } from 'expo-router';
 import { Text, View } from 'react-native';
 
 import { BridgeTestPanel } from '@/components/invest/BridgeTestPanel';
-import { StepHeader } from '@/components/invest/StepHeader';
+import { InvestStepHeader } from '@/components/invest/InvestStepHeader';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { isDevBuild } from '@/config/appCoreEnv';
 
@@ -16,8 +16,8 @@ export function BridgeDiagnosticScreen() {
   }
 
   return (
-    <ScreenScrollView>
-      <StepHeader title="Invest" step="Bridge test" />
+    <ScreenScrollView width="narrow">
+      <InvestStepHeader title="Invest" step="Bridge test" />
       <View className="px-5 pt-5">
         <Text className="font-serif text-[28px] leading-[32px] text-ink">
           Bridge USDC

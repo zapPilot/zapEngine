@@ -1,3 +1,4 @@
+import canonicalTokens from '@zapengine/design-tokens/tokens.json';
 /**
  * Characterization harness for `HomeScreen`.
  *
@@ -746,22 +747,7 @@ export const homeScreenMocks = {
     View: ViewStub,
   },
   lucide: lucideStubs(),
-  designTokens: {
-    tokens: {
-      color: {
-        accent: '#d4c5a3',
-        error: '#ef7474',
-        success: '#7fbf7f',
-        'ink-dim': '#a6a6a6',
-        'ink-faint': '#8a8a8a',
-        pillar: {
-          spy: '#d7dde7',
-          btc: '#f7931a',
-          usd: '#2775ca',
-        },
-      },
-    },
-  },
+  designTokens: { tokens: canonicalTokens },
   expoRouter: { useRouter: () => routerProbe },
   contentLanguage: {
     useContentLanguage: () => ({
@@ -811,8 +797,8 @@ export const homeScreenMocks = {
     ),
   },
   appHeader: {
-    AppHeader: (props: { action?: ReactNode }) => (
-      <div data-testid="app-header">{props.action}</div>
+    PageHeader: (props: { actions?: ReactNode }) => (
+      <div data-testid="app-header">{props.actions}</div>
     ),
   },
   // Calls useAccount()/useToast() before its early return, so it is replaced

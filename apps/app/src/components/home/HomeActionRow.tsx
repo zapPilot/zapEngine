@@ -1,9 +1,7 @@
-import { tokens } from '@zapengine/design-tokens/tokens';
 import { useRouter } from 'expo-router';
 import { ArrowDown, ArrowUp, Scale } from 'lucide-react-native';
 import { View } from 'react-native';
-
-import { HomeActionButton } from '@/components/home/HomeActionButton';
+import { Button } from '@/components/ui/Button';
 import { STRATEGY_DECISION_FOCUS_HREF } from '@/integration/strategyFocus';
 import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 
@@ -14,36 +12,36 @@ export function HomeActionRow({
 }) {
   const router = useRouter();
   const { t } = useContentLanguage();
-
   return (
     <View className="mt-5 flex-row gap-3 px-5">
-      <HomeActionButton
-        primary={!isStrategyActionRequired}
-        label={t('home.invest')}
+      <Button
+        className="flex-1"
+        variant={isStrategyActionRequired ? 'secondary' : 'primary'}
+        leadingIcon={ArrowDown}
         onPress={() => router.push('/invest/amount')}
-        icon={
-          <ArrowDown size={17} color={tokens.color.accent} strokeWidth={1.8} />
-        }
-      />
-      <HomeActionButton
-        accessibilityLabel={
-          isStrategyActionRequired
-            ? t('home.rebalanceActionRequiredA11y')
-            : undefined
-        }
-        primary={isStrategyActionRequired}
+      >
+        {t('home.invest')}
+      </Button>
+      <Button
+        className="flex-1"
+        variant={isStrategyActionRequired ? 'tonal' : 'secondary'}
+        leadingIcon={Scale}
         showIndicator={isStrategyActionRequired}
-        label={t('home.rebalance')}
+        {...(isStrategyActionRequired
+          ? { accessibilityLabel: t('home.rebalanceActionRequiredA11y') }
+          : {})}
         onPress={() => router.push(STRATEGY_DECISION_FOCUS_HREF)}
-        icon={<Scale size={17} color={tokens.color.accent} strokeWidth={1.8} />}
-      />
-      <HomeActionButton
-        label={t('home.send')}
+      >
+        {t('home.rebalance')}
+      </Button>
+      <Button
+        className="flex-1"
+        variant="secondary"
+        leadingIcon={ArrowUp}
         onPress={() => router.push('/send')}
-        icon={
-          <ArrowUp size={17} color={tokens.color.accent} strokeWidth={1.8} />
-        }
-      />
+      >
+        {t('home.send')}
+      </Button>
     </View>
   );
 }

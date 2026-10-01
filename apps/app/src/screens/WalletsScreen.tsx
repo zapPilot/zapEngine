@@ -1,27 +1,30 @@
 import { useToast } from '@zapengine/app-core/providers/ToastContext';
-import { tokens } from '@zapengine/design-tokens/tokens';
 import * as Clipboard from 'expo-clipboard';
-import { Wallet } from 'lucide-react-native';
+import { ArrowLeft, Wallet } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
+import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { AddWalletForm } from '@/components/wallets/AddWalletForm';
 import { WalletListSkeleton } from '@/components/wallets/WalletListStates';
 import { WalletRow } from '@/components/wallets/WalletRow';
-import { Card } from '@/components/ui/Card';
+import { ListGroup } from '@/components/ui/ListGroup';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { InfoRow } from '@/components/ui/InfoRow';
-import { PrimaryButton } from '@/components/ui/PrimaryButton';
-import { ScreenBackButton } from '@/components/ui/ScreenBackButton';
-import { ScreenHeader } from '@/components/ui/ScreenHeader';
+import { ListRow } from '@/components/ui/ListRow';
+import { Button } from '@/components/ui/Button';
+import { IconButton } from '@/components/ui/IconButton';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
-import { SectionLabel } from '@/components/ui/SectionLabel';
+import { SectionHeader } from '@/components/ui/SectionHeader';
 import { useAccount } from '@/integration/useAccount';
 import { useWalletManager } from '@/integration/useWalletManager';
 import { toWalletRows } from '@/integration/walletManagerModel';
 import { truncateAddress } from '@/lib/format';
 
 export function WalletsScreen() {
+  const router = useRouter();
+  const { t } = useContentLanguage();
   const account = useAccount();
   const manager = useWalletManager(account.userId, account.address);
   const { showToast } = useToast();
@@ -37,42 +40,45 @@ export function WalletsScreen() {
   };
 
   return (
-    <ScreenScrollView>
-      <ScreenHeader
+    <ScreenScrollView width="narrow">
+      <PageHeader
         title="Wallets"
-        left={<ScreenBackButton fallbackHref="/account" />}
+        leading={
+          <IconButton
+            icon={ArrowLeft}
+            accessibilityLabel={t('common.back')}
+            onPress={() => {
+              if (router.canGoBack()) router.back();
+              else router.replace('/account');
+            }}
+          />
+        }
       />
 
       <View className="px-5 pt-5">
-        <Card className="p-5">
+        <ListGroup className="p-5">
           <Text className="font-sans-semibold text-[15px] text-ink">
             {account.email || truncateAddress(account.address ?? '')}
           </Text>
           <View className="mt-3">
-            <InfoRow label="Wallets in bundle" value={String(rows.length)} />
+            <ListRow title="Wallets in bundle" value={String(rows.length)} />
           </View>
-        </Card>
+        </ListGroup>
 
         <View className="mt-5 flex-row items-center justify-between">
-          <SectionLabel>Bundled wallets</SectionLabel>
+          <SectionHeader title={<> Bundled wallets </>} />
           {manager.isRefreshing && rows.length > 0 ? (
             <Text className="font-mono text-[9.5px] uppercase tracking-[0.76px] text-ink-faint">
               Refreshing
             </Text>
           ) : null}
         </View>
-        <Card className="mt-2 p-[13px]">
+        <ListGroup className="mt-2 p-[13px]">
           {showListSkeleton ? (
             <WalletListSkeleton />
           ) : rows.length === 0 ? (
             <EmptyState
-              icon={
-                <Wallet
-                  size={17}
-                  strokeWidth={1.8}
-                  color={tokens.color.accent}
-                />
-              }
+              icon={Wallet}
               title="No wallets in this bundle"
               body="Wallets you add appear here and feed the combined portfolio."
               action={{
@@ -103,11 +109,11 @@ export function WalletsScreen() {
               />
             ))
           )}
-        </Card>
+        </ListGroup>
 
         <View className="mt-5">
           {showAddForm ? (
-            <Card className="p-4">
+            <ListGroup className="p-4">
               <Text className="mb-3 font-sans-semibold text-[14px] text-ink">
                 Add wallet to bundle
               </Text>
@@ -120,14 +126,11 @@ export function WalletsScreen() {
                 }}
                 onCancel={() => setShowAddForm(false)}
               />
-            </Card>
+            </ListGroup>
           ) : (
-            <PrimaryButton
-              variant="secondary"
-              onPress={() => setShowAddForm(true)}
-            >
+            <Button variant="secondary" onPress={() => setShowAddForm(true)}>
               Add wallet
-            </PrimaryButton>
+            </Button>
           )}
         </View>
 

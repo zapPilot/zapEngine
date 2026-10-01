@@ -13,7 +13,7 @@ import { Text, View } from 'react-native';
 import { ProtocolIcon } from '@/components/token/ProtocolIcon';
 import { TokenIcon } from '@/components/token/TokenIcon';
 import { Card } from '@/components/ui/Card';
-import { SectionLabel } from '@/components/ui/SectionLabel';
+import { SectionHeader } from '@/components/ui/SectionHeader';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
 import { Tap } from '@/components/ui/Tap';
 import type { HomeBorrowingRiskView } from '@/integration/homeBorrowingRiskModel';
@@ -460,7 +460,7 @@ export function HomeIncomeCard({
 
   return (
     <View>
-      <SectionLabel>{t('home.passiveIncomeTitle')}</SectionLabel>
+      <SectionHeader title={t('home.passiveIncomeTitle')} />
       <Card className="mt-3 px-4 py-4">
         {isLoading ? (
           <>

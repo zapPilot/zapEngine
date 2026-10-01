@@ -16,10 +16,10 @@ import { ChainBatchReviewCard } from '@/components/invest/ChainBatchReviewCard';
 import { ProgressTimelineRow } from '@/components/invest/ProgressTimelineRow';
 import { ChainIconStack } from '@/components/token/ChainIconStack';
 import { ChainMark } from '@/components/token/ChainMark';
-import { StepHeader } from '@/components/invest/StepHeader';
+import { InvestStepHeader } from '@/components/invest/InvestStepHeader';
 import { WizardDoneCard } from '@/components/invest/WizardDoneCard';
-import { InlineErrorCard } from '@/components/ui/InlineErrorCard';
-import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { Callout } from '@/components/ui/Callout';
+import { Button } from '@/components/ui/Button';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { Tap } from '@/components/ui/Tap';
 import { useCheckpointAutoAdvance } from '@/hooks/useCheckpointAutoAdvance';
@@ -441,8 +441,8 @@ export function InvestProgressScreen() {
 
   if (routeComplete) {
     return (
-      <ScreenScrollView>
-        <StepHeader title="Invest" step="Done" />
+      <ScreenScrollView width="narrow">
+        <InvestStepHeader title="Invest" step="Done" />
         <View className="px-5 pt-6">
           <Text className="font-serif text-[28px] leading-[32px] text-ink">
             Investment complete
@@ -478,8 +478,8 @@ export function InvestProgressScreen() {
   }
 
   return (
-    <ScreenScrollView>
-      <StepHeader
+    <ScreenScrollView width="narrow">
+      <InvestStepHeader
         title="Invest"
         step={
           reviewedProgress.phase === 'failed'
@@ -573,7 +573,7 @@ export function InvestProgressScreen() {
               <>
                 <Text
                   accessibilityRole="alert"
-                  className="mt-3 text-[10.5px] leading-4 text-error"
+                  className="mt-3 text-[10.5px] leading-4 text-danger"
                 >
                   {checkpointError}
                 </Text>
@@ -583,7 +583,7 @@ export function InvestProgressScreen() {
                     exactly this batch without generating another quote.
                   </Text>
                 ) : null}
-                <PrimaryButton
+                <Button
                   className="mt-4"
                   disabled={checkpointPending}
                   onPress={() =>
@@ -595,7 +595,7 @@ export function InvestProgressScreen() {
                   {checkpointNeedsConfirmation
                     ? 'Confirm updated batch'
                     : 'Retry next batch'}
-                </PrimaryButton>
+                </Button>
               </>
             ) : (
               <Text className="mt-3 text-[10.5px] leading-4 text-ink-dim">
@@ -609,7 +609,8 @@ export function InvestProgressScreen() {
 
         {reviewedProgress.phase === 'failed' ? (
           <View className="mt-5">
-            <InlineErrorCard
+            <Callout
+              tone="danger"
               title="Reviewed batch needs attention"
               body={
                 reviewedProgress.statusNote ??
@@ -628,7 +629,8 @@ export function InvestProgressScreen() {
 
         {visibleError ? (
           <View className="mt-5">
-            <InlineErrorCard
+            <Callout
+              tone="danger"
               title="HLP settlement needs attention"
               body={visibleError}
               action={
@@ -659,7 +661,7 @@ export function InvestProgressScreen() {
         ) : null}
 
         {shouldOfferAgentEnable(hlpModel) ? (
-          <PrimaryButton
+          <Button
             className="mt-5"
             disabled={
               agent.status === 'checking' || agent.status === 'approving'
@@ -672,13 +674,13 @@ export function InvestProgressScreen() {
             {agent.status === 'approving'
               ? 'Confirm in your wallet…'
               : 'Enable Hyperliquid signing and deposit'}
-          </PrimaryButton>
+          </Button>
         ) : null}
 
         {wizard.hlp.status === 'confirming' ? (
-          <PrimaryButton className="mt-5" disabled onPress={() => undefined}>
+          <Button className="mt-5" disabled onPress={() => undefined}>
             Verifying HLP position…
-          </PrimaryButton>
+          </Button>
         ) : null}
       </View>
     </ScreenScrollView>

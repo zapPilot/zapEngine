@@ -163,7 +163,7 @@ export const EpisodeVideoPlayer = memo(function EpisodeVideoPlayer({
   return (
     <View
       accessibilityLabel={`Video player: ${title}`}
-      className="overflow-hidden bg-black"
+      className="overflow-hidden bg-ink-inverse"
       style={styles.frame}
     >
       <VideoView
@@ -176,7 +176,7 @@ export const EpisodeVideoPlayer = memo(function EpisodeVideoPlayer({
       {status === 'readyToPlay' ? null : (
         <View
           pointerEvents="none"
-          className="absolute inset-0 items-center justify-center bg-black"
+          className="absolute inset-0 items-center justify-center bg-ink-inverse"
         >
           <Image
             accessibilityIgnoresInvertColors

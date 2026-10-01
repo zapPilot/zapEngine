@@ -20,9 +20,9 @@ vi.mock('react-native', () => ({
   View: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
 }));
 
-vi.mock('@/components/home/HomeActionButton', () => ({
-  HomeActionButton: ({ label }: { label: string }) => (
-    <button type="button">{label}</button>
+vi.mock('@/components/ui/Button', () => ({
+  Button: ({ children }: { children: ReactNode }) => (
+    <button type="button">{children}</button>
   ),
 }));
 

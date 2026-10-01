@@ -3,7 +3,7 @@ import { ArrowRight, Check, TriangleAlert, Zap } from 'lucide-react-native';
 import { Text, View } from 'react-native';
 
 import { Card } from '@/components/ui/Card';
-import { SectionLabel } from '@/components/ui/SectionLabel';
+import { SectionHeader } from '@/components/ui/SectionHeader';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
 import { Tap } from '@/components/ui/Tap';
 import type { HomeStrategyStatusView } from '@/integration/useHomeData';
@@ -24,7 +24,7 @@ export function StrategyStatusCard({
   if (loading && !status) {
     return (
       <View>
-        <SectionLabel>{t('home.strategyStatusTitle')}</SectionLabel>
+        <SectionHeader title={t('home.strategyStatusTitle')} />
         <Card className="mt-3 p-4">
           <SkeletonBlock className="h-5 w-48" />
           <SkeletonBlock className="mt-3 h-4 w-64" />
@@ -46,14 +46,14 @@ export function StrategyStatusCard({
   const icon = isActionRequired ? (
     <Zap size={16} strokeWidth={2} color={tokens.color.accent} />
   ) : isBlocked ? (
-    <TriangleAlert size={16} strokeWidth={2} color={tokens.color.error} />
+    <TriangleAlert size={16} strokeWidth={2} color={tokens.color.danger} />
   ) : (
     <Check size={16} strokeWidth={2} color={tokens.color.success} />
   );
 
   return (
     <View>
-      <SectionLabel>{t('home.strategyStatusTitle')}</SectionLabel>
+      <SectionHeader title={t('home.strategyStatusTitle')} />
       <Tap accessibilityRole="button" onPress={onPress} className="mt-3">
         <Card className="p-4" style={{ borderColor: 'rgba(212,197,163,.2)' }}>
           <View className="flex-row items-center gap-2">

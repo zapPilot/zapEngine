@@ -5,7 +5,7 @@ import { Text, View } from 'react-native';
 
 import { SimulationReviewBody } from '@/components/invest/simulation/SimulationReviewBody';
 import { Card } from '@/components/ui/Card';
-import { InfoRow } from '@/components/ui/InfoRow';
+import { ListRow } from '@/components/ui/ListRow';
 import {
   batchSummaryRows,
   positionSummaryRows,
@@ -24,9 +24,9 @@ function SummaryRows({ rows }: { rows: readonly StageSummaryRow[] }) {
   return (
     <>
       {rows.map((row, index) => (
-        <InfoRow
+        <ListRow
           key={row.label}
-          label={row.label}
+          title={row.label}
           value={row.value}
           divider={index < rows.length - 1}
         />

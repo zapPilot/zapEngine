@@ -83,9 +83,9 @@ export function SimulationCallRow({
           {call.error ? (
             <View
               accessibilityRole="alert"
-              className="mt-2 rounded-xl border border-error/25 bg-error/10 p-2.5"
+              className="mt-2 rounded-xl border border-danger-line bg-danger-soft p-2.5"
             >
-              <Text className="text-[10px] leading-4 text-error">
+              <Text className="text-[10px] leading-4 text-danger">
                 {call.error}
               </Text>
             </View>

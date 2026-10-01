@@ -27,6 +27,7 @@
   "dependencies": {
     "@sentry/electron": "^7.17.0",
     "@zapengine/app-core": "workspace:*",
+    "@zapengine/design-tokens": "workspace:*",
     "@zapengine/types": "workspace:*",
     "viem": "catalog:"
   },

@@ -5,11 +5,12 @@ import { Text, View } from 'react-native';
 
 import { AllocationBar } from '@/components/charts/AllocationBar';
 import { Card } from '@/components/ui/Card';
-import { Pill } from '@/components/ui/Pill';
+import { Badge } from '@/components/ui/Badge';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
 import type { TranslationKey } from '@/i18n/translations';
 import type { StrategyDecisionPacket } from '@/integration/useStrategyDecisionPacket';
 import { cn } from '@/lib/cn';
+import { assetColor } from '@/lib/assetColors';
 import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 
 interface DecisionPacketCardProps {
@@ -62,9 +63,9 @@ export function DecisionPacketCard({
         <Text className="font-sans-semibold text-[15px] text-ink">
           {t('strategy.todaysDecision')}
         </Text>
-        <Pill className="border border-line bg-[rgba(255,255,255,.05)]">
+        <Badge className="border border-line bg-[rgba(255,255,255,.05)]">
           {statusLabel}
-        </Pill>
+        </Badge>
       </View>
       <Text className="mt-1 font-mono text-[9px] text-ink-faint">
         {packet.asOf}
@@ -236,10 +237,10 @@ function AllocationRows({
   rows: { label: string; value: number }[];
 }) {
   const colors: Readonly<Record<string, string>> = {
-    BTC: '#f7931a',
-    ETH: '#7c83ff',
-    SPY: '#7ad88f',
-    STABLE: '#d4c5a3',
+    BTC: assetColor('btc'),
+    ETH: assetColor('eth'),
+    SPY: assetColor('spy'),
+    STABLE: assetColor('stable'),
   };
   return (
     <View className="mb-2">

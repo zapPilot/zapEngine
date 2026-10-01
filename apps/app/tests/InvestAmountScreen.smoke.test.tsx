@@ -28,6 +28,10 @@ const { push, rows } = vi.hoisted(() => ({
     token: { symbol: 'USDC' as const, name: 'USD Coin' },
   })),
 }));
+vi.mock('@/providers/ContentLanguageProvider', async () => {
+  const { en } = await import('./support/i18nHarness');
+  return { useContentLanguage: () => ({ languageCode: 'en', t: en }) };
+});
 vi.mock('expo-router', () => ({ useRouter: () => ({ push, back: vi.fn() }) }));
 vi.mock('@/integration/useAccount', () => ({
   useAccount: () => ({

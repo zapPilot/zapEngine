@@ -9,23 +9,15 @@ import {
 
 export const VERDICT_CLASSES: Record<SimulationVerdictTone, string> = {
   success: 'border-success/30 bg-success/10',
-  error: 'border-error/30 bg-error/10',
+  error: 'border-danger-line bg-danger-soft',
   neutral: 'border-line-hi bg-surface-elevated',
 };
 
 export const VERDICT_TEXT_CLASSES: Record<SimulationVerdictTone, string> = {
   success: 'text-success',
-  error: 'text-error',
+  error: 'text-danger',
   neutral: 'text-ink-dim',
 };
-
-export function SectionLabel({ children }: { children: string }) {
-  return (
-    <Text className="mb-2.5 font-mono-semibold text-[9px] uppercase tracking-[.8px] text-ink-faint">
-      {children}
-    </Text>
-  );
-}
 
 export function SimulationBlockingBanner({
   failed,
@@ -39,7 +31,7 @@ export function SimulationBlockingBanner({
       accessibilityRole="alert"
       className={
         failed
-          ? 'flex-row items-start gap-3 rounded-2xl border border-error/30 bg-error/10 p-4'
+          ? 'flex-row items-start gap-3 rounded-2xl border border-danger-line bg-danger-soft p-4'
           : 'flex-row items-start gap-3 rounded-2xl border border-line-hi bg-surface p-4'
       }
     >
@@ -52,7 +44,7 @@ export function SimulationBlockingBanner({
         <Text
           className={
             failed
-              ? 'font-sans-semibold text-[12px] text-error'
+              ? 'font-sans-semibold text-[12px] text-danger'
               : 'font-sans-semibold text-[12px] text-ink'
           }
         >
@@ -63,7 +55,7 @@ export function SimulationBlockingBanner({
         <Text
           className={
             failed
-              ? 'mt-1 text-[11px] leading-[17px] text-error'
+              ? 'mt-1 text-[11px] leading-[17px] text-danger'
               : 'mt-1 text-[11px] leading-[17px] text-ink-dim'
           }
         >

@@ -1,3 +1,4 @@
+import { podcastEpisodeHref } from '@/integration/podcastRoutes';
 import { EpisodeDownloadButton } from '@/components/podcast/EpisodeDownloadButton';
 import { downloadedEpisodeRows } from '@/integration/podcastVideoDownloads';
 import { usePodcastDownloads } from '@/providers/PodcastDownloadsProvider';
@@ -137,7 +138,7 @@ function LanguageClassroomSection({
           >
             <View className="flex-row items-start gap-3">
               <View className="rounded-full border border-[rgba(212,197,163,.3)] bg-[rgba(212,197,163,.12)] px-3 py-1">
-                <Text className="font-mono text-[10px] font-bold text-accent">
+                <Text className="font-mono text-[10px] font-sans-bold text-accent">
                   {contentLanguageBadge(lesson.targetLanguageCode)}
                 </Text>
               </View>
@@ -249,7 +250,7 @@ export function EpisodeDetailScreen() {
 
   const handleEpisodeChanged = (nextEpisode: PodcastEpisode) => {
     router.replace(
-      `/podcast/${encodeURIComponent(nextEpisode.localizationId)}?lang=${encodeURIComponent(nextEpisode.languageCode)}`,
+      podcastEpisodeHref(nextEpisode.localizationId, nextEpisode.languageCode),
     );
   };
 
@@ -288,14 +289,12 @@ export function EpisodeDetailScreen() {
 
   const handleLanguageSelected = (code: ContentLanguageCode) => {
     if (code === routeLanguageCode) return;
-    router.replace(
-      `/podcast/${encodeURIComponent(episode.id)}?lang=${encodeURIComponent(code)}`,
-    );
+    router.replace(podcastEpisodeHref(episode.id, code));
   };
 
   return (
     <View className="flex-1 bg-bg">
-      <ScreenScrollView bottomPadding={36}>
+      <ScreenScrollView width="reading" bottomPadding={36}>
         <EpisodeDetailHeader
           episode={episode}
           onBack={goBack}

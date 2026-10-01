@@ -1,3 +1,4 @@
+import { podcastEpisodeHref } from '@/integration/podcastRoutes';
 import {
   downloadedEpisodeRows,
   totalDownloadedBytes,
@@ -19,9 +20,8 @@ import {
   selectPodcastLists,
 } from '@/components/podcast/episodeListSelection';
 import { PlayUnheardCard } from '@/components/podcast/PlayUnheardCard';
-import { NowPlayingBar } from '@/components/podcast/NowPlayingBar';
 import { Card } from '@/components/ui/Card';
-import { ScreenHeader } from '@/components/ui/ScreenHeader';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
 import { Tap } from '@/components/ui/Tap';
@@ -49,10 +49,7 @@ import {
 import { cn } from '@/lib/cn';
 import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 import { useEpisodeProgress } from '@/providers/PodcastProgressProvider';
-import {
-  usePodcastPlayer,
-  usePodcastPlayerStatus,
-} from '@/providers/PodcastPlayerProvider';
+import { usePodcastPlayerStatus } from '@/providers/PodcastPlayerProvider';
 
 const EMPTY_SEARCH_RESULTS: readonly PodcastEpisodeSearchResult[] = [];
 const EMPTY_COMPLETION_BY_LANGUAGE: PodcastCompletionByLanguage = {};
@@ -196,18 +193,6 @@ function EmptyStateCard({
   );
 }
 
-// The only clock (currentTime/duration) subscriber on this screen: isolating
-// it in its own component keeps PodcastScreen off the playback tick, so the
-// episode list below does not re-render twice a second.
-function NowPlayingBarConnected({
-  onOpen,
-}: {
-  onOpen: (episode: PodcastEpisode) => void;
-}) {
-  const player = usePodcastPlayer();
-  return <NowPlayingBar player={player} onOpen={onOpen} />;
-}
-
 export function PodcastScreen() {
   const downloads = usePodcastDownloads();
   const router = useRouter();
@@ -334,7 +319,7 @@ export function PodcastScreen() {
 
   const openEpisode = (episode: PodcastEpisode) =>
     router.push(
-      `/podcast/${encodeURIComponent(episode.localizationId)}?lang=${encodeURIComponent(episode.languageCode)}`,
+      podcastEpisodeHref(episode.localizationId, episode.languageCode),
     );
 
   const renderRows = (
@@ -547,7 +532,7 @@ export function PodcastScreen() {
   return (
     <View className="flex-1 bg-bg">
       <ScreenScrollView
-        bottomPadding={player.nowPlaying === null ? 24 : 108}
+        width="dashboard"
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -560,14 +545,14 @@ export function PodcastScreen() {
           />
         }
       >
-        <ScreenHeader
+        <PageHeader
           title={t('podcast.title')}
-          left={
+          leading={
             <PodcastLanguageDropdown
               completionByLanguage={visibleCompletionByLanguage}
             />
           }
-          right={
+          actions={
             <Tap
               accessibilityRole="button"
               accessibilityLabel={t('podcast.searchEpisodes')}
@@ -614,8 +599,6 @@ export function PodcastScreen() {
           : null}
         {renderEpisodeContent()}
       </ScreenScrollView>
-
-      <NowPlayingBarConnected onOpen={openEpisode} />
     </View>
   );
 }

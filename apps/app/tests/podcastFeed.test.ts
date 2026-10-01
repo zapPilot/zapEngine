@@ -1,3 +1,4 @@
+import { podcastEpisodeHref } from '@/integration/podcastRoutes';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -17,7 +18,6 @@ import {
   parsePodcastEpisode,
   parsePodcastEpisodeRouteParams,
   parsePodcastEpisodeSearchResult,
-  podcastEpisodeRoutePath,
   podcastVideoRefetchInterval,
 } from '@/integration/podcastFeed';
 import {
@@ -927,7 +927,7 @@ describe('podcast feed client', () => {
   ])(
     'builds podcast episode route path for id=%s language=%s',
     (episodeId, languageCode, expected) => {
-      expect(podcastEpisodeRoutePath(episodeId, languageCode)).toBe(expected);
+      expect(podcastEpisodeHref(episodeId, languageCode)).toBe(expected);
     },
   );
 });

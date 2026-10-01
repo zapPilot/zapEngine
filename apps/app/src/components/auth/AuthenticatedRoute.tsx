@@ -1,6 +1,8 @@
-import { type Href, useRouter } from 'expo-router';
+import { type Href, useRouter, useUnstableGlobalHref } from 'expo-router';
 import type { ReactElement, ReactNode } from 'react';
 import { Platform, View } from 'react-native';
+
+import { useAuthenticatedAction } from '@/providers/AuthenticatedActionProvider';
 
 import { ConnectGatePage } from '@/components/connect/ConnectGatePage';
 import { CONNECT_GATE_COPY } from '@/components/connect/connectGateCopy';
@@ -11,16 +13,16 @@ import { NATIVE_PRIVY_AUTH_COPY } from '@/integration/nativePrivyLogin';
 
 export function AuthenticatedRoute({
   children,
-  redirectAfterLogin,
   allowBundleView,
 }: {
   children: ReactNode;
-  redirectAfterLogin?: Href;
   /** Let a public `?userId=` bundle view through without a login. */
   allowBundleView?: boolean;
 }): ReactElement {
   const account = useAccount();
   const router = useRouter();
+  const originalHref = useUnstableGlobalHref();
+  const { run } = useAuthenticatedAction();
   const isWeb = Platform.OS === 'web';
 
   if (allowBundleView && account.viewingUserId !== null) {
@@ -33,7 +35,7 @@ export function AuthenticatedRoute({
 
   if (account.isConnected) {
     return (
-      <ScreenScrollView>
+      <ScreenScrollView width="narrow">
         <View className="flex-1 px-5 pt-16">
           <AccountUnavailableCard
             variant="page"
@@ -50,16 +52,7 @@ export function AuthenticatedRoute({
       body={isWeb ? CONNECT_GATE_COPY.webBody : NATIVE_PRIVY_AUTH_COPY.body}
       isConnecting={account.isConnecting}
       error={account.connectionError}
-      onConnect={() => {
-        void account
-          .connect()
-          .then((outcome) => {
-            if (outcome === 'connected' && redirectAfterLogin) {
-              router.replace(redirectAfterLogin);
-            }
-          })
-          .catch(() => undefined);
-      }}
+      onConnect={() => run(() => router.replace(originalHref as Href))}
     />
   );
 }

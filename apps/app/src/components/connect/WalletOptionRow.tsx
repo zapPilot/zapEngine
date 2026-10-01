@@ -1,10 +1,12 @@
 import type { WalletConnectorOption } from '@zapengine/app-core/types';
 import { ChevronRight } from 'lucide-react-native';
-import { ActivityIndicator, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 
 import { WalletBrandIcon } from '@/components/connect/WalletBrandIcon';
 import { CONNECT_SHEET_COPY } from '@/components/connect/connectCopy';
-import { Pill } from '@/components/ui/Pill';
+import { Icon } from '@/components/ui/Icon';
+import { Spinner } from '@/components/ui/Spinner';
+import { Badge } from '@/components/ui/Badge';
 import { Tap } from '@/components/ui/Tap';
 import { cn } from '@/lib/cn';
 
@@ -58,20 +60,20 @@ export function WalletOptionRow({
       </View>
 
       {option.recommended ? (
-        <Pill
+        <Badge
           className="border bg-accent-soft"
           style={{ borderColor: 'rgba(212,197,163,.28)' }}
         >
           <Text className="font-mono text-[9px] uppercase tracking-[1px] text-accent">
             {CONNECT_SHEET_COPY.recommendedLabel}
           </Text>
-        </Pill>
+        </Badge>
       ) : null}
 
       {isConnecting ? (
-        <ActivityIndicator color="#d4c5a3" />
+        <Spinner />
       ) : (
-        <ChevronRight size={16} strokeWidth={2} color="#52525b" />
+        <Icon icon={ChevronRight} size="sm" tone="muted" />
       )}
     </Tap>
   );

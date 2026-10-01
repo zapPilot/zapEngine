@@ -61,8 +61,8 @@ export function SimulationApprovalCard({
               Approve {amountLabel} {approval.token.symbol}
             </Text>
             {approval.unlimited ? (
-              <View className="rounded-full border border-error/30 bg-error/10 px-2 py-0.5">
-                <Text className="font-mono-semibold text-[8px] uppercase tracking-[.5px] text-error">
+              <View className="rounded-full border border-danger-line bg-danger-soft px-2 py-0.5">
+                <Text className="font-mono-semibold text-[8px] uppercase tracking-[.5px] text-danger">
                   Unlimited
                 </Text>
               </View>
@@ -169,9 +169,9 @@ export function SimulationApprovalCard({
       </View>
 
       {approval.exceedsSimulatedSpend ? (
-        <View className="mt-3 flex-row items-start gap-2 rounded-xl border border-error/25 bg-error/10 p-3">
+        <View className="mt-3 flex-row items-start gap-2 rounded-xl border border-danger-line bg-danger-soft p-3">
           <AlertTriangle size={14} color="#ff6f61" />
-          <Text className="min-w-0 flex-1 text-[10.5px] leading-4 text-error">
+          <Text className="min-w-0 flex-1 text-[10.5px] leading-4 text-danger">
             Approval exceeds the amount spent in this simulation.
           </Text>
         </View>

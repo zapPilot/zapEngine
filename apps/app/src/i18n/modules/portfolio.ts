@@ -1,4 +1,5 @@
 export const en = {
+  'portfolio.noAllocation': 'Allocation is not available yet.',
   'portfolio.title': 'Portfolio',
   'portfolio.positionValue': 'Strategy position value',
   'portfolio.valueHistory': 'Value history',
@@ -26,6 +27,7 @@ export const en = {
 } as const;
 
 export const zhHant = {
+  'portfolio.noAllocation': '目前尚無資產配置資料。',
   'portfolio.title': '投資組合',
   'portfolio.positionValue': '策略部位價值',
   'portfolio.valueHistory': '價值走勢',
@@ -52,6 +54,7 @@ export const zhHant = {
 } satisfies Record<keyof typeof en, string>;
 
 export const ja = {
+  'portfolio.noAllocation': '資産配分のデータはまだありません。',
   'portfolio.title': 'ポートフォリオ',
   'portfolio.positionValue': 'ストラテジーのポジション価値',
   'portfolio.valueHistory': '価値の推移',

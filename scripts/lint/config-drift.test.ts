@@ -7,6 +7,7 @@ import { describe, it } from 'node:test';
 
 import {
   checkAgentEntryPoints,
+  checkSkillsLink,
   readIndexEntries,
   type IndexEntry,
 } from './config-drift.ts';
@@ -178,6 +179,38 @@ describe('checkAgentEntryPoints', () => {
   });
 });
 
+describe('checkSkillsLink', () => {
+  const skills = link('.claude/skills', '../.agents/skills');
+  const types = (entries: IndexEntry[]) =>
+    checkSkillsLink(entries).map(({ type }) => type);
+
+  it('accepts .claude/skills as a symlink to ../.agents/skills', () => {
+    assert.deepEqual(types([skills]), []);
+  });
+
+  it('requires the symlink to be tracked', () => {
+    assert.deepEqual(types([]), ['skills_link_missing']);
+  });
+
+  it('rejects a real directory copied into .claude/skills', () => {
+    assert.deepEqual(types([file('.claude/skills/triage/SKILL.md')]), [
+      'skills_link_not_symlink',
+    ]);
+  });
+
+  it('rejects a regular file where the symlink belongs', () => {
+    assert.deepEqual(types([pointer('.claude/skills', '../.agents/skills')]), [
+      'skills_link_not_symlink',
+    ]);
+  });
+
+  it('rejects a symlink to anything but ../.agents/skills', () => {
+    assert.deepEqual(types([link('.claude/skills', '../skills')]), [
+      'skills_link_target',
+    ]);
+  });
+});
+
 describe('readIndexEntries', () => {
   it('reads modes and link targets from the index, ignoring untracked files', async () => {
     const root = await mkdtemp(join(tmpdir(), 'config-drift-'));
@@ -191,8 +224,11 @@ describe('readIndexEntries', () => {
       await symlink('AGENTS.md', join(root, 'apps', 'web', 'GEMINI.md'));
       await writeFile(join(root, 'apps', 'web', 'src', 'AGENTS.md'), '# src\n');
       await writeFile(join(root, 'apps', 'web', 'src', 'CLAUDE.md'), POINTER);
+      await mkdir(join(root, '.claude'));
+      await symlink('../.agents/skills', join(root, '.claude', 'skills'));
       git(
         'add',
+        '.claude/skills',
         'apps/web/AGENTS.md',
         'apps/web/CLAUDE.md',
         'apps/web/src/AGENTS.md',
@@ -204,6 +240,11 @@ describe('readIndexEntries', () => {
       );
 
       assert.deepEqual(entries, [
+        {
+          path: '.claude/skills',
+          mode: '120000',
+          content: '../.agents/skills',
+        },
         { path: 'apps/web/AGENTS.md', mode: '100644' },
         { path: 'apps/web/CLAUDE.md', mode: '120000', content: 'AGENTS.md' },
         { path: 'apps/web/src/AGENTS.md', mode: '100644' },

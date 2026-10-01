@@ -14,7 +14,7 @@ import { QuickAmountChips } from '@/components/invest/QuickAmountChips';
 import { SwapArrowDivider } from '@/components/invest/SwapArrowDivider';
 import { TokenSelectorPill } from '@/components/invest/TokenSelectorPill';
 import { ChainMark } from '@/components/token/ChainMark';
-import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { Button } from '@/components/ui/Button';
 import { Tap } from '@/components/ui/Tap';
 import {
   baseUnitsToUsdcInput,
@@ -361,15 +361,15 @@ export function BridgeTestPanel() {
         />
 
         {exceedsBalance ? (
-          <Text className="mt-2 text-[11px] text-error">
+          <Text className="mt-2 text-[11px] text-danger">
             This amount exceeds your {source.label} USDC balance.
           </Text>
         ) : sourceUsdcBalance.isError ? (
-          <Text className="mt-2 text-[11px] text-error">
+          <Text className="mt-2 text-[11px] text-danger">
             Unable to load {source.label} USDC balance.
           </Text>
         ) : !hasGas && account.isConnected && !sourceEthBalance.isLoading ? (
-          <Text className="mt-2 text-[11px] text-error">
+          <Text className="mt-2 text-[11px] text-danger">
             Add ETH on {source.label} to pay network gas.
           </Text>
         ) : null}
@@ -453,7 +453,7 @@ export function BridgeTestPanel() {
         )}
 
         {bridge.error && bridge.quote ? (
-          <Text className="mt-2 text-[11px] leading-[17px] text-error">
+          <Text className="mt-2 text-[11px] leading-[17px] text-danger">
             {bridge.error}
           </Text>
         ) : null}
@@ -472,7 +472,7 @@ export function BridgeTestPanel() {
         ) : null}
       </View>
 
-      <PrimaryButton
+      <Button
         className="mt-4"
         disabled={
           account.isConnecting ||
@@ -481,7 +481,7 @@ export function BridgeTestPanel() {
         onPress={handlePrimaryAction}
       >
         {primaryLabel}
-      </PrimaryButton>
+      </Button>
       <Text className="mt-3 px-2 text-center text-[10px] leading-[15px] text-ink-faint">
         Test-only flow. It bridges canonical USDC and does not deposit into a
         strategy or HLP vault.

@@ -77,8 +77,8 @@ vi.mock('@/components/ui/Card', () => ({
     <section>{children}</section>
   ),
 }));
-vi.mock('@/components/ui/SectionLabel', () => ({
-  SectionLabel: ({ children }: { children?: ReactNode }) => <h2>{children}</h2>,
+vi.mock('@/components/ui/SectionHeader', () => ({
+  SectionHeader: ({ title }: { title: ReactNode }) => <h2>{title}</h2>,
 }));
 vi.mock('@/components/ui/Skeleton', () => ({
   SkeletonBlock: () => <span data-skeleton />,

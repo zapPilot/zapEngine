@@ -24,6 +24,7 @@ vi.mock('@sentry/react-native', async () => {
   };
 });
 
+vi.mock('expo-router', () => ({ useRouter: () => ({ replace: vi.fn() }) }));
 vi.mock('react-native', () => ({
   Platform: mocks.platform,
   Text: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
@@ -34,8 +35,8 @@ vi.mock('lucide-react-native', () => ({ LockKeyhole: () => null }));
 vi.mock('@/components/ui/Card', () => ({
   Card: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
 }));
-vi.mock('@/components/ui/ScreenHeader', () => ({
-  ScreenHeader: ({ title }: { title: string }) => <h1>{title}</h1>,
+vi.mock('@/components/ui/PageHeader', () => ({
+  PageHeader: ({ title }: { title: string }) => <h1>{title}</h1>,
 }));
 vi.mock('@/components/ui/ScreenScrollView', () => ({
   ScreenScrollView: ({ children }: { children?: ReactNode }) => (
@@ -43,8 +44,8 @@ vi.mock('@/components/ui/ScreenScrollView', () => ({
   ),
 }));
 vi.mock('@/components/ui/ZapLogo', () => ({ ZapLogo: () => null }));
-vi.mock('@/components/ui/PrimaryButton', () => ({
-  PrimaryButton: ({
+vi.mock('@/components/ui/Button', () => ({
+  Button: ({
     children,
     onPress,
   }: {

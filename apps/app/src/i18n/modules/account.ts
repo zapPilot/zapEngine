@@ -1,4 +1,16 @@
 export const en = {
+  'account.deleteTitle': 'Delete account',
+  'account.deleteBody':
+    'Permanently deletes your Zap Pilot account, linked wallets, and associated metadata. Your on-chain assets are never touched. Linked wallets can be added to another Zap Pilot account.',
+  'account.deleteOpen': 'Delete Zap Pilot account',
+  'account.deleteCancel': 'Cancel account deletion',
+  'account.deleteWaiting': 'Waiting for signature…',
+  'account.deleteConfirm': 'Sign & delete account',
+  'account.deleteWarning':
+    'This cannot be undone. Your wallet will ask you to sign a deletion message before anything is removed.',
+
+  'account.walletLabel': 'Wallet label',
+  'account.walletAddress': 'Wallet address',
   'account.manageWallets': 'Manage wallets',
   'account.approveEveryTransaction': 'You approve every transaction',
   'account.nonCustodialBody':
@@ -26,6 +38,17 @@ export const en = {
 } as const;
 
 export const zhHant = {
+  'account.deleteTitle': '刪除帳號',
+  'account.deleteBody':
+    '永久刪除 Zap Pilot 帳號、已連結的錢包與相關資料。鏈上資產不受影響，錢包可重新連結至其他 Zap Pilot 帳號。',
+  'account.deleteOpen': '刪除 Zap Pilot 帳號',
+  'account.deleteCancel': '取消刪除帳號',
+  'account.deleteWaiting': '等待簽署…',
+  'account.deleteConfirm': '簽署並刪除帳號',
+  'account.deleteWarning': '此操作無法復原。刪除前，錢包會先請你簽署刪除訊息。',
+
+  'account.walletLabel': '錢包名稱',
+  'account.walletAddress': '錢包位址',
   'account.manageWallets': '管理錢包',
   'account.approveEveryTransaction': '每筆交易都由你確認',
   'account.nonCustodialBody':
@@ -52,6 +75,18 @@ export const zhHant = {
 } satisfies Record<keyof typeof en, string>;
 
 export const ja = {
+  'account.deleteTitle': 'アカウントを削除',
+  'account.deleteBody':
+    'Zap Pilot アカウント、連携ウォレットと関連データを完全に削除します。オンチェーンの資産には影響しません。ウォレットは別の Zap Pilot アカウントに連携できます。',
+  'account.deleteOpen': 'Zap Pilot アカウントを削除',
+  'account.deleteCancel': 'アカウント削除をキャンセル',
+  'account.deleteWaiting': '署名を待っています…',
+  'account.deleteConfirm': '署名してアカウントを削除',
+  'account.deleteWarning':
+    'この操作は取り消せません。削除前に、ウォレットで削除メッセージへの署名を求められます。',
+
+  'account.walletLabel': 'ウォレット名',
+  'account.walletAddress': 'ウォレットアドレス',
   'account.manageWallets': 'ウォレットを管理',
   'account.approveEveryTransaction': 'すべての取引を自分で承認',
   'account.nonCustodialBody':

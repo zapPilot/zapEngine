@@ -5,9 +5,9 @@ import { Text, View } from 'react-native';
 import { IndicatorLineChart } from '@/components/charts/IndicatorLineChart';
 import { Card } from '@/components/ui/Card';
 import { Disclosure } from '@/components/ui/Disclosure';
-import { Pill } from '@/components/ui/Pill';
-import { RangeTabs } from '@/components/ui/RangeTabs';
-import { SectionLabel } from '@/components/ui/SectionLabel';
+import { Badge } from '@/components/ui/Badge';
+import { SegmentedControl } from '@/components/ui/SegmentedControl';
+import { SectionHeader } from '@/components/ui/SectionHeader';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
 import type { TranslationKey } from '@/i18n/translations';
 import {
@@ -46,8 +46,8 @@ const REGIME_KEYS: Readonly<Record<SignalRegime, TranslationKey>> = {
 };
 
 const REGIME_COLORS: Readonly<Record<SignalRegime, string>> = {
-  extreme_fear: tokens.color.error,
-  fear: tokens.color.error,
+  extreme_fear: tokens.color.danger,
+  fear: tokens.color.danger,
   neutral: tokens.color['ink-dim'],
   greed: tokens.color.success,
   extreme_greed: tokens.color.success,
@@ -93,9 +93,10 @@ export function MarketSignalsCard({
           <Text className="mt-1 font-mono text-[9px] text-ink-faint">
             {t('strategy.signals.asOf', { date: signals.asOf })}
           </Text>
-          <SectionLabel className="mb-1 mt-4">
-            {t('strategy.signals.trend')}
-          </SectionLabel>
+          <SectionHeader
+            className="mb-1 mt-4"
+            title={t('strategy.signals.trend')}
+          />
           {signals.trends.map((signal) => (
             <TrendSignalRow
               key={signal.id}
@@ -105,9 +106,10 @@ export function MarketSignalsCard({
               highlighted={signal.id === highlightedSignalId}
             />
           ))}
-          <SectionLabel className="mb-1 mt-4">
-            {t('strategy.signals.sentiment')}
-          </SectionLabel>
+          <SectionHeader
+            className="mb-1 mt-4"
+            title={t('strategy.signals.sentiment')}
+          />
           {signals.sentiments.map((signal) => (
             <SentimentSignalRow
               key={signal.id}
@@ -147,11 +149,11 @@ function TrendSignalRow({
       defaultExpanded={highlighted}
       tag={
         highlighted ? (
-          <Pill className="bg-accent-soft px-2 py-0.5">
+          <Badge className="bg-accent-soft px-2 py-0.5">
             <Text className="font-mono text-[9px] text-accent">
               {t('strategy.signals.triggered')}
             </Text>
-          </Pill>
+          </Badge>
         ) : null
       }
       value={formatSignalValue(signal.id, signal.latest)}
@@ -163,7 +165,7 @@ function TrendSignalRow({
               color:
                 signal.distance >= 0
                   ? tokens.color.success
-                  : tokens.color.error,
+                  : tokens.color.danger,
             }}
           >
             {formatSignedPct(signal.distance * 100)}
@@ -295,9 +297,13 @@ function SignalChart({
   const start = signalWindowStart(dates, range);
   return (
     <View className="pb-3">
-      <RangeTabs
+      <SegmentedControl
         className="mb-2 self-end"
-        options={SIGNAL_RANGES}
+        options={SIGNAL_RANGES.map((option) => ({
+          value: option,
+          label: option,
+          accessibilityLabel: option,
+        }))}
         value={range}
         onChange={onRangeChange}
         accessibilityLabel={t('strategy.signals.rangeLabel')}

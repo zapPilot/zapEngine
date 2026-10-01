@@ -6,34 +6,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { PodcastLanguageDropdown } from '@/components/content/ContentLanguageSelector';
 
-vi.mock('lucide-react-native', () => ({
-  Check: () => null,
-  ChevronDown: () => null,
-}));
+vi.mock('nativewind', () => ({ cssInterop: vi.fn() }));
 
-vi.mock('react-native', () => ({
-  Modal: ({
-    visible,
-    children,
-  }: {
-    visible?: boolean;
-    children?: ReactNode;
-  }) => (visible ? <div>{children}</div> : null),
-  Pressable: ({
-    accessibilityLabel,
-    onPress,
-    children,
-  }: {
-    accessibilityLabel?: string;
-    onPress?: () => void;
-    children?: ReactNode;
-  }) => (
-    <button aria-label={accessibilityLabel} onClick={onPress} type="button">
-      {children}
-    </button>
-  ),
-  Text: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
-  View: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+vi.mock(
+  'lucide-react-native',
+  async () => (await import('./support/lucideStub')).lucideStub,
+);
+vi.mock(
+  'react-native',
+  async () => (await import('./support/reactNativeStub')).reactNativeStub,
+);
+vi.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
 
 vi.mock('@/components/ui/Tap', () => ({

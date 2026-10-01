@@ -34,46 +34,118 @@ describe('design-token loading and CSS generation', () => {
     expect(loadTokens()).toEqual(expected);
   });
 
-  it('renders every token family and compatibility alias', () => {
+  it('renders every CSS token family without obsolete or colliding names', () => {
     const tokens = loadTokens();
     const css = renderCssVariables(tokens);
-    const declarations = [
-      ['--bg', tokens.color.bg],
-      ['--bg-2', tokens.color['bg-2']],
-      ['--surface', tokens.color.surface],
-      ['--surface-elevated', tokens.color['surface-elevated']],
-      ['--ink', tokens.color.ink],
-      ['--ink-dim', tokens.color['ink-dim']],
-      ['--ink-faint', tokens.color['ink-faint']],
-      ['--line', tokens.color.line],
-      ['--line-hi', tokens.color['line-hi']],
-      ['--accent', tokens.color.accent],
-      ['--accent-soft', tokens.color['accent-soft']],
-      ['--accent-muted', tokens.color['accent-muted']],
-      ['--error', tokens.color.error],
-      ['--warning', tokens.color.warning],
-      ['--success', tokens.color.success],
-      ['--spy', tokens.color.pillar.spy],
-      ['--btc', tokens.color.pillar.btc],
-      ['--usd', tokens.color.pillar.usd],
-      ['--radius-pill', `${tokens.radius.pill}px`],
-      ['--radius-subtle', `${tokens.radius.subtle}px`],
-      ['--radius-control', `${tokens.radius.control}px`],
-      ['--radius-card', `${tokens.radius.card}px`],
-      ['--easing-primary', tokens.easing.primary],
-    ] as const;
-
-    expect(css).toMatch(/^\/\* Generated from .* Do not edit by hand\. \*\//);
-    for (const [name, value] of declarations) {
-      expect(css).toContain(`  ${name}: ${value};`);
+    const { pillar, ...colors } = tokens.color;
+    for (const [name, value] of Object.entries({ ...colors, ...pillar })) {
+      expect(css).toContain(`  --${name}: ${value};`);
     }
-    expect(css).toContain(`--font-serif-token: '${tokens.font.serif}';`);
-    expect(css).toContain(`--font-mono-token: '${tokens.font.mono}';`);
-    expect(css).toContain(`--font-sans-token: '${tokens.font.sans}';`);
-    expect(css).toContain('--background: var(--bg);');
-    expect(css).toContain('--color-fd-primary: var(--accent);');
-    expect(css).toContain('--color-fd-card-foreground: var(--ink);');
+    for (const [name, value] of Object.entries(tokens.radius)) {
+      expect(css).toContain(`  --radius-${name}: ${value}px;`);
+    }
+    for (const [name, role] of Object.entries(tokens.type)) {
+      for (const [field, value] of Object.entries(role)) {
+        expect(css).toContain(`  --type-${name}-${field}: ${value}px;`);
+      }
+    }
+    for (const [name, value] of Object.entries(tokens.shadow))
+      expect(css).toContain(`--shadow-${name}: ${value.css};`);
+    for (const [name, value] of Object.entries(tokens.easing))
+      expect(css).toContain(`--easing-${name}: ${value};`);
+    for (const [name, value] of Object.entries(tokens.duration))
+      expect(css).toContain(`--duration-${name}: ${value}ms;`);
+    expect(css).toMatch(
+      /^\/\* Generated from .* Do not edit by hand\. \*\/\n:root \{/,
+    );
+    for (const obsolete of [
+      '--bg-2:',
+      '--error:',
+      '--pillar-',
+      '--font-',
+      '--container-',
+      '--breakpoint-',
+      '--motion-',
+      '--gutter-',
+      '--size-',
+      '.v2-root',
+    ])
+      expect(css).not.toContain(obsolete);
     expect(css.endsWith('\n')).toBe(true);
+  });
+
+  it('preserves landing and control-center consumer variable contracts', () => {
+    const css = renderCssVariables(loadTokens());
+    const names = [
+      'bg',
+      'surface',
+      'surface-elevated',
+      'ink',
+      'ink-dim',
+      'ink-faint',
+      'line',
+      'line-hi',
+      'accent',
+      'accent-soft',
+      'accent-muted',
+      'danger',
+      'warning',
+      'success',
+      'spy',
+      'btc',
+      'usd',
+      'radius-pill',
+      'radius-subtle',
+      'radius-control',
+      'radius-tile',
+      'radius-card',
+      'easing-primary',
+      'background',
+      'foreground',
+    ];
+    for (const name of names) expect(css).toContain(`--${name}:`);
+    for (const [name, target] of Object.entries({
+      background: 'bg',
+      foreground: 'ink',
+      muted: 'surface',
+      card: 'surface',
+      primary: 'accent',
+      warning: 'warning',
+      error: 'danger',
+      success: 'success',
+    })) {
+      expect(css).toContain(`--color-fd-${name}: var(--${target});`);
+    }
+    expect(css).toContain('--background: var(--bg);');
+    expect(css).toContain('--foreground: var(--ink);');
+  });
+
+  it('keeps readable muted text above the small-text AA contrast threshold', () => {
+    const luminance = (hex: string) => {
+      const channels = [1, 3, 5]
+        .map((offset) => parseInt(hex.slice(offset, offset + 2), 16) / 255)
+        .map((value) =>
+          value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4,
+        );
+      return (
+        channels[0]! * 0.2126 + channels[1]! * 0.7152 + channels[2]! * 0.0722
+      );
+    };
+    const tokens = loadTokens();
+    for (const surface of [
+      tokens.color.bg,
+      tokens.color.surface,
+      tokens.color['surface-elevated'],
+    ]) {
+      expect(
+        (luminance(tokens.color['ink-muted']) + 0.05) /
+          (luminance(surface) + 0.05),
+      ).toBeGreaterThanOrEqual(4.5);
+    }
+    expect(
+      Math.min(...Object.values(tokens.type).map((role) => role.size)),
+    ).toBe(11);
+    expect(tokens.size.hit).toBeGreaterThanOrEqual(44);
   });
 
   it('writes the checked-in CSS output deterministically', () => {

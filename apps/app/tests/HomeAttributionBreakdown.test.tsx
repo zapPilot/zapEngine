@@ -110,7 +110,7 @@ describe('HomeAttributionBreakdown', () => {
   it('marks a negative bucket with the error colour', async () => {
     await render(summary({ marketUsd: -1_200 }));
 
-    const negative = [...container.querySelectorAll('span.text-error')].map(
+    const negative = [...container.querySelectorAll('span.text-danger')].map(
       (node) => node.textContent,
     );
     expect(negative).toContain('−$1,200');

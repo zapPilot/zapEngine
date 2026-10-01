@@ -1,19 +1,20 @@
+import { ArrowLeft } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
 
-import { AllocationBar } from '@/components/charts/AllocationBar';
+import { AllocationSummary } from '@/components/ui/AllocationSummary';
 import { PortfolioTrendChart } from '@/components/charts/PortfolioTrendChart';
-import { MetricsGrid } from '@/components/metrics/MetricsGrid';
-import { MetricsGridSkeleton } from '@/components/metrics/MetricsGridSkeleton';
+import { StatGrid } from '@/components/ui/StatGrid';
+
 import { SharePortfolioButton } from '@/components/share/SharePortfolioButton';
-import { Card } from '@/components/ui/Card';
 import { DisplayUsdValue } from '@/components/ui/DisplayUsdValue';
-import { NonCustodialCard } from '@/components/ui/NonCustodialCard';
-import { RangeTabs } from '@/components/ui/RangeTabs';
-import { ScreenBackButton } from '@/components/ui/ScreenBackButton';
+import { Callout } from '@/components/ui/Callout';
+import { SegmentedControl } from '@/components/ui/SegmentedControl';
+import { IconButton } from '@/components/ui/IconButton';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
-import { ScreenHeader } from '@/components/ui/ScreenHeader';
-import { SectionLabel } from '@/components/ui/SectionLabel';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { SectionHeader } from '@/components/ui/SectionHeader';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
 import { DEMO } from '@/data/demo';
 import { useAccount } from '@/integration/useAccount';
@@ -50,6 +51,7 @@ const METRIC_TRANSLATION_KEYS: Readonly<Record<string, TranslationKey>> = {
 };
 
 export function PortfolioScreen() {
+  const router = useRouter();
   const [range, setRange] = useState<PortfolioRange>(DEFAULT_PORTFOLIO_RANGE);
   const { languageCode, t } = useContentLanguage();
   const account = useAccount();
@@ -73,23 +75,29 @@ export function PortfolioScreen() {
   });
 
   return (
-    <ScreenScrollView>
-      <ScreenHeader
+    <ScreenScrollView width="dashboard">
+      <PageHeader
         title={t('portfolio.title')}
-        left={<ScreenBackButton fallbackHref="/home" />}
-        right={<SharePortfolioButton />}
+        leading={
+          <IconButton
+            icon={ArrowLeft}
+            accessibilityLabel={t('common.back')}
+            onPress={() => {
+              if (router.canGoBack()) router.back();
+              else router.replace('/home');
+            }}
+          />
+        }
+        actions={<SharePortfolioButton />}
       />
 
       <View className="px-5 pt-4">
-        <SectionLabel>{t('portfolio.positionValue')}</SectionLabel>
+        <SectionHeader title={t('portfolio.positionValue')} />
         <View className="mt-[5px]">
           <DisplayUsdValue
+            size="lg"
             loading={loading && portfolio === null}
             value={portfolio?.positionValue ?? null}
-            valueClassName="font-serif text-[50px] leading-[54px] text-ink"
-            fractionClassName="text-[32px] text-ink-faint"
-            skeletonClassName="h-[51px] w-[190px] rounded-xl"
-            emptyClassName="text-ink-faint"
           />
         </View>
         <View className="mt-[9px] flex-row items-center gap-2">
@@ -97,8 +105,8 @@ export function PortfolioScreen() {
             className={`rounded-full px-[9px] py-[3px] font-sans-semibold text-[12.5px] ${
               typeof portfolio?.valueChangePct === 'number' &&
               portfolio.valueChangePct < 0
-                ? 'bg-error/[0.12] text-error'
-                : 'bg-success/[0.12] text-success'
+                ? 'bg-danger-soft text-danger'
+                : 'bg-success-soft text-success'
             }`}
           >
             {typeof portfolio?.valueChangePct === 'number'
@@ -118,9 +126,14 @@ export function PortfolioScreen() {
 
       <View className="mt-3 px-5">
         <View className="flex-row items-center justify-between">
-          <SectionLabel>{t('portfolio.valueHistory')}</SectionLabel>
-          <RangeTabs
-            options={RANGE_OPTIONS}
+          <SectionHeader title={t('portfolio.valueHistory')} />
+          <SegmentedControl
+            accessibilityLabel={t('common.chartRange')}
+            options={RANGE_OPTIONS.map((option) => ({
+              value: option,
+              label: option,
+              accessibilityLabel: option,
+            }))}
             value={range}
             onChange={setRange}
           />
@@ -143,9 +156,9 @@ export function PortfolioScreen() {
       </View>
 
       {loading && portfolio === null ? (
-        <MetricsGridSkeleton className="mt-5 px-5" count={6} />
+        <StatGrid loading className="mt-5 px-5" count={6} />
       ) : (
-        <MetricsGrid className="mt-5 px-5" metrics={localizedMetrics} />
+        <StatGrid className="mt-5 px-5" metrics={localizedMetrics} />
       )}
 
       <View className="mt-6 px-5">
@@ -157,36 +170,15 @@ export function PortfolioScreen() {
             High-level
           </Text>
         </View>
-        <Card className="mt-3 p-4">
-          <AllocationBar
-            height={11}
-            segments={(portfolio?.allocation ?? []).map((item) => ({
-              color: item.color,
-              value: item.pct,
-            }))}
+        <View className="mt-3">
+          <AllocationSummary
+            items={portfolio?.allocation ?? []}
+            emptyLabel={t('portfolio.noAllocation')}
           />
-          <View className="mt-[13px] gap-[9px]">
-            {(portfolio?.allocation ?? []).map((item) => (
-              <View
-                key={item.label}
-                className="flex-row items-center justify-between"
-              >
-                <View className="flex-row items-center gap-2">
-                  <View
-                    className="h-[9px] w-[9px] rounded-full"
-                    style={{ backgroundColor: item.color }}
-                  />
-                  <Text className="text-[13px] text-ink-dim">{item.label}</Text>
-                </View>
-                <Text className="font-mono text-[12.5px] text-ink">
-                  {item.pct}%
-                </Text>
-              </View>
-            ))}
-          </View>
-        </Card>
+        </View>
         <View className="mt-4">
-          <NonCustodialCard
+          <Callout
+            tone="info"
             title={t('portfolio.nonCustodialTitle')}
             body={t('portfolio.nonCustodialBody')}
           />

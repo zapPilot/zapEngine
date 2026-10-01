@@ -575,22 +575,6 @@ export function parsePodcastEpisodeRouteParams(
   };
 }
 
-export function podcastEpisodeRoutePath(
-  episodeId: string,
-  languageCode: string,
-): string {
-  const normalizedEpisodeId = episodeId.trim();
-  if (normalizedEpisodeId === '') {
-    return '/podcast';
-  }
-
-  const route = `/podcast/${encodeURIComponent(normalizedEpisodeId)}`;
-  const normalizedLanguageCode = languageCode.trim();
-  return normalizedLanguageCode === ''
-    ? route
-    : `${route}?lang=${encodeURIComponent(normalizedLanguageCode)}`;
-}
-
 async function fetchPodcastJson<T>(
   url: URL,
   fetchImpl: typeof fetch,

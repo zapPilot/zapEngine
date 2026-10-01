@@ -18,17 +18,17 @@ import {
 import { HomeActionRow } from '@/components/home/HomeActionRow';
 import { HomeAttributionBreakdown } from '@/components/home/HomeAttributionBreakdown';
 import { HomeIncomeCard } from '@/components/home/HomeIncomeCard';
-import { PartialWalletWarning } from '@/components/home/PartialWalletWarning';
+import { Callout } from '@/components/ui/Callout';
 import { PortfolioImportState } from '@/components/home/PortfolioImportState';
 import { StrategyStatusCard } from '@/components/home/StrategyStatusCard';
 import { SharePortfolioButton } from '@/components/share/SharePortfolioButton';
-import { AppHeader } from '@/components/ui/AppHeader';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { Card } from '@/components/ui/Card';
 import { DisplayUsdValue } from '@/components/ui/DisplayUsdValue';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { RangeTabs } from '@/components/ui/RangeTabs';
+import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
-import { SectionLabel } from '@/components/ui/SectionLabel';
+import { SectionHeader } from '@/components/ui/SectionHeader';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
 import { Tap } from '@/components/ui/Tap';
 import { DEMO } from '@/data/demo';
@@ -167,13 +167,17 @@ export function HomeScreen() {
   const isStrategyActionRequired = strategyStatus?.status === 'action_required';
 
   return (
-    <ScreenScrollView>
-      <AppHeader action={<SharePortfolioButton />} />
+    <ScreenScrollView width="dashboard">
+      <PageHeader
+        title={t('tabs.home')}
+        brand
+        actions={<SharePortfolioButton />}
+      />
 
       <View className="relative">
         <View className="px-5 pt-6">
           <View className="flex-row items-center justify-between">
-            <SectionLabel>{t('home.netWorth')}</SectionLabel>
+            <SectionHeader title={t('home.netWorth')} />
             <Tap
               accessibilityRole="button"
               className="flex-row items-center gap-1 py-1"
@@ -212,20 +216,18 @@ export function HomeScreen() {
               onPress={() => router.push('/portfolio')}
             >
               <DisplayUsdValue
+                size="lg"
+                className="mt-2"
                 loading={showBalanceSkeleton}
                 value={home.totalBalance}
-                valueClassName="mt-2 font-serif text-[54px] leading-[58px] text-ink"
-                fractionClassName="text-[34px] text-ink-faint"
-                skeletonClassName="mt-2 h-[58px] w-[230px] rounded-xl"
-                emptyClassName="text-ink-faint"
               />
               <View className="mt-[9px] flex-row items-center gap-2">
                 <Text
                   className={`rounded-full px-[9px] py-[3px] font-sans-semibold text-[12.5px] ${
                     typeof home.rangeChangePct === 'number' &&
                     home.rangeChangePct < 0
-                      ? 'bg-error/[0.12] text-error'
-                      : 'bg-success/[0.12] text-success'
+                      ? 'bg-danger-soft text-danger'
+                      : 'bg-success-soft text-success'
                   }`}
                 >
                   {typeof home.rangeChangePct === 'number'
@@ -245,9 +247,14 @@ export function HomeScreen() {
 
         <View className="mt-5 px-5">
           <View className="flex-row items-center justify-between">
-            <SectionLabel>{t('home.balanceTrend')}</SectionLabel>
-            <RangeTabs
-              options={HOME_RANGE_OPTIONS}
+            <SectionHeader title={t('home.balanceTrend')} />
+            <SegmentedControl
+              accessibilityLabel={t('common.chartRange')}
+              options={HOME_RANGE_OPTIONS.map((option) => ({
+                value: option,
+                label: option,
+                accessibilityLabel: option,
+              }))}
               value={range}
               onChange={setRange}
             />
@@ -294,7 +301,7 @@ export function HomeScreen() {
       {account.isOwnBundle ? (
         <View className="mt-6 px-5">
           <View className="mb-2 flex-row items-center justify-between">
-            <SectionLabel>{t('home.walletAssets')}</SectionLabel>
+            <SectionHeader title={t('home.walletAssets')} />
             <Text
               className={`font-mono text-[9.5px] uppercase tracking-[0.76px] ${
                 !isDemo && walletAssets.failedChains.length > 0
@@ -315,10 +322,8 @@ export function HomeScreen() {
                 <AssetListSkeleton />
               ) : !isDemo && walletAssets.isError ? (
                 <EmptyState
-                  icon={
-                    <RefreshCw size={17} strokeWidth={1.8} color="#ef9292" />
-                  }
-                  tone="error"
+                  icon={RefreshCw}
+                  tone="danger"
                   title={t('home.assetsErrorTitle')}
                   body={t('home.assetsErrorBody')}
                   action={{
@@ -330,17 +335,20 @@ export function HomeScreen() {
               ) : (
                 <>
                   {!isDemo && walletAssets.failedChains.length > 0 ? (
-                    <PartialWalletWarning onRetry={retryWalletAssets} />
+                    <Callout
+                      tone="warning"
+                      className="mb-2"
+                      body={t('home.assetsPartialBody')}
+                      action={{
+                        label: t('common.retry'),
+                        accessibilityLabel: t('home.assetsRetryA11y'),
+                        onPress: retryWalletAssets,
+                      }}
+                    />
                   ) : null}
                   {displayedAssets.length === 0 ? (
                     <EmptyState
-                      icon={
-                        <Wallet
-                          size={17}
-                          strokeWidth={1.8}
-                          color={tokens.color.accent}
-                        />
-                      }
+                      icon={Wallet}
                       title={t('home.assetsEmptyTitle')}
                       body={t('home.assetsEmptyBody')}
                     />

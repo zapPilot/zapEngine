@@ -28,7 +28,7 @@ export function InvestLineItem({
         {trailing}
       </View>
       <Text
-        className={`font-mono text-[11px] ${valueTone === 'error' ? 'text-error' : 'text-ink'}`}
+        className={`font-mono text-[11px] ${valueTone === 'error' ? 'text-danger' : 'text-ink'}`}
       >
         {value}
       </Text>

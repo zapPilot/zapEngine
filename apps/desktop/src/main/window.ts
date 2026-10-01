@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 
+import { tokens } from '@zapengine/design-tokens/tokens';
 import { BrowserWindow } from 'electron';
 
 import { APP_START_URL } from './appProtocol';
@@ -8,11 +9,12 @@ import { openExternalUrl } from './externalAuth';
 /** Uses an http URL for an expo dev server or loopback fallback when given. */
 export function createMainWindow(url?: string): BrowserWindow {
   const win = new BrowserWindow({
-    width: 430,
-    height: 900,
-    minWidth: 360,
+    width: 1280,
+    height: 832,
+    minWidth: 390,
     minHeight: 640,
     title: 'Zap Pilot',
+    backgroundColor: tokens.color.bg,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,

@@ -2,7 +2,7 @@ import type { HyperliquidAgentSessionStatus } from '@zapengine/app-core/hooks/us
 import { Text, View } from 'react-native';
 
 import { Card } from '@/components/ui/Card';
-import { InfoRow } from '@/components/ui/InfoRow';
+import { ListRow } from '@/components/ui/ListRow';
 import {
   hyperCoreLegReviewRows,
   HYPERCORE_LEG_ACTION,
@@ -50,9 +50,9 @@ export function HyperCoreLegReviewCard({
         {HYPERCORE_LEG_NOT_SIMULATED}
       </Text>
       {rows.map((row, index) => (
-        <InfoRow
+        <ListRow
           key={row.label}
-          label={row.label}
+          title={row.label}
           value={row.value}
           divider={index < rows.length - 1}
         />
@@ -60,7 +60,7 @@ export function HyperCoreLegReviewCard({
       {leg.isError ? (
         <Text
           accessibilityRole="alert"
-          className="mt-3 text-[11px] leading-4 text-error"
+          className="mt-3 text-[11px] leading-4 text-danger"
         >
           The Hyperliquid deposit could not be prepared, so this plan cannot be
           sent yet. Go back and try again.
@@ -69,7 +69,7 @@ export function HyperCoreLegReviewCard({
       {leg.shortfallUsd6 !== null && leg.shortfallUsd6 > 0n ? (
         <Text
           accessibilityRole="alert"
-          className="mt-3 text-[11px] leading-4 text-error"
+          className="mt-3 text-[11px] leading-4 text-danger"
         >
           Your spendable Hyperliquid balance no longer covers this deposit —
           short by {formatUsd6(leg.shortfallUsd6)}. Go back and lower the

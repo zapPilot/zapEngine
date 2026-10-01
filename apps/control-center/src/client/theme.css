@@ -22,7 +22,7 @@
   --cc-shadow-pop:
     0 2px 6px rgb(17 24 39 / 6%), 0 12px 28px rgb(17 24 39 / 10%);
 
-  /* Radii. `--radius-card` (8px) stays as-is: `.nav-item` and `.queue-column`
+  /* Radii. `--radius-tile` (8px) stays as-is: `.nav-item` and `.queue-column`
      depend on it, and pushing those to 16px turns nav items into pills. */
   --cc-radius-card: 16px;
   --cc-radius-inner: 12px;
@@ -45,7 +45,7 @@
   --cc-tone-success-soft: rgb(25 122 81 / 10%);
   --cc-tone-warning: var(--warning);
   --cc-tone-warning-soft: rgb(154 99 0 / 11%);
-  --cc-tone-danger: var(--error);
+  --cc-tone-danger: var(--danger);
   --cc-tone-danger-soft: rgb(196 61 50 / 10%);
   --cc-tone-info: #2f5d8a;
   --cc-tone-info-soft: rgb(47 93 138 / 10%);

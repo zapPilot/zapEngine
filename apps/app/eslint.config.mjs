@@ -24,13 +24,61 @@ const baseline = Object.assign(
   )),
 );
 const react = expoConfig.find((config) => config.plugins?.react)?.plugins.react;
+// Code-valued props are checked by types and the design-token rules. Visible
+// copy (including title, placeholder and accessibilityLabel) stays translated.
+const codeProps = new Set([
+  'className',
+  'variant',
+  'tone',
+  'size',
+  'feedback',
+  'width',
+  'layout',
+  'mode',
+  'padding',
+  'radius',
+  'screen',
+  'testID',
+  'id',
+  'nativeID',
+  'key',
+  'href',
+  'accessibilityRole',
+  'role',
+  'aria-current',
+  'pointerEvents',
+  'keyboardType',
+  'keyboardShouldPersistTaps',
+  'autoCapitalize',
+  'autoComplete',
+  'returnKeyType',
+  'resizeMode',
+  'name',
+]);
+const translatedJsxRule = {
+  ...react.rules['jsx-no-literals'],
+  create(context) {
+    const wrapped = Object.create(context);
+    Object.defineProperty(wrapped, 'report', {
+      value(descriptor) {
+        if (
+          descriptor.node.type === 'JSXAttribute' &&
+          codeProps.has(descriptor.node.name.name)
+        )
+          return;
+        context.report(descriptor);
+      },
+    });
+    return react.rules['jsx-no-literals'].create(wrapped);
+  },
+};
 const guardedReact = {
   ...react,
   rules: {
     ...react.rules,
     'jsx-no-literals': ratchet(
       'react/jsx-no-literals',
-      react.rules['jsx-no-literals'],
+      translatedJsxRule,
       baseline,
       root,
     ),

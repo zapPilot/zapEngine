@@ -1,3 +1,4 @@
+import { SectionHeader } from '@/components/ui/SectionHeader';
 import type { SimulationPreviewRenderProps } from '@zapengine/app-core/hooks/wallet/useAtomicBatchExecution';
 import {
   Activity,
@@ -25,14 +26,13 @@ import { SimulationApprovalCard } from '@/components/invest/simulation/Simulatio
 import { SimulationAssetRows } from '@/components/invest/simulation/SimulationAssetRows';
 import { SimulationCallList } from '@/components/invest/simulation/SimulationCallList';
 import {
-  SectionLabel,
   SimulationBlockingBanner,
   SimulationEvidenceStats,
   SimulationShareLinks,
   VERDICT_CLASSES,
   VERDICT_TEXT_CLASSES,
 } from '@/components/invest/simulation/SimulationReviewPrimitives';
-import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { Button } from '@/components/ui/Button';
 import { Tap } from '@/components/ui/Tap';
 import { useReducedMotion } from '@/components/ui/useReducedMotion';
 import {
@@ -116,7 +116,7 @@ function RetryButton({
   onRetry: () => Promise<void>;
 }) {
   return (
-    <PrimaryButton
+    <Button
       accessibilityLabel={longLabel ? 'Retry simulation' : 'Retry'}
       className={fullWidth ? 'w-full' : 'flex-1'}
       disabled={disabled}
@@ -129,7 +129,7 @@ function RetryButton({
         <RefreshCw size={15} color="#d4c5a3" />
       )}
       {retrying ? 'Retrying…' : longLabel ? 'Retry simulation' : 'Retry'}
-    </PrimaryButton>
+    </Button>
   );
 }
 
@@ -214,7 +214,7 @@ export function SimulationPreviewSheet({
           className="w-full max-w-[640px] self-center overflow-hidden rounded-t-[28px] border border-b-0 border-line bg-bg shadow-lg"
           style={{ height: '94%', maxHeight: 880 }}
         >
-          <View className="flex-row items-center justify-between gap-4 border-b border-line bg-bg-2 px-5 py-4">
+          <View className="flex-row items-center justify-between gap-4 border-b border-line bg-surface px-5 py-4">
             <View className="min-w-0 flex-1 flex-row items-center gap-3">
               <View className="h-10 w-10 items-center justify-center rounded-2xl border border-accent/30 bg-accent-soft">
                 <Wallet size={18} color="#d4c5a3" />
@@ -270,7 +270,7 @@ export function SimulationPreviewSheet({
                     <Text className="font-sans-medium text-[10.5px] text-ink">
                       {simulationChainLabel(previewData.chainId)}
                     </Text>
-                    <View className="h-2 w-2 rounded-full bg-usd" />
+                    <View className="h-2 w-2 rounded-full bg-pillar-usd" />
                   </View>
                 </View>
               </View>
@@ -301,13 +301,13 @@ export function SimulationPreviewSheet({
               ) : null}
 
               <View>
-                <SectionLabel>Net flow</SectionLabel>
+                <SectionHeader title={<> Net flow </>} />
                 <SimulationAssetRows outgoing={outgoing} incoming={incoming} />
               </View>
 
               {previewData.approvals.length > 0 ? (
                 <View>
-                  <SectionLabel>Approvals</SectionLabel>
+                  <SectionHeader title={<> Approvals </>} />
                   <View className="gap-3">
                     {previewData.approvals.map((approval) => (
                       <SimulationApprovalCard
@@ -325,19 +325,19 @@ export function SimulationPreviewSheet({
               {retryError ? (
                 <View
                   accessibilityRole="alert"
-                  className="rounded-2xl border border-error/30 bg-error/10 p-3"
+                  className="rounded-2xl border border-danger-line bg-danger-soft p-3"
                 >
-                  <Text className="font-sans-semibold text-[11px] text-error">
+                  <Text className="font-sans-semibold text-[11px] text-danger">
                     Simulation retry failed
                   </Text>
-                  <Text className="mt-1 text-[10.5px] leading-4 text-error">
+                  <Text className="mt-1 text-[10.5px] leading-4 text-danger">
                     {retryError}
                   </Text>
                 </View>
               ) : null}
 
               <View>
-                <SectionLabel>Execution</SectionLabel>
+                <SectionHeader title={<> Execution </>} />
                 <SimulationCallList
                   calls={previewData.calls}
                   contracts={previewData.contracts}
@@ -346,16 +346,16 @@ export function SimulationPreviewSheet({
               </View>
 
               <View>
-                <SectionLabel>Evidence</SectionLabel>
+                <SectionHeader title={<> Evidence </>} />
                 <TenderlyEvidence preview={previewData} />
               </View>
 
               {gate.expired ? (
                 <View
                   accessibilityRole="alert"
-                  className="rounded-2xl border border-error/30 bg-error/10 p-3"
+                  className="rounded-2xl border border-danger-line bg-danger-soft p-3"
                 >
-                  <Text className="text-center font-sans-semibold text-[11px] text-error">
+                  <Text className="text-center font-sans-semibold text-[11px] text-danger">
                     This preview has expired. Retry simulation before signing.
                   </Text>
                 </View>
@@ -364,7 +364,7 @@ export function SimulationPreviewSheet({
           </ScrollView>
 
           <View
-            className="border-t border-line bg-bg-2 px-5 pt-4"
+            className="border-t border-line bg-surface px-5 pt-4"
             style={{ paddingBottom: Math.max(insets.bottom, 20) }}
           >
             {gate.expired ? (
@@ -378,7 +378,7 @@ export function SimulationPreviewSheet({
             ) : (
               <>
                 <View className="flex-row gap-3">
-                  <PrimaryButton
+                  <Button
                     accessibilityLabel="Cancel transaction"
                     className="flex-1"
                     disabled={busy}
@@ -386,7 +386,7 @@ export function SimulationPreviewSheet({
                     onPress={onClose}
                   >
                     Cancel
-                  </PrimaryButton>
+                  </Button>
                   <RetryButton
                     disabled={busy}
                     retrying={isRetryingSimulation}
@@ -397,7 +397,7 @@ export function SimulationPreviewSheet({
 
                 {signable ? (
                   <View className="mt-3">
-                    <PrimaryButton
+                    <Button
                       accessibilityLabel={signingActionLabel(
                         batchExecutionPhase,
                       )}
@@ -412,7 +412,7 @@ export function SimulationPreviewSheet({
                         <Check size={15} color="#221c0f" />
                       )}
                       {signingActionLabel(batchExecutionPhase)}
-                    </PrimaryButton>
+                    </Button>
                     <Text className="mt-2 text-center text-[9.5px] leading-4 text-ink-faint">
                       Sign &amp; Send starts wallet signing immediately, then
                       submits this batch.

@@ -4,7 +4,7 @@ import { useCallback } from 'react';
 import { Text, View } from 'react-native';
 
 import { Card } from '@/components/ui/Card';
-import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { Button } from '@/components/ui/Button';
 import { Tap } from '@/components/ui/Tap';
 import { useAccount } from '@/integration/useAccount';
 import { useTelegramConnection } from '@/integration/useTelegramConnection';
@@ -64,20 +64,16 @@ export function TelegramCard() {
           <Text className="mt-2 text-[12.5px] leading-5 text-ink-dim">
             {view.message}
           </Text>
-          <PrimaryButton
-            className="mt-3"
-            variant="secondary"
-            onPress={telegram.retry}
-          >
+          <Button className="mt-3" variant="secondary" onPress={telegram.retry}>
             Try again
-          </PrimaryButton>
+          </Button>
         </>
       ) : view.status.isConnected ? (
         <>
           <Text className="mt-2 text-[12.5px] leading-5 text-ink-dim">
             Connected. Portfolio alerts and strategy suggestions are on.
           </Text>
-          <PrimaryButton
+          <Button
             className="mt-3"
             variant="secondary"
             disabled={telegram.isDisconnecting}
@@ -86,7 +82,7 @@ export function TelegramCard() {
             {telegram.isDisconnecting
               ? 'Disconnecting…'
               : 'Disconnect Telegram'}
-          </PrimaryButton>
+          </Button>
         </>
       ) : (
         <>
@@ -94,13 +90,13 @@ export function TelegramCard() {
             Connect Telegram to receive portfolio alerts and strategy
             suggestions.
           </Text>
-          <PrimaryButton
+          <Button
             className="mt-3"
             variant="secondary"
             onPress={telegram.connect}
           >
             Connect Telegram
-          </PrimaryButton>
+          </Button>
         </>
       )}
     </Card>

@@ -2,11 +2,11 @@ import { useRouter } from 'expo-router';
 import { ChevronRight } from 'lucide-react-native';
 import { Text, View } from 'react-native';
 
-import { ScreenHeader } from '@/components/ui/ScreenHeader';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { Card } from '@/components/ui/Card';
-import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { Button } from '@/components/ui/Button';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
-import { NonCustodialCard } from '@/components/ui/NonCustodialCard';
+import { Callout } from '@/components/ui/Callout';
 import { Tap } from '@/components/ui/Tap';
 import { LanguageSettingsCard } from '@/components/account/LanguageSettingsCard';
 import { DeleteAccountCard } from '@/components/account/DeleteAccountCard';
@@ -24,8 +24,8 @@ export function AccountScreen() {
   const address = account.address ?? DEMO.account.address;
 
   return (
-    <ScreenScrollView>
-      <ScreenHeader title={t('tabs.account')} />
+    <ScreenScrollView width="narrow">
+      <PageHeader title={t('tabs.account')} />
       <View className="px-5 pt-5">
         <Tap
           accessibilityRole="button"
@@ -49,12 +49,13 @@ export function AccountScreen() {
         <LanguageSettingsCard />
         <TelegramCard />
         <View className="mt-4">
-          <NonCustodialCard
+          <Callout
+            tone="info"
             title={t('account.approveEveryTransaction')}
             body={t('account.nonCustodialBody')}
           />
         </View>
-        <PrimaryButton
+        <Button
           className="mt-5"
           variant={account.isConnected ? 'secondary' : 'primary'}
           onPress={() => {
@@ -68,7 +69,7 @@ export function AccountScreen() {
           {account.isConnected
             ? t('account.disconnectWallet')
             : t('account.connectWallet')}
-        </PrimaryButton>
+        </Button>
         <DeleteAccountCard />
       </View>
     </ScreenScrollView>

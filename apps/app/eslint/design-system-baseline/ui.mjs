@@ -72,13 +72,13 @@ export default {
   },
   'src/components/ui/InlineErrorCard.tsx': {
     'react/jsx-no-literals:afc795e39b5882a26b65': 1,
-    'zap-ui/no-raw-design-values:b4d47b1100c767d80866': 1,
-    'react/jsx-no-literals:1c2d2ff3e5087e23d3d1': 1,
-    'zap-ui/no-raw-design-values:43a0df3d606b3fd31ad5': 1,
     'react/jsx-no-literals:5801fcaae0b5142f7e53': 1,
     'zap-ui/no-raw-design-values:425ef13a8c97a6df0af1': 1,
     'react/jsx-no-literals:3835f6a4f59c53108860': 1,
     'react/jsx-no-literals:2b2f6c49c0e1281005f0': 1,
+    'zap-ui/no-raw-design-values:c34df78c6636584c9dbe': 1,
+    'react/jsx-no-literals:a93c8829ead8d2c55585': 1,
+    'zap-ui/no-raw-design-values:4e0e0c79ee23e34a69eb': 1,
   },
   'src/components/ui/NonCustodialCard.tsx': {
     'react/jsx-no-literals:c2d1c6049885fa5db870': 1,
@@ -139,7 +139,7 @@ export default {
     'zap-ui/no-raw-design-values:c227ed1b847476800170': 1,
   },
   'src/components/ui/Skeleton.tsx': {
-    'zap-ui/no-raw-design-values:c0a04af5c0094d47b579': 1,
+    'zap-ui/no-raw-design-values:317ff233f6cc7f6c2460': 1,
   },
   'src/components/ui/TenderlyLogo.tsx': {
     'zap-ui/no-raw-design-values:32646815db60a8c7245a': 1,

@@ -6,6 +6,8 @@ import { type ReactElement, type ReactNode, useEffect, useRef } from 'react';
 import { AppState, type AppStateStatus, Platform, View } from 'react-native';
 import * as Sentry from '@sentry/react-native';
 
+import { BootScreen } from '@/components/shell/BootScreen';
+
 import { ConnectSheetHost } from '@/components/connect/ConnectSheetHost';
 import { PodcastProgressTracker } from '@/components/podcast/PodcastProgressTracker';
 import {
@@ -14,6 +16,7 @@ import {
 } from '@/components/ui/CrashFallbackScreen';
 import { getExpoMobileRuntimeConfig } from '@/config/expoRuntimeConfig';
 import type { MobileRuntimeConfig } from '@/config/mobileRuntimeConfig';
+import { ReducedMotionProvider } from '@/providers/ReducedMotionProvider';
 import { APP_FONTS } from '@/lib/fonts';
 import { AuthenticatedActionProvider } from '@/providers/AuthenticatedActionProvider';
 import { ContentLanguageProvider } from '@/providers/ContentLanguageProvider';
@@ -86,7 +89,11 @@ function ProviderChrome({ children }: { children: ReactNode }): ReactElement {
         <CrashFallbackScreen resetError={resetError} />
       )}
     >
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      <ReducedMotionProvider>
+        <QueryClientProvider client={queryClient}>
+          {children}
+        </QueryClientProvider>
+      </ReducedMotionProvider>
     </Sentry.ErrorBoundary>
   );
 }
@@ -108,7 +115,7 @@ export function AppProviderShell(
   }, [fontsLoaded, onReady]);
 
   if (!fontsLoaded) {
-    return null;
+    return <BootScreen />;
   }
 
   const appContent = (

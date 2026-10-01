@@ -4,8 +4,8 @@ import { Text, TextInput, View } from 'react-native';
 
 import { LanguageSettingsCard } from '@/components/account/LanguageSettingsCard';
 import { Card } from '@/components/ui/Card';
-import { PrimaryButton } from '@/components/ui/PrimaryButton';
-import { ScreenHeader } from '@/components/ui/ScreenHeader';
+import { Button } from '@/components/ui/Button';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { Tap } from '@/components/ui/Tap';
 import {
@@ -63,8 +63,8 @@ export function AccountScreen() {
   };
 
   return (
-    <ScreenScrollView>
-      <ScreenHeader title={t('account.settingsTitle')} />
+    <ScreenScrollView width="narrow">
+      <PageHeader title={t('account.settingsTitle')} />
       <View className="px-5 pt-5">
         <Card className="p-5">
           <Text className="font-sans-semibold text-[15px] text-ink">
@@ -107,14 +107,14 @@ export function AccountScreen() {
               {t('account.watchAddressSaved')}
             </Text>
           ) : null}
-          <PrimaryButton
+          <Button
             className="mt-4"
             variant="secondary"
             disabled={savingWatchAddress}
             onPress={() => void saveWatchAddress()}
           >
             {t('account.watchAddressSave')}
-          </PrimaryButton>
+          </Button>
           {watchAddress.trim() ? (
             <Tap
               className="mt-3 min-h-9 items-center justify-center"
@@ -138,13 +138,13 @@ export function AccountScreen() {
           </Text>
         </Card>
 
-        <PrimaryButton
+        <Button
           className="mt-5"
           variant="secondary"
           onPress={() => void logout()}
         >
           {t('account.signOut')}
-        </PrimaryButton>
+        </Button>
       </View>
     </ScreenScrollView>
   );

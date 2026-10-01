@@ -45,4 +45,7 @@ config.resolver.resolveRequest = resolveRequestWithPackageExports;
 
 // Must wrap last: withNativeWind composes with (not replaces) the resolver
 // assigned above — react-native-css-interop calls the original resolveRequest.
-module.exports = withNativeWind(config, { input: './global.css' });
+module.exports = withNativeWind(config, {
+  input: './global.css',
+  inlineRem: 16,
+});

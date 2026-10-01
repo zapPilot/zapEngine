@@ -21,6 +21,7 @@ vi.mock('@sentry/react-native', async () => {
   };
 });
 
+vi.mock('expo-router', () => ({ useRouter: () => ({ replace: vi.fn() }) }));
 vi.mock('expo-font', () => ({ useFonts: () => [true] }));
 vi.mock('expo-status-bar', () => ({ StatusBar: () => null }));
 vi.mock('@/lib/fonts', () => ({ APP_FONTS: {} }));
@@ -32,15 +33,10 @@ vi.mock('@/config/expoRuntimeConfig', () => ({
   }),
 }));
 
-vi.mock('react-native', () => ({
-  AppState: {
-    currentState: 'active',
-    addEventListener: () => ({ remove: () => {} }),
-  },
-  Platform: { OS: 'web' },
-  Text: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
-  View: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-}));
+vi.mock('react-native', async () => {
+  const { reactNativeStub } = await import('./support/reactNativeStub');
+  return reactNativeStub;
+});
 
 vi.mock('@/components/connect/ConnectSheetHost', () => ({
   ConnectSheetHost: () => null,
@@ -49,8 +45,8 @@ vi.mock('@/components/podcast/PodcastProgressTracker', () => ({
   PodcastProgressTracker: () => null,
 }));
 vi.mock('@/components/ui/ZapLogo', () => ({ ZapLogo: () => null }));
-vi.mock('@/components/ui/PrimaryButton', () => ({
-  PrimaryButton: ({
+vi.mock('@/components/ui/Button', () => ({
+  Button: ({
     children,
     onPress,
   }: {

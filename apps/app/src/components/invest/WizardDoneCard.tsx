@@ -1,6 +1,6 @@
 import { Card } from '@/components/ui/Card';
-import { InfoRow } from '@/components/ui/InfoRow';
-import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { ListRow } from '@/components/ui/ListRow';
+import { Button } from '@/components/ui/Button';
 
 interface WizardDoneCardProps {
   amountLabel: string;
@@ -17,12 +17,12 @@ export function WizardDoneCard({
   return (
     <>
       <Card className="mt-4 p-4">
-        <InfoRow label="Amount" value={amountLabel} divider />
-        <InfoRow label="Status" value={statusLabel} />
+        <ListRow title="Amount" value={amountLabel} divider />
+        <ListRow title="Status" value={statusLabel} />
       </Card>
-      <PrimaryButton className="mt-5" onPress={onDone}>
+      <Button className="mt-5" onPress={onDone}>
         Back to home
-      </PrimaryButton>
+      </Button>
     </>
   );
 }

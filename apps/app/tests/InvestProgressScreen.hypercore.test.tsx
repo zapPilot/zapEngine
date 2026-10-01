@@ -58,6 +58,10 @@ const { agentSigning, spotPlan, wizard, invest, execution } = vi.hoisted(() => {
   };
 });
 
+vi.mock('@/providers/ContentLanguageProvider', async () => {
+  const { en } = await import('./support/i18nHarness');
+  return { useContentLanguage: () => ({ languageCode: 'en', t: en }) };
+});
 vi.mock('expo-router', () => ({
   useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
   Redirect: () => null,

@@ -6,8 +6,8 @@ import {
   CONNECTING_LABEL,
 } from '@/components/connect/connectGateCopy';
 import { Card } from '@/components/ui/Card';
-import { InlineErrorCard } from '@/components/ui/InlineErrorCard';
-import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { Callout } from '@/components/ui/Callout';
+import { Button } from '@/components/ui/Button';
 import { NATIVE_PRIVY_AUTH_COPY } from '@/integration/nativePrivyLogin';
 
 interface ConnectGateCardProps {
@@ -64,7 +64,7 @@ export function ConnectGateCard({
       >
         {body}
       </Text>
-      <PrimaryButton
+      <Button
         className={isPage ? 'mt-5' : 'mt-4'}
         disabled={isConnecting}
         accessibilityRole="button"
@@ -74,9 +74,10 @@ export function ConnectGateCard({
         onPress={onConnect}
       >
         {isConnecting ? CONNECTING_LABEL : cta}
-      </PrimaryButton>
+      </Button>
       {!isConnecting && error ? (
-        <InlineErrorCard
+        <Callout
+          tone="danger"
           className="mt-4"
           title={
             isWeb

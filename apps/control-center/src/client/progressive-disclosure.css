@@ -524,7 +524,7 @@
   text-wrap: pretty;
 }
 .statement-sentence .seg-error {
-  color: var(--error);
+  color: var(--danger);
   font-weight: 500;
 }
 .statement-sentence .seg-warning {

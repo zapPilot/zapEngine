@@ -1,40 +1,34 @@
 # @zapengine/design-tokens
 
-Shared Zap Pilot brand tokens for TypeScript and CSS consumers.
+`tokens.json` is the single source of truth for Zap Pilot's dark interface: champagne gold, readable neutral text, Instrument Serif headings, Geist controls, and JetBrains Mono numeric values.
 
-## Overview
+## Consumers
 
-A single source of truth — `tokens.json` — drives generated outputs for every consumer:
-
-- **TypeScript token objects** (`dist/tokens.js`, `dist/index.js`) — colors, radii, spacing, typography
-- **CSS custom properties** (`dist/css/variables.css`) — for non-Tailwind consumers
-
-## Usage
-
-### TypeScript
+- `apps/app` reads the static TypeScript module and JSON theme. Runtime font names match the families loaded by Expo.
+- `apps/landing-page` and `apps/control-center` import generated CSS variables. Landing uses its own Tailwind v4 CSS configuration.
+- `apps/podcast-pipeline` reads the static colors for branded video templates.
 
 ```typescript
-import { tokens } from '@zapengine/design-tokens';
+import { tokens } from '@zapengine/design-tokens/tokens';
 ```
-
-### Web (CSS variables, no Tailwind)
 
 ```css
 @import '@zapengine/design-tokens/css/variables.css';
 ```
 
-## Editing tokens
+The 14 typography roles specify size, line height, and tracking in pixels. Layout, motion, control sizes, and runtime font families remain TypeScript/JSON only. CSS emits colors, radii, typography, shadows, easing, durations, and the Fumadocs aliases; it does not emit font or container names that collide with Tailwind.
 
-1. Edit `tokens.json`.
-2. Run `pnpm build` — this runs `codegen:css`, `codegen:ts`, and `tsc` in order.
-3. Commit `tokens.json` and `dist/` together. The generated outputs are checked in so consumers don't need to rebuild this package on install.
+Use `ink-muted` for small secondary text. `ink-faint` is reserved for disabled controls and decoration. The minimum text size is 11px and the minimum hit target is 44px on both web and native.
 
-## Build
+## Editing and verifying
+
+Edit `tokens.json`, then regenerate through Turbo:
 
 ```bash
-pnpm build       # codegen + tsc
-pnpm dev         # tsc --watch (codegen runs once on entry)
-pnpm clean       # rm -rf dist
+pnpm turbo run build type-check lint test deadcode dup:check --filter=@zapengine/design-tokens
+pnpm --filter @zapengine/design-tokens format:check
 ```
+
+Keep `tokens.json`, `src/generated/tokens.ts`, and `dist/` together in the change. Never edit generated output by hand. Renaming a token requires migrating every consumer in the same change; obsolete aliases and Flutter output are removed.
 
 See [packages/AGENTS.md](../AGENTS.md) for shared package guidelines.

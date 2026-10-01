@@ -10,6 +10,12 @@ purple/blue/amber system that conflicts with `packages/design-tokens/tokens.json
 and was removed when this redesign landed.) The new logo must
 move Zap Pilot onto the warm-gold, dark-first token system.
 
+## Interface system v2 (2026-10-01)
+
+The interface is dark only, with champagne gold `#d4c5a3`. Instrument Serif is reserved for display headings and large values; Geist is the interface family; JetBrains Mono is for numeric values and small labels. Runtime font family tokens use Expo registration names.
+
+Use the canonical typography roles, 20px cards, 12px controls, 28px sheets, and 44px minimum hit targets. Small secondary text uses `ink-muted`; `ink-faint` is limited to decoration and disabled states. App, landing, control-center, and podcast video templates share the same token source.
+
 ## Status — Implemented (2026-07-09)
 
 **Selected motif:** Direction C (Autopilot Compass) — the "Regime" dial variant

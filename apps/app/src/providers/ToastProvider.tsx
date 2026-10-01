@@ -4,9 +4,14 @@ import {
   type ReactElement,
   type ReactNode,
   useCallback,
+  useEffect,
+  useRef,
   useState,
 } from 'react';
-import { Linking, Pressable, Text, View } from 'react-native';
+import { Linking, View, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { tokens } from '@zapengine/design-tokens/tokens';
+import { ToastItem } from '@/components/ui/ToastItem';
 
 interface ToastProviderProps {
   children: ReactNode;
@@ -16,22 +21,22 @@ function createToastId(): string {
   return Math.random().toString(36).slice(2);
 }
 
-function toastBorderClassName(type: Toast['type']): string {
-  return type === 'error'
-    ? 'border-error/40'
-    : 'border-[rgba(212,197,163,.28)]';
-}
-
-function toastTitleClassName(type: Toast['type']): string {
-  if (type === 'error') return 'text-error';
-  if (type === 'warning') return 'text-[#ffd166]';
-  return 'text-accent';
-}
-
 export function ToastProvider({ children }: ToastProviderProps): ReactElement {
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  useEffect(() => {
+    const activeTimers = timers.current;
+    return () => {
+      for (const timer of activeTimers.values()) clearTimeout(timer);
+      activeTimers.clear();
+    };
+  }, []);
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   const hideToast = useCallback((id: string) => {
+    clearTimeout(timers.current.get(id));
+    timers.current.delete(id);
     setToasts((current) => current.filter((toast) => toast.id !== id));
   }, []);
 
@@ -39,7 +44,10 @@ export function ToastProvider({ children }: ToastProviderProps): ReactElement {
     (toastData: Omit<Toast, 'id'>) => {
       const toast: Toast = { ...toastData, id: createToastId() };
       setToasts((current) => [...current.slice(-2), toast]);
-      setTimeout(() => hideToast(toast.id), toast.duration ?? 4200);
+      timers.current.set(
+        toast.id,
+        setTimeout(() => hideToast(toast.id), toast.duration ?? 4200),
+      );
     },
     [hideToast],
   );
@@ -61,28 +69,21 @@ export function ToastProvider({ children }: ToastProviderProps): ReactElement {
   return (
     <ToastContext.Provider value={{ showToast, hideToast }}>
       {children}
-      <View className="absolute inset-x-0 top-5 z-50 items-center gap-2 px-5">
+      <View
+        pointerEvents="box-none"
+        className="absolute inset-x-0 z-50 gap-2 px-5"
+        style={{
+          top: insets.top + tokens.gutter.compact,
+          alignItems:
+            width >= tokens.breakpoint.expanded ? 'flex-end' : 'center',
+        }}
+      >
         {toasts.map((toast) => (
-          <Pressable
+          <ToastItem
             key={toast.id}
-            className={`w-full max-w-[330px] rounded-[16px] border bg-[#141416] px-4 py-3 shadow-lg ${toastBorderClassName(
-              toast.type,
-            )}`}
+            toast={toast}
             onPress={() => handleToastPress(toast)}
-          >
-            <Text
-              className={`font-sans-semibold text-[13px] ${toastTitleClassName(
-                toast.type,
-              )}`}
-            >
-              {toast.title}
-            </Text>
-            {toast.message ? (
-              <Text className="mt-1 font-sans text-[11px] leading-4 text-ink-dim">
-                {toast.message}
-              </Text>
-            ) : null}
-          </Pressable>
+          />
         ))}
       </View>
     </ToastContext.Provider>

@@ -14,6 +14,10 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
+vi.mock('@/providers/ContentLanguageProvider', async () => {
+  const { en } = await import('./support/i18nHarness');
+  return { useContentLanguage: () => ({ languageCode: 'en', t: en }) };
+});
 vi.mock('expo-router', () => ({
   useRouter: () => ({ back: mocks.back, replace: vi.fn(), push: vi.fn() }),
   Redirect: () => null,
@@ -72,9 +76,7 @@ vi.mock('@/components/invest/ChainBatchReviewCard', () => ({
 }));
 // Chrome this screen renders around the cards; both reach native-only modules
 // (react-native-svg, nativewind) the DOM harness does not provide.
-vi.mock('@/components/ui/NonCustodialCard', () => ({
-  NonCustodialCard: () => null,
-}));
+
 vi.mock('@/components/ui/Skeleton', () => ({ SkeletonBlock: () => null }));
 
 beforeEach(() => {

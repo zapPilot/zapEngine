@@ -156,8 +156,8 @@ vi.mock('@/components/ui/Tap', () => ({
   ),
 }));
 vi.mock('@/components/ui/ProgressBar', () => ({ ProgressBar: () => null }));
-vi.mock('@/components/ui/PrimaryButton', () => ({
-  PrimaryButton: ({
+vi.mock('@/components/ui/Button', () => ({
+  Button: ({
     children,
     onPress,
   }: {
@@ -173,7 +173,7 @@ vi.mock('@/components/ui/ScreenScrollView', () => ({
     <main>{children}</main>
   ),
 }));
-vi.mock('@/components/ui/ScreenHeader', () => ({ ScreenHeader: () => null }));
+vi.mock('@/components/ui/PageHeader', () => ({ PageHeader: () => null }));
 vi.mock('@/components/ui/Skeleton', () => ({
   SkeletonBlock: () => <div>Skeleton</div>,
 }));

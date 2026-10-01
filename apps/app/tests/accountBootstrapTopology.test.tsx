@@ -24,6 +24,8 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
+vi.mock('nativewind', () => ({ cssInterop: vi.fn() }));
+
 vi.mock('@zapengine/app-core/services/accountService', () => ({
   connectWallet: mocks.connectWallet,
   getUserByWallet: mocks.getUserByWallet,
@@ -36,14 +38,18 @@ vi.mock('@zapengine/app-core/providers/walletContext', () => ({
   useWalletProvider: () => mocks.wallet,
 }));
 
-vi.mock('react-native', () => ({
-  Text: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
-  View: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-}));
+vi.mock(
+  'react-native',
+  async () => (await import('./support/reactNativeStub')).reactNativeStub,
+);
 
-vi.mock('lucide-react-native', () => ({
-  Bell: () => null,
-  ChevronRight: () => null,
+vi.mock(
+  'lucide-react-native',
+  async () => (await import('./support/lucideStub')).lucideStub,
+);
+
+vi.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
 
 vi.mock('expo-router', () => ({
@@ -57,8 +63,8 @@ vi.mock('expo-linking', () => ({
 vi.mock('@/components/ui/Card', () => ({
   Card: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
 }));
-vi.mock('@/components/ui/PrimaryButton', () => ({
-  PrimaryButton: ({ children }: { children?: ReactNode }) => (
+vi.mock('@/components/ui/Button', () => ({
+  Button: ({ children }: { children?: ReactNode }) => (
     <button type="button">{children}</button>
   ),
 }));
@@ -75,17 +81,15 @@ vi.mock('@/components/ui/Tap', () => ({
     </button>
   ),
 }));
-vi.mock('@/components/ui/ScreenHeader', () => ({
-  ScreenHeader: ({ title }: { title?: string }) => <h1>{title}</h1>,
+vi.mock('@/components/ui/PageHeader', () => ({
+  PageHeader: ({ title }: { title?: string }) => <h1>{title}</h1>,
 }));
 vi.mock('@/components/ui/ScreenScrollView', () => ({
   ScreenScrollView: ({ children }: { children?: ReactNode }) => (
     <main>{children}</main>
   ),
 }));
-vi.mock('@/components/ui/NonCustodialCard', () => ({
-  NonCustodialCard: () => null,
-}));
+
 vi.mock('@/components/account/LanguageSettingsCard', () => ({
   LanguageSettingsCard: () => null,
 }));

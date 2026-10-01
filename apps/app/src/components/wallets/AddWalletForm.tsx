@@ -1,8 +1,11 @@
 import type { NewWallet } from '@zapengine/app-core/types';
 import { useState } from 'react';
-import { Text, TextInput, View } from 'react-native';
+import { Text, View } from 'react-native';
 
-import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { TextField } from '@/components/ui/TextField';
+import { useContentLanguage } from '@/providers/ContentLanguageProvider';
+
+import { Button } from '@/components/ui/Button';
 import { Tap } from '@/components/ui/Tap';
 
 interface AddWalletFormProps {
@@ -21,6 +24,7 @@ export function AddWalletForm({
   onDone,
   onCancel,
 }: AddWalletFormProps) {
+  const { t } = useContentLanguage();
   const [label, setLabel] = useState('');
   const [address, setAddress] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -46,21 +50,19 @@ export function AddWalletForm({
         Add any wallet now. It will stay unverified until you prove ownership
         from the wallet row.
       </Text>
-      <TextInput
-        className="rounded-2xl border border-line bg-[rgba(255,255,255,.035)] px-4 py-3 font-sans-semibold text-[13px] text-ink"
+      <TextField
+        label={t('account.walletLabel')}
         autoCapitalize="none"
         autoCorrect={false}
         placeholder="Wallet label"
-        placeholderTextColor="#52525b"
         value={label}
         onChangeText={setLabel}
       />
-      <TextInput
-        className="rounded-2xl border border-line bg-[rgba(255,255,255,.035)] px-4 py-3 font-mono text-[13px] text-ink"
+      <TextField
+        label={t('account.walletAddress')}
         autoCapitalize="none"
         autoCorrect={false}
         placeholder="0x wallet address"
-        placeholderTextColor="#52525b"
         value={address}
         onChangeText={setAddress}
       />
@@ -71,9 +73,9 @@ export function AddWalletForm({
       ) : null}
       <View className="flex-row items-center gap-3">
         <View className="flex-1">
-          <PrimaryButton disabled={busy} onPress={() => void submit()}>
+          <Button disabled={busy} onPress={() => void submit()}>
             {busy ? 'Adding wallet…' : 'Add wallet'}
-          </PrimaryButton>
+          </Button>
         </View>
         <Tap
           accessibilityRole="button"

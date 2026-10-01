@@ -129,7 +129,7 @@ export function ProductView(props: {
                   {
                     label: `${integer(older)} older`,
                     share: safeRatio(older, observed),
-                    color: 'var(--error)',
+                    color: 'var(--danger)',
                   },
                 ]}
               />

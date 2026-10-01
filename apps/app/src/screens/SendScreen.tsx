@@ -5,9 +5,9 @@ import { Text, TextInput, View } from 'react-native';
 import { ChainIconStack } from '@/components/token/ChainIconStack';
 import { TokenIcon } from '@/components/token/TokenIcon';
 import { Card } from '@/components/ui/Card';
-import { InfoRow } from '@/components/ui/InfoRow';
-import { PrimaryButton } from '@/components/ui/PrimaryButton';
-import { ScreenHeader } from '@/components/ui/ScreenHeader';
+import { ListRow } from '@/components/ui/ListRow';
+import { Button } from '@/components/ui/Button';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { Tap } from '@/components/ui/Tap';
 import { type ChainKey } from '@/integration/portfolioTypes';
@@ -60,8 +60,8 @@ export function SendScreen() {
   }, [amount, recipient, selectedAsset, selectedHolding]);
 
   return (
-    <ScreenScrollView>
-      <ScreenHeader title="Send" />
+    <ScreenScrollView width="narrow">
+      <PageHeader title="Send" />
       <View className="px-5 pt-5">
         <Card className="p-4">
           {selectedAsset ? (
@@ -125,12 +125,12 @@ export function SendScreen() {
             ))}
           </View>
           <View className="mt-4">
-            <InfoRow label="Status" value={requestLabel} />
+            <ListRow title="Status" value={requestLabel} />
           </View>
         </Card>
-        <PrimaryButton className="mt-5" variant="secondary" disabled={true}>
+        <Button className="mt-5" variant="secondary" disabled={true}>
           Review send
-        </PrimaryButton>
+        </Button>
       </View>
     </ScreenScrollView>
   );

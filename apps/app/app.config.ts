@@ -1,3 +1,4 @@
+import tokens from '@zapengine/design-tokens/tokens.json';
 import path from 'node:path';
 
 import type { ExpoConfig } from 'expo/config';
@@ -117,6 +118,9 @@ const config: ExpoConfig = {
     bundler: 'metro',
     output: 'single',
     favicon: './assets/brand/favicon.png',
+    themeColor: tokens.color.bg,
+    description:
+      'Disciplined portfolio guidance and financial podcasts from Zap Pilot.',
   },
   plugins: [
     './scripts/with-app-store-icon.cjs',

@@ -32,7 +32,7 @@
 
   --status-healthy: var(--success);
   --status-degraded: var(--warning);
-  --status-critical: var(--error);
+  --status-critical: var(--danger);
   --status-unknown: var(--ink-faint);
   /* Overridden per element by a status modifier; the fallback keeps an
      unstyled state neutral rather than falsely green. */
@@ -137,7 +137,7 @@ p {
   width: 100%;
   padding: 11px 12px;
   border: 0;
-  border-radius: var(--radius-card);
+  border-radius: var(--radius-tile);
   background: transparent;
   color: var(--ink-dim);
   font-size: 14px;
@@ -167,7 +167,7 @@ p {
   min-width: 20px;
   padding: 2px 6px;
   border-radius: var(--radius-pill);
-  background: var(--error);
+  background: var(--danger);
   color: var(--bg);
   font-family: var(--font-mono);
   font-size: 10px;
@@ -431,7 +431,7 @@ select:focus-visible {
   color: var(--success);
 }
 .delta-chip.bad {
-  color: var(--error);
+  color: var(--danger);
 }
 
 /* Action queue -------------------------------------------------------------*/
@@ -667,7 +667,7 @@ select:focus-visible {
   line-height: 1.45;
 }
 .error-text {
-  color: var(--error);
+  color: var(--danger);
 }
 
 /* Domain strip -------------------------------------------------------------*/
@@ -874,7 +874,7 @@ select:focus-visible {
 }
 .status-error,
 .status-unconfigured {
-  color: var(--error);
+  color: var(--danger);
 }
 .usage-signals {
   padding: 4px var(--pad) 14px;
@@ -1215,8 +1215,8 @@ select:focus-visible {
   color: var(--accent);
 }
 .tier-pill.paused {
-  border-color: var(--error);
-  color: var(--error);
+  border-color: var(--danger);
+  color: var(--danger);
 }
 .customer-row {
   cursor: pointer;
@@ -1972,7 +1972,7 @@ select:focus-visible {
   gap: 6px 14px;
   margin-bottom: var(--gap);
   padding: 14px 18px;
-  border: 1px solid var(--error);
+  border: 1px solid var(--danger);
   border-left-width: 3px;
   border-radius: var(--radius-control);
   background: var(--surface);

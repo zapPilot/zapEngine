@@ -1,4 +1,4 @@
-// Temporary migration debt. Remove fingerprints as their consumers migrate.
+// Temporary design-system debt: exact normalized-node fingerprint counts. Remove after the UI migration.
 export default {
   'src/components/account/DeleteAccountCard.tsx': {
     'zap-ui/no-raw-text:71988c4d8e0803ba4519': 1,
@@ -323,7 +323,6 @@ export default {
     'react/jsx-no-literals:21630e43262e28e36f8e': 1,
     'zap-ui/no-raw-design-values:c0be139b44885b534f8d': 1,
     'react/jsx-no-literals:d9c8c1265b78ece68a58': 1,
-    'react/jsx-no-literals:ea4f9a7f38939bccb684': 1,
     'react/jsx-no-literals:70c90c2f25c3ba9e6b82': 1,
     'react/jsx-no-literals:1c8c823c29ee14f1b429': 1,
     'react/jsx-no-literals:0a886e3219277e30b8ec': 1,
@@ -343,5 +342,6 @@ export default {
     'react/jsx-no-literals:6eeaf485e04f55d9725e': 1,
     'zap-ui/no-raw-design-values:93e189f17c5842eb3336': 1,
     'react/jsx-no-literals:4608e6e3314c69e0f521': 1,
+    'react/jsx-no-literals:322492571b2154d537de': 1,
   },
 };

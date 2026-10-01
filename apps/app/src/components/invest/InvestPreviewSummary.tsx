@@ -1,5 +1,5 @@
 import { Card } from '@/components/ui/Card';
-import { InfoRow } from '@/components/ui/InfoRow';
+import { ListRow } from '@/components/ui/ListRow';
 import { SectorAllocationBar } from '@/components/invest/SectorAllocationBar';
 import type { SectorWeights } from '@/integration/investSectorModel';
 import { formatUsd6 } from '@/lib/format';
@@ -12,7 +12,7 @@ export function InvestPreviewSummary({
 }) {
   return (
     <Card className="mt-4 p-4">
-      <InfoRow label="Total" value={formatUsd6(totalUsd6)} />
+      <ListRow title="Total" value={formatUsd6(totalUsd6)} />
       <SectorAllocationBar weights={weights} />
     </Card>
   );

@@ -1,0 +1,16 @@
+export const textVariants = {
+  display: 'font-serif text-display',
+  'display-sm': 'font-serif text-display-sm',
+  title: 'font-serif text-title',
+  'title-sm': 'font-serif text-title-sm',
+  heading: 'font-sans-semibold text-heading',
+  subheading: 'font-sans-semibold text-subheading',
+  body: 'font-sans text-body',
+  'body-sm': 'font-sans text-body-sm',
+  label: 'font-sans-medium text-label',
+  caption: 'font-sans text-caption',
+  overline: 'font-mono-medium text-overline uppercase',
+  'numeric-lg': 'font-mono text-numeric-lg',
+  numeric: 'font-mono text-numeric',
+  'numeric-sm': 'font-mono text-numeric-sm',
+} as const;

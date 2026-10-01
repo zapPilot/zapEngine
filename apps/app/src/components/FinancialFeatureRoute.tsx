@@ -3,7 +3,7 @@ import type { ReactElement, ReactNode } from 'react';
 import { Platform, Text, View } from 'react-native';
 
 import { Card } from '@/components/ui/Card';
-import { ScreenHeader } from '@/components/ui/ScreenHeader';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 
@@ -21,8 +21,8 @@ export function FinancialFeatureRoute({
   }
 
   return (
-    <ScreenScrollView>
-      <ScreenHeader title={title} />
+    <ScreenScrollView width="narrow">
+      <PageHeader title={title} />
       <View className="px-5 pt-8">
         <Card className="items-center p-6">
           <View className="h-12 w-12 items-center justify-center rounded-full border border-line bg-[rgba(212,197,163,.08)]">

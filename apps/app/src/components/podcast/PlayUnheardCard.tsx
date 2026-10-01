@@ -4,8 +4,8 @@ import { Text, View } from 'react-native';
 import { formatPodcastClock } from '@/components/podcast/episodeFormatters';
 import type { EpisodeSortDirection } from '@/components/podcast/episodeSorting';
 import { Card } from '@/components/ui/Card';
-import { PrimaryButton } from '@/components/ui/PrimaryButton';
-import { RangeTabs } from '@/components/ui/RangeTabs';
+import { Button } from '@/components/ui/Button';
+import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { Tap } from '@/components/ui/Tap';
 import type { PodcastEpisode } from '@/integration/podcastFeed';
 import type { TranslationKey } from '@/i18n/translations';
@@ -114,8 +114,13 @@ export function PlayUnheardCard({
           <Text className="font-mono text-[10px] uppercase tracking-[1.1px] text-accent">
             {copy.eyebrow}
           </Text>
-          <RangeTabs
-            options={directionOptions}
+          <SegmentedControl
+            accessibilityLabel={t('common.episodeOrder')}
+            options={directionOptions.map((option) => ({
+              value: option,
+              label: option,
+              accessibilityLabel: option,
+            }))}
             value={direction === 'newest' ? newestLabel : oldestLabel}
             onChange={(value) =>
               onDirectionChange(value === oldestLabel ? 'oldest' : 'newest')
@@ -137,14 +142,14 @@ export function PlayUnheardCard({
         )}
 
         <View className="mt-3">
-          <PrimaryButton accessibilityLabel={copy.buttonLabel} onPress={onPlay}>
+          <Button accessibilityLabel={copy.buttonLabel} onPress={onPlay}>
             {isPlaying ? (
               <Pause size={16} strokeWidth={2.2} color="#0a0a0a" />
             ) : (
               <Play size={16} strokeWidth={2.2} color="#0a0a0a" />
             )}
             {copy.buttonLabel}
-          </PrimaryButton>
+          </Button>
         </View>
       </Card>
     </View>

@@ -4,12 +4,12 @@ import { Text, TextInput, View } from 'react-native';
 import { CONNECT_WALLET_CTA } from '@/components/connect/connectCopy';
 import { CONNECTING_LABEL } from '@/components/connect/connectGateCopy';
 import { QuickAmountChips } from '@/components/invest/QuickAmountChips';
-import { StepHeader } from '@/components/invest/StepHeader';
+import { InvestStepHeader } from '@/components/invest/InvestStepHeader';
 import { StepProgress } from '@/components/invest/StepProgress';
 import { SectorAllocationBar } from '@/components/invest/SectorAllocationBar';
 import { SectorCard } from '@/components/invest/SectorCard';
 import { FundingPlanDisclosure } from '@/components/invest/FundingPlanDisclosure';
-import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { Button } from '@/components/ui/Button';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { Tap } from '@/components/ui/Tap';
 import { isDevBuild } from '@/config/appCoreEnv';
@@ -187,8 +187,8 @@ export function InvestAmountScreen() {
         ? 'Loading balances…'
         : 'Preview investment';
   return (
-    <ScreenScrollView>
-      <StepHeader title="Invest" step="Step 1 of 2" />
+    <ScreenScrollView width="narrow">
+      <InvestStepHeader title="Invest" step="Step 1 of 2" />
       <StepProgress current={1} />
       <View className="px-5 pt-5">
         <Text className="font-serif text-[28px] leading-[32px] text-ink">
@@ -294,12 +294,12 @@ export function InvestAmountScreen() {
         {amountNotice ? (
           <Text
             accessibilityRole="alert"
-            className="mt-3 text-[11px] text-error"
+            className="mt-3 text-[11px] text-danger"
           >
             {amountNotice}
           </Text>
         ) : null}
-        <PrimaryButton
+        <Button
           className="mt-4"
           disabled={
             account.isConnecting ||
@@ -308,7 +308,7 @@ export function InvestAmountScreen() {
           onPress={handlePrimaryAction}
         >
           {primaryLabel}
-        </PrimaryButton>
+        </Button>
         {isDevBuild() ? (
           <Tap
             accessibilityRole="link"

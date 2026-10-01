@@ -1,6 +1,5 @@
 import { usePrivy } from '@privy-io/expo';
 import { useLogin } from '@privy-io/expo/ui';
-import { type Href, useRouter } from 'expo-router';
 import type { ReactElement, ReactNode } from 'react';
 import { useState } from 'react';
 
@@ -13,15 +12,12 @@ import {
 
 export function AuthenticatedRoute({
   children,
-  redirectAfterLogin,
 }: {
   children: ReactNode;
-  redirectAfterLogin?: Href;
   allowBundleView?: boolean;
 }): ReactElement {
   const { isReady, user } = usePrivy();
   const { login } = useLogin();
-  const router = useRouter();
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,11 +35,6 @@ export function AuthenticatedRoute({
         setError(null);
         setIsConnecting(true);
         void loginWithPrivy(login)
-          .then(() => {
-            if (redirectAfterLogin) {
-              router.replace(redirectAfterLogin);
-            }
-          })
           .catch((loginError: unknown) => {
             if (!isPrivyLoginCancellation(loginError)) {
               setError(

@@ -1,8 +1,8 @@
-// Theme values come from the design-tokens source of truth (tokens.json) so
-// the RN app, web CSS variables, and (until retirement) Dart constants never
-// drift. RN has no font-weight matching for runtime-loaded fonts, so each
-// weight is its own fontFamily entry.
-const t = require('@zapengine/design-tokens/tokens.json');
+const tokens = require('@zapengine/design-tokens/tokens.json');
+const px = (values) =>
+  Object.fromEntries(
+    Object.entries(values).map(([name, value]) => [name, `${value}px`]),
+  );
 
 /** @type {import('tailwindcss').Config} */
 module.exports = {
@@ -10,43 +10,58 @@ module.exports = {
   content: ['./src/**/*.{ts,tsx}'],
   presets: [require('nativewind/preset')],
   theme: {
+    colors: {
+      ...tokens.color,
+      transparent: 'transparent',
+      current: 'currentColor',
+    },
+    fontFamily: tokens.font,
+    screens: {
+      md: `${tokens.breakpoint.medium}px`,
+      lg: `${tokens.breakpoint.expanded}px`,
+    },
     extend: {
-      colors: {
-        bg: t.color.bg,
-        'bg-2': t.color['bg-2'],
-        surface: t.color.surface,
-        'surface-elevated': t.color['surface-elevated'],
-        ink: t.color.ink,
-        'ink-dim': t.color['ink-dim'],
-        'ink-faint': t.color['ink-faint'],
-        line: t.color.line,
-        'line-hi': t.color['line-hi'],
-        accent: t.color.accent,
-        'accent-soft': t.color['accent-soft'],
-        'accent-muted': t.color['accent-muted'],
-        error: t.color.error,
-        success: t.color.success,
-        spy: t.color.pillar.spy,
-        btc: t.color.pillar.btc,
-        usd: t.color.pillar.usd,
+      fontSize: Object.fromEntries(
+        Object.entries(tokens.type).map(([name, value]) => [
+          name,
+          [
+            `${value.size}px`,
+            {
+              lineHeight: `${value.line}px`,
+              letterSpacing: `${value.tracking}px`,
+            },
+          ],
+        ]),
+      ),
+      borderRadius: px(tokens.radius),
+      boxShadow: Object.fromEntries(
+        Object.entries(tokens.shadow).map(([name, value]) => [name, value.css]),
+      ),
+      elevation: Object.fromEntries(
+        Object.entries(tokens.shadow).map(([name, value]) => [
+          name,
+          value.elevation,
+        ]),
+      ),
+      spacing: {
+        hit: `${tokens.size.hit}px`,
+        sidenav: `${tokens.size.sidenav}px`,
+        ...Object.fromEntries(
+          Object.entries(tokens.size.control).map(([name, value]) => [
+            `control-${name}`,
+            `${value}px`,
+          ]),
+        ),
       },
-      fontFamily: {
-        serif: 'InstrumentSerif',
-        sans: 'Geist',
-        'sans-medium': 'Geist-Medium',
-        'sans-semibold': 'Geist-SemiBold',
-        'sans-bold': 'Geist-Bold',
-        mono: 'JetBrainsMono',
-        'mono-medium': 'JetBrainsMono-Medium',
-        'mono-semibold': 'JetBrainsMono-SemiBold',
-        'mono-bold': 'JetBrainsMono-Bold',
-      },
-      borderRadius: {
-        pill: `${t.radius.pill}px`,
-        subtle: `${t.radius.subtle}px`,
-        control: `${t.radius.control}px`,
-        card: `${t.radius.card}px`,
-      },
+      maxWidth: px(tokens.container),
+      transitionDuration: Object.fromEntries(
+        Object.entries(tokens.duration).map(([name, value]) => [
+          name,
+          `${value}ms`,
+        ]),
+      ),
+      transitionTimingFunction: tokens.easing,
+      scale: { press: String(tokens.motion['press-scale']) },
     },
   },
 };

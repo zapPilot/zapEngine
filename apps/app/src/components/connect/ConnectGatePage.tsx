@@ -18,7 +18,7 @@ export function ConnectGatePage({
   onConnect: () => void;
 }): ReactElement {
   return (
-    <ScreenScrollView>
+    <ScreenScrollView width="narrow">
       <View className="flex-1 px-5 pt-16">
         <ConnectGateCard
           variant="page"

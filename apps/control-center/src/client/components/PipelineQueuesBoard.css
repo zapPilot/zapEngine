@@ -12,15 +12,15 @@
 .queue-board-loading,
 .queue-inline-error {
   border: 1px solid var(--line);
-  border-radius: var(--radius-card);
+  border-radius: var(--radius-tile);
   background: var(--surface);
   padding: 18px;
 }
 
 .queue-inline-error {
-  color: var(--error);
-  background: color-mix(in srgb, var(--error) 6%, transparent);
-  border-color: color-mix(in srgb, var(--error) 40%, var(--line));
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 6%, transparent);
+  border-color: color-mix(in srgb, var(--danger) 40%, var(--line));
 }
 
 .queue-board-head {
@@ -107,7 +107,7 @@
 .queue-column {
   min-width: 0;
   border: 1px solid var(--line);
-  border-radius: var(--radius-card);
+  border-radius: var(--radius-tile);
   background: var(--bg);
   padding: 12px;
 }
@@ -202,7 +202,7 @@
 /* The rail is what makes a wall of cards scannable: state before text. */
 .queue-card-failed,
 .queue-card-blocked {
-  border-left-color: var(--error);
+  border-left-color: var(--danger);
 }
 
 .queue-card-retrying,
@@ -278,7 +278,7 @@
 }
 
 .queue-card-error {
-  color: var(--error);
+  color: var(--danger);
   font-size: 11px;
   line-height: 1.4;
   overflow-wrap: anywhere;
@@ -316,8 +316,8 @@
 .queue-state-failed,
 .queue-state-blocked,
 .social-status-failed {
-  background: color-mix(in srgb, var(--error) 12%, transparent);
-  color: var(--error);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
 }
 
 .social-status-published {

@@ -81,7 +81,7 @@ vi.mock(
   async () => (await harness()).homeScreenMocks.screenScrollView,
 );
 vi.mock(
-  '@/components/ui/AppHeader',
+  '@/components/ui/PageHeader',
   async () => (await harness()).homeScreenMocks.appHeader,
 );
 vi.mock(

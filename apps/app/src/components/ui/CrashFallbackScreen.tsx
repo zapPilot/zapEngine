@@ -1,7 +1,10 @@
+import { useRouter } from 'expo-router';
+import { en as tabsEn } from '@/i18n/modules/tabs';
 import type { ReactElement, ReactNode } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { Text } from '@/components/ui/Text';
 
-import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { Button } from '@/components/ui/Button';
 import { ZapLogo } from '@/components/ui/ZapLogo';
 
 /**
@@ -20,13 +23,13 @@ export function IconNoticeScreen({
 }): ReactElement {
   return (
     <View className="flex-1 items-center justify-center bg-bg px-6">
-      <View className="mb-5 h-14 w-14 items-center justify-center rounded-2xl border border-line bg-surface">
+      <View className="mb-5 h-14 w-14 items-center justify-center rounded-control border border-line bg-surface">
         <ZapLogo size={24} />
       </View>
-      <Text className="text-center font-sans-semibold text-[20px] text-ink">
+      <Text variant="title-sm" heading={1} className="text-center">
         {title}
       </Text>
-      <Text className="mt-3 text-center font-sans text-[13px] leading-5 text-ink-dim">
+      <Text variant="body-sm" tone="secondary" className="mt-3 text-center">
         {body}
       </Text>
       {children}
@@ -45,14 +48,22 @@ export function CrashFallbackScreen({
 }: {
   resetError: () => void;
 }): ReactElement {
+  const router = useRouter();
   return (
     <IconNoticeScreen
       title="Something went wrong"
       body="The app hit an unexpected error. Try again, or restart the app if it keeps happening."
     >
-      <PrimaryButton className="mt-6" onPress={resetError}>
+      <Button className="mt-6" onPress={resetError}>
         Try again
-      </PrimaryButton>
+      </Button>
+      <Button
+        className="mt-3"
+        variant="ghost"
+        onPress={() => router.replace('/home')}
+      >
+        {tabsEn['tabs.home']}
+      </Button>
     </IconNoticeScreen>
   );
 }

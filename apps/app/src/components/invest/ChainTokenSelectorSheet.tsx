@@ -24,7 +24,7 @@ export function ChainTokenSelectorSheet({
   if (!visible) return null;
   return (
     <Modal transparent visible onRequestClose={onClose} animationType="slide">
-      <View className="flex-1 justify-end bg-black/70">
+      <View className="flex-1 justify-end bg-scrim">
         <View
           accessibilityViewIsModal
           className="rounded-t-[28px] border-t border-line bg-[#111113] p-5 pb-10"

@@ -1,6 +1,7 @@
 import { Check, ChevronDown } from 'lucide-react-native';
-import { useRef, useState } from 'react';
-import { Modal, Pressable, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Text, View } from 'react-native';
+import { ActionSheet } from '@/components/ui/ActionSheet';
 
 import { Tap } from '@/components/ui/Tap';
 import {
@@ -109,13 +110,6 @@ export function ContentLanguageOptionRows({
   );
 }
 
-interface DropdownAnchor {
-  top: number;
-  left: number;
-}
-
-const FALLBACK_ANCHOR: DropdownAnchor = { top: 96, left: 20 };
-
 export function PodcastLanguageDropdown({
   completionByLanguage,
   onLanguageSelected,
@@ -124,8 +118,6 @@ export function PodcastLanguageDropdown({
   onLanguageSelected?: ((code: ContentLanguageCode) => void) | undefined;
 } = {}) {
   const [open, setOpen] = useState(false);
-  const [anchor, setAnchor] = useState<DropdownAnchor>(FALLBACK_ANCHOR);
-  const triggerRef = useRef<View>(null);
   const { languageCode, t } = useContentLanguage();
   const selectedOption = CONTENT_LANGUAGE_OPTIONS.find(
     (option) => option.code === languageCode,
@@ -148,27 +140,14 @@ export function PodcastLanguageDropdown({
             percentage: selectedCompletion.percentage,
           });
 
-  const openMenu = () => {
-    const node = triggerRef.current;
-    if (node === null) {
-      setAnchor(FALLBACK_ANCHOR);
-      setOpen(true);
-      return;
-    }
-    node.measureInWindow((x, y, _width, height) => {
-      setAnchor({ top: y + height + 6, left: x });
-      setOpen(true);
-    });
-  };
-
   return (
-    <View ref={triggerRef} collapsable={false}>
+    <View>
       <Tap
         accessibilityRole="button"
         accessibilityLabel={t('language.choose')}
         accessibilityHint={completionHint}
         accessibilityState={{ expanded: open }}
-        onPress={() => (open ? setOpen(false) : openMenu())}
+        onPress={() => setOpen((value) => !value)}
         className={cn(
           'items-center justify-center rounded-full border',
           showsCompletion ? 'h-11 min-w-[76px] px-3' : 'h-12 w-12',
@@ -184,7 +163,7 @@ export function PodcastLanguageDropdown({
               : 'items-center',
           )}
         >
-          <Text className="font-mono text-[12px] font-bold text-accent">
+          <Text className="font-mono text-[12px] font-sans-bold text-accent">
             {contentLanguageBadge(languageCode)}
           </Text>
           {showsCompletion ? (
@@ -202,28 +181,18 @@ export function PodcastLanguageDropdown({
           />
         </View>
       </Tap>
-      <Modal
+      <ActionSheet
         visible={open}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setOpen(false)}
+        onClose={() => setOpen(false)}
+        title={t('language.choose')}
+        closeLabel={t('language.closeMenu')}
       >
-        <Pressable
-          accessibilityLabel={t('language.closeMenu')}
-          onPress={() => setOpen(false)}
-          className="flex-1"
+        <ContentLanguageOptionRows
+          completionByLanguage={completionByLanguage}
+          onSelect={() => setOpen(false)}
+          onLanguageSelected={onLanguageSelected}
         />
-        <View
-          className="absolute w-[232px] rounded-[22px] border border-line bg-surface px-4 py-2 shadow-lg"
-          style={{ top: anchor.top, left: anchor.left }}
-        >
-          <ContentLanguageOptionRows
-            completionByLanguage={completionByLanguage}
-            onSelect={() => setOpen(false)}
-            onLanguageSelected={onLanguageSelected}
-          />
-        </View>
-      </Modal>
+      </ActionSheet>
     </View>
   );
 }

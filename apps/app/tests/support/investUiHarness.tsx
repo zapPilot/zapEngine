@@ -21,6 +21,7 @@ vi.mock(
   'lucide-react-native',
   async () => (await import('./lucideStub')).lucideStub,
 );
+vi.mock('@/components/ui/ZapLogo', () => ({ ZapLogo: () => null }));
 vi.mock('@/components/token/ProtocolIcon', () => ({
   ProtocolIcon: () => null,
 }));

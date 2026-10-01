@@ -32,8 +32,8 @@ import {
   formatPodcastClock,
   nextPodcastPlaybackSpeed,
 } from '@/components/podcast/episodeFormatters';
-import { InlineErrorCard } from '@/components/ui/InlineErrorCard';
-import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { Callout } from '@/components/ui/Callout';
+import { Button } from '@/components/ui/Button';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { Tap } from '@/components/ui/Tap';
 import {
@@ -202,14 +202,14 @@ function UnavailableMediaPanel({
         {detail}
       </Text>
       {action === undefined ? null : (
-        <PrimaryButton
+        <Button
           accessibilityRole="button"
           accessibilityLabel={action.label}
           className="mt-4"
           onPress={action.onPress}
         >
           {action.label}
-        </PrimaryButton>
+        </Button>
       )}
     </View>
   );
@@ -295,7 +295,8 @@ function EpisodeVideoStatusPanel({
           accessibilityLabel="Video player"
           className="min-h-[220px] justify-center p-5"
         >
-          <InlineErrorCard
+          <Callout
+            tone="danger"
             title="Video unavailable"
             body="Video generation failed for this episode. Story and Classroom audio still work."
           />

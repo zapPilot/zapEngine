@@ -95,7 +95,7 @@
   border: 0;
   border-radius: var(--radius-pill);
   background: var(--cc-tone, var(--accent));
-  color: var(--bg-2);
+  color: var(--surface);
   font-size: 11.5px;
   font-weight: 500;
   cursor: pointer;

@@ -58,3 +58,19 @@ export function contentLanguageBadge(languageCode: string): string {
       ?.badge ?? languageCode.slice(0, 2).toUpperCase()
   );
 }
+
+/** UI fallback deliberately differs from the podcast parser's default lane. */
+export function contentLanguageForLocale(locale: string): ContentLanguageCode {
+  const language = locale.toLowerCase().split(/[-_]/)[0];
+  if (language === 'zh') return 'zh-Hant';
+  return language === 'ja' ? 'ja' : 'en';
+}
+export function detectDeviceLocale(): ContentLanguageCode {
+  try {
+    return contentLanguageForLocale(
+      Intl.DateTimeFormat().resolvedOptions().locale,
+    );
+  } catch {
+    return 'en';
+  }
+}

@@ -3,11 +3,11 @@ import { Text, View } from 'react-native';
 
 import { ChainBatchReviewCard } from '@/components/invest/ChainBatchReviewCard';
 import { HyperCoreLegReviewCard } from '@/components/invest/HyperCoreLegReviewCard';
-import { StepHeader } from '@/components/invest/StepHeader';
+import { InvestStepHeader } from '@/components/invest/InvestStepHeader';
 import { StepProgress } from '@/components/invest/StepProgress';
-import { InlineErrorCard } from '@/components/ui/InlineErrorCard';
-import { NonCustodialCard } from '@/components/ui/NonCustodialCard';
-import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { Callout } from '@/components/ui/Callout';
+
+import { Button } from '@/components/ui/Button';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
 import type { DepositExecutionCapability } from '@/integration/investExecutionModel';
@@ -83,8 +83,8 @@ export function InvestRouteScreen() {
   const notice = capabilityNotice(capability);
 
   return (
-    <ScreenScrollView>
-      <StepHeader title="Preview" step="Step 2 of 2" />
+    <ScreenScrollView width="narrow">
+      <InvestStepHeader title="Preview" step="Step 2 of 2" />
       <StepProgress current={2} />
       <View className="px-5 pt-6">
         <Text className="font-serif text-[28px] leading-[32px] text-ink">
@@ -111,13 +111,15 @@ export function InvestRouteScreen() {
           ) : review.isError && review.amountTooSmall ? (
             // Retrying the same frozen amounts cannot succeed, so the only
             // useful action is back to the amount step.
-            <InlineErrorCard
+            <Callout
+              tone="danger"
               title={review.amountTooSmall.title}
               body={review.amountTooSmall.message}
               action={{ label: 'Change amount', onPress: () => router.back() }}
             />
           ) : review.isError ? (
-            <InlineErrorCard
+            <Callout
+              tone="danger"
               title="Tenderly review unavailable"
               body={
                 review.errorMessage ?? 'The transaction could not be verified.'
@@ -145,7 +147,7 @@ export function InvestRouteScreen() {
         {reviewBlocked ? (
           <Text
             accessibilityRole="alert"
-            className="mt-4 text-[11px] leading-4 text-error"
+            className="mt-4 text-[11px] leading-4 text-danger"
           >
             A reviewed batch is blocked or expired. Refresh the review before
             signing.
@@ -154,13 +156,14 @@ export function InvestRouteScreen() {
 
         {notice ? (
           <View className="mt-4">
-            <NonCustodialCard title={notice.title} body={notice.body} />
+            <Callout tone="info" title={notice.title} body={notice.body} />
           </View>
         ) : null}
 
         {submissionError ? (
           <View className="mt-4">
-            <InlineErrorCard
+            <Callout
+              tone="danger"
               title="Wallet submission did not start"
               body={submissionError}
               action={{
@@ -174,13 +177,13 @@ export function InvestRouteScreen() {
           </View>
         ) : null}
 
-        <PrimaryButton
+        <Button
           className="mt-5"
           disabled={ctaDisabled}
           onPress={() => void handleConfirm()}
         >
           {ctaLabel}
-        </PrimaryButton>
+        </Button>
         <Text className="mt-3 text-center text-[10.5px] leading-[16px] text-ink-faint">
           Zap Pilot never holds your funds. You sign each transaction yourself
           {investAgentDisclaimer({

@@ -40,8 +40,8 @@ function ApproveRow({
             {approval.token.symbol}
           </Text>
           {risky ? (
-            <View className="rounded-full border border-error/30 bg-error/10 px-1.5 py-0.5">
-              <Text className="font-mono-semibold text-[7px] uppercase tracking-[.5px] text-error">
+            <View className="rounded-full border border-danger-line bg-danger-soft px-1.5 py-0.5">
+              <Text className="font-mono-semibold text-[7px] uppercase tracking-[.5px] text-danger">
                 {approval.unlimited ? 'Unlimited' : 'Exceeds spend'}
               </Text>
             </View>

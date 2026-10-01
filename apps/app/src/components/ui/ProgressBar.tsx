@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 import { Animated, Easing, type LayoutChangeEvent, View } from 'react-native';
 
 import { useReducedMotion } from '@/components/ui/useReducedMotion';
+import { tokens } from '@zapengine/design-tokens/tokens';
+
 import { cn } from '@/lib/cn';
 
 // Animated.View is not in NativeWind's default interop set.
@@ -10,17 +12,15 @@ cssInterop(Animated.View, { className: 'style' });
 
 interface ProgressBarProps {
   /** 0-100. Clamped defensively; drives both the fill and the a11y value. */
-  value: number;
+  value?: number;
   accessibilityLabel: string;
   height?: number;
   /** Track-level overrides such as width or margin. */
   className?: string;
 }
 
-const ANIMATION_DURATION_MS = 400;
-
-function clampPercent(value: number): number {
-  if (!Number.isFinite(value)) return 0;
+function clampPercent(value: number | undefined): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return 0;
   return Math.min(100, Math.max(0, value));
 }
 
@@ -42,25 +42,46 @@ export function ProgressBar({
   const [progress] = useState(() => new Animated.Value(clampPercent(value)));
   const [trackWidth, setTrackWidth] = useState(0);
   const reduceMotion = useReducedMotion();
+  const indeterminate = value === undefined;
   const percent = clampPercent(value);
   const now = Math.round(percent);
 
   useEffect(() => {
+    if (indeterminate && !reduceMotion) {
+      progress.setValue(0);
+      const animation = Animated.loop(
+        Animated.sequence([
+          Animated.timing(progress, {
+            toValue: 100,
+            duration: tokens.duration.slower * 3,
+            easing: Easing.linear,
+            useNativeDriver: false,
+          }),
+          Animated.timing(progress, {
+            toValue: 0,
+            duration: 0,
+            useNativeDriver: false,
+          }),
+        ]),
+      );
+      animation.start();
+      return () => animation.stop();
+    }
     if (reduceMotion) {
-      progress.setValue(percent);
+      progress.setValue(indeterminate ? 50 : percent);
       return;
     }
     // Width is neither a transform nor an opacity, so the native driver cannot
     // carry it. One JS-driven tween on an otherwise idle placeholder is fine.
     const animation = Animated.timing(progress, {
       toValue: percent,
-      duration: ANIMATION_DURATION_MS,
+      duration: tokens.duration.slower,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
     });
     animation.start();
     return () => animation.stop();
-  }, [percent, progress, reduceMotion]);
+  }, [indeterminate, percent, progress, reduceMotion]);
 
   const onLayout = (event: LayoutChangeEvent) => {
     setTrackWidth(event.nativeEvent.layout.width);
@@ -70,10 +91,10 @@ export function ProgressBar({
     <View
       accessibilityRole="progressbar"
       accessibilityLabel={accessibilityLabel}
-      accessibilityValue={{ min: 0, max: 100, now }}
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuenow={now}
+      accessibilityValue={indeterminate ? {} : { min: 0, max: 100, now }}
+      {...(!indeterminate
+        ? { 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': now }
+        : {})}
       onLayout={onLayout}
       className={cn('w-full overflow-hidden rounded-pill bg-line', className)}
       style={{ height }}

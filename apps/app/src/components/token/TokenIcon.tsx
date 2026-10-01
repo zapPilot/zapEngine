@@ -77,7 +77,7 @@ export function TokenIcon({
           />
         ) : (
           <Text
-            className="font-sans-bold text-white"
+            className="font-sans-bold text-ink"
             style={{ fontSize: size * 0.45 }}
           >
             {brand?.glyph ?? symbol.slice(0, 1).toUpperCase()}

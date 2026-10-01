@@ -7,6 +7,13 @@ import EpisodeShareRoute from '@/app/e/[episodeId]';
 
 const routerReplace = vi.hoisted(() => vi.fn());
 
+vi.mock('@/components/ui/ScreenCrashBoundary', () => ({
+  ScreenCrashBoundary: ({
+    children,
+  }: {
+    children: import('react').ReactNode;
+  }) => children,
+}));
 vi.mock('expo-router', () => ({
   useRouter: () => ({ replace: routerReplace }),
 }));

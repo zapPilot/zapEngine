@@ -11,7 +11,7 @@ import {
 
 import {
   type ContentLanguageCode,
-  DEFAULT_CONTENT_LANGUAGE_CODE,
+  detectDeviceLocale,
 } from '@/config/contentLanguages';
 import {
   TRANSLATIONS,
@@ -26,25 +26,6 @@ interface ContentLanguageContextValue {
   isHydrated: boolean;
   setLanguageCode: (code: ContentLanguageCode) => void;
   t: (key: TranslationKey, params?: TranslationParams) => string;
-}
-
-function detectDeviceLocale(): ContentLanguageCode {
-  try {
-    const locale = Intl.DateTimeFormat().resolvedOptions().locale.toLowerCase();
-    if (locale.startsWith('ja')) return 'ja';
-    if (
-      locale.startsWith('zh-tw') ||
-      locale.startsWith('zh-hk') ||
-      locale.startsWith('zh-mo') ||
-      locale.includes('hant')
-    ) {
-      return 'zh-Hant';
-    }
-    if (locale.startsWith('en')) return 'en';
-  } catch {
-    // Use the product default when the runtime does not expose a locale.
-  }
-  return DEFAULT_CONTENT_LANGUAGE_CODE;
 }
 
 const ContentLanguageContext =

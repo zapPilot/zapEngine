@@ -1,16 +1,31 @@
 import { useRouter } from 'expo-router';
-import { useEffect, type ReactElement } from 'react';
-
+import { useEffect, useState } from 'react';
+import { Platform } from 'react-native';
 import { getBundleViewUserId } from '@/integration/bundleViewParam';
-import { DEFAULT_APP_TAB_PATH } from '@/integration/navigationModel';
-
-export default function Index(): ReactElement | null {
+import { resolveLandingPath } from '@/integration/navigationModel';
+import { useAccount } from '@/integration/useAccount';
+import { loadSessionHint } from '@/storage/sessionHintStorage';
+import { BootScreen } from '@/components/shell/BootScreen';
+export default function Index() {
   const router = useRouter();
-  const href = getBundleViewUserId() !== null ? '/home' : DEFAULT_APP_TAB_PATH;
-
+  const account = useAccount();
+  const [hint, setHint] = useState<boolean | null>(null);
   useEffect(() => {
-    router.replace(href);
-  }, [router, href]);
-
-  return null;
+    let active = true;
+    void loadSessionHint().then((value) => {
+      if (active) setHint(value);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+  const href = resolveLandingPath({
+    platformOS: Platform.OS,
+    hasBundleView: getBundleViewUserId() !== null,
+    wasSignedIn: account.isConnected || hint === true,
+  });
+  useEffect(() => {
+    if (hint !== null) router.replace(href);
+  }, [router, href, hint]);
+  return <BootScreen />;
 }

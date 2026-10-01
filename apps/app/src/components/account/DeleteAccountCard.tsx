@@ -10,13 +10,16 @@ import {
 } from '@zapengine/app-core/services/accountService';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Text, View } from 'react-native';
+import { Text } from '@/components/ui/Text';
+import { Button } from '@/components/ui/Button';
+import { ConfirmSheet } from '@/components/ui/ConfirmSheet';
+import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 
 import { Card } from '@/components/ui/Card';
-import { Tap } from '@/components/ui/Tap';
 import { useAccount } from '@/integration/useAccount';
 
 export function DeleteAccountCard() {
+  const { t } = useContentLanguage();
   const router = useRouter();
   const account = useAccount();
   const wallet = useWalletProvider();
@@ -60,65 +63,49 @@ export function DeleteAccountCard() {
   };
 
   return (
-    <Card className="mt-8 border border-[rgba(239,116,116,.32)] p-5">
-      <Text className="font-sans-semibold text-[15px] text-[#ef9292]">
-        Delete account
+    <Card className="mt-8 border border-danger-line" padding="md">
+      <Text variant="subheading" tone="danger">
+        {t('account.deleteTitle')}
       </Text>
-      <Text className="mt-2 text-[12px] leading-[18px] text-ink-dim">
-        Permanently deletes your Zap Pilot account, wallet bundle, and
-        associated metadata. Your on-chain assets are never touched. Bundled
-        wallets are released and can be added to another Zap Pilot account.
+      <Text variant="body-sm" tone="secondary" className="mt-2">
+        {t('account.deleteBody')}
       </Text>
-
-      {isConfirming ? (
-        <View className="mt-4 gap-3">
-          <Text className="text-[12px] leading-[18px] text-[#ef9292]">
-            This cannot be undone. Your wallet will ask you to sign a deletion
-            message before anything is removed.
-          </Text>
-          {error ? (
-            <Text className="text-[11.5px] leading-[16px] text-[#ef9292]">
-              {error}
-            </Text>
-          ) : null}
-          <Tap
-            accessibilityRole="button"
-            accessibilityLabel="Confirm delete Zap Pilot account"
-            className="min-h-12 items-center justify-center rounded-[15px] border border-[rgba(239,116,116,.5)] bg-[rgba(239,116,116,.1)] px-4"
-            disabled={isDeleting}
-            onPress={() => void deleteAccount()}
+      <Button
+        variant="destructive"
+        className="mt-4"
+        accessibilityLabel={t('account.deleteOpen')}
+        onPress={() => setIsConfirming(true)}
+      >
+        {t('account.deleteTitle')}
+      </Button>
+      <ConfirmSheet
+        visible={isConfirming}
+        title={t('account.deleteTitle')}
+        closeLabel={t('account.deleteCancel')}
+        cancelLabel={t('account.deleteCancel')}
+        confirmLabel={
+          isDeleting ? t('account.deleteWaiting') : t('account.deleteConfirm')
+        }
+        body={t('account.deleteWarning')}
+        busy={isDeleting}
+        destructive
+        onConfirm={() => void deleteAccount()}
+        onClose={() => {
+          setError(null);
+          setIsConfirming(false);
+        }}
+      >
+        {error ? (
+          <Text
+            variant="caption"
+            tone="danger"
+            accessibilityRole="alert"
+            className="mt-3"
           >
-            <Text className="font-sans-semibold text-[14px] text-[#ef9292]">
-              {isDeleting ? 'Waiting for signature…' : 'Sign & delete account'}
-            </Text>
-          </Tap>
-          <Tap
-            accessibilityRole="button"
-            accessibilityLabel="Cancel account deletion"
-            className="min-h-10 items-center justify-center"
-            disabled={isDeleting}
-            onPress={() => {
-              setError(null);
-              setIsConfirming(false);
-            }}
-          >
-            <Text className="font-sans-semibold text-[12px] text-ink-dim">
-              Cancel
-            </Text>
-          </Tap>
-        </View>
-      ) : (
-        <Tap
-          accessibilityRole="button"
-          accessibilityLabel="Delete Zap Pilot account"
-          className="mt-4 min-h-12 items-center justify-center rounded-[15px] border border-[rgba(239,116,116,.4)] px-4"
-          onPress={() => setIsConfirming(true)}
-        >
-          <Text className="font-sans-semibold text-[14px] text-[#ef9292]">
-            Delete account
+            {error}
           </Text>
-        </Tap>
-      )}
+        ) : null}
+      </ConfirmSheet>
     </Card>
   );
 }

@@ -76,7 +76,7 @@ export function SimulationAssetAmountRow({
       </View>
       <Text
         className={`${amountMaxWidthClassName} font-mono-semibold text-[13px] ${
-          outgoing ? 'text-error' : 'text-success'
+          outgoing ? 'text-danger' : 'text-success'
         }`}
         numberOfLines={1}
       >

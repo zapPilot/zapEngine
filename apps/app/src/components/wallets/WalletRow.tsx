@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { Text, TextInput, View } from 'react-native';
 
-import { Pill } from '@/components/ui/Pill';
+import { Badge } from '@/components/ui/Badge';
 import { Tap } from '@/components/ui/Tap';
 import type { WalletRowVM } from '@/integration/walletManagerModel';
 import { truncateAddress } from '@/lib/format';
@@ -136,18 +136,18 @@ export function WalletRow({
                   {row.label}
                 </Text>
                 {row.isActive ? (
-                  <Pill className="bg-[rgba(122,216,143,.12)]">
+                  <Badge className="bg-[rgba(122,216,143,.12)]">
                     <Text className="font-mono text-[9.5px] uppercase tracking-[0.5px] text-success">
                       Active
                     </Text>
-                  </Pill>
+                  </Badge>
                 ) : null}
                 {!row.isVerified ? (
-                  <Pill className="bg-[rgba(212,197,163,.10)]">
+                  <Badge className="bg-[rgba(212,197,163,.10)]">
                     <Text className="font-mono text-[9.5px] uppercase tracking-[0.5px] text-accent">
                       Unverified
                     </Text>
-                  </Pill>
+                  </Badge>
                 ) : null}
               </>
             )}

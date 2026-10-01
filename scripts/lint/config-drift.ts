@@ -48,6 +48,8 @@ const NESTED_POINTER =
   'See @AGENTS.md for the canonical instructions for this scope.';
 const FILE_MODE = '100644';
 const SYMLINK_MODE = '120000';
+const SKILLS_LINK = '.claude/skills';
+const SKILLS_TARGET = '../.agents/skills';
 const WORKSPACE_ROOT = /^(?:\.|(?:apps|packages)\/[^/]+)$/;
 
 function agentFileIssue(type: string, file: string, issue: string): DriftIssue {
@@ -176,14 +178,53 @@ export function checkAgentEntryPoints(
   return issues;
 }
 
+/**
+ * Skills live only in .agents/skills; .claude/skills must stay a symlink to it
+ * so Claude, Codex and opencode read one copy. A real directory there would
+ * pass every other check while silently diverging.
+ */
+export function checkSkillsLink(entries: readonly IndexEntry[]): DriftIssue[] {
+  const link = entries.find((entry) => entry.path === SKILLS_LINK);
+  const copied = entries.some((entry) =>
+    entry.path.startsWith(`${SKILLS_LINK}/`),
+  );
+  const fix = `replace it with \`ln -s ${SKILLS_TARGET} ${SKILLS_LINK}\``;
+
+  if (copied || (link !== undefined && link.mode !== SYMLINK_MODE)) {
+    return [
+      agentFileIssue(
+        'skills_link_not_symlink',
+        SKILLS_LINK,
+        `is not a symlink; skills belong in ${SKILLS_TARGET.slice(3)} only — ${fix}`,
+      ),
+    ];
+  }
+  if (link === undefined) {
+    return [
+      agentFileIssue('skills_link_missing', SKILLS_LINK, `not tracked; ${fix}`),
+    ];
+  }
+  if (link.content !== SKILLS_TARGET) {
+    return [
+      agentFileIssue(
+        'skills_link_target',
+        SKILLS_LINK,
+        `points to "${link.content ?? ''}"; it must point to "${SKILLS_TARGET}"`,
+      ),
+    ];
+  }
+  return [];
+}
+
 /** Lists the tracked instruction files and entry points from the git index. */
 export function readIndexEntries(root: string): IndexEntry[] {
   const git = (args: string[]) =>
     execFileSync('git', args, { cwd: root, encoding: 'utf-8' });
   const blobs = new Map<string, string>();
-  const pathspecs = [AGENT_INSTRUCTIONS, ...ENTRY_POINTS].map(
-    (name) => `*${name}`,
-  );
+  const pathspecs = [
+    ...[AGENT_INSTRUCTIONS, ...ENTRY_POINTS].map((name) => `*${name}`),
+    SKILLS_LINK,
+  ];
 
   return git(['ls-files', '--stage', '-z', '--', ...pathspecs])
     .split('\0')
@@ -192,7 +233,8 @@ export function readIndexEntries(root: string): IndexEntry[] {
       const tab = record.indexOf('\t');
       const [mode, oid] = record.slice(0, tab).split(' ');
       const path = record.slice(tab + 1);
-      if (!ENTRY_POINTS.includes(posix.basename(path))) return { path, mode };
+      if (!ENTRY_POINTS.includes(posix.basename(path)) && path !== SKILLS_LINK)
+        return { path, mode };
 
       let content = blobs.get(oid);
       if (content === undefined) {
@@ -283,7 +325,9 @@ function main() {
     }
   }
 
-  issues.push(...checkAgentEntryPoints(readIndexEntries(ROOT)));
+  const indexEntries = readIndexEntries(ROOT);
+  issues.push(...checkAgentEntryPoints(indexEntries));
+  issues.push(...checkSkillsLink(indexEntries));
 
   reportAndExit(issues, {
     header: '📋 Config drift issues:\n',

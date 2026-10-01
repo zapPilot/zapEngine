@@ -60,7 +60,9 @@ describe('design system and platform lint guards', () => {
       'zap-ui/no-raw-design-values',
     );
     expect(
-      await rules("export const classes = 'text-[14px] rounded-lg font-bold';"),
+      await rules(
+        "export const classes = 'text-[14px] rounded-lg font-sans-bold';",
+      ),
     ).toContain('zap-ui/no-raw-design-values');
     expect(
       await rules(
@@ -103,6 +105,23 @@ describe('design system and platform lint guards', () => {
     expect(
       await rules('export default function Fixture() { return <div>·</div>; }'),
     ).not.toContain('react/jsx-no-literals');
+  });
+  it('accepts typed presentation props while rejecting visible and accessible untranslated copy', async () => {
+    expect(
+      await rules(
+        'export default function Fixture() { return <Card padding="sm" radius="card" keyboardShouldPersistTaps="handled"><PageHeader mode="wizard"><Text variant="body" tone="muted" className="text-body" /></PageHeader></Card>; }',
+      ),
+    ).not.toContain('react/jsx-no-literals');
+    expect(
+      await rules(
+        'export default function Fixture() { return <Button accessibilityLabel="Untranslated label" title="Untranslated title" />; }',
+      ),
+    ).toContain('react/jsx-no-literals');
+    expect(
+      await rules(
+        'export default function Fixture() { return <Text className="text-[7px]" />; }',
+      ),
+    ).toContain('zap-ui/no-raw-design-values');
   });
   it('preserves both integration TSX guards after flat-config merging', async () => {
     const result = await rules(

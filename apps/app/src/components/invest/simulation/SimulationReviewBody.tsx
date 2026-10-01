@@ -1,11 +1,9 @@
+import { SectionHeader } from '@/components/ui/SectionHeader';
 import type { DepositReviewGroup } from '@zapengine/types/api';
 import { Text, View } from 'react-native';
 
 import { SimulationFlowRows } from '@/components/invest/simulation/SimulationFlowRows';
-import {
-  SectionLabel,
-  SimulationBlockingBanner,
-} from '@/components/invest/simulation/SimulationReviewPrimitives';
+import { SimulationBlockingBanner } from '@/components/invest/simulation/SimulationReviewPrimitives';
 import { SimulationTenderlyEvidence } from '@/components/invest/simulation/SimulationTenderlyEvidence';
 import { ChainMark } from '@/components/token/ChainMark';
 import { ProtocolIcon } from '@/components/token/ProtocolIcon';
@@ -79,7 +77,7 @@ export function SimulationReviewBody({
       <BlockingBanner review={review} />
 
       <View>
-        <SectionLabel>Route flow</SectionLabel>
+        <SectionHeader title={<> Route flow </>} />
         <SimulationFlowRows
           approvals={review.approvals}
           outgoing={outgoing}

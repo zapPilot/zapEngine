@@ -23,11 +23,11 @@
 @theme {
   --color-fd-background: var(--bg);
   --color-fd-foreground: var(--ink);
-  --color-fd-muted: var(--bg-2);
+  --color-fd-muted: var(--surface);
   --color-fd-muted-foreground: var(--ink-dim);
-  --color-fd-popover: var(--bg-2);
+  --color-fd-popover: var(--surface);
   --color-fd-popover-foreground: var(--ink);
-  --color-fd-card: var(--bg-2);
+  --color-fd-card: var(--surface);
   --color-fd-card-foreground: var(--ink);
   --color-fd-border: var(--line);
   --color-fd-primary: var(--accent);
@@ -42,11 +42,11 @@
 .dark {
   --color-fd-background: var(--bg);
   --color-fd-foreground: var(--ink);
-  --color-fd-muted: var(--bg-2);
+  --color-fd-muted: var(--surface);
   --color-fd-muted-foreground: var(--ink-dim);
-  --color-fd-popover: var(--bg-2);
+  --color-fd-popover: var(--surface);
   --color-fd-popover-foreground: var(--ink);
-  --color-fd-card: var(--bg-2);
+  --color-fd-card: var(--surface);
   --color-fd-card-foreground: var(--ink);
   --color-fd-border: var(--line);
   --color-fd-primary: var(--accent);

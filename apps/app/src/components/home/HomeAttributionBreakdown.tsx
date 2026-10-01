@@ -51,7 +51,7 @@ function BreakdownRow({
       </Text>
       <Text
         className={`font-mono text-[11px] ${
-          valueUsd < 0 ? 'text-error' : 'text-ink'
+          valueUsd < 0 ? 'text-danger' : 'text-ink'
         }`}
       >
         {amount}
@@ -118,9 +118,9 @@ export const HomeAttributionBreakdown = memo(function HomeAttributionBreakdown({
           <ArrowDownRight
             size={ICON_SIZE}
             strokeWidth={2}
-            color={tokens.color.error}
+            color={tokens.color.danger}
           />
-          <Text className="font-mono text-[11px] text-error">{losses}</Text>
+          <Text className="font-mono text-[11px] text-danger">{losses}</Text>
           <Text className="text-[11px] text-ink-dim">
             {t('home.attribution.losses')}
           </Text>

@@ -7,13 +7,13 @@ import { type LayoutChangeEvent, ScrollView, Text, View } from 'react-native';
 import { Card } from '@/components/ui/Card';
 import { DecisionPacketCard } from '@/components/strategy/DecisionPacketCard';
 import { MarketSignalsCard } from '@/components/strategy/MarketSignalsCard';
-import { StrategyHeader } from '@/components/strategy/StrategyHeader';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { AllocationBar } from '@/components/charts/AllocationBar';
-import { Pill } from '@/components/ui/Pill';
-import { MetricsGrid } from '@/components/metrics/MetricsGrid';
-import { PrimaryButton } from '@/components/ui/PrimaryButton';
-import { MetricsGridSkeleton } from '@/components/metrics/MetricsGridSkeleton';
-import { RangeTabs } from '@/components/ui/RangeTabs';
+import { Badge } from '@/components/ui/Badge';
+import { StatGrid } from '@/components/ui/StatGrid';
+import { Button } from '@/components/ui/Button';
+
+import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { Sparkline } from '@/components/charts/Sparkline';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
@@ -88,8 +88,8 @@ export function StrategyScreen() {
   ]);
 
   return (
-    <ScreenScrollView scrollRef={scrollRef}>
-      <StrategyHeader />
+    <ScreenScrollView width="dashboard" scrollRef={scrollRef}>
+      <PageHeader title={t('tabs.strategy')} />
 
       {!isDemo ? (
         <View onLayout={measureDecisionPacket}>
@@ -110,7 +110,16 @@ export function StrategyScreen() {
         <Text className="font-sans-semibold text-[14px] text-ink">
           {t('strategy.backtest')}
         </Text>
-        <RangeTabs options={RANGE_OPTIONS} value={range} onChange={setRange} />
+        <SegmentedControl
+          accessibilityLabel={t('common.chartRange')}
+          options={RANGE_OPTIONS.map((option) => ({
+            value: option,
+            label: option,
+            accessibilityLabel: option,
+          }))}
+          value={range}
+          onChange={setRange}
+        />
       </View>
 
       <Card className="mx-5 mt-3 p-[15px]">
@@ -150,12 +159,9 @@ export function StrategyScreen() {
       </Card>
 
       {loading ? (
-        <MetricsGridSkeleton className="mt-5 px-5" count={8} />
+        <StatGrid loading className="mt-5 px-5" count={8} />
       ) : (
-        <MetricsGrid
-          className="mt-5 px-5"
-          metrics={strategy.backtest.metrics}
-        />
+        <StatGrid className="mt-5 px-5" metrics={strategy.backtest.metrics} />
       )}
 
       <Card className="mx-5 mt-6 p-4">
@@ -163,9 +169,9 @@ export function StrategyScreen() {
           <Text className="font-sans-semibold text-[15px] text-ink">
             {t('strategy.currentPositioning')}
           </Text>
-          <Pill className="border border-line bg-[rgba(255,255,255,.05)]">
+          <Badge className="border border-line bg-[rgba(255,255,255,.05)]">
             {strategy.backtest.currentModeLabel}
-          </Pill>
+          </Badge>
         </View>
         <AllocationBar
           className="mt-3"
@@ -201,21 +207,21 @@ export function StrategyScreen() {
           <TriangleAlert
             size={17}
             strokeWidth={1.8}
-            color={tokens.color.error}
+            color={tokens.color.danger}
           />
-          <Text className="flex-1 text-[12px] leading-[18px] text-error">
+          <Text className="flex-1 text-[12px] leading-[18px] text-danger">
             {t('strategy.allocationUnavailable')}
           </Text>
         </View>
       ) : null}
 
       <View className="mx-5 mt-5">
-        <PrimaryButton onPress={startStrategy}>
+        <Button onPress={startStrategy}>
           <Text className="font-sans-semibold text-[15.5px] text-[#0a0a0a]">
             {t('strategy.start')}
           </Text>
           <ArrowRight size={16} strokeWidth={1.8} color="#0a0a0a" />
-        </PrimaryButton>
+        </Button>
       </View>
     </ScreenScrollView>
   );

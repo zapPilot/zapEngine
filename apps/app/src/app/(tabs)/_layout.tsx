@@ -1,14 +1,14 @@
 import { Tabs } from 'expo-router';
 import type { ReactElement } from 'react';
 
-import { BottomTabBar } from '@/components/BottomTabBar';
+import { AppTabBar } from '@/components/shell/AppTabBar';
 import { DEFAULT_APP_TAB } from '@/integration/navigationModel';
 
 export default function TabsLayout(): ReactElement {
   return (
     <Tabs
       initialRouteName={DEFAULT_APP_TAB}
-      tabBar={(props) => <BottomTabBar {...props} />}
+      tabBar={(props) => <AppTabBar {...props} />}
       screenOptions={{ headerShown: false }}
     >
       <Tabs.Screen name="home" />

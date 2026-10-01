@@ -212,7 +212,7 @@
 }
 .cc-pill-solid {
   background: var(--cc-tone, var(--cc-tone-neutral));
-  color: var(--bg-2);
+  color: var(--surface);
 }
 .cc-pill-dot {
   flex: 0 0 auto;

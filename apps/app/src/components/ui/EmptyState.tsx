@@ -1,68 +1,53 @@
-import { tokens } from '@zapengine/design-tokens/tokens';
-import { RefreshCw } from 'lucide-react-native';
-import type { ReactNode } from 'react';
-import { Text, View } from 'react-native';
-
-import { Tap } from '@/components/ui/Tap';
-
+import type { ReactElement } from 'react';
+import type { LucideIcon } from 'lucide-react-native';
+import { View } from 'react-native';
+import { Icon } from './Icon';
+import { Text } from './Text';
+import { Button } from './Button';
 interface EmptyStateProps {
-  icon: ReactNode;
-  tone?: 'default' | 'error';
+  icon: LucideIcon;
+  tone?: 'default' | 'danger';
   title: string;
   body: string;
-  action?: {
-    label: string;
-    onPress: () => void;
-    accessibilityLabel: string;
-  };
+  action?: { label: string; onPress: () => void; accessibilityLabel: string };
 }
-
 export function EmptyState({
   icon,
   tone = 'default',
   title,
   body,
   action,
-}: EmptyStateProps) {
-  const isError = tone === 'error';
-
+}: EmptyStateProps): ReactElement {
   return (
     <View className="items-center px-4 py-6">
       <View
-        className="h-10 w-10 items-center justify-center rounded-full border"
-        style={{
-          borderColor: isError
-            ? 'rgba(239,116,116,.24)'
-            : 'rgba(212,197,163,.2)',
-          backgroundColor: isError
-            ? 'rgba(239,116,116,.08)'
-            : 'rgba(212,197,163,.07)',
-        }}
+        className={
+          tone === 'danger'
+            ? 'h-hit w-hit items-center justify-center rounded-pill border border-danger-line bg-danger-soft'
+            : 'h-hit w-hit items-center justify-center rounded-pill border border-accent-line bg-accent-subtle'
+        }
       >
-        {icon}
+        <Icon icon={icon} tone={tone === 'danger' ? 'danger' : 'accent'} />
       </View>
-      <Text className="mt-3 font-sans-semibold text-[13.5px] text-ink">
+      <Text variant="subheading" className="mt-3 text-center">
         {title}
       </Text>
-      <Text className="mt-1 max-w-[270px] text-center text-[11.5px] leading-[17px] text-ink-dim">
+      <Text
+        variant="body-sm"
+        tone="secondary"
+        className="mt-1 max-w-measure text-center"
+      >
         {body}
       </Text>
       {action ? (
-        <Tap
+        <Button
+          className="mt-3"
+          variant="tonal"
           accessibilityLabel={action.accessibilityLabel}
-          accessibilityRole="button"
-          className="mt-3 flex-row items-center gap-1.5 rounded-full border px-3 py-1.5"
-          style={{
-            borderColor: 'rgba(212,197,163,.22)',
-            backgroundColor: 'rgba(212,197,163,.07)',
-          }}
           onPress={action.onPress}
         >
-          <RefreshCw size={12} strokeWidth={2} color={tokens.color.accent} />
-          <Text className="font-sans-semibold text-[11px] text-accent">
-            {action.label}
-          </Text>
-        </Tap>
+          {action.label}
+        </Button>
       ) : null}
     </View>
   );
