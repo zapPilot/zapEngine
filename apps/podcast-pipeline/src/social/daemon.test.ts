@@ -1033,6 +1033,16 @@ describe('social daemon', () => {
 
     await collectDueMetricWindows(NOW);
     const options = mocks.createMetricCollectors.mock.calls[0]?.[0];
+    await options.onThreadsIdentity({
+      post: { ...post, platform: 'threads' },
+      platformPostId: 'thread-1',
+      postUrl: 'https://www.threads.com/@zap/post/a',
+    });
+    expect(mocks.updateSocialPostIdentity).toHaveBeenCalledWith({
+      id: post.id,
+      platformPostId: 'thread-1',
+      postUrl: 'https://www.threads.com/@zap/post/a',
+    });
     await options.onRednoteIdentity({
       post,
       platformPostId: 'note-1',

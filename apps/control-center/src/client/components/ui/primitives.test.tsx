@@ -274,6 +274,16 @@ describe('Timeline', () => {
 
 describe('SourceBadge and ProviderLink', () => {
   it.each([
+    'https://www.threads.com/@zap/post/abc',
+    'https://www.xiaohongshu.com/explore/note-1',
+  ])('renders the persisted social permalink %s', (url) => {
+    render(<ProviderLink label="查看" title="Social post" url={url} />);
+    expect(
+      screen.getByRole('link', { name: '查看: Social post' }),
+    ).toHaveAttribute('href', url);
+  });
+
+  it.each([
     'github-actions',
     'sentry',
     'fly',

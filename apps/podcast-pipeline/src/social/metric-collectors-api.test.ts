@@ -529,3 +529,52 @@ describe('YouTube metric collection', () => {
     ).rejects.toThrow('YouTube statistics failed with HTTP 500');
   });
 });
+
+describe('Threads identity repair', () => {
+  it('persists API permalinks for legacy rows before collecting insights', async () => {
+    const onThreadsIdentity = vi.fn().mockResolvedValue(undefined);
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        json({ permalink: 'https://www.threads.com/@zap/post/a' }),
+      )
+      .mockResolvedValueOnce(json({ data: [{ name: 'views', value: 42 }] }));
+    const row = post('threads', 'thread/1', { post_url: null });
+    await expect(
+      createMetricCollectors({ fetchImpl, onThreadsIdentity }).threads(row),
+    ).resolves.toMatchObject({ status: 'collected', metrics: { views: 42 } });
+    expect(onThreadsIdentity).toHaveBeenCalledWith({
+      post: row,
+      platformPostId: 'thread/1',
+      postUrl: 'https://www.threads.com/@zap/post/a',
+    });
+    expect((fetchImpl.mock.calls[0]?.[0] as URL).pathname).toBe('/thread%2F1');
+  });
+  it('keeps collecting when the permalink API is unavailable', async () => {
+    const onThreadsIdentity = vi.fn();
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(json({}, 503))
+      .mockResolvedValueOnce(json({ data: [] }));
+    await expect(
+      createMetricCollectors({ fetchImpl, onThreadsIdentity }).threads(
+        post('threads', 'id', { post_url: null }),
+      ),
+    ).resolves.toMatchObject({ status: 'collected' });
+    expect(onThreadsIdentity).not.toHaveBeenCalled();
+  });
+  it('does not look up existing URLs or unpersistable identities', async () => {
+    const onThreadsIdentity = vi.fn();
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockImplementation(async () => json({ data: [] }));
+    await createMetricCollectors({ fetchImpl, onThreadsIdentity }).threads(
+      post('threads'),
+    );
+    await createMetricCollectors({ fetchImpl }).threads(
+      post('threads', 'id', { post_url: null }),
+    );
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(onThreadsIdentity).not.toHaveBeenCalled();
+  });
+});

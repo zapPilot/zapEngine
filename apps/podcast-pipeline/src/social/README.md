@@ -393,6 +393,16 @@ from never having logged in at all.
 Threads uses the Meta Threads API and its local secure session. Login validates
 the configured token/profile before treating the session as ready.
 
+After publishing, a single bounded `GET /<published-media-id>?fields=id,permalink`
+reads the public link from the API; numeric IDs are never converted into URLs.
+The field is demonstrated in [Meta's Threads sample](https://github.com/fbsamples/threads_api/blob/main/src/index.js).
+A failed or invalid readback keeps the post published and its ID durable.
+When an existing row has an ID but no URL, the normal metrics collector retries
+one permalink lookup per collection and persists a valid result through the
+identity callback. It does not reschedule metric windows or republish the post.
+Rows whose automatic metric windows have already finished require the manual
+`social:metrics` collector to attempt recovery.
+
 ### Rednote
 
 Rednote uses a dedicated Playwright Chrome profile and the creator-page upload
@@ -400,6 +410,11 @@ flow. `social:login` opens the browser only when the profile is no longer
 recognized as authenticated. Regression-sensitive title/topic/AI-declaration and
 moderation rules live in the scoped `AGENTS.md` and publisher tests; do not
 weaken them as part of scheduler work.
+
+A publish-time public note URL that passes `publicPostUrl` is persisted immediately,
+including its access-token query parameters. Creator-manager and other non-post
+URLs remain null. The creator-manager identity recovery still owns missing IDs
+and URLs, including older rows and successful publishes that remain in the manager.
 
 ### YouTube
 

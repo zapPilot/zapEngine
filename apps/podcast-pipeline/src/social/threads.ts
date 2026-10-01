@@ -6,6 +6,7 @@ import {
   describeThreadsApiError,
   nonemptyString,
   parseThreadsApiJson,
+  readThreadsPermalink,
 } from './threads-api.js';
 import { assertThreadsSessionReady } from './threads-auth.js';
 import type {
@@ -134,11 +135,20 @@ async function publishThreads(
     ),
   );
   const postId = requireId(published, 'published post');
+  const publishedAt = new Date().toISOString();
+  const url = await readThreadsPermalink({
+    postId,
+    accessToken: context.accessToken,
+    apiBaseUrl: context.apiBaseUrl,
+    fetchImpl: context.fetchImpl,
+    onLog: context.log,
+  });
 
   return {
     status: 'published',
-    publishedAt: new Date().toISOString(),
+    publishedAt,
     postId,
+    ...(url ? { url } : {}),
   };
 }
 

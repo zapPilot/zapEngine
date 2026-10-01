@@ -11,6 +11,7 @@ import type {
   SocialMetricCounts,
 } from './metrics.js';
 import { PROFILE_DIRECTORY as REDNOTE_PROFILE_DIRECTORY } from './rednote-browser.js';
+import { readThreadsPermalink } from './threads-api.js';
 import {
   assertThreadsSessionReady,
   THREADS_INSIGHTS_SCOPE,
@@ -74,6 +75,11 @@ export const EMPTY_COUNTS: SocialMetricCounts = {
 export function createMetricCollectors(input?: {
   browser?: MetricsBrowserSession;
   fetchImpl?: typeof fetch;
+  onThreadsIdentity?: (input: {
+    post: SocialPostRow;
+    platformPostId: string;
+    postUrl: string;
+  }) => Promise<void>;
   onRednoteIdentity?: (input: {
     post: SocialPostRow;
     platformPostId: string;
@@ -89,7 +95,11 @@ export function createMetricCollectors(input?: {
   return {
     threads: async (post) => ({
       status: 'collected',
-      metrics: await collectThreadsMetrics(post, fetchImpl),
+      metrics: await collectThreadsMetrics(
+        post,
+        fetchImpl,
+        input?.onThreadsIdentity,
+      ),
     }),
     youtube: async (post) => ({
       status: 'collected',
@@ -134,12 +144,25 @@ export function detectRednoteReviewStatus(
 export async function collectThreadsMetrics(
   post: SocialPostRow,
   fetchImpl: typeof fetch = fetch,
+  onIdentity?: (input: {
+    post: SocialPostRow;
+    platformPostId: string;
+    postUrl: string;
+  }) => Promise<void>,
 ): Promise<SocialMetricCounts> {
   const postId = requirePlatformPostId(post);
   const { session } = await assertThreadsSessionReady({
     fetchImpl,
     additionalScopes: [THREADS_INSIGHTS_SCOPE],
   });
+  if (!post.post_url && onIdentity) {
+    const postUrl = await readThreadsPermalink({
+      postId,
+      accessToken: session.accessToken,
+      fetchImpl,
+    });
+    if (postUrl) await onIdentity({ post, platformPostId: postId, postUrl });
+  }
   const url = new URL(
     `${THREADS_API_BASE}/${encodeURIComponent(postId)}/insights`,
   );
