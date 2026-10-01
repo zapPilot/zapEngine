@@ -166,10 +166,11 @@ Date, non-healthy domains, main CI, Sentry unresolved count, open issues and PRs
 
 ## Keep it running
 
-- opencode: `/ops-sweep`; `.opencode/commands/ops-sweep.md` sets a large goal budget.
-- Codex: `/goal` with the prompt below.
-- Claude Code: `/ops-sweep`; it has a built-in `/goal <condition>` (check
-  `claude --help` or `/help`); when present, prefer it over `/loop /ops-sweep`.
+The prompt below is the contract; harness commands are conveniences. Use whatever
+loop or goal primitive your harness offers so one invocation keeps going until
+the budget ends, and prefer a goal/condition primitive over a plain loop when it
+has both. Examples: opencode's `/ops-sweep`
+(`.opencode/commands/ops-sweep.md` sets a large goal budget) and Codex's `/goal`.
 
 ## Prompt for any harness or scheduler
 
