@@ -4,6 +4,7 @@ import type { NewSocialPost, SocialPostRow } from '../types.js';
 import { composeSocialContent, type SocialComposeEpisode } from './compose.js';
 import type { PackagingAssignment } from './packaging-experiments.js';
 import { platformVideoMode } from './platforms.js';
+import { publicPostUrl } from './rednote-post-url.js';
 import type {
   GeneratedSocialCopy,
   PublishResult,
@@ -92,7 +93,10 @@ export function buildSocialPostRecord(input: {
     languageCode: input.languageCode ?? 'zh-Hant',
     experimentKey: input.experimentKey ?? null,
     experimentVariant: input.experimentVariant ?? null,
-    postUrl: input.platform === 'rednote' ? null : (input.result.url ?? null),
+    postUrl:
+      input.platform === 'rednote'
+        ? publicPostUrl(input.result.url ?? '')
+        : (input.result.url ?? null),
     platformPostId:
       input.platform === 'rednote' ? null : (input.result.postId ?? null),
     publishedAt: input.result.publishedAt,

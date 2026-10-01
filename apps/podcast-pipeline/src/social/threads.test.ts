@@ -63,6 +63,29 @@ describe('getThreadsProfile', () => {
 });
 
 describe('createThreadsPublisher', () => {
+  it('keeps a successful publish when permalink readback fails', async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ id: 'container' }))
+      .mockResolvedValueOnce(jsonResponse({ status: 'FINISHED' }))
+      .mockResolvedValueOnce(jsonResponse({ id: 'live-post' }))
+      .mockRejectedValueOnce(new Error('network unavailable'));
+    const onLog = vi.fn();
+    const result = await createThreadsPublisher({
+      accessToken: 'token',
+      fetchImpl,
+      onLog,
+    }).publishThreads({ text: 'copy', videoUrl: VIDEO_URL });
+    expect(result).toMatchObject({ status: 'published', postId: 'live-post' });
+    expect(result.url).toBeUndefined();
+    expect(onLog).toHaveBeenCalledWith(
+      expect.stringContaining('Post is live; permalink unavailable'),
+    );
+    expect(
+      fetchImpl.mock.calls.filter(([, init]) => init?.method === 'POST'),
+    ).toHaveLength(2);
+  });
+
   it('creates, waits for, and publishes a native video container', async () => {
     const fetchImpl = vi
       .fn<typeof fetch>()
@@ -73,7 +96,13 @@ describe('createThreadsPublisher', () => {
       .mockResolvedValueOnce(
         jsonResponse({ id: 'container-1', status: 'FINISHED' }),
       )
-      .mockResolvedValueOnce(jsonResponse({ id: 'thread-1' }));
+      .mockResolvedValueOnce(jsonResponse({ id: 'thread-1' }))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          id: 'thread-1',
+          permalink: 'https://www.threads.com/@zap/post/abc',
+        }),
+      );
     const sleep = vi.fn(async () => undefined);
     const publisher = createThreadsPublisher({
       accessToken: 'token-1',
@@ -85,10 +114,20 @@ describe('createThreadsPublisher', () => {
 
     await expect(
       publisher.publishThreads({ text: '市場更新', videoUrl: VIDEO_URL }),
-    ).resolves.toMatchObject({ status: 'published', postId: 'thread-1' });
+    ).resolves.toMatchObject({
+      status: 'published',
+      postId: 'thread-1',
+      url: 'https://www.threads.com/@zap/post/abc',
+    });
 
-    expect(fetchImpl).toHaveBeenCalledTimes(4);
+    expect(fetchImpl).toHaveBeenCalledTimes(5);
     expect(sleep).toHaveBeenCalledOnce();
+    const permalinkUrl = fetchImpl.mock.calls[4]?.[0] as URL;
+    expect(permalinkUrl.pathname).toBe('/thread-1');
+    expect(permalinkUrl.searchParams.get('fields')).toBe('id,permalink');
+    expect(fetchImpl.mock.calls[4]?.[1]?.headers).toEqual({
+      Authorization: 'Bearer token-1',
+    });
 
     const createUrl = fetchImpl.mock.calls[0]?.[0] as URL;
     expect(createUrl.origin + createUrl.pathname).toBe(
@@ -117,7 +156,13 @@ describe('createThreadsPublisher', () => {
       .mockResolvedValueOnce(
         jsonResponse({ id: 'container-1', status: 'FINISHED' }),
       )
-      .mockResolvedValueOnce(jsonResponse({ id: 'thread-1' }));
+      .mockResolvedValueOnce(jsonResponse({ id: 'thread-1' }))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          id: 'thread-1',
+          permalink: 'https://www.threads.com/@zap/post/abc',
+        }),
+      );
     const publisher = createThreadsPublisher({ fetchImpl });
 
     await publisher.publishThreads({ text: 'copy', videoUrl: VIDEO_URL });
@@ -257,7 +302,13 @@ describe('createThreadsPublisher', () => {
       .mockResolvedValueOnce(
         jsonResponse({ id: 'container-1', status: 'FINISHED' }),
       )
-      .mockResolvedValueOnce(jsonResponse({ id: 'thread-1' }));
+      .mockResolvedValueOnce(jsonResponse({ id: 'thread-1' }))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          id: 'thread-1',
+          permalink: 'https://www.threads.com/@zap/post/abc',
+        }),
+      );
     const getAccessToken = vi.fn(async () => 'session-token');
     const publisher = createThreadsPublisher({ getAccessToken, fetchImpl });
 
@@ -401,7 +452,13 @@ describe('createThreadsPublisher', () => {
       .mockResolvedValueOnce(jsonResponse({ id: 'container-1' }))
       .mockResolvedValueOnce(jsonResponse({ status: 'IN_PROGRESS' }))
       .mockResolvedValueOnce(jsonResponse({ status: 'FINISHED' }))
-      .mockResolvedValueOnce(jsonResponse({ id: 'thread-1' }));
+      .mockResolvedValueOnce(jsonResponse({ id: 'thread-1' }))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          id: 'thread-1',
+          permalink: 'https://www.threads.com/@zap/post/abc',
+        }),
+      );
     const publisher = createThreadsPublisher({
       accessToken: 'token-1',
       fetchImpl,

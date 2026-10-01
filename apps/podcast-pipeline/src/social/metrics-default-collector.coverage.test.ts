@@ -48,6 +48,11 @@ describe('automatic social metrics default collector wiring', () => {
   it('creates and closes the browser session and persists a Rednote identity discovered by the collector callback', async () => {
     mocks.createMetricCollectors.mockImplementationOnce((input) => ({
       rednote: async () => {
+        await input.onThreadsIdentity({
+          post: { ...post, platform: 'threads' },
+          platformPostId: 'thread-1',
+          postUrl: 'https://www.threads.com/@zap/post/a',
+        });
         await input.onRednoteIdentity({
           post,
           platformPostId: 'note-1',
@@ -85,6 +90,11 @@ describe('automatic social metrics default collector wiring', () => {
       id: 'post-rednote',
       platformPostId: 'note-1',
       postUrl: 'https://www.xiaohongshu.com/explore/note-1',
+    });
+    expect(mocks.updateIdentity).toHaveBeenCalledWith({
+      id: post.id,
+      platformPostId: 'thread-1',
+      postUrl: 'https://www.threads.com/@zap/post/a',
     });
     expect(insertMetric).toHaveBeenCalledOnce();
     expect(mocks.close).toHaveBeenCalledOnce();

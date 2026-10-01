@@ -189,6 +189,9 @@ export async function runAutomaticSocialMetricsCollector(input: {
     input.collectors ??
     createMetricCollectors({
       browser,
+      onThreadsIdentity: async ({ post, platformPostId, postUrl }) => {
+        await updateIdentity({ id: post.id, platformPostId, postUrl });
+      },
       onRednoteIdentity: async ({ post, platformPostId, postUrl }) => {
         await updateIdentity({ id: post.id, platformPostId, postUrl });
       },

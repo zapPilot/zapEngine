@@ -1619,6 +1619,9 @@ export async function collectDueMetricWindows(
   const browser = (openBrowser ?? createMetricsBrowserSession)();
   const collectors = createMetricCollectors({
     browser,
+    onThreadsIdentity: async ({ post, platformPostId, postUrl }) => {
+      await updateSocialPostIdentity({ id: post.id, platformPostId, postUrl });
+    },
     onRednoteIdentity: async ({ post, platformPostId, postUrl }) => {
       await updateSocialPostIdentity({ id: post.id, platformPostId, postUrl });
     },

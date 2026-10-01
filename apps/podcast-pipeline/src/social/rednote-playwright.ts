@@ -7,6 +7,7 @@ import {
   UPLOAD_INPUT_SELECTOR,
   withRednotePublishPage,
 } from './rednote-browser.js';
+import { publicPostUrl } from './rednote-post-url.js';
 import type {
   PublishResult,
   RednotePublisher,
@@ -502,23 +503,6 @@ function isPublishedUrl(rawUrl: string): boolean {
     );
   } catch {
     return false;
-  }
-}
-
-function publicPostUrl(rawUrl: string): string | null {
-  try {
-    const url = new URL(rawUrl);
-    const publicHost =
-      url.hostname === 'xiaohongshu.com' ||
-      url.hostname === 'rednote.com' ||
-      url.hostname.endsWith('.xiaohongshu.com') ||
-      url.hostname.endsWith('.rednote.com');
-    const publicPath = /^\/(?:explore|discovery\/item)\/[^/]+\/?$/.test(
-      url.pathname,
-    );
-    return publicHost && publicPath ? url.href : null;
-  } catch {
-    return null;
   }
 }
 

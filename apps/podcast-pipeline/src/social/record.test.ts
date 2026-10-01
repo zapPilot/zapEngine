@@ -247,6 +247,34 @@ describe('buildSocialPostRecord', () => {
   });
 });
 
+describe('Rednote permalink persistence', () => {
+  it.each([
+    [
+      'https://www.xiaohongshu.com/explore/note-1?xsec_token=token',
+      'https://www.xiaohongshu.com/explore/note-1?xsec_token=token',
+    ],
+    [
+      'https://www.rednote.com/discovery/item/note-2',
+      'https://www.rednote.com/discovery/item/note-2',
+    ],
+    ['https://creator.rednote.com/new/note-manager', null],
+    ['https://evil.test/explore/note-1', null],
+    ['not a url', null],
+    [undefined, null],
+  ])('persists only a validated public URL %s', (url, expected) => {
+    const record = buildSocialPostRecord({
+      episodeId: 'episode-1',
+      platform: 'rednote',
+      result: result({ url }),
+      snapshot,
+      episode,
+      videoDurationSeconds: 321,
+    });
+    expect(record.postUrl).toBe(expected);
+    expect(record.platformPostId).toBeNull();
+  });
+});
+
 describe('createSocialPostPersister', () => {
   it('uses the default database writer and error logger when not injected', async () => {
     dbMocks.insertSocialPost.mockResolvedValue({ id: 'social-post-default' });
