@@ -44,7 +44,7 @@ test('schedule registry declares the external ChatGPT worker and its skill', () 
   assert.deepEqual(entry, {
     name: 'test-qa-hourly',
     purpose:
-      'Audit test quality incrementally while preserving the 100% coverage gates and Phase 1 test-only boundary.',
+      'Audit test quality incrementally through the GitHub connector while preserving the 100% coverage gates and Phase 1 test-only boundary.',
     schedule_kind: 'cron',
     schedule: '30 * * * *',
     schedule_source: 'external',
