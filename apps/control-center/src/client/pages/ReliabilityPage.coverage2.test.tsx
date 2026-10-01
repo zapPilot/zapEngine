@@ -214,8 +214,11 @@ describe('ReliabilityPage coverage2', () => {
         ],
       }),
     });
-    expect(screen.getByText('Supabase')).toBeVisible();
-    expect(screen.getByText('OpenRouter')).toBeVisible();
+    expect(
+      screen
+        .getAllByText(/^(Supabase|OpenRouter)$/)
+        .map((element) => element.textContent),
+    ).toEqual(['Supabase', 'OpenRouter']);
   });
 
   it('sorts a missing snapshot after a priced one', () => {
@@ -239,6 +242,11 @@ describe('ReliabilityPage coverage2', () => {
         ],
       }),
     });
+    expect(
+      screen
+        .getAllByText(/^(Supabase|OpenRouter)$/)
+        .map((element) => element.textContent),
+    ).toEqual(['OpenRouter', 'Supabase']);
     expect(screen.getByText('pending')).toBeVisible();
   });
 
