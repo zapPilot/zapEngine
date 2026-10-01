@@ -209,40 +209,11 @@ node scripts/agents/test-qa-state.mjs merge --event "$scratch/event.json" \
 ## Scheduled-task prompt
 
 ```text
-Use @GitHub on `zapPilot/zapEngine` and run exactly one iteration of the hourly
-test-QA worker defined in `.agents/skills/test-qa-audit/SKILL.md` with its
-`REFERENCE.md`, on the latest `main`. Those repository files are the complete,
-current rules and override earlier runs and older prompts.
+Use @GitHub on `zapPilot/zapEngine` and run exactly one hourly test-QA iteration from latest `main`, following `.agents/skills/test-qa-audit/SKILL.md` and `REFERENCE.md` as the complete current rules.
 
-Use the GitHub connector only for repository work. Do not use DevSpace, local
-workspaces/worktrees, local shell/terminal tools, or other coding-environment
-connectors. Treat shell commands shown in the repository skill/reference as the
-semantic/local implementation of the rule, not as a reason to stop when the
-connector cannot execute a local process. Use functionally equivalent GitHub
-connector operations for repository reads/writes, PR handling, Actions/artifact
-inspection, and issue handling.
+Use the GitHub connector only; never fall back to DevSpace, local worktrees, or shell tools. If selector/tests/guard/dispatch cannot run through the connector, continue with equivalent GitHub inspection, let Actions verify pushed Phase 1 test/test-helper changes, and record unavailable operations honestly.
 
-Keep the same long-lived worker model as the former coverage worker: if one open
-`test-qa/*` worker PR exists, continue only that PR and append commits/results
-to it; if none exists, create the required `test-qa/*` branch and PR from
-latest `main` when this iteration produces a test/test-helper change. Never
-create a second concurrent worker PR. Never merge a PR.
+Maintain exactly one long-lived open `test-qa/*` worker PR: append to it if present; otherwise create one from latest `main` only when a permitted change exists. Never open a second worker PR and never merge.
 
-Use the newest `test-qa-state` Actions artifact as the primary checkpoint and
-the cumulative worker PR body/diff as the durable fallback ledger. Select/review
-scopes according to the repository's scope/state ordering. If a local
-selector/guard/test command cannot be executed through @GitHub, do not stop
-solely for that reason: perform the equivalent repository inspection where
-possible, make only changes allowed by Phase 1, document the exact unavailable
-command/reason in the PR body, push the test-only change, and let GitHub Actions
-verify it. Inspect resulting CI/artifacts/logs through @GitHub before finishing
-the iteration when a push occurred.
-
-Always record the run according to the repository rules. If repository_dispatch
-is available through @GitHub, use it to update the `test-qa-state` artifact. If
-that connector operation is genuinely unavailable, do not switch environments
-and do not abandon the audit: preserve the run record in the cumulative worker
-PR body (or the run summary when no worker PR exists), report the dispatch
-limitation, and let the next iteration use that ledger together with the latest
-artifact. Never fabricate successful command execution, dispatch, or CI results.
+Use the newest `test-qa-state` artifact as the primary checkpoint and the worker PR body/diff as fallback ledger. Always record the run; dispatch state when available, otherwise preserve it in the ledger. After any push, inspect the resulting GitHub Actions checks/artifacts/logs before finishing.
 ```
