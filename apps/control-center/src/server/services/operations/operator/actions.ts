@@ -3,7 +3,7 @@ import { canRestartRender } from '../../podcast-retry-eligibility.js';
 
 export const OPERATOR_EXECUTOR = 'ops-operator-runner';
 export const OPERATOR_CATALOG_NOTE =
-  'This catalog describes unattended server runner actions. allowed:false means the runner does not execute the action; agents may deliver reviewed pull requests under the backlog or incident skill.';
+  'This catalog describes unattended server runner actions. allowed:false means the runner does not execute the action; agents may still deliver code fixes as reviewed pull requests through the ops-sweep skill.';
 
 export interface RenderTarget {
   episodeId: string;

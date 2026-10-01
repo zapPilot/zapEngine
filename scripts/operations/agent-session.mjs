@@ -3,8 +3,8 @@ import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 
 export function sessionArgs(mode, root) {
-  if (!['triage', 'worker', 'growth', 'coverage-review'].includes(mode))
-    throw new Error('Choose triage, worker, growth or coverage-review');
+  if (!['growth', 'coverage-review'].includes(mode))
+    throw new Error('Choose growth or coverage-review');
   const explore = mode === 'coverage-review';
   const args = [
     '--setting-sources',
@@ -39,7 +39,7 @@ if (
       );
     if (process.argv.length !== 3)
       throw new Error(
-        'Usage: node scripts/operations/agent-session.mjs <triage|worker|growth|coverage-review>',
+        'Usage: node scripts/operations/agent-session.mjs <growth|coverage-review>',
       );
     const child = spawn('claude', sessionArgs(process.argv[2], root), {
       cwd: root,

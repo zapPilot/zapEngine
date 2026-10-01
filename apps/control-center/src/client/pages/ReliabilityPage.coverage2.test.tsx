@@ -134,40 +134,6 @@ describe('ReliabilityPage coverage2', () => {
   it('renders with no operations at all', () => {
     renderPage({ data: null, overview: null });
     expect(screen.getByText('系統整體健康')).toBeVisible();
-    expect(screen.getByText('Backlog unavailable')).toBeVisible();
-  });
-
-  it('renders an unconfigured backlog', () => {
-    renderPage({
-      data: {
-        domains: [],
-        generatedAt: '2026-09-10T01:00:00Z',
-        priorities: [],
-        signals: [],
-        status: 'healthy',
-        agentBacklog: {
-          status: 'unconfigured',
-          message: 'GitHub token missing',
-        } as never,
-      },
-    });
-    expect(screen.getByText('Backlog not configured')).toBeVisible();
-    expect(screen.getByText('GitHub token missing')).toBeVisible();
-  });
-
-  it('renders a backlog error with a fallback message', () => {
-    renderPage({
-      data: {
-        domains: [],
-        generatedAt: '2026-09-10T01:00:00Z',
-        priorities: [],
-        signals: [],
-        status: 'healthy',
-        agentBacklog: { status: 'error', message: null } as never,
-      },
-    });
-    expect(screen.getByText('Backlog unavailable')).toBeVisible();
-    expect(screen.getByText('Backlog has not been loaded yet.')).toBeVisible();
   });
 
   it('renders fly fleet health from fly signals', () => {

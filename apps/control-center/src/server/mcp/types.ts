@@ -1,13 +1,4 @@
 import type {
-  AgentBacklogClaimInput,
-  AgentBacklogClaimResult,
-  AgentBacklogCreateInput,
-  AgentBacklogCreateResult,
-  AgentBacklogReleaseInput,
-  AgentBacklogReleaseResult,
-  AgentBacklogResponse,
-} from '../../shared/agent-backlog.js';
-import type {
   CustomerEconomicsResponse,
   OperationsResponse,
   OperationsSocialResponse,
@@ -20,22 +11,14 @@ import type { SentryResolutionResult } from '../services/operations/sentry-remed
 
 /**
  * Narrow contract between MCP and the operational control plane. Read tools
- * consume normalized operations models; mutations stay explicitly allowlisted
- * to backlog lifecycle actions and single-issue Sentry resolution.
+ * consume normalized operations models; the only mutation is single-issue
+ * Sentry resolution.
  */
 export interface OpsMcpOperations {
   getGrowth(force?: boolean): Promise<OperationsGrowthResponse>;
   getOperations(force?: boolean): Promise<OperationsResponse>;
   getSocial(force?: boolean): Promise<OperationsSocialResponse>;
   getCustomers(force?: boolean): Promise<CustomerEconomicsResponse>;
-  getBacklog(force?: boolean): Promise<AgentBacklogResponse>;
-  createBacklogItem(
-    input: AgentBacklogCreateInput,
-  ): Promise<AgentBacklogCreateResult>;
-  claimBacklog(input: AgentBacklogClaimInput): Promise<AgentBacklogClaimResult>;
-  releaseBacklog(
-    input: AgentBacklogReleaseInput,
-  ): Promise<AgentBacklogReleaseResult>;
   inspectSignal(
     fingerprint: string,
     sentry?: SentryInspectionOptions,

@@ -37,7 +37,7 @@ configuration with no actionable invariant, falsifies promotion for that finding
 
 One independent review recorded. Do not count an immediate repeated query as the
 second review. On recurrence, obtain human review to implement a deterministic
-collector or record why the detector is not worth maintaining. No agent-backlog
+collector or record why the detector is not worth maintaining. No ops-sweep
 item is appropriate for this architecture/security decision.
 
 ## Fingerprint

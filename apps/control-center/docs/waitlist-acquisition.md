@@ -76,7 +76,7 @@ separate operations from this local integration.
 
 ## Discord and per-episode acquisition
 
-`GET /api/growth` and MCP `ops_growth` (server version 0.10.0) return
+`GET /api/growth` and MCP `ops_growth` (server version 0.11.0) return
 `journey`, `community`, `lanes`, and `laneSources`. The obsolete
 `/api/growth-journey` route is removed. Refresh propagates `force` to both
 social-growth and Discord caches. Overall `status` depends only on the journey;

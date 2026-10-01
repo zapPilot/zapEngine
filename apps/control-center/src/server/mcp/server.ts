@@ -20,13 +20,6 @@ const REMEDIATION_ANNOTATIONS = {
   openWorldHint: true,
 };
 
-const BACKLOG_MUTATION_ANNOTATIONS = {
-  readOnlyHint: false,
-  destructiveHint: false,
-  idempotentHint: false,
-  openWorldHint: true,
-};
-
 const forceSchema = z.object({
   force: z
     .boolean()
@@ -40,22 +33,12 @@ const fingerprintForceSchema = z.object({
   force: z.boolean().optional().default(false),
 });
 
-const agentIdSchema = z
-  .string()
-  .trim()
-  .regex(/^[a-zA-Z0-9_.:/-]{1,120}$/u)
-  .describe('Stable worker identity recorded in backlog audit comments.');
-const areaSchema = z
-  .string()
-  .trim()
-  .regex(/^[a-z0-9][a-z0-9-]{0,48}$/u);
-
 export function createOpsMcpServer(operations: OpsMcpOperations): McpServer {
   const server = new McpServer(
-    { name: 'zap-pilot-ops', version: '0.10.0' },
+    { name: 'zap-pilot-ops', version: '0.11.0' },
     {
       instructions:
-        'operator.actions[].allowed describes only the ops-operator-runner, not agent permission to open reviewed PRs. Start with ops_status. For a priority incident, use ops_investigate next: it correlates bounded GitHub, Sentry, Fly, product/customer, social, and relevant PostHog evidence into one deterministic packet, exposes explicit repository-backed provider correlation, and carries a read-only remediation facts block. Read remediation.blockers before proposing any fix: operational priority is impact, not permission, and missing or unproven evidence fails closed. Use ops_inspect_signal only for extra provider drill-down. For safe background engineering work, use ops_backlog to inspect GitHub-backed agent tasks and ops_backlog_claim to mark one ready task as working. Release unsuitable work with ops_backlog_release. Backlog writes are constrained to zapPilot/zapEngine and remain disabled unless the server explicitly enables them. The Sentry remediation tool may only resolve one explicit issue after its existing verification gates pass.',
+        'operator.actions[].allowed describes only the ops-operator-runner, not agent permission to open reviewed PRs. Start with ops_status. For a priority incident, use ops_investigate next: it correlates bounded GitHub, Sentry, Fly, product/customer, social, and relevant PostHog evidence into one deterministic packet, exposes explicit repository-backed provider correlation, and carries a read-only remediation facts block. Read remediation.blockers before proposing any fix: operational priority is impact, not permission, and missing or unproven evidence fails closed. Use ops_inspect_signal only for extra provider drill-down. Every tool is read-only except ops_resolve_sentry_issue, which may only resolve one explicit issue after its existing verification gates pass; code fixes reach production only through reviewed pull requests.',
     },
   );
 
@@ -64,23 +47,11 @@ export function createOpsMcpServer(operations: OpsMcpOperations): McpServer {
     {
       title: 'Operational status',
       description:
-        'Get the company-wide operational snapshot, including all domains, signals, deterministic ranked priorities, and the normalized agent backlog summary. Use this first when asked what is broken or what needs attention.',
+        'Get the company-wide operational snapshot, including all domains, signals, and deterministic ranked priorities. Use this first when asked what is broken or what needs attention.',
       inputSchema: forceSchema,
       annotations: READ_ONLY_ANNOTATIONS,
     },
     async ({ force }) => result(await operations.getOperations(force)),
-  );
-
-  server.registerTool(
-    'ops_backlog',
-    {
-      title: 'Agent backlog',
-      description:
-        'Read the GitHub Issues-backed engineering backlog for weak/background agents. Returns ready, working, blocked and recently completed counts plus normalized open issue details.',
-      inputSchema: forceSchema,
-      annotations: READ_ONLY_ANNOTATIONS,
-    },
-    async ({ force }) => result(await operations.getBacklog(force)),
   );
 
   server.registerTool(
@@ -179,7 +150,7 @@ export function createOpsMcpServer(operations: OpsMcpOperations): McpServer {
     {
       title: 'Growth journey',
       description:
-        'Read two 30-day ordered, 1-day-window PostHog funnels: landing to waitlist CTA and landing to Discord CTA. Includes first-touch episode/platform/language lanes (PostHog 30-day unique people versus cumulative waitlist signups), per-source laneSources availability, and Discord guild member counts. Discord CTA proves intent, not membership; guild totals cannot be attributed to any source or lane. Availability is not product health. App and wallet counts are independent aggregates, not later funnel steps. Use for growth hypotheses and operator experiment proposals, never reliability priorities or agent backlog.',
+        'Read two 30-day ordered, 1-day-window PostHog funnels: landing to waitlist CTA and landing to Discord CTA. Includes first-touch episode/platform/language lanes (PostHog 30-day unique people versus cumulative waitlist signups), per-source laneSources availability, and Discord guild member counts. Discord CTA proves intent, not membership; guild totals cannot be attributed to any source or lane. Availability is not product health. App and wallet counts are independent aggregates, not later funnel steps. Use for growth hypotheses and operator experiment proposals, never reliability priorities.',
       inputSchema: forceSchema,
       annotations: READ_ONLY_ANNOTATIONS,
     },
@@ -197,98 +168,6 @@ export function createOpsMcpServer(operations: OpsMcpOperations): McpServer {
     },
     async ({ force }) =>
       result(projectDomain(await operations.getOperations(force), 'costs')),
-  );
-
-  server.registerTool(
-    'ops_backlog_create',
-    {
-      title: 'Create agent backlog item',
-      description:
-        'Create one low-risk weak-agent GitHub issue in zapPilot/zapEngine. The server always applies agent-backlog, agent:weak and risk:low labels; callers cannot select another repository or escalate permissions.',
-      inputSchema: z.object({
-        title: z.string().trim().min(5).max(160),
-        problem: z.string().trim().min(10).max(4_000),
-        expectedOutcome: z.string().trim().min(10).max(4_000),
-        acceptanceCriteria: z
-          .array(z.string().trim().min(3).max(500))
-          .min(1)
-          .max(12),
-        area: areaSchema.nullable().optional(),
-        effort: z.enum(['xs', 's', 'm']).nullable().optional(),
-        fingerprint: z
-          .string()
-          .trim()
-          .min(3)
-          .max(200)
-          .refine((value) => !/[\r\n]/u.test(value) && !value.includes('-->'))
-          .optional(),
-        relevantFiles: z
-          .array(z.string().trim().min(1).max(300))
-          .max(20)
-          .optional(),
-        outOfScope: z
-          .array(z.string().trim().min(1).max(500))
-          .max(12)
-          .optional(),
-      }),
-      annotations: BACKLOG_MUTATION_ANNOTATIONS,
-    },
-    async (input) => result(await operations.createBacklogItem(input)),
-  );
-
-  server.registerTool(
-    'ops_backlog_claim',
-    {
-      title: 'Claim agent backlog work',
-      description:
-        'Mark the oldest ready weak-agent issue as status:working, optionally restricted to area labels. GitHub labels are the only claim state; this intentionally does not implement a distributed lease. Returns claimed=false when no eligible work remains.',
-      inputSchema: z.object({
-        agentId: agentIdSchema,
-        areas: z.array(areaSchema).max(20).optional(),
-      }),
-      annotations: BACKLOG_MUTATION_ANNOTATIONS,
-    },
-    async (input) => result(await operations.claimBacklog(input)),
-  );
-
-  server.registerTool(
-    'ops_backlog_release',
-    {
-      title: 'Release agent backlog work',
-      description:
-        'Return one status:working backlog issue to ready or mark it blocked. The server re-reads GitHub first and refuses to mutate issues outside the agent backlog. New work closes through a merged PR with Fixes #<issue>. already-fixed requires evidence that the server verifies on main before closing.',
-      inputSchema: z
-        .object({
-          agentId: agentIdSchema,
-          issueNumber: z.number().int().positive(),
-          outcome: z.enum(['released', 'blocked', 'already-fixed']),
-          evidence: z
-            .object({
-              commitSha: z
-                .string()
-                .regex(/^[a-f0-9]{7,40}$/iu)
-                .optional(),
-              prNumber: z.number().int().positive().optional(),
-            })
-            .optional(),
-          reason: z.string().trim().min(8).max(500),
-        })
-        .superRefine((value, ctx) => {
-          if (
-            value.outcome === 'already-fixed' &&
-            !value.evidence?.commitSha &&
-            !value.evidence?.prNumber
-          ) {
-            ctx.addIssue({
-              code: 'custom',
-              path: ['evidence'],
-              message: 'already-fixed requires commitSha or prNumber.',
-            });
-          }
-        }),
-      annotations: BACKLOG_MUTATION_ANNOTATIONS,
-    },
-    async (input) => result(await operations.releaseBacklog(input)),
   );
 
   server.registerTool(

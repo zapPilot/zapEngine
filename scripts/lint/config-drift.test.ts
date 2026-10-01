@@ -193,7 +193,7 @@ describe('checkSkillsLink', () => {
   });
 
   it('rejects a real directory copied into .claude/skills', () => {
-    assert.deepEqual(types([file('.claude/skills/triage/SKILL.md')]), [
+    assert.deepEqual(types([file('.claude/skills/ops-sweep/SKILL.md')]), [
       'skills_link_not_symlink',
     ]);
   });

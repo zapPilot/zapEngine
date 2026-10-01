@@ -35,10 +35,6 @@ const schema = z.object({
   POSTHOG_PERSONAL_API_KEY: optionalString,
   POSTHOG_PROJECT_ID: optionalString,
   DISCORD_INVITE_CODE: optionalString,
-  // Agent backlog access is deliberately separate from Actions health. This
-  // token may have Issues read/write on zapPilot/zapEngine, while the existing
-  // OPS_GITHUB_TOKEN remains read-only and cannot be silently privilege-raised.
-  OPS_GITHUB_BACKLOG_TOKEN: optionalString,
   // Optional, narrowly scoped remediation credential. Normal reads never fall
   // back to write credentials.
   SENTRY_OPS_WRITE_TOKEN: optionalString,
