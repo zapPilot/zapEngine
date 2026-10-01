@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, act } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { SocialGrowthJourney } from '../../shared/growth-journey.js';
@@ -306,6 +306,53 @@ describe('Today observer trust', () => {
     expect(
       screen.queryByText('目前沒有需要你處理的 operational issue'),
     ).not.toBeInTheDocument();
+  });
+
+  it('names the unobserved domain instead of reporting healthy', () => {
+    renderToday({
+      data: null,
+      operations: {
+        domains: [{ domain: 'costs', signalCount: 1, status: 'unknown' }],
+        generatedAt: new Date().toISOString(),
+        priorities: [],
+        signals: [],
+        status: 'healthy',
+      },
+      podcastCosts: null,
+    });
+    expect(
+      screen.queryByText('目前沒有需要你處理的 operational issue'),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('costs');
+  });
+
+  it('flips from healthy to stale on a timer without a refetch', () => {
+    vi.useFakeTimers();
+    try {
+      renderToday({
+        data: null,
+        operations: {
+          domains: [],
+          generatedAt: new Date().toISOString(),
+          priorities: [],
+          signals: [],
+          status: 'healthy',
+        },
+        podcastCosts: null,
+      });
+      expect(
+        screen.getByText('目前沒有需要你處理的 operational issue'),
+      ).toBeInTheDocument();
+      act(() => {
+        vi.advanceTimersByTime(16 * 60_000);
+      });
+      expect(screen.getByRole('status')).toHaveTextContent('已過期');
+      expect(
+        screen.queryByText('目前沒有需要你處理的 operational issue'),
+      ).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
