@@ -76,11 +76,31 @@ describe('app listenHost selection', () => {
 
   it('uses production default host when HOST is unset', async () => {
     const module = await setupAppImport('production');
-    expect(module.app).toBeDefined();
+    const listen = vi
+      .spyOn(module.app, 'listen')
+      .mockReturnValue({ close: vi.fn() } as never);
+
+    await module.startServer();
+
+    expect(listen).toHaveBeenCalledWith(
+      3000,
+      '0.0.0.0',
+      expect.any(Function),
+    );
   });
 
   it('uses non-production default host when HOST is unset', async () => {
     const module = await setupAppImport('test');
-    expect(module.app).toBeDefined();
+    const listen = vi
+      .spyOn(module.app, 'listen')
+      .mockReturnValue({ close: vi.fn() } as never);
+
+    await module.startServer();
+
+    expect(listen).toHaveBeenCalledWith(
+      3000,
+      '127.0.0.1',
+      expect.any(Function),
+    );
   });
 });
