@@ -233,4 +233,100 @@ describe('runOperatorCycle coverage gaps', () => {
       'ops_retry_render',
     ]);
   });
+
+  it('skips an abandoned failed render and selects the retryable one', async () => {
+    const retryableId = '33333333-3333-4333-8333-333333333333';
+    const abandoned = {
+      ...failedTarget(),
+      localizationId,
+      abandonedAt: '2026-09-05T11:34:35Z',
+    };
+    const retryable = {
+      ...failedTarget(),
+      localizationId: retryableId,
+      abandonedAt: null,
+    };
+    const persistence = store({
+      renderTargets: vi.fn().mockResolvedValue([abandoned, retryable]),
+    });
+    const ops = operations();
+
+    const result = await runOperatorCycle({
+      operations: ops,
+      store: persistence as unknown as OperatorStore,
+      config,
+      actor: 'test',
+      mutationsEnabled: true,
+    });
+
+    expect(ops.investigate).toHaveBeenCalledWith(
+      `social-queue:render/${retryableId}`,
+      false,
+    );
+    expect(result).toMatchObject({
+      fingerprint: `social-queue:render/${retryableId}`,
+    });
+  });
+
+  it('falls through to snapshot priorities when every failed render is terminal', async () => {
+    const fingerprint = 'sentry:issues/podcast-pipeline';
+    const persistence = store({
+      renderTargets: vi.fn().mockResolvedValue([
+        {
+          ...failedTarget(),
+          abandonedAt: '2026-09-05T11:34:35Z',
+        },
+        {
+          ...failedTarget(),
+          localizationId: '33333333-3333-4333-8333-333333333333',
+          visualVersion: 'v3',
+        },
+      ]),
+    });
+    const ops = operations({
+      getOperations: vi.fn().mockResolvedValue({
+        generatedAt: now.toISOString(),
+        priorities: [{ signal: { fingerprint } }],
+      }),
+    });
+
+    const result = await runOperatorCycle({
+      operations: ops,
+      store: persistence as unknown as OperatorStore,
+      config,
+      actor: 'test',
+      mutationsEnabled: true,
+    });
+
+    expect(ops.investigate).toHaveBeenCalledWith(fingerprint, false);
+    expect(result).toEqual({ state: 'needs_human', fingerprint, action: null });
+  });
+
+  it('goes idle when failed renders are terminal and there are no priorities', async () => {
+    const persistence = store({
+      renderTargets: vi.fn().mockResolvedValue([
+        {
+          ...failedTarget(),
+          abandonedAt: '2026-09-05T11:34:35Z',
+        },
+      ]),
+    });
+    const ops = operations({
+      getOperations: vi.fn().mockResolvedValue({
+        generatedAt: now.toISOString(),
+        priorities: [],
+      }),
+    });
+
+    const result = await runOperatorCycle({
+      operations: ops,
+      store: persistence as unknown as OperatorStore,
+      config,
+      actor: 'test',
+      mutationsEnabled: true,
+    });
+
+    expect(result).toEqual({ state: 'idle' });
+    expect(ops.investigate).not.toHaveBeenCalled();
+  });
 });
