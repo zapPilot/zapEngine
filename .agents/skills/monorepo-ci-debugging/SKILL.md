@@ -69,6 +69,11 @@ gh run view <run-id> --log-failed
   a JSON `extends` target. New TypeScript workspaces must use `knip.ts` with
   `defineKnipConfig` from `@zapengine/knip-config/base`; keep framework/MDX-only
   entries explicit and narrow instead of adding blanket deadcode ignores.
+- **Knip in worktrees:** under `.claude/worktrees/`, knip can print hints or
+  unused items that a fresh checkout does not, such as landing-page's
+  `Remove from ignoreDependencies` hints for `@zapengine/types`. Compare main's
+  GitHub `code-quality` log, never edit knip config for worktree-only findings,
+  and let the PR's `code-quality` job decide.
 - **Fly deploy/verify matrix:** `deploy-gates` outputs `deploy_matrix` / `verify_matrix` (not `fly_*`). `pull_request` → `deploy=[]` + `verify=changed where verify_docker`; `push:refs/heads/main` → `deploy=changed apps` + `verify=[]`; `workflow_dispatch` → `deploy=requested` + `verify=[]`; non-main `push` → both `[]`. A malformed `PATHS_CHANGES` exits 1 rather than resolving to `[]`. `scripts/resolve-deploy-matrix.test.sh` locks every case + full-object shape (`app/fly_config/secret_name/verify_package_script/verify_docker/capture_release_metadata`).
 - **CI fleet converge:** top-level concurrency is `ci-${{ github.ref }}-${{ github.event_name }}` with `cancel-in-progress` only for PR refs. A `main` push therefore never cancels a running `main` run; it waits in the single pending slot, and a newer push evicts whatever is pending. Convergence comes from the diff base instead: `scripts/resolve-deploy-baseline.sh` asks the API for the last _successful_ `main` push run and `paths-filter` diffs `that SHA..github.sha`, so commits whose run was evicted or failed are still covered by the next push. Consequences: a failed deploy retries on the next push to `main`; if there is no next push, converge with `gh workflow run ci.yml -f deploy_target=all`; and never re-run an old `main` run — the baseline step refuses it rather than rolling the fleet backwards. Per-app `deploy-fly` concurrency is only second-layer.
 - **Deploy machinery is outside the filter:** `paths-filter` matches an app's

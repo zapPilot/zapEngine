@@ -40,8 +40,8 @@ work; it does not need to repeat worktree authorization.
    gh issue list --label triage-log --state open  # exactly one
    ```
 
-   Accept optional `area:<slug>` or `#<issue>` input. If the latest main `CI` run failed, prioritize a ready item with a `triage:ci:` fingerprint by claiming its area
-   unless explicitly selected otherwise; other PRs cannot pass the gate.
+   Accept optional `area:<slug>` or `#<issue>` input. Without one, if main's newest
+   success/failure `CI` run failed, claim a ready `triage:ci:` item's area first.
 
 2. Repeat steps 2–5 for each claim until a stop condition:
 
@@ -53,12 +53,12 @@ work; it does not need to repeat worktree authorization.
    bare slugs (`^[a-z0-9][a-z0-9-]{0,48}$`), never `area:<slug>`. For `#n`, read its
    `area:` label and use that slug as `areas`; if the oldest eligible claim differs,
    release it `released` and stop. After implementing an item, claim only its area.
-   `claimed=false`: go to step 6 for an implemented batch, otherwise step 9.
+   At `claimed=false` or any stop: step 6 with an implemented batch, else step 9.
 
 3. Read the whole issue and search open PR bodies for its number before editing.
-   An existing PR means release `blocked` naming it, then follow step 5’s release loop.
+   An existing PR means release `blocked` naming it, then loop as in step 5.
 
-4. After `claimed=true`, create the authorized isolated backlog worktree/branch if none exists; reuse it for subsequent same-area batch claims.
+4. After `claimed=true`, create the backlog worktree/branch unless the run has one:
 
    ```bash
    git fetch origin
@@ -69,11 +69,10 @@ work; it does not need to repeat worktree authorization.
    The merge gate requires the `backlog/` prefix. Build internal packages through
    Turbo. Never touch the user's primary checkout; resume a PR in its own checkout.
 
-5. Implement only the issue contract; read files first and rerun acceptance per item.
-   Never use production secrets; ambiguous or unavailable verification is `blocked`. A no-commit release (`already-fixed`, `released`, `blocked`) does not end the run:
-   remove only your own worktree/branch with no commits or changes, then return to
-   step 2 unless a stop condition applies. Preserve unfinished changes and report their path. Keep an implemented batch, claim its area again, and go to step 6
-   when a stop condition applies.
+5. Implement only the issue contract; read files first and rerun acceptance per
+   item. Never use production secrets; ambiguous or unavailable verification is
+   `blocked`. A release alone never ends the run: remove the worktree/branch if
+   it has no commits or changes, then go back to step 2.
 
 6. Run every acceptance command plus the touched workspaces' test, type-check, lint,
    deadcode, dup:check and format:check through Turbo, then the aggregates:
@@ -95,10 +94,10 @@ work; it does not need to repeat worktree authorization.
    split into separate waits so user updates still arrive. Rerun the merge check
    immediately before merging. Green checks alone are never permission.
 
-9. At the end of the entire run, comment on `triage-log` with
-   fixed/opened/merged/released/blocked evidence, URLs and deny reasons; read it back. Leave no `status:working` claim without an
-   owned open PR. Remove only your own clean, pushed worktree; preserve unpushed
-   changes and name their path.
+9. Once per run, at the end, comment on `triage-log` with fixed/opened/merged/
+   released/blocked evidence, URLs and deny reasons, then read it back. Leave no
+   `status:working` claim without an owned open PR. Remove only your own clean,
+   pushed worktree; preserve unpushed changes and name their path.
 
 ## Merge gate and worker boundary
 
@@ -139,6 +138,7 @@ skill as an internal playbook and return here for completion.
 | Failure                       | Internal playbook               |
 | ----------------------------- | ------------------------------- |
 | unclear pnpm/turbo CI mapping | `monorepo-ci-debugging`         |
+| knip or deadcode finding      | `monorepo-ci-debugging`         |
 | format/lint loop              | `monorepo-lint-format-loop`     |
 | coverage gate                 | `monorepo-coverage-gate`        |
 | duplication gate              | `monorepo-dup-check`            |
@@ -176,5 +176,5 @@ New work closes only through a merged PR's `Fixes` reference.
 | Ship all six issues in one PR       | Only while every issue is eligible and in scope |
 | Already-fixed, so the run is done   | Claim again; only stop conditions end a run     |
 
-Stop claiming at `claimed=false`, six issues, two consecutive blocked items, or 80% of the harness goal budget. Go to step 6 for an implemented batch, otherwise
-step 9; release unfinished claims honestly. A release alone is not a stop condition.
+Stop claiming at `claimed=false`, six issues, two consecutive blocked items or 80%
+of the harness goal budget. Release unfinished claims honestly before stopping.

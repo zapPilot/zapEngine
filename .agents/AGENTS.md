@@ -3,6 +3,9 @@
 This directory stores reusable agent instructions for recurring ZapEngine work.
 Keep it small: skills are operational guardrails, not long-form documentation.
 
+`.agents/skills` is the only copy. `.claude/skills` is a symlink to it, enforced
+by `pnpm lint config`; never copy skill directories into it.
+
 ## Default rule
 
 Do **not** create or expand a skill unless it prevents a repeated agent failure.
