@@ -16,9 +16,9 @@ GitHub Issues is the work source of truth. Use MCP claim/release; never hand-edi
 backlog labels or close issues manually.
 
 A user invocation of this worker skill or `/worker` command explicitly authorizes
-creation of exactly one isolated `backlog/*` worktree/branch after a successful
-backlog claim. Optional input only selects `area:<slug>` or `#<issue>`; it does not
-need to repeat worktree authorization.
+one isolated `backlog/*` worktree/branch at a time, each only after `claimed=true`,
+and at most one PR per run. Optional `area:<slug>` or `#<issue>` input selects
+work; it does not need to repeat worktree authorization.
 
 ## Run order
 
@@ -40,24 +40,25 @@ need to repeat worktree authorization.
    gh issue list --label triage-log --state open  # exactly one
    ```
 
-   Accept optional `area:<slug>` or `#<issue>` user input.
+   Accept optional `area:<slug>` or `#<issue>` input. If the latest main `CI` run failed, prioritize a ready item with a `triage:ci:` fingerprint by claiming its area
+   unless explicitly selected otherwise; other PRs cannot pass the gate.
 
-2. Claim one issue:
+2. Repeat steps 2–5 for each claim until a stop condition:
 
    ```text
    ops_backlog_claim { agentId: "<harness>-worker-<hostname>", areas: ["<slug>"] }
    ```
 
    `agentId` must match `^[a-zA-Z0-9_.:/-]{1,120}$`; `@` is rejected. `areas` takes
-   bare slugs (`^[a-z0-9][a-z0-9-]{0,48}$`), never `area:<slug>`. `claimed=false`
-   stops the run. Claim returns the oldest eligible issue, so if `#n` was requested
-   and the returned number differs, release it `released` — not `blocked` — and stop.
+   bare slugs (`^[a-z0-9][a-z0-9-]{0,48}$`), never `area:<slug>`. For `#n`, read its
+   `area:` label and use that slug as `areas`; if the oldest eligible claim differs,
+   release it `released` and stop. After implementing an item, claim only its area.
+   `claimed=false`: go to step 6 for an implemented batch, otherwise step 9.
 
 3. Read the whole issue and search open PR bodies for its number before editing.
-   An existing PR means release `blocked` naming that PR; never duplicate work.
+   An existing PR means release `blocked` naming it, then follow step 5’s release loop.
 
-4. After a successful claim, create the single isolated backlog worktree/branch
-   authorized by this worker invocation. Never create it before `claimed=true`.
+4. After `claimed=true`, create the authorized isolated backlog worktree/branch if none exists; reuse it for subsequent same-area batch claims.
 
    ```bash
    git fetch origin
@@ -68,10 +69,11 @@ need to repeat worktree authorization.
    The merge gate requires the `backlog/` prefix. Build internal packages through
    Turbo. Never touch the user's primary checkout; resume a PR in its own checkout.
 
-5. Implement only the issue contract. Batch at most six issues sharing an area or
-   gate family; read each file first, sequence overlapping fixes and rerun
-   acceptance after every one. Never run acceptance backed by production secrets;
-   ambiguous or unavailable verification is `blocked`.
+5. Implement only the issue contract; read files first and rerun acceptance per item.
+   Never use production secrets; ambiguous or unavailable verification is `blocked`. A no-commit release (`already-fixed`, `released`, `blocked`) does not end the run:
+   remove only your own worktree/branch with no commits or changes, then return to
+   step 2 unless a stop condition applies. Preserve unfinished changes and report their path. Keep an implemented batch, claim its area again, and go to step 6
+   when a stop condition applies.
 
 6. Run every acceptance command plus the touched workspaces' test, type-check, lint,
    deadcode, dup:check and format:check through Turbo, then the aggregates:
@@ -93,8 +95,8 @@ need to repeat worktree authorization.
    split into separate waits so user updates still arrive. Rerun the merge check
    immediately before merging. Green checks alone are never permission.
 
-9. Comment on `triage-log` with fixed/opened/merged/released/blocked evidence, URLs
-   and deny reasons, then read it back. Leave no `status:working` claim without an
+9. At the end of the entire run, comment on `triage-log` with
+   fixed/opened/merged/released/blocked evidence, URLs and deny reasons; read it back. Leave no `status:working` claim without an
    owned open PR. Remove only your own clean, pushed worktree; preserve unpushed
    changes and name their path.
 
@@ -172,6 +174,7 @@ New work closes only through a merged PR's `Fixes` reference.
 | Push failed, try the other account  | Stop and report; identity is fixed              |
 | The POC drags coverage down         | Threshold removals are denied by the gate       |
 | Ship all six issues in one PR       | Only while every issue is eligible and in scope |
+| Already-fixed, so the run is done   | Claim again; only stop conditions end a run     |
 
-Stop at `claimed=false`, six issues, two consecutive blocked items, or 80% of the
-harness goal budget. Release unfinished claims honestly before stopping.
+Stop claiming at `claimed=false`, six issues, two consecutive blocked items, or 80% of the harness goal budget. Go to step 6 for an implemented batch, otherwise
+step 9; release unfinished claims honestly. A release alone is not a stop condition.

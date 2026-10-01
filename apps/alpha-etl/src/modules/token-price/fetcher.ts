@@ -2,7 +2,7 @@
  * CoinGecko API Fetcher
  *
  * Fetches token price data (BTC, ETH, SOL, etc.) from CoinGecko's public API
- * Rate limited to respect free tier (30-50 calls/min)
+ * Batches spot prices in one request; retries after 1s/2s/4s before provider fallback
  *
  * Data Source: CoinGecko API (simple/price, coins/history)
  */
@@ -41,38 +41,30 @@ export class CoinGeckoFetcher extends BaseApiFetcher {
     super(baseUrl, rateLimitMs);
   }
 
-  async fetchCurrentPrice(
-    tokenId = 'bitcoin',
-    tokenSymbol = 'BTC',
-  ): Promise<TokenPriceData> {
-    const endpoint = this.buildCurrentPriceEndpoint(tokenId);
-
+  async fetchCurrentPrices(
+    tokens: readonly { tokenId: string; tokenSymbol: string }[],
+  ): Promise<TokenPriceData[]> {
+    const tokenIds = tokens.map((token) => token.tokenId).join(',');
+    const endpoint = this.buildCurrentPriceEndpoint(tokenIds);
     try {
-      logger.info('Fetching current token price from CoinGecko', {
-        tokenId,
-        tokenSymbol,
+      logger.info('Fetching current token prices from CoinGecko', {
+        tokenIds,
         endpoint,
       });
-
       const response =
         await this.fetchCoinGecko<CoinGeckoSimplePriceResponse>(endpoint);
-      const priceData = this.parseCurrentPriceResponse(
-        response,
-        tokenId,
-        tokenSymbol,
+      return tokens.map((token) =>
+        this.parseCurrentPriceResponse(
+          response,
+          token.tokenId,
+          token.tokenSymbol,
+        ),
       );
-
-      logger.info('Successfully fetched current token price', {
-        ...this.buildSuccessLogContext(tokenId, tokenSymbol, priceData),
-        volume: priceData.volume24hUsd,
-      });
-
-      return priceData;
     } catch (error) {
       return this.handleCurrentFetchError(
         error,
-        tokenId,
-        tokenSymbol,
+        tokenIds,
+        tokens.map((token) => token.tokenSymbol).join(','),
         endpoint,
       );
     }
@@ -259,7 +251,9 @@ export class CoinGeckoFetcher extends BaseApiFetcher {
     tokenSymbol = 'BTC',
   ): Promise<{ status: 'healthy' | 'unhealthy'; details?: string }> {
     return wrapHealthCheck(async () => {
-      const priceData = await this.fetchCurrentPrice(tokenId, tokenSymbol);
+      const priceData = (
+        await this.fetchCurrentPrices([{ tokenId, tokenSymbol }])
+      )[0]!;
 
       if (priceData.priceUsd < 1000 || priceData.priceUsd > 1000000) {
         return {

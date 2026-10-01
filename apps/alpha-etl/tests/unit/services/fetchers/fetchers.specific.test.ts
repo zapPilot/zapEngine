@@ -74,9 +74,11 @@ describe('Specific Fetchers', () => {
         ethereum: { usd: 100, usd_market_cap: 100, usd_24h_vol: 100 },
       });
 
-      await expect(fetcher.fetchCurrentPrice('bitcoin')).rejects.toThrow(
-        'missing bitcoin.usd field',
-      );
+      await expect(
+        fetcher.fetchCurrentPrices([
+          { tokenId: 'bitcoin', tokenSymbol: 'BTC' },
+        ]),
+      ).rejects.toThrow('missing bitcoin.usd field');
     });
 
     it('should throw if historical price response is missing USD field', async () => {

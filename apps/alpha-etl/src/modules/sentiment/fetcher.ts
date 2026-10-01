@@ -10,6 +10,10 @@
 import { RATE_LIMITS } from '../../config/constants.js';
 import { env } from '../../config/environment.js';
 import { BaseApiFetcher } from '../../core/fetchers/baseApiFetcher.js';
+import {
+  buildCoinMarketCapHeaders,
+  resolveCoinMarketCapKey,
+} from '../../core/fetchers/coinMarketCap.js';
 import { APIError } from '../../utils/errors.js';
 import { serializeError } from '../../utils/errorSerializer.js';
 import {
@@ -51,22 +55,7 @@ export class FearGreedFetcher extends BaseApiFetcher {
       ),
     );
 
-    this.apiKey = config?.apiKey ?? process.env['COINMARKETCAP_API_KEY'] ?? '';
-
-    if (!this.apiKey) {
-      logger.warn(
-        'FearGreedFetcher initialized without API key - requests will fail',
-      );
-    } else {
-      logger.info('FearGreedFetcher initialized with CoinMarketCap API key');
-    }
-  }
-
-  private buildHeaders(): Record<string, string> {
-    return {
-      'X-CMC_PRO_API_KEY': this.apiKey,
-      Accept: 'application/json',
-    };
+    this.apiKey = resolveCoinMarketCapKey('FearGreedFetcher', config?.apiKey);
   }
 
   async fetchCurrentSentiment(): Promise<SentimentData> {
@@ -77,7 +66,7 @@ export class FearGreedFetcher extends BaseApiFetcher {
       const response =
         await this.fetchWithRetry<CoinMarketCapFearGreedResponse>(
           url,
-          { headers: this.buildHeaders() },
+          { headers: buildCoinMarketCapHeaders(this.apiKey) },
           3,
           1000,
         );
@@ -134,7 +123,7 @@ export class FearGreedFetcher extends BaseApiFetcher {
   async fetchRawResponse(): Promise<CoinMarketCapFearGreedResponse> {
     const url = `${this.baseUrl}${FearGreedFetcher.ENDPOINT}`;
     return this.fetchJson<CoinMarketCapFearGreedResponse>(url, {
-      headers: this.buildHeaders(),
+      headers: buildCoinMarketCapHeaders(this.apiKey),
     });
   }
 
