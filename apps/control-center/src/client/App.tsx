@@ -123,27 +123,25 @@ export function App() {
   // Today is the operator inbox. It composes existing read models rather than
   // creating another server contract: overview supplies company pulse and
   // release data, operations supplies ranked intervention candidates, and the
-  // persisted podcast ledger supplies failed-attempt spend.
+  // persisted podcast ledger supplies failed-attempt spend. Statements stay
+  // lazy: only the pipeline view reads them.
   const loadHome = useCallback(
     (sync = false) =>
       run(async () => {
         if (sync) {
           await sendJson('/api/costs/sync', 'POST');
         }
-        const [next, history, snapshot, episodeCosts, statementsNext] =
-          await Promise.all([
-            getJson<OverviewResponse>('/api/overview'),
-            getJson<CostHistoryResponse>('/api/costs/history'),
-            getJson<OperationsResponse>('/api/operations'),
-            getJson<PodcastCostResponse>('/api/costs/podcast'),
-            getJson<StatementsResponse>('/api/statements'),
-          ]);
+        const [next, history, snapshot, episodeCosts] = await Promise.all([
+          getJson<OverviewResponse>('/api/overview'),
+          getJson<CostHistoryResponse>('/api/costs/history'),
+          getJson<OperationsResponse>('/api/operations'),
+          getJson<PodcastCostResponse>('/api/costs/podcast'),
+        ]);
         setOverview(next);
         setCostHistory(history);
         setPodcastCosts(episodeCosts);
         setSocial(next.social);
         setOperations(snapshot);
-        setStatements(statementsNext);
       }),
     [run],
   );
@@ -530,8 +528,7 @@ function dashboardViewReady(input: {
       input.overview &&
       input.operations &&
       input.podcastCosts &&
-      input.queues &&
-      input.journey,
+      input.costHistory,
     );
   }
   if (input.view === 'pipeline') {
