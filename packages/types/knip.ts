@@ -2,17 +2,12 @@ import { defineKnipConfig } from '@zapengine/knip-config/base';
 
 export default defineKnipConfig(
   {
-    // Subpath barrels mirror package.json exports (., ./api, ./etl,
-    // ./strategy, ./shared). knip runs per-workspace and cannot discover
-    // sibling-workspace consumers, so these barrels must be explicit entries —
-    // otherwise public wire-contract types look unused.
-    entry: [
-      'src/index.ts',
-      'src/api/index.ts',
-      'src/etl/index.ts',
-      'src/strategy/index.ts',
-      'src/shared/index.ts',
-    ],
+    // No `entry`: knip derives the subpath barrels (., ./api, ./etl,
+    // ./strategy, ./shared) from the package.json `exports` map (dist paths
+    // mapped back to src through tsconfig outDir/rootDir), and redeclaring them
+    // is reported as a redundant entry pattern. Their entry status is what
+    // keeps the public wire-contract types from looking unused: deadcode runs
+    // in this package alone, so sibling-workspace consumers are invisible.
     project: ['src/**/*.ts'],
     includeEntryExports: false,
   },
