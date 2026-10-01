@@ -42,7 +42,7 @@ const setupAppImport = async (nodeEnv: string) => {
   }));
 
   vi.doMock('../../src/config/database.js', () => ({
-    testDatabaseConnection: vi.fn(),
+    testDatabaseConnection: vi.fn().mockResolvedValue(true),
   }));
 
   vi.doMock('../../src/middleware/errorHandler.js', () => ({
@@ -82,11 +82,7 @@ describe('app listenHost selection', () => {
 
     await module.startServer();
 
-    expect(listen).toHaveBeenCalledWith(
-      3000,
-      '0.0.0.0',
-      expect.any(Function),
-    );
+    expect(listen).toHaveBeenCalledWith(3000, '0.0.0.0', expect.any(Function));
   });
 
   it('uses non-production default host when HOST is unset', async () => {
