@@ -18,6 +18,7 @@ import {
   type TranslationKey,
   type TranslationParams,
 } from '@/i18n/translations';
+import { createTranslator } from '@/lib/i18n';
 import { loadLocale, saveLocale } from '@/storage/localeStorage';
 
 interface ContentLanguageContextValue {
@@ -44,14 +45,6 @@ function detectDeviceLocale(): ContentLanguageCode {
     // Use the product default when the runtime does not expose a locale.
   }
   return DEFAULT_CONTENT_LANGUAGE_CODE;
-}
-
-function interpolate(template: string, params?: TranslationParams): string {
-  if (params === undefined) return template;
-  return template.replace(/\{([^}]+)\}/g, (match, key: string) => {
-    const value = params[key];
-    return value === undefined ? match : String(value);
-  });
 }
 
 const ContentLanguageContext =
@@ -94,7 +87,7 @@ export function ContentLanguageProvider({
 
   const t = useCallback(
     (key: TranslationKey, params?: TranslationParams) =>
-      interpolate(TRANSLATIONS[languageCode][key], params),
+      createTranslator(TRANSLATIONS[languageCode])(key, params),
     [languageCode],
   );
 

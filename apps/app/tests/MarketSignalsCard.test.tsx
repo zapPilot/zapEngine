@@ -3,7 +3,7 @@ import { clickUi, renderInvestUi } from './support/investUiHarness';
 import { describe, expect, it, vi } from 'vitest';
 
 import { MarketSignalsCard } from '@/components/strategy/MarketSignalsCard';
-import { zhHant, type TranslationKey } from '@/i18n/translations';
+import { zhHant } from './support/i18nHarness';
 import type { MarketSignals } from '@/integration/marketSignalsModel';
 
 vi.mock('@/components/charts/IndicatorLineChart', () => ({
@@ -25,10 +25,7 @@ vi.mock('@/components/ui/Skeleton', () => ({
 }));
 vi.mock('@/providers/ContentLanguageProvider', () => ({
   useContentLanguage: () => ({
-    t: (key: TranslationKey, params?: Record<string, string | number>) =>
-      zhHant[key].replace(/\{(\w+)\}/g, (_, name: string) =>
-        String(params?.[name]),
-      ),
+    t: zhHant,
   }),
 }));
 

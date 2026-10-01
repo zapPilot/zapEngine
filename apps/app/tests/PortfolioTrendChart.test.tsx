@@ -59,14 +59,11 @@ vi.mock('@/components/charts/Sparkline', () => ({
 // Drives the real English dictionary rather than a parallel fake one, so a
 // missing key or a dropped `{name}` placeholder fails here.
 vi.mock('@/providers/ContentLanguageProvider', async () => {
-  const { en } = await import('@/i18n/translations');
+  const { en } = await import('./support/i18nHarness');
   return {
     useContentLanguage: () => ({
       languageCode: 'en',
-      t: (key: keyof typeof en, params?: Record<string, string | number>) =>
-        en[key].replace(/\{([^}]+)\}/g, (match, name: string) =>
-          params?.[name] === undefined ? match : String(params[name]),
-        ),
+      t: en,
     }),
   };
 });

@@ -3,7 +3,7 @@ import { renderInvestUi } from './support/investUiHarness';
 import { describe, expect, it, vi } from 'vitest';
 
 import { DecisionPacketCard } from '@/components/strategy/DecisionPacketCard';
-import { zhHant, type TranslationKey } from '@/i18n/translations';
+import { zhHant } from './support/i18nHarness';
 import type { StrategyDecisionPacket } from '@/integration/useStrategyDecisionPacket';
 
 vi.mock('@/components/ui/Skeleton', () => ({
@@ -11,10 +11,7 @@ vi.mock('@/components/ui/Skeleton', () => ({
 }));
 vi.mock('@/providers/ContentLanguageProvider', () => ({
   useContentLanguage: () => ({
-    t: (key: TranslationKey, params?: Record<string, string | number>) =>
-      zhHant[key].replace(/\{(\w+)\}/g, (_, name: string) =>
-        String(params?.[name]),
-      ),
+    t: zhHant,
   }),
 }));
 

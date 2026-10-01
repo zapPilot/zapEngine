@@ -26,7 +26,9 @@ import { act, useEffect, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { vi } from 'vitest';
 
-import { en } from '@/i18n/translations';
+import { en } from './i18nHarness';
+import { reactNativeStub } from './reactNativeStub';
+import { LUCIDE_ICON_NAMES } from './lucideStub';
 import type { HomeIncomeView } from '@/integration/homeIncomeModel';
 import type { DailyValuePoint } from '@/integration/portfolioMetrics';
 import type { DesktopAccount } from '@/integration/useAccount';
@@ -679,26 +681,6 @@ function icon(name: string) {
   };
 }
 
-const LUCIDE_ICON_NAMES = [
-  'ArrowDown',
-  'ArrowDownRight',
-  'ArrowLeftRight',
-  'ArrowRight',
-  'ArrowUp',
-  'ArrowUpRight',
-  'Check',
-  'ChevronDown',
-  'ChevronRight',
-  'Coins',
-  'Layers',
-  'RefreshCw',
-  'Scale',
-  'TrendingUp',
-  'TriangleAlert',
-  'Wallet',
-  'Zap',
-] as const;
-
 function lucideStubs(): Record<string, () => ReactNode> {
   const stubs: Record<string, () => ReactNode> = {};
   for (const name of LUCIDE_ICON_NAMES) {
@@ -757,7 +739,12 @@ function toLandingQueryResult(landing: LandingFixture) {
  * present here.
  */
 export const homeScreenMocks = {
-  reactNative: { Image: ImageStub, Text: TextStub, View: ViewStub },
+  reactNative: {
+    ...reactNativeStub,
+    Image: ImageStub,
+    Text: TextStub,
+    View: ViewStub,
+  },
   lucide: lucideStubs(),
   designTokens: {
     tokens: {
@@ -779,10 +766,7 @@ export const homeScreenMocks = {
   contentLanguage: {
     useContentLanguage: () => ({
       languageCode: 'en' as const,
-      t: (key: keyof typeof en, params?: Record<string, string | number>) =>
-        en[key].replace(/\{([^}]+)\}/g, (match, name: string) =>
-          params?.[name] === undefined ? match : String(params[name]),
-        ),
+      t: en,
     }),
   },
   // Metro turns these `require`d PNGs into asset references; vitest cannot.

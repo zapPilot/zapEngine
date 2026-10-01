@@ -13,59 +13,14 @@ interface NativeProps {
   onPress?: () => void;
   disabled?: boolean;
 }
-vi.mock('react-native', () => ({
-  Image: ({
-    accessibilityLabel,
-    accessible,
-  }: {
-    accessibilityLabel?: string;
-    accessible?: boolean;
-  }) => (
-    <span
-      role={accessible ? 'img' : undefined}
-      aria-label={accessibilityLabel}
-    />
-  ),
-  Text: ({ children }: NativeProps) => <span>{children}</span>,
-  View: ({ children, accessibilityLabel, accessibilityState }: NativeProps) => (
-    <div
-      aria-label={accessibilityLabel}
-      aria-disabled={accessibilityState?.disabled}
-    >
-      {children}
-    </div>
-  ),
-  TextInput: ({
-    value,
-    onChangeText,
-    onBlur,
-    accessibilityLabel,
-  }: {
-    value: string;
-    onChangeText?: (value: string) => void;
-    onBlur?: () => void;
-    accessibilityLabel?: string;
-  }) => (
-    <input
-      aria-label={accessibilityLabel}
-      value={value}
-      onChange={(e) => onChangeText?.(e.target.value)}
-      onBlur={onBlur}
-    />
-  ),
-  Modal: ({ children, visible }: NativeProps & { visible: boolean }) =>
-    visible ? <div role="dialog">{children}</div> : null,
-}));
-vi.mock('lucide-react-native', () => ({
-  Check: () => null,
-  ChevronDown: () => null,
-  ChevronLeft: () => null,
-  Circle: () => null,
-  LoaderCircle: () => null,
-  X: () => null,
-  Lock: () => null,
-  Wallet: () => null,
-}));
+vi.mock(
+  'react-native',
+  async () => (await import('./reactNativeStub')).reactNativeStub,
+);
+vi.mock(
+  'lucide-react-native',
+  async () => (await import('./lucideStub')).lucideStub,
+);
 vi.mock('@/components/token/ProtocolIcon', () => ({
   ProtocolIcon: () => null,
 }));
