@@ -9,6 +9,12 @@ export default defineKnipConfig({
   //
   // app-core is imported through package subpath exports and bundled by
   // esbuild; knip cannot map those imports back to the direct dependency.
-  ignoreDependencies: ['@zapengine/app-core', 'viem'],
+  // design-tokens is imported through the dist-backed "./tokens" subpath
+  // (window.ts backgroundColor); knip cannot attribute that either.
+  ignoreDependencies: [
+    '@zapengine/app-core',
+    '@zapengine/design-tokens',
+    'viem',
+  ],
   vitest: { config: ['vitest.config.ts'] },
 });

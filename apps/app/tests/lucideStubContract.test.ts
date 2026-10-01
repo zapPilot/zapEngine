@@ -1,8 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import ts from 'typescript';
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { LUCIDE_ICON_NAMES } from './support/lucideStub';
+
+// Filesystem walk plus per-file TypeScript parsing over ~360 source files:
+// the repo default 5s testTimeout trips under coverage load on CI.
+vi.setConfig({ testTimeout: 30_000 });
+
 it('covers every runtime lucide icon imported by app source', () => {
   const visit = (directory: string) => {
     for (const file of fs.readdirSync(directory, { withFileTypes: true })) {
