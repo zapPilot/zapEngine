@@ -165,8 +165,22 @@ node scripts/agents/test-qa-state.mjs merge --event "$scratch/event.json" \
 ## Scheduled-task prompt
 
 ```text
-Use GitHub on zapPilot/zapEngine. Run exactly one iteration of the hourly
-test-QA worker defined in `.agents/skills/test-qa-audit/SKILL.md` (with its
-REFERENCE.md) on the latest main. Those files are the complete, current rules
-and override earlier runs and older prompts. Never merge a PR.
+Use @GitHub on `zapPilot/zapEngine` and run exactly one iteration of the hourly
+test-QA worker defined in `.agents/skills/test-qa-audit/SKILL.md` with its
+`REFERENCE.md`, on the latest `main`. Those repository files are the
+complete, current rules and override earlier runs and older prompts.
+
+Use the GitHub connector only for repository work. Do not use DevSpace, local
+workspaces/worktrees, local shell/terminal tools, or other coding-environment
+connectors. If no open `test-qa/*` worker PR exists, you are allowed to create
+the required `test-qa/*` branch and PR from latest `main` when the repository
+rules call for it. If one already exists, continue only that worker PR. Never
+create a second concurrent worker PR. Never merge a PR.
+
+Carry the iteration through using GitHub repository files, branches, commits,
+PRs, Actions runs/artifacts/logs, issues, and repository dispatch capabilities
+available through @GitHub. If a particular required operation is genuinely
+unavailable through @GitHub, record/report that limitation according to the
+repository rules rather than switching to DevSpace or a local execution
+environment.
 ```
