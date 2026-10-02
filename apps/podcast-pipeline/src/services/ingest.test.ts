@@ -17,6 +17,7 @@ const {
   mockGenerateHls,
   mockGenerateLanguageClassroomsWithLLM,
   mockGenerateScriptWithLLM,
+  mockGenerateEditorialTitleWithLLM,
   mockInsertEpisode,
   mockInsertEpisodeLocalization,
   mockListLanguageClassroomsByLocalizationId,
@@ -36,6 +37,7 @@ const {
   mockGenerateHls: vi.fn(),
   mockGenerateLanguageClassroomsWithLLM: vi.fn(),
   mockGenerateScriptWithLLM: vi.fn(),
+  mockGenerateEditorialTitleWithLLM: vi.fn(),
   mockInsertEpisode: vi.fn(),
   mockInsertEpisodeLocalization: vi.fn(),
   mockListLanguageClassroomsByLocalizationId: vi.fn(),
@@ -48,6 +50,10 @@ const {
   mockUpdateLanguageClassroomAudio: vi.fn(),
   mockUpsertLanguageClassrooms: vi.fn(),
   mockUploadHlsToR2: vi.fn(),
+}));
+
+vi.mock('./editorial-title.js', () => ({
+  generateEditorialTitleWithLLM: mockGenerateEditorialTitleWithLLM,
 }));
 
 vi.mock('./db.js', () => ({
@@ -142,8 +148,13 @@ describe('performIngest failure paths', () => {
         status: 'scraped',
       }),
     );
-    mockGenerateScriptWithLLM.mockResolvedValue({
+    mockGenerateEditorialTitleWithLLM.mockResolvedValue({
       title: null,
+      model: 'test-model',
+      provider: 'test-provider',
+      costUsd: 0,
+    });
+    mockGenerateScriptWithLLM.mockResolvedValue({
       script: 'Generated script',
       model: 'test-model',
       thinkingModel: null,
@@ -390,8 +401,13 @@ describe('performIngest failure paths', () => {
   it('cleans standalone separators only for the main TTS input', async () => {
     const originalScript =
       'First paragraph.\n\n---\n\nKeep inline --- punctuation.';
-    mockGenerateScriptWithLLM.mockResolvedValue({
+    mockGenerateEditorialTitleWithLLM.mockResolvedValue({
       title: null,
+      model: 'test-model',
+      provider: 'test-provider',
+      costUsd: 0,
+    });
+    mockGenerateScriptWithLLM.mockResolvedValue({
       script: originalScript,
       model: 'test-model',
       thinkingModel: null,
@@ -453,18 +469,29 @@ describe('performIngest failure paths', () => {
   });
 
   it('sums LLM costs for a fresh ingest invocation', async () => {
+    mockGenerateEditorialTitleWithLLM.mockResolvedValue({
+      title: null,
+      model: 'test-model',
+      provider: 'test-provider',
+      costUsd: 0.00002,
+    });
     const result = await performIngest(
       'https://example.com/article',
       'zh-Hant',
     );
 
     expect(result.statusCode).toBe(201);
-    expect(result.costUsd).toBeCloseTo(0.00016, 10);
+    expect(result.costUsd).toBeCloseTo(0.00018, 10);
     expect(result.costDetails.breakdown).toEqual([
       expect.objectContaining({
         category: 'llm',
         label: 'LLM script',
         costUsd: 0.00001,
+      }),
+      expect.objectContaining({
+        category: 'llm',
+        label: 'LLM title',
+        costUsd: 0.00002,
       }),
       expect.objectContaining({
         category: 'llm',
@@ -1421,8 +1448,13 @@ describe('performIngest failure paths', () => {
     const localizations = new Map<string, EpisodeLocalizationRow>();
     const editorialTitle = '市场流动性正在重新定价';
 
-    mockGenerateScriptWithLLM.mockResolvedValue({
+    mockGenerateEditorialTitleWithLLM.mockResolvedValue({
       title: editorialTitle,
+      model: 'test-model',
+      provider: 'test-provider',
+      costUsd: 0,
+    });
+    mockGenerateScriptWithLLM.mockResolvedValue({
       script: PACKAGED_SCRIPT,
       model: 'test-model',
       thinkingModel: null,

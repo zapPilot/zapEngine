@@ -15,6 +15,7 @@ import {
   updateEpisodeLocalizationArticleContent,
   updateEpisodeLocalizationStatus,
 } from '../db.js';
+import { generateEditorialTitleWithLLM } from '../editorial-title.js';
 import { generateScriptWithLLM, type LlmAttemptRecord } from '../llm.js';
 import { convertTextToZhCN } from '../opencc.js';
 import {
@@ -282,7 +283,6 @@ async function ensureLocalizationScript(input: {
       );
       const normalized = {
         ...result,
-        title: result.title === null ? null : convertTextToZhCN(result.title),
         script: convertTextToZhCN(result.script),
       };
       assertGeneratedScriptQuality(normalized.script, input.article.text);
@@ -295,6 +295,14 @@ async function ensureLocalizationScript(input: {
         costUsd: generated.costUsd,
       }),
     );
+    const editorialTitle = await step('generateEditorialTitle', () =>
+      generateEditorialTitleWithLLM(input.article.title),
+    );
+    input.costBreakdown.push(buildLlmCostLine('LLM title', editorialTitle));
+    const title =
+      editorialTitle.title === null
+        ? null
+        : convertTextToZhCN(editorialTitle.title);
     const packagedScript = await step('packagePodcastScript', () =>
       Promise.resolve(packagePodcastScript(generated.script)),
     );
@@ -302,7 +310,7 @@ async function ensureLocalizationScript(input: {
       'updateEpisodeLocalizationStatus:script_generated',
       () =>
         updateEpisodeLocalizationStatus(localization!.id, 'script_generated', {
-          ...(generated.title === null ? {} : { title: generated.title }),
+          ...(title === null ? {} : { title }),
           script: packagedScript,
           scriptBody: generated.script.trim(),
           packagingVersion: PODCAST_PACKAGING_VERSION,

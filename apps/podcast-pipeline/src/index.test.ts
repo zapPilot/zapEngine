@@ -39,6 +39,7 @@ const {
   mockGenerateHls,
   mockGenerateLanguageClassroomsWithLLM,
   mockGenerateScriptWithLLM,
+  mockGenerateEditorialTitleWithLLM,
   mockInsertEpisode,
   mockInsertEpisodeLocalization,
   mockInvalidateEpisodeSearchCache,
@@ -76,6 +77,7 @@ const {
   mockGenerateHls: vi.fn(),
   mockGenerateLanguageClassroomsWithLLM: vi.fn(),
   mockGenerateScriptWithLLM: vi.fn(),
+  mockGenerateEditorialTitleWithLLM: vi.fn(),
   mockInsertEpisode: vi.fn(),
   mockInsertEpisodeLocalization: vi.fn(),
   mockInvalidateEpisodeSearchCache: vi.fn(),
@@ -108,6 +110,10 @@ const {
   mockListHydratedEpisodeFeedPage: vi
     .fn()
     .mockResolvedValue({ items: [], nextCursor: null }),
+}));
+
+vi.mock('./services/editorial-title.js', () => ({
+  generateEditorialTitleWithLLM: mockGenerateEditorialTitleWithLLM,
 }));
 
 vi.mock('@hono/node-server', () => ({
@@ -736,8 +742,13 @@ describe('POST /ingest pipeline', () => {
         status: 'scraped',
       }),
     );
-    mockGenerateScriptWithLLM.mockResolvedValue({
+    mockGenerateEditorialTitleWithLLM.mockResolvedValue({
       title: '市场流动性正在重新定价',
+      model: 'test-model',
+      provider: 'test-provider',
+      costUsd: 0,
+    });
+    mockGenerateScriptWithLLM.mockResolvedValue({
       script: 'Generated script',
       model: 'test-model',
       thinkingModel: null,
@@ -2522,8 +2533,13 @@ function configureFreshTelegramIngest(): void {
       return Promise.resolve(row);
     },
   );
-  mockGenerateScriptWithLLM.mockResolvedValue({
+  mockGenerateEditorialTitleWithLLM.mockResolvedValue({
     title: null,
+    model: 'test-model',
+    provider: 'test-provider',
+    costUsd: 0,
+  });
+  mockGenerateScriptWithLLM.mockResolvedValue({
     script: 'Generated script',
     model: 'test-model',
     thinkingModel: null,

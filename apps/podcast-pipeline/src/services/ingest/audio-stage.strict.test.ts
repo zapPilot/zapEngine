@@ -40,6 +40,10 @@ vi.mock('../db.js', () => ({
   upsertLanguageClassrooms: mockUpsertLanguageClassrooms,
 }));
 
+vi.mock('../editorial-title.js', () => ({
+  generateEditorialTitleWithLLM: vi.fn(),
+}));
+
 vi.mock('../llm.js', () => ({
   generateLanguageClassroomsWithLLM: mockGenerateLanguageClassroomsWithLLM,
 }));

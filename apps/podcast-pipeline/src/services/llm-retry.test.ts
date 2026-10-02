@@ -93,10 +93,7 @@ function successfulCompletion(model = 'test/model'): unknown {
     choices: [
       {
         message: {
-          content: JSON.stringify({
-            title: '市場流動性正在重新定價',
-            script: 'Generated script',
-          }),
+          content: 'Generated script',
         },
       },
     ],
@@ -246,7 +243,6 @@ describe('generateScriptWithLLM request policy', () => {
     mockOpenAIClient(mockCreate);
 
     await expect(generateScriptWithLLM('Title', 'Article')).resolves.toEqual({
-      title: '市場流動性正在重新定價',
       script: 'Generated script',
       model: 'test/model',
       thinkingModel: null,

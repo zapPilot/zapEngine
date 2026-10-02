@@ -135,7 +135,7 @@ insert against a legacy cohort.
 - Platform-specific packaging experiments are disabled.
   `packaging-experiments.ts` intentionally returns no assignments.
 - `episode_localizations.title` is the only normal visible title authority.
-  The upstream LLM is asked to keep it within the strictest platform target, but
+  The independent title call (`prompts/title-system-prompt.txt`) is asked to keep it within 20 Unicode characters, but
   an over-limit title must never fail ingest. Rednote and YouTube deterministically
   truncate that same canonical title only at their final transport boundaries
   (20 and 100 Unicode characters respectively); X and Threads generate no title.

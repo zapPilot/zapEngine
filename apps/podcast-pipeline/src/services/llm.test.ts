@@ -21,7 +21,6 @@ import {
   getOpenRouterConfig,
   getOpenRouterTimeoutMs,
   type LlmAttemptRecord,
-  normalizeEditorialTitle,
   OpenRouterEmptyContentError,
 } from './llm.js';
 
@@ -50,8 +49,8 @@ function mockOpenAIClient(createMock: Mock): void {
   );
 }
 
-function scriptPayload(title: unknown, script: unknown): string {
-  return JSON.stringify({ title, script });
+function scriptPayload(_title: unknown, script: unknown): string {
+  return String(script);
 }
 
 vi.mock('node:fs', async () => {
@@ -481,27 +480,6 @@ describe('buildUserMessage', () => {
   });
 });
 
-describe('normalizeEditorialTitle', () => {
-  it('trims wrapping quotes without changing Chinese character forms', () => {
-    expect(normalizeEditorialTitle('  ‘「软件市场进入新阶段」’  ')).toBe(
-      '软件市场进入新阶段',
-    );
-  });
-
-  it.each([
-    '',
-    '太短',
-    '# 這是 Markdown 標題',
-    '**這是粗體標題**',
-    '__這是粗體標題__',
-    '第一行\n第二行',
-    '標'.repeat(61),
-    null,
-  ])('rejects the invalid editorial title %j', (value) => {
-    expect(normalizeEditorialTitle(value)).toBeNull();
-  });
-});
-
 describe('buildLanguageClassroomUserMessage', () => {
   it('grounds the prompt in the title, article, and script', () => {
     const result = buildLanguageClassroomUserMessage({
@@ -690,7 +668,6 @@ describe('generateScriptWithLLM', () => {
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
     expect(result).toEqual({
-      title: null,
       script: 'Script',
       model: 'test/model',
       thinkingModel: null,
@@ -704,7 +681,7 @@ describe('generateScriptWithLLM', () => {
       choices: [
         {
           message: {
-            content: JSON.stringify({ title: 'Title', script: 'Body' }),
+            content: 'Body',
           },
         },
       ],
@@ -733,9 +710,7 @@ describe('generateScriptWithLLM', () => {
     'accepts %j because it is not a Markdown heading owned by packaging',
     async (script) => {
       const mockCreate = vi.fn().mockResolvedValue({
-        choices: [
-          { message: { content: JSON.stringify({ title: 'Title', script }) } },
-        ],
+        choices: [{ message: { content: script } }],
         provider: 'Cloudflare',
         model: 'test/model',
       });
@@ -794,40 +769,11 @@ describe('generateScriptWithLLM', () => {
     );
   });
 
-  it('returns the editorial title and script from a JSON response', async () => {
-    const mockCreate = vi.fn().mockResolvedValue({
-      choices: [
-        {
-          message: {
-            content: scriptPayload(
-              '市場流動性正在重新定價',
-              '這是生成的講稿內容。',
-            ),
-          },
-        },
-      ],
-      provider: 'Cloudflare',
-      model: 'mistralai/mistral-7b-instruct-v0.1',
-      usage: { cost: 0.00001 },
-    });
-
-    mockOpenAIClient(mockCreate);
-
-    const result = await generateScriptWithLLM('測試標題', '測試內容');
-
-    expect(result.title).toBe('市場流動性正在重新定價');
-    expect(result.script).toBe('這是生成的講稿內容。');
-    expect(result.provider).toBe('Cloudflare');
-    expect(result.model).toBe('mistralai/mistral-7b-instruct-v0.1');
-    expect(result.thinkingModel).toBeNull();
-    expect(result.costUsd).toBe(0.00001);
-  });
-
   // These assert the shape of the request we send, never that OpenRouter acted
   // on it. That gap is why `usage` sat inside an `extra_body` wrapper — a
   // Python-SDK-only convention that never reaches the wire from this SDK —
   // while `costUsd` quietly defaulted to 0 for as long as it was there.
-  it('requests JSON output, usage accounting and provider routing', async () => {
+  it('requests plain text output, usage accounting and provider routing', async () => {
     const mockCreate = vi.fn().mockResolvedValue({
       choices: [{ message: { content: 'Script' } }],
       provider: 'Cloudflare',
@@ -844,7 +790,7 @@ describe('generateScriptWithLLM', () => {
       provider?: object;
       response_format?: object;
     };
-    expect(callArgs.response_format).toEqual({ type: 'json_object' });
+    expect(callArgs.response_format).toBeUndefined();
     expect(callArgs.usage).toEqual({ include: true });
     expect(callArgs.provider).toEqual({
       sort: 'throughput',
@@ -876,149 +822,12 @@ describe('generateScriptWithLLM', () => {
     );
   });
 
-  it('accepts a fenced JSON response', async () => {
-    const mockCreate = vi.fn().mockResolvedValue({
-      choices: [
-        {
-          message: {
-            content: `\`\`\`json
-${scriptPayload('「软件市场进入新阶段」', '生成講稿')}
-\`\`\``,
-          },
-        },
-      ],
-      provider: 'Cloudflare',
-      model: 'test/model',
-    });
-    mockOpenAIClient(mockCreate);
-
-    const result = await generateScriptWithLLM('Title', 'Text');
-
-    expect(result).toMatchObject({
-      title: '软件市场进入新阶段',
-      script: '生成講稿',
-    });
-  });
-
-  it('preserves a plain-text response as a script-only fallback', async () => {
-    ingestMocks.logIngestEvent.mockClear();
-    const mockCreate = vi.fn().mockResolvedValue({
-      choices: [{ message: { content: 'Legacy generated script' } }],
-      provider: 'Cloudflare',
-      model: 'test/model',
-    });
-    mockOpenAIClient(mockCreate);
-
-    const result = await generateScriptWithLLM('Title', 'Text');
-
-    expect(result).toMatchObject({
-      title: null,
-      script: 'Legacy generated script',
-    });
-    expect(ingestMocks.logIngestEvent).toHaveBeenCalledWith(
-      'llm:title-fallback',
-      { reason: 'plain_text_response' },
-    );
-  });
-
-  it('keeps the script and records a missing-title fallback when JSON omits the title', async () => {
-    ingestMocks.logIngestEvent.mockClear();
-    const mockCreate = vi.fn().mockResolvedValue({
-      choices: [{ message: { content: JSON.stringify({ script: 'Script' }) } }],
-      provider: 'Cloudflare',
-      model: 'test/model',
-    });
-    mockOpenAIClient(mockCreate);
-
-    const result = await generateScriptWithLLM('Title', 'Text');
-
-    expect(result).toMatchObject({ title: null, script: 'Script' });
-    expect(ingestMocks.logIngestEvent).toHaveBeenCalledWith(
-      'llm:title-fallback',
-      { reason: 'missing_title' },
-    );
-  });
-
-  it('keeps the script when the JSON title is invalid', async () => {
-    ingestMocks.logIngestEvent.mockClear();
-    const mockCreate = vi.fn().mockResolvedValue({
-      choices: [
-        { message: { content: scriptPayload('# Markdown title', 'Script') } },
-      ],
-      provider: 'Cloudflare',
-      model: 'test/model',
-    });
-    mockOpenAIClient(mockCreate);
-
-    const result = await generateScriptWithLLM('Title', 'Text');
-
-    expect(result).toMatchObject({ title: null, script: 'Script' });
-    expect(mockCreate).toHaveBeenCalledTimes(1);
-    expect(ingestMocks.logIngestEvent).toHaveBeenCalledWith(
-      'llm:title-fallback',
-      { reason: 'invalid_title' },
-    );
-  });
-
-  it('keeps an over-20 canonical title without retrying the script', async () => {
-    const longTitle = '標'.repeat(21);
-    const mockCreate = vi.fn().mockResolvedValue({
-      choices: [{ message: { content: scriptPayload(longTitle, 'Script') } }],
-      provider: 'Cloudflare',
-      model: 'test/model',
-      usage: { cost: 0.01 },
-    });
-    mockOpenAIClient(mockCreate);
-
-    const result = await generateScriptWithLLM('Title', 'Text');
-
-    expect(result.title).toBe(longTitle);
-    expect(result.script).toBe('Script');
-    expect(mockCreate).toHaveBeenCalledTimes(1);
-  });
-
-  it('re-asks once when a JSON-shaped response is invalid', async () => {
-    const mockCreate = vi
-      .fn()
-      .mockResolvedValueOnce({
-        choices: [{ message: { content: '{"title":' } }],
-        provider: 'Cloudflare',
-        model: 'test/model',
-        usage: { cost: 0.01 },
-      })
-      .mockResolvedValueOnce({
-        choices: [
-          {
-            message: {
-              content: scriptPayload('市場流動性正在重新定價', 'Script'),
-            },
-          },
-        ],
-        provider: 'Cloudflare',
-        model: 'test/model',
-        usage: { cost: 0.02 },
-      });
-    mockOpenAIClient(mockCreate);
-
-    const result = await generateScriptWithLLM('Title', 'Text');
-
-    expect(result).toMatchObject({
-      title: '市場流動性正在重新定價',
-      script: 'Script',
-    });
-    expect(result.costUsd).toBeCloseTo(0.03, 10);
-    expect(mockCreate).toHaveBeenCalledTimes(2);
-    const retryRequest = mockCreate.mock.calls[1]![0] as {
-      messages: { role: string; content: string }[];
-      response_format?: object;
-    };
-    expect(retryRequest.response_format).toEqual({ type: 'json_object' });
-    expect(retryRequest.messages.at(-1)?.content).toContain(
-      '上一個回應未符合 JSON 輸出契約（invalid_json）',
-    );
-  });
-
   it.each([
+    ['opening_greeting', '欢迎收听正文。'],
+    ['closing_cta', '正文。记得订阅。'],
+    ['code_fence', '```正文'],
+    ['title_line', '标题：市场变化\n正文'],
+    ['title_line', '標題：市场变化\n正文'],
     ['opening_greeting', '歡迎收聽今天的節目。正文從市場變化開始。'],
     ['closing_cta', '正文分析市場變化。\n\n記得訂閱並分享這個節目。'],
     ['markdown_heading', '# 市場標題\n正文分析市場變化。'],
@@ -1064,8 +873,43 @@ ${scriptPayload('「软件市场进入新阶段」', '生成講稿')}
         messages: { role: string; content: string }[];
       };
       expect(retryRequest.messages.at(-1)?.content).toContain(
-        `上一個回應未符合 JSON 輸出契約（packaged_body: ${detail}）`,
+        `上一个回应不符合输出要求（packaged_body: ${detail}）`,
       );
+    },
+  );
+
+  it.each([false, true])(
+    'rejects truncated scripts (both truncated: %s)',
+    async (both) => {
+      const mockCreate = vi
+        .fn()
+        .mockResolvedValueOnce({
+          choices: [
+            { message: { content: 'Partial' }, finish_reason: 'length' },
+          ],
+          usage: { cost: 0.01 },
+        })
+        .mockResolvedValueOnce({
+          choices: [
+            {
+              message: { content: 'Complete' },
+              finish_reason: both ? 'length' : 'stop',
+            },
+          ],
+          usage: { cost: 0.02 },
+        });
+      mockOpenAIClient(mockCreate);
+      const result = generateScriptWithLLM('Title', 'Text');
+      await (both
+        ? expect(result).rejects.toThrow('truncated script')
+        : expect(result).resolves.toMatchObject({
+            script: 'Complete',
+            costUsd: 0.03,
+          }));
+      expect(mockCreate.mock.calls[1]![0].messages.at(-1).content).toContain(
+        'truncated',
+      );
+      expect(mockCreate).toHaveBeenCalledTimes(2);
     },
   );
 
@@ -1088,26 +932,6 @@ ${scriptPayload('「软件市场进入新阶段」', '生成講稿')}
 
     await expect(generateScriptWithLLM('Title', 'Text')).rejects.toThrow(
       'application-owned packaging: opening_greeting',
-    );
-    expect(mockCreate).toHaveBeenCalledTimes(2);
-  });
-
-  it('throws after two JSON payloads omit a usable script', async () => {
-    const mockCreate = vi.fn().mockResolvedValue({
-      choices: [
-        {
-          message: {
-            content: scriptPayload('市場流動性正在重新定價', '   '),
-          },
-        },
-      ],
-      provider: 'Cloudflare',
-      model: 'test/model',
-    });
-    mockOpenAIClient(mockCreate);
-
-    await expect(generateScriptWithLLM('Title', 'Text')).rejects.toThrow(
-      'LLM returned empty script content',
     );
     expect(mockCreate).toHaveBeenCalledTimes(2);
   });

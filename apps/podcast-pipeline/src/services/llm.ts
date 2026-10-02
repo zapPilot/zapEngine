@@ -22,7 +22,6 @@ import {
 import { getOpenRouterModelCandidates } from './llm-model-fallback.js';
 
 export interface ScriptResult {
-  title: string | null;
   script: string;
   model: string;
   thinkingModel: string | null;
@@ -83,21 +82,10 @@ const SCRIPT_PAYLOAD_MAX_ATTEMPTS = 2;
 const SCRIPT_OPENROUTER_TIMEOUT_MS = 600_000;
 const RETRYABLE_OPENROUTER_STATUS = new Set([408, 409, 429]);
 
-type ScriptTitleFallbackReason =
-  | 'invalid_title'
-  | 'missing_title'
-  | 'plain_text_response';
-
-interface ParsedScriptPayload {
-  title: string | null;
-  script: string;
-  titleFallbackReason: ScriptTitleFallbackReason | null;
-}
-
 class ScriptPayloadValidationError extends Error {
   constructor(
     message: string,
-    readonly reason: 'invalid_json' | 'missing_script' | 'packaged_body',
+    readonly reason: 'truncated' | 'packaged_body',
     readonly detail: string | null = null,
     options?: ErrorOptions,
   ) {
@@ -193,7 +181,7 @@ function buildScriptPayloadRetryMessage(
   const reason = error.detail
     ? `${error.reason}: ${error.detail}`
     : error.reason;
-  return `${buildUserMessage(title, text)}\n\n修正要求：上一個回應未符合 JSON 輸出契約（${reason}）。只輸出可解析的 JSON 物件，title 與 script 都必須是非空字串，且 script 只能包含 body，不得自行加入開場招呼、結尾 CTA、Markdown 標題、時間碼或分隔線。`;
+  return `${buildUserMessage(title, text)}\n\n修正要求：上一个回应不符合输出要求（${reason}）。只输出可以直接朗读的文章正文本身：不要标题、开场招呼、结尾 CTA、Markdown、代码块、时间码或分隔线，也不要中途截断。`;
 }
 
 function generatedScriptBodyViolation(script: string): string | null {
@@ -203,6 +191,7 @@ function generatedScriptBodyViolation(script: string): string | null {
     '各位',
     '大家好',
     '歡迎',
+    '欢迎',
     '哈囉',
     '哈啰',
     '嗨，',
@@ -214,9 +203,11 @@ function generatedScriptBodyViolation(script: string): string | null {
   if (greetingPrefixes.some((prefix) => normalizedStart.startsWith(prefix))) {
     return 'opening_greeting';
   }
+  if (/^(?:标题|標題)：/u.test(body)) return 'title_line';
   const lines = body.split(/\r?\n/u);
   for (const rawLine of lines) {
     const line = rawLine.trim();
+    if (line.startsWith('```')) return 'code_fence';
     if (isMarkdownHeading(line)) return 'markdown_heading';
     if (isTimestampLine(line)) return 'timestamp';
     if (isMarkdownSeparator(line)) return 'separator';
@@ -225,11 +216,16 @@ function generatedScriptBodyViolation(script: string): string | null {
   const ending = body.slice(-300).toLocaleLowerCase();
   const ctaLead = [
     '記得',
+    '记得',
     '別忘了',
+    '别忘了',
     '歡迎',
+    '欢迎',
     '請',
+    '请',
     '前往',
     '造訪',
+    '造访',
     '可以到',
     'remember',
     'please',
@@ -237,14 +233,21 @@ function generatedScriptBodyViolation(script: string): string | null {
   ];
   const ctaAction = [
     '訂閱',
+    '订阅',
     '按讚',
+    '按赞',
     '分享',
     '追蹤',
+    '追踪',
     '留言',
     '官網',
+    '官网',
     '網站',
+    '网站',
     '下載',
+    '下载',
     '註冊',
+    '注册',
     '加入',
     'subscribe',
     'like',
@@ -301,87 +304,16 @@ function assertGeneratedScriptBody(script: string): void {
   );
 }
 
-export function normalizeEditorialTitle(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
-
-  let normalized = value.trim();
-  const quotePairs: readonly (readonly [string, string])[] = [
-    ['"', '"'],
-    ["'", "'"],
-    ['‘', '’'],
-    ['“', '”'],
-    ['「', '」'],
-    ['『', '』'],
-  ];
-  let strippedQuotes = true;
-  while (strippedQuotes && normalized.length >= 2) {
-    strippedQuotes = false;
-    for (const [opening, closing] of quotePairs) {
-      if (normalized.startsWith(opening) && normalized.endsWith(closing)) {
-        normalized = normalized.slice(opening.length, -closing.length).trim();
-        strippedQuotes = true;
-        break;
-      }
-    }
-  }
-
-  if (
-    /[\r\n]/u.test(normalized) ||
-    /^(?:#{1,6}(?:\s|$)|[-*+]\s|>\s?|`|[*_]{1,2}\S|~~)/u.test(normalized)
-  ) {
-    return null;
-  }
-
-  const characterCount = [...normalized].length;
-  if (characterCount < 4 || characterCount > 60) return null;
-
-  return normalized;
-}
-
-function parseScriptPayload(content: string): ParsedScriptPayload {
-  const stripped = stripJsonFence(content.trim());
-  if (!stripped.startsWith('{')) {
-    assertGeneratedScriptBody(content);
-    return {
-      title: null,
-      script: content,
-      titleFallbackReason: 'plain_text_response',
-    };
-  }
-
-  let payload: Record<string, unknown>;
-  try {
-    payload = parseJsonObject(stripped, 'Script response');
-  } catch (error) {
+function parseScriptBody(content: string, finishReason: string | null): string {
+  if (finishReason === 'length') {
     throw new ScriptPayloadValidationError(
-      'LLM returned invalid script JSON content',
-      'invalid_json',
-      null,
-      { cause: error },
+      'LLM returned a truncated script',
+      'truncated',
     );
   }
-
-  const script = payload['script'];
-  if (typeof script !== 'string' || !script.trim()) {
-    throw new ScriptPayloadValidationError(
-      'LLM returned empty script content',
-      'missing_script',
-    );
-  }
+  const script = content.trim();
   assertGeneratedScriptBody(script);
-
-  const rawTitle = payload['title'];
-  const title = normalizeEditorialTitle(rawTitle);
-  let titleFallbackReason: ScriptTitleFallbackReason | null = null;
-  if (title === null) {
-    titleFallbackReason =
-      typeof rawTitle === 'string' ? 'invalid_title' : 'missing_title';
-  }
-  return {
-    title,
-    script,
-    titleFallbackReason,
-  };
+  return script;
 }
 
 export interface OpenRouterConfig {
@@ -886,7 +818,8 @@ export function isRetryableOpenRouterError(error: unknown): boolean {
 type LLMCompletionOperation =
   | 'buildVisualSubjectCatalog'
   | 'generateLanguageClassrooms'
-  | 'writeConceptCard';
+  | 'writeConceptCard'
+  | 'generateEditorialTitle';
 
 export async function createCompletionWithRetry(
   openai: OpenAI,
@@ -1161,7 +1094,6 @@ export async function generateScriptWithLLM(
       openai,
       params: {
         model,
-        response_format: { type: 'json_object' },
         messages: [
           { role: 'system', content: system },
           {
@@ -1183,15 +1115,12 @@ export async function generateScriptWithLLM(
     costUsd += metadata.costUsd;
     const content = messageContentText(completion.choices[0]!.message?.content);
     try {
-      const parsed = parseScriptPayload(content);
-      if (parsed.titleFallbackReason !== null) {
-        logIngestEvent('llm:title-fallback', {
-          reason: parsed.titleFallbackReason,
-        });
-      }
+      const script = parseScriptBody(
+        content,
+        completion.choices[0]!.finish_reason,
+      );
       return {
-        title: parsed.title,
-        script: parsed.script,
+        script,
         ...metadata,
         costUsd,
       };

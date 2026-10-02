@@ -1,70 +1,46 @@
 import { readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-const PROMPT_PATH = resolve(
-  dirname(fileURLToPath(import.meta.url)),
-  '../../prompts/script-system-prompt.txt',
-);
-
-describe('script system prompt output contract', () => {
-  it('requires JSON with a minimally edited title and body-only narration', () => {
-    const prompt = readFileSync(PROMPT_PATH, 'utf8');
-
-    expect(prompt).toContain(
-      '{"title":"編輯後標題","script":"一篇完整、可直接朗讀的 Podcast 正文"}',
-    );
-    expect(prompt).toContain(
-      '以來源標題為基礎做最小必要改寫：目標只是避免逐字照抄，不是重新選角度、重新摘要或創作新標題。',
-    );
-    expect(prompt).toContain(
-      '優先只改 1–2 個詞、語序或標點；來源標題若已清楚，保留原本句型與資訊結構。',
-    );
-    expect(prompt).toContain(
-      '必須保留故事主體與核心辨識詞：原標題中的人名、公司名、產品名、協議名、資產名、必要數字與核心 claim。',
-    );
-    expect(prompt).toContain(
-      '不得把 Fomo、Vector 這類具名實體抽象成「競品」「平台」「公司」等泛稱而失去辨識度。',
-    );
-    expect(prompt).toContain('不得捏造、篡改或新增原文沒有的結論');
-    expect(prompt).toContain('禁止公關腔、誇大與 clickbait');
-    expect(prompt).toContain(
-      '只撰寫節目正文。不得加入節目迎賓詞、節目名稱、CTA、廣告詞或收尾導流；這些由 application code 統一加入。',
-    );
-    expect(prompt).toContain(
-      '第一個字就必須開始正文內容，不得先打招呼、歡迎聽眾或介紹 Zap Podcast。',
-    );
-    expect(prompt).toContain(
-      '最後一句必須是正文自然結束，不得加入 Zap Pilot、訂閱、按讚、分享、網站或任何 CTA。',
-    );
-    expect(prompt).toContain(
-      'script 欄位不得輸出確認語、任務說明、標題、時間碼、Markdown 或分隔線。',
-    );
-    expect(prompt).toContain(
-      'JSON 物件之外不得輸出任何內容，不得使用 Markdown code fence、註解或額外欄位。',
-    );
+const readPrompt = (name: string) =>
+  readFileSync(
+    new URL(`../../prompts/${name}-system-prompt.txt`, import.meta.url),
+    'utf8',
+  );
+describe('script system prompt contract', () => {
+  it('pins the plain text understanding path', () => {
+    const prompt = readPrompt('script');
+    for (const anchor of [
+      '只输出可以直接朗读的文章正文本身',
+      '不要标题、开场招呼',
+      '使用简体中文',
+      '不要 Markdown',
+      '命题 → 疑问 → 解释 → 证据 → 原则',
+      '问完必须马上回答',
+      '不得因此虚构主持人的亲身经历',
+      '补充原文没有支持的事实、数字、动机或结论',
+      '收尾不要重新把全文内容列一次',
+    ])
+      expect(prompt).toContain(anchor);
+    expect(prompt).not.toContain('JSON');
   });
-
-  it('asks for an explained narration rather than a reworded article, without invented facts', () => {
-    const prompt = readFileSync(PROMPT_PATH, 'utf8');
-
-    expect(prompt).toContain(
-      '你的工作是「講解」，不是把原文逐句念一遍或換句話說一遍。',
-    );
-    expect(prompt).toContain('用自問自答推進');
-    expect(prompt).toContain(
-      'title 与 script 一律使用简体中文，保留原文用词（例如：硅基、网络、软件、数据），不要改写成台湾用语。',
-    );
-    expect(prompt).toContain(
-      '只問原文答得出來的問題，答案必須來自原文；原文沒有交代的原因或細節，不要自己補一個答案。',
-    );
-    expect(prompt).toContain(
-      '不要自己換算倍數、數量級、百分比或「幾成」，除非原文已經算好',
-    );
-    expect(prompt).toContain(
-      '原文作者以第一人稱講的經歷與看法，要轉述成那位作者或機構的看法',
-    );
+});
+describe('title system prompt contract', () => {
+  it('pins minimal source title edits', () => {
+    const prompt = readPrompt('title');
+    for (const anchor of [
+      '最小必要改写',
+      '优先只改 1–2 个词',
+      '20 个 Unicode',
+      '超过 20 字时才',
+      '人名、公司名、产品名、协议名、资产名、必要数字和核心 claim',
+      '具名实体',
+      '不得捏造',
+      '公关腔',
+      'clickbait',
+      '使用简体中文',
+      '只输出标题这一行',
+    ])
+      expect(prompt).toContain(anchor);
   });
 });

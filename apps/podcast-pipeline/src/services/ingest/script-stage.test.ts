@@ -17,12 +17,17 @@ const mocks = vi.hoisted(() => ({
   findEpisodeBySourceUrl: vi.fn(),
   findEpisodeLocalizationByEpisodeId: vi.fn(),
   generateScriptWithLLM: vi.fn(),
+  generateEditorialTitleWithLLM: vi.fn(),
   insertEpisode: vi.fn(),
   insertEpisodeLocalization: vi.fn(),
   scrapeArticle: vi.fn(),
   step: vi.fn(),
   updateEpisodeLocalizationArticleContent: vi.fn(),
   updateEpisodeLocalizationStatus: vi.fn(),
+}));
+
+vi.mock('../editorial-title.js', () => ({
+  generateEditorialTitleWithLLM: mocks.generateEditorialTitleWithLLM,
 }));
 
 vi.mock('../db.js', () => ({
@@ -52,6 +57,12 @@ import { ensureEpisodeLocalizationScript } from './script-stage.js';
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.generateEditorialTitleWithLLM.mockResolvedValue({
+    title: null,
+    model: 'test/model',
+    provider: 'test-provider',
+    costUsd: 0,
+  });
   mocks.step.mockImplementation((_name: string, work: () => unknown) => work());
 });
 
@@ -102,6 +113,14 @@ describe('ensureEpisodeLocalizationScript editorial title persistence', () => {
           title: article.title,
           rawText: article.text,
         }),
+      );
+      expect(mocks.generateEditorialTitleWithLLM).toHaveBeenCalledWith(
+        article.title,
+      );
+      expect(
+        mocks.generateEditorialTitleWithLLM.mock.invocationCallOrder[0],
+      ).toBeGreaterThan(
+        mocks.generateScriptWithLLM.mock.invocationCallOrder[0]!,
       );
       expect(mocks.generateScriptWithLLM).toHaveBeenCalledWith(
         article.title,
@@ -234,7 +253,7 @@ describe('ensureEpisodeLocalizationScript editorial title persistence', () => {
     expect(mocks.step.mock.calls.map(([name]) => name)).toContain(
       'packagePodcastScript',
     );
-    expect(costBreakdown).toHaveLength(1);
+    expect(costBreakdown).toHaveLength(2);
     expect(mocks.updateEpisodeLocalizationStatus).not.toHaveBeenCalled();
   });
 
@@ -426,8 +445,13 @@ describe('ensureEpisodeLocalizationScript editorial title persistence', () => {
 });
 
 function generatedScript(overrides: { title: string | null }) {
-  return {
+  mocks.generateEditorialTitleWithLLM.mockResolvedValue({
     title: overrides.title,
+    model: 'test/model',
+    provider: 'test-provider',
+    costUsd: 0,
+  });
+  return {
     script: 'Generated script',
     model: 'test/model',
     thinkingModel: null,

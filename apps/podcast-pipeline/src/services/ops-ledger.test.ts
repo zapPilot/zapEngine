@@ -114,7 +114,7 @@ describe('stageRunsFromCostLines', () => {
           model: 'v2',
           costUsd: 0.001,
         }),
-        costLine({ label: 'Something new', costUsd: 0.002 }),
+        costLine({ label: 'LLM title', costUsd: 0.002 }),
       ],
       { languageCode: 'ja', status: 'completed' },
     );

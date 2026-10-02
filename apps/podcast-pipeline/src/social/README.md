@@ -487,7 +487,7 @@ Platform-specific packaging experiments are currently disabled.
 `packaging-experiments.ts` deliberately returns no assignments.
 
 Visible titles have one source of truth: the selected
-`episode_localizations.title`. The script LLM is instructed to keep the
+`episode_localizations.title`. The independent title call (`prompts/title-system-prompt.txt`) is instructed to keep the
 canonical title within 20 Unicode characters, but that is a generation
 preference rather than an ingest gate. If the model returns a longer valid
 title, it is persisted unchanged.
