@@ -236,9 +236,24 @@ export function createControlCenterApp(input: {
 
   app.post('/api/podcast-pipeline/:episodeId/video/retry', (context) =>
     handlePodcastMutation(context, async (episodeId) => {
-      const body = await context.req.json().catch(() => ({}));
+      const text = await context.req.text();
+      let body: unknown = {};
+      if (text.length > 0) {
+        try {
+          body = JSON.parse(text) as unknown;
+        } catch {
+          throw new HTTPException(400, {
+            message: 'Video retry requires valid JSON',
+          });
+        }
+      }
+      if (!body || typeof body !== 'object' || Array.isArray(body)) {
+        throw new HTTPException(400, {
+          message: 'Video retry payload must be an object',
+        });
+      }
       const forceReplan =
-        body && typeof body === 'object' && 'forceReplan' in body
+        'forceReplan' in body
           ? (body as { forceReplan?: unknown }).forceReplan
           : false;
       if (typeof forceReplan !== 'boolean') {
