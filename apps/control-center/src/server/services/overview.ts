@@ -34,6 +34,9 @@ export function createOverviewService(input: {
   const socialCache = createAsyncCache({
     ttlMs: input.config.CONTROL_CENTER_CACHE_TTL_MS,
     load: () => loadSocial({ config: input.config, now: now() }),
+    // A whole-response social failure resolves as `status: 'error'`; do not
+    // retain it for the TTL, so the next read retries the provider.
+    isError: (value) => value.status === 'error',
   });
 
   // Share only overlapping reads. Completed values (including degraded results)

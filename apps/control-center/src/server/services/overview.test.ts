@@ -148,6 +148,32 @@ describe('createOverviewService', () => {
     await ordinary;
   });
 
+  it('retries a social read that resolved an error payload', async () => {
+    const socialError = {
+      ...social,
+      status: 'error' as const,
+      message: 'social unavailable',
+    };
+    const loadSocial = vi
+      .fn()
+      .mockResolvedValueOnce(socialError)
+      .mockResolvedValue(social);
+    const service = createOverviewService({
+      config: readControlCenterConfig({
+        CONTROL_CENTER_CACHE_TTL_MS: '900000',
+      }),
+      repository: costRepositoryFake({
+        loadLatestProviders: vi.fn().mockResolvedValue([]),
+      }),
+      loadSocial,
+      now: () => NOW,
+    });
+
+    expect((await service.getOverview()).social.status).toBe('error');
+    expect((await service.getOverview()).social.status).toBe('ok');
+    expect(loadSocial).toHaveBeenCalledTimes(2);
+  });
+
   it('retries history after a shared failed read', async () => {
     let failHistory!: (reason: Error) => void;
     const loadHistory = vi
