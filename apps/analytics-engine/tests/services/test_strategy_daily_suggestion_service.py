@@ -241,7 +241,7 @@ def test_get_daily_suggestion_raises_market_data_unavailable_when_dma_completely
     """When DMA-200 has no data at all, the service can't forward-fill and must
     surface a transient `MarketDataUnavailableError` (mapped to HTTP 503), not
     a `ValueError` (HTTP 400 — caller error). Forward-fill within tolerance is
-    covered by `test_get_daily_suggestion_forward_fills_stale_dma`.
+    covered by `tests/services/backtesting/data/test_forward_fill.py`.
     """
     service, mocks = _service()
     mocks["strategy_config_store"].resolve_config = (

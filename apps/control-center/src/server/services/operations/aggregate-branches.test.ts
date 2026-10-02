@@ -20,7 +20,10 @@ const supabaseFake = vi.hoisted(() => ({
 }));
 
 vi.mock('@supabase/supabase-js', () => ({
-  createClient: (...args: unknown[]) => supabaseFake.current(...args),
+  createClient: (...args: unknown[]) => {
+    const client = supabaseFake.current(...args) as Record<string, unknown>;
+    return { ...client, schema: () => client };
+  },
 }));
 
 function emptySupabaseClient() {

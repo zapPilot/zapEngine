@@ -17,7 +17,8 @@ vi.mock('@supabase/supabase-js', async (importOriginal) => {
     ...actual,
     createClient: (...args: unknown[]) => {
       if (mockedEmptyClient.make) {
-        return mockedEmptyClient.make();
+        const client = mockedEmptyClient.make() as Record<string, unknown>;
+        return { ...client, schema: () => client };
       }
       return (actual.createClient as (...a: unknown[]) => unknown)(...args);
     },

@@ -5,9 +5,10 @@ import { readControlCenterConfig } from '../../config/env.js';
 const fromMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@supabase/supabase-js', () => ({
-  createClient: vi.fn(() => ({
-    from: fromMock,
-  })),
+  createClient: vi.fn(() => {
+    const client = { from: fromMock };
+    return { ...client, schema: () => client };
+  }),
 }));
 
 const { readRecentSocialPosts } = await import('./growth-lanes.js');

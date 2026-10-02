@@ -1,8 +1,8 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
 import { fetchReturning } from './adapter-testing.js';
-import { fetchJson } from './http.js';
+import { fetchJson, fetchText } from './http.js';
 
 const ROWS_URL = 'https://provider.test/api/rows';
 const LABEL = 'Provider rows request';
@@ -23,6 +23,88 @@ function read(input: {
 }
 
 describe('fetchJson', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it.each(['headers', 'json body', 'text body'] as const)(
+    'settles at the deadline even when %s ignores cancellation',
+    async (stage) => {
+      const controller = new AbortController();
+      const timeout = vi
+        .spyOn(AbortSignal, 'timeout')
+        .mockReturnValue(controller.signal);
+      const stalled = new Promise<Response>(() => {});
+      const fetchImpl = vi
+        .fn<typeof fetch>()
+        .mockImplementation(() =>
+          stage === 'headers'
+            ? stalled
+            : Promise.resolve(new Response(new ReadableStream({ start() {} }))),
+        );
+      const result =
+        stage === 'text body'
+          ? fetchText({
+              label: LABEL,
+              url: ROWS_URL,
+              token: 'token',
+              fetchImpl,
+            })
+          : read({ fetchImpl });
+      const assertion = expect(result).rejects.toThrow('provider deadline');
+      // Allow headers to arrive so body-reading cancellation is exercised too.
+      await Promise.resolve();
+      await Promise.resolve();
+      controller.abort(new DOMException('provider deadline', 'TimeoutError'));
+      await assertion;
+      expect(timeout).toHaveBeenCalledWith(10_000);
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+    },
+  );
+  it('removes the deadline listener after a completed read', async () => {
+    const controller = new AbortController();
+    vi.spyOn(AbortSignal, 'timeout').mockReturnValue(controller.signal);
+    const added = vi.spyOn(controller.signal, 'addEventListener');
+    const removed = vi.spyOn(controller.signal, 'removeEventListener');
+    await read({ fetchImpl: fetchReturning({ rows: 1 }) });
+    expect(removed).toHaveBeenCalledWith('abort', added.mock.calls[0]?.[1]);
+  });
+
+  it('does not begin a read when the deadline has already expired', async () => {
+    const controller = new AbortController();
+    controller.abort(new DOMException('expired', 'TimeoutError'));
+    vi.spyOn(AbortSignal, 'timeout').mockReturnValue(controller.signal);
+    const fetchImpl = fetchReturning({ rows: 1 });
+    await expect(read({ fetchImpl })).rejects.toThrow('expired');
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('does not publish late response headers after a timed-out body', async () => {
+    const controller = new AbortController();
+    vi.spyOn(AbortSignal, 'timeout').mockReturnValue(controller.signal);
+    let finishBody!: (value: unknown) => void;
+    const body = new Promise((resolve) => {
+      finishBody = resolve;
+    });
+    const response = new Response();
+    vi.spyOn(response, 'json').mockReturnValue(body);
+    const onResponseHeaders = vi.fn();
+    const result = fetchJson({
+      label: LABEL,
+      url: ROWS_URL,
+      schema: rowsSchema,
+      fetchImpl: vi.fn<typeof fetch>().mockResolvedValue(response),
+      onResponseHeaders,
+    });
+    const assertion = expect(result).rejects.toThrow('expired');
+    await Promise.resolve();
+    await Promise.resolve();
+    controller.abort(new DOMException('expired', 'TimeoutError'));
+    await assertion;
+    finishBody({ rows: 1 });
+    await body;
+    await Promise.resolve();
+    expect(onResponseHeaders).not.toHaveBeenCalled();
+  });
+
   it('reads with the bearer credential and returns the parsed body', async () => {
     const fetchImpl = fetchReturning({ rows: '3' });
 

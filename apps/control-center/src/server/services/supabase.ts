@@ -1,7 +1,11 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { errorMessage as sharedErrorMessage } from '@zapengine/types/shared';
 
+import { createBoundedSupabaseFetch } from './supabase-fetch.js';
+
 import type { ControlCenterConfig } from '../config/env.js';
+
+type ServiceRoleQueries = Pick<SupabaseClient, 'from' | 'rpc' | 'schema'>;
 
 /**
  * Service-role Supabase client used by control-center server services.
@@ -13,16 +17,28 @@ export function createServiceRoleClient(
   url: string,
   key: string,
   schema = 'public',
-) {
-  return createClient(url, key, {
+  factory: typeof createClient = createClient,
+): ServiceRoleQueries {
+  const client = factory(url, key, {
     db: { schema },
     auth: { autoRefreshToken: false, persistSession: false },
+    global: { fetch: createBoundedSupabaseFetch(fetch) },
   });
+  // Explicit factories own their returned test/provider client. Every production
+  // default uses the public PostgREST client so retries cannot exceed the budget.
+  if (factory !== createClient) {
+    return client;
+  }
+  const queries = client.schema(schema);
+  queries.retry = false;
+  return queries;
 }
 
 /** Null when the operator has not configured Supabase; services degrade to
  * an `unconfigured` read model instead of throwing at construction. */
-export function createConfiguredServiceRoleClient(config: ControlCenterConfig) {
+export function createConfiguredServiceRoleClient(
+  config: ControlCenterConfig,
+): ServiceRoleQueries | null {
   return config.SUPABASE_URL && config.SUPABASE_SERVICE_ROLE_KEY
     ? createServiceRoleClient(
         config.SUPABASE_URL,

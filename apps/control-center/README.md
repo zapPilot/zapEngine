@@ -26,6 +26,14 @@ follow [`docs/operations/coverage-review.md`](../../docs/operations/coverage-rev
 
 The Vite UI listens on `127.0.0.1:4174`; its Hono API listens on `CONTROL_CENTER_PORT` (`4175` by default).
 
+API mutations reject explicitly cross-origin browser requests (`Origin` must match
+the request URL, and `Sec-Fetch-Site: cross-site` / `same-site` is denied).
+Headerless CLI clients still require the existing authentication checks. The MCP
+endpoint retains its separate bearer authentication. The unauthenticated local
+API also requires a loopback hostname (`localhost`, `127.0.0.1`, or `::1`) on
+reads and writes to block DNS rebinding. JSON content-type enforcement and the
+remaining mutation-surface decisions stay open in #677.
+
 ## Views
 
 Four primary surfaces answer the operator's immediate questions:
@@ -123,7 +131,11 @@ Dashboard HTTP views are generally read-only, with four narrowly bounded classes
 
 Production migrations are applied and verified by the production-gated `deploy-supabase-migrations` CI job before Fly deployment. The HTTP handlers still fail explicitly when a required schema change is absent — for example during local development or an independently deployed Vercel revision: a missing RPC (`PGRST202` / `42883`) answers `503` with "migration has not been applied yet", the abandon route maps a missing `abandoned_at` / `abandoned_reason` column (`42703`) to its own explicit `503`, and reads of not-yet-existing columns or tables (`42703`, `42P01`) are separate queries that fall back to empty values. The Basic guard described above is the load-bearing boundary for all of these operator actions; `/api/mcp` sits outside it because one `Authorization` header cannot carry Basic and Bearer at once, and it verifies its own bearer token instead.
 
-The remote API deliberately does not register `POST /api/costs/sync`; cost collection remains an external operation.
+The orphaned social release-evidence and release-completion routes were removed with their unused service; no dashboard caller remains.
+
+Dashboard mutations require `Content-Type: application/json`, including bodyless retry commands; charset parameters are accepted. MCP keeps its separate protocol and bearer boundary.
+
+The dashboard API does not register `POST /api/costs/sync` in any environment; the explicit `ops:sync` command owns cost collection.
 
 Fly operational signals use the Fly Machines HTTP API and require `FLY_OPS_TOKEN`; they do not depend on `flyctl` being installed in Vercel.
 
@@ -236,7 +248,7 @@ vendor APIs / fixed pricing / recorded billed figures
 
 Only a figure we expect to pay enters a snapshot as cost. Usage evidence — request counts, unit balances, the Fly compute run-rate — travels in the same snapshot's `usage` array, where it can inform a decision without ever being read back as a bill.
 
-`GET /api/overview` and `GET /api/costs/history` read persisted cost snapshots directly on every request, so an external cost collector is visible immediately rather than waiting for an in-process cache TTL. Social aggregation alone keeps the short in-memory cache. On a local development build **Refresh** calls `POST /api/costs/sync` first and then reloads the ledger; a production build only rereads snapshots, and the remote deployment does not register the route at all.
+`GET /api/overview` and `GET /api/costs/history` share overlapping reads within one server process, including the reads composed by statements. Completed results expire immediately, so the next load reads persisted snapshots again and sees external cost collector updates without waiting for a cache TTL. Forced social refreshes use a separate overview load so an ordinary pending overview cannot swallow them. Podcast pipeline and podcast cost routes also share only pending reads with statements; completed results, including errors, expire immediately. Social aggregation alone keeps the short in-memory cache. **Refresh** only rereads snapshots in every environment. Use the explicit `ops:sync` command when cost collection is required.
 
 The `ops` schema stays private and is not exposed through Supabase Data API. Control Center reaches it through service-role-only views and write RPCs in the already exposed `from_fed_to_chain` schema. `anon` and `authenticated` receive no access to the bridge or the underlying ledger.
 

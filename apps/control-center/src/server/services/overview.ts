@@ -10,7 +10,6 @@ import {
   createCostRepository,
   type CostRepository,
 } from './cost-repository.js';
-import { syncCosts } from './cost-sync.js';
 import { sumKnown } from './numbers.js';
 import { loadProductHealth } from './product-health.js';
 import { loadSocialPerformance } from './social.js';
@@ -28,18 +27,37 @@ export function createOverviewService(input: {
   now?: () => Date;
   repository?: CostRepository | null;
   loadSocial?: typeof loadSocialPerformance;
-  sync?: typeof syncCosts;
 }) {
   const now = input.now ?? (() => new Date());
   const repository = input.repository ?? createCostRepository(input.config);
   const loadSocial = input.loadSocial ?? loadSocialPerformance;
-  const runSync = input.sync ?? syncCosts;
   const socialCache = createAsyncCache({
     ttlMs: input.config.CONTROL_CENTER_CACHE_TTL_MS,
     load: () => loadSocial({ config: input.config, now: now() }),
+    // A whole-response social failure resolves as `status: 'error'`; do not
+    // retain it for the TTL, so the next read retries the provider.
+    isError: (value) => value.status === 'error',
   });
 
-  async function getOverview(forceSocial = false): Promise<OverviewResponse> {
+  // Share only overlapping reads. Completed values (including degraded results)
+  // expire immediately so external ledger updates remain visible on the next load.
+  const historyReads = createAsyncCache({
+    ttlMs: 0,
+    load: () =>
+      repository
+        ? loadCostHistory({ repository, now: now() }).catch(() => EMPTY_HISTORY)
+        : Promise.resolve(EMPTY_HISTORY),
+  });
+  const overviewReads = createAsyncCache({
+    ttlMs: 0,
+    load: () => loadOverview(false),
+  });
+  const forcedOverviewReads = createAsyncCache({
+    ttlMs: 0,
+    load: () => loadOverview(true),
+  });
+
+  async function loadOverview(forceSocial = false): Promise<OverviewResponse> {
     const fetchedAt = now();
     const [providers, history, product, social] = await Promise.all([
       repository
@@ -47,11 +65,7 @@ export function createOverviewService(input: {
             .loadLatestProviders(fetchedAt)
             .catch((error) => repositoryErrorProviders(error))
         : Promise.resolve(unconfiguredProviders()),
-      repository
-        ? loadCostHistory({ repository, now: fetchedAt }).catch(
-            () => EMPTY_HISTORY,
-          )
-        : Promise.resolve(EMPTY_HISTORY),
+      historyReads.get(),
       loadProductHealth({ config: input.config, now: fetchedAt }),
       socialCache.get(forceSocial),
     ]);
@@ -83,23 +97,9 @@ export function createOverviewService(input: {
   }
 
   return {
-    getOverview,
-    getCostHistory: () =>
-      repository
-        ? loadCostHistory({ repository, now: now() }).catch(() => EMPTY_HISTORY)
-        : Promise.resolve(EMPTY_HISTORY),
-    syncCosts: async () => {
-      if (!repository) {
-        throw new Error('Supabase ops repository is not configured');
-      }
-      const summary = await runSync({
-        config: input.config,
-        repository,
-        now: now(),
-      });
-      await socialCache.get(true);
-      return summary;
-    },
+    getOverview: (forceSocial = false) =>
+      (forceSocial ? forcedOverviewReads : overviewReads).get(),
+    getCostHistory: () => historyReads.get(),
     getSocial: (
       window: Parameters<typeof loadSocialPerformance>[0]['window'],
     ) => loadSocial({ config: input.config, now: now(), window }),

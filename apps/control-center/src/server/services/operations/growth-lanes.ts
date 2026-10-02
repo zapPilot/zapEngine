@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import type { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import {
   GROWTH_LANE_CAP,
@@ -6,6 +6,7 @@ import {
 } from '../../../shared/growth.js';
 import type { SocialWaitlistSummary } from '../../../shared/waitlist-growth.js';
 import type { ControlCenterConfig } from '../../config/env.js';
+import { createServiceRoleClient } from '../supabase.js';
 import { postTitle } from '../social.js';
 import type { PosthogLaneReading } from './posthog.js';
 
@@ -29,10 +30,12 @@ export async function readRecentSocialPosts(input: {
   if (!url || !key) {
     throw new Error('Supabase is not connected');
   }
-  const client = (input.createSupabaseClient ?? createClient)(url, key, {
-    db: { schema: input.config.SUPABASE_DB_SCHEMA },
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
+  const client = createServiceRoleClient(
+    url,
+    key,
+    input.config.SUPABASE_DB_SCHEMA,
+    input.createSupabaseClient,
+  );
   const result = await client
     .from('social_posts')
     .select(

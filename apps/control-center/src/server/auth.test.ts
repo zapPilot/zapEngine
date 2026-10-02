@@ -16,7 +16,6 @@ function createGuardedApp() {
     service: {
       getOverview: vi.fn().mockResolvedValue({}),
       getCostHistory: vi.fn(),
-      syncCosts: vi.fn(),
       getSocial: vi.fn(),
     } as never,
     operations: {
@@ -90,13 +89,52 @@ describe('remote dashboard authentication', () => {
     expect(response.status).toBe(200);
   });
 
+  it('allows authenticated reads on the production hostname', async () => {
+    const response = await createGuardedApp().request(
+      'https://dashboard.example/api/overview',
+      { headers: { Authorization: HEADER } },
+    );
+    expect(response.status).toBe(200);
+  });
+
+  it('keeps same-origin mutations behind authentication and handler validation', async () => {
+    const response = await createGuardedApp().request(
+      'https://dashboard.example/api/podcast-pipeline/not-a-valid-uuid/ingest/retry',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: HEADER,
+          Origin: 'https://dashboard.example',
+          'Content-Type': 'application/json',
+          'Sec-Fetch-Site': 'same-origin',
+        },
+      },
+    );
+    expect(response.status).toBe(400);
+  });
+
+  it('rejects cross-origin mutations even with valid Basic credentials', async () => {
+    const response = await createGuardedApp().request(
+      'https://dashboard.example/api/podcast-pipeline/not-a-valid-uuid/ingest/retry',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: HEADER,
+          Origin: 'https://evil.example',
+          'Sec-Fetch-Site': 'cross-site',
+        },
+      },
+    );
+    expect(response.status).toBe(403);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+  });
+
   it('leaves an unguarded app open for local development', async () => {
     const response = await createControlCenterApp({
       config: readControlCenterConfig({}),
       service: {
         getOverview: vi.fn().mockResolvedValue({}),
         getCostHistory: vi.fn(),
-        syncCosts: vi.fn(),
         getSocial: vi.fn(),
       } as never,
       operations: {

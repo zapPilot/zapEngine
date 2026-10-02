@@ -355,8 +355,12 @@ describe('App orchestration', () => {
     await renderReadyHome();
     fireEvent.click(screen.getByRole('button', { name: 'refresh' }));
     await waitFor(() =>
-      expect(api.sendJson).toHaveBeenCalledWith('/api/costs/sync', 'POST'),
+      expect(
+        api.getJson.mock.calls.filter(([path]) => path === '/api/overview')
+          .length,
+      ).toBe(2),
     );
+    expect(api.sendJson).not.toHaveBeenCalled();
 
     await navigate('pipeline');
     fireEvent.click(screen.getByRole('button', { name: 'refresh' }));

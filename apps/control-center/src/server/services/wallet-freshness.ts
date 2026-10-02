@@ -145,12 +145,12 @@ export async function loadPriorityWalletCoverage(input: {
   }
 }
 
-/**
- * Inferred rather than annotated: `createClient` narrows its schema generic to
- * the literal it is given, so a hand-written `SupabaseClient` annotation is
- * wrong the moment the schema comes from configuration.
- */
-export function createSchemaClient(url: string, key: string, schema: string) {
+/** Query client follows the configured service-role schema and transport. */
+export function createSchemaClient(
+  url: string,
+  key: string,
+  schema: string,
+): ReturnType<typeof createServiceRoleClient> {
   return createServiceRoleClient(url, key, schema);
 }
 

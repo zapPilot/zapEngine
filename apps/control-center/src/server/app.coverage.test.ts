@@ -10,11 +10,6 @@ const operatorState = vi.hoisted(() => ({
   historyCalls: 0,
 }));
 
-const cleanupState = vi.hoisted(() => ({
-  closeImpl: null as null | ((episodeId: string) => Promise<unknown>),
-  closeCalls: [] as string[],
-}));
-
 vi.mock('./observability/sentry.js', () => ({
   captureServerException: vi.fn(),
 }));
@@ -28,27 +23,12 @@ vi.mock('./services/operations/operator/store.js', () => ({
   }),
 }));
 
-vi.mock('./services/social-release-cleanup.js', () => ({
-  createSocialReleaseCleanupService: () => ({
-    getEvidence: async () => ({
-      generatedAt: '2026-09-28T00:00:00.000Z',
-      posts: [],
-      message: null,
-    }),
-    closeRelease: (episodeId: string) => {
-      cleanupState.closeCalls.push(episodeId);
-      return cleanupState.closeImpl!(episodeId);
-    },
-  }),
-}));
-
 const EPISODE_ID = '826f4b87-6278-4275-bff5-535ba5ef438d';
 
 function buildApp(input: {
   service?: Record<string, ReturnType<typeof vi.fn>>;
   operations?: Record<string, ReturnType<typeof vi.fn>>;
   visual?: Record<string, ReturnType<typeof vi.fn>>;
-  allowCostSync?: boolean;
 }) {
   return createControlCenterApp({
     config: readControlCenterConfig({}),
@@ -57,11 +37,6 @@ function buildApp(input: {
       getCostHistory: vi.fn().mockResolvedValue({
         currentMonthDaily: [],
         monthlyTotals: [],
-      }),
-      syncCosts: vi.fn().mockResolvedValue({
-        syncedAt: '2026-09-28T00:00:00.000Z',
-        persisted: 0,
-        providers: [],
       }),
       getSocial: vi.fn().mockResolvedValue({ status: 'ok' }),
       ...input.service,
@@ -92,7 +67,6 @@ function buildApp(input: {
       resolveReview: vi.fn(),
       ...input.visual,
     } as never,
-    allowCostSync: input.allowCostSync,
   });
 }
 
@@ -112,8 +86,6 @@ function jsonRequest(
 beforeEach(() => {
   operatorState.historyImpl = null;
   operatorState.historyCalls = 0;
-  cleanupState.closeImpl = null;
-  cleanupState.closeCalls = [];
   vi.mocked(captureServerException).mockClear();
 });
 
@@ -132,23 +104,6 @@ describe('control center coverage gaps', () => {
       currentMonthDaily: [{ date: '2026-09-28', totalUsd: 1.5 }],
     });
     expect(getCostHistory).toHaveBeenCalledOnce();
-  });
-
-  it('maps a cost sync failure to 503 with the provider message', async () => {
-    const failure = { message: 'Cost snapshot write failed', code: 'XX000' };
-    const syncCosts = vi.fn().mockRejectedValue(failure);
-    const app = buildApp({ service: { syncCosts } });
-
-    const response = await app.request('/api/costs/sync', { method: 'POST' });
-
-    expect(response.status).toBe(503);
-    await expect(response.json()).resolves.toEqual({
-      error: 'Cost snapshot write failed',
-    });
-    expect(captureServerException).toHaveBeenCalledWith(failure, {
-      method: 'POST',
-      route: '/api/costs/sync',
-    });
   });
 
   it('serves operator history rows', async () => {
@@ -173,64 +128,6 @@ describe('control center coverage gaps', () => {
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toEqual({
       error: 'Operator history is unavailable.',
-    });
-  });
-
-  it('rejects a malformed release id before touching the service', async () => {
-    cleanupState.closeImpl = async () => ({ ok: true });
-    const app = buildApp({});
-
-    const response = await app.request(
-      '/api/operations/social/not-a-uuid/complete',
-      { method: 'POST' },
-    );
-
-    expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({
-      error: 'Invalid episode id',
-    });
-    expect(cleanupState.closeCalls).toEqual([]);
-  });
-
-  it('maps a missing release RPC to the migration message', async () => {
-    cleanupState.closeImpl = async () => {
-      throw Object.assign(new Error('function not found'), {
-        code: 'PGRST202',
-      });
-    };
-    const app = buildApp({});
-
-    const response = await app.request(
-      `/api/operations/social/${EPISODE_ID}/complete`,
-      { method: 'POST' },
-    );
-
-    expect(response.status).toBe(503);
-    await expect(response.json()).resolves.toEqual({
-      error: 'Social release cleanup migration has not been applied yet',
-    });
-    expect(cleanupState.closeCalls).toEqual([EPISODE_ID]);
-  });
-
-  it('maps an unexpected release failure to 503', async () => {
-    const failure = new Error('database offline');
-    cleanupState.closeImpl = async () => {
-      throw failure;
-    };
-    const app = buildApp({});
-
-    const response = await app.request(
-      `/api/operations/social/${EPISODE_ID}/complete`,
-      { method: 'POST' },
-    );
-
-    expect(response.status).toBe(503);
-    await expect(response.json()).resolves.toEqual({
-      error: 'database offline',
-    });
-    expect(captureServerException).toHaveBeenCalledWith(failure, {
-      method: 'POST',
-      route: '/api/operations/social/:episodeId/complete',
     });
   });
 

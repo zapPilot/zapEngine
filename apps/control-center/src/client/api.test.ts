@@ -2,6 +2,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { getJson, sendJson } from './api.js';
 
+const RETRY_URL =
+  '/api/podcast-pipeline/826f4b87-6278-4275-bff5-535ba5ef438d/ingest/retry';
+
 function json(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), {
     status,
@@ -64,13 +67,14 @@ describe('getJson', () => {
 });
 
 describe('sendJson', () => {
-  it('omits a body and its content-type when none is given', async () => {
+  it('identifies JSON mutations even when no body is needed', async () => {
     const fetchMock = stubFetch(json({ ok: true }));
 
-    await sendJson('/api/costs/sync', 'POST');
+    await sendJson(RETRY_URL, 'POST');
 
-    expect(fetchMock).toHaveBeenCalledWith('/api/costs/sync', {
+    expect(fetchMock).toHaveBeenCalledWith(RETRY_URL, {
       method: 'POST',
+      headers: { 'content-type': 'application/json' },
     });
   });
 
@@ -122,16 +126,14 @@ describe('mutation response body handling', () => {
       }),
     );
 
-    await expect(sendJson('/api/costs/sync', 'POST')).resolves.toBeNull();
+    await expect(sendJson(RETRY_URL, 'POST')).resolves.toBeNull();
   });
 
   it('names a rejected body with no usable message', async () => {
     const response = json({ unexpected: true }, 500);
     stubFetch(response);
 
-    await expect(sendJson('/api/costs/sync', 'POST')).rejects.toThrow(
-      'HTTP 500',
-    );
+    await expect(sendJson(RETRY_URL, 'POST')).rejects.toThrow('HTTP 500');
   });
 
   it('names a rejected HTML body instead of its parse failure', async () => {
@@ -142,8 +144,8 @@ describe('mutation response body handling', () => {
       }),
     );
 
-    await expect(sendJson('/api/costs/sync', 'POST')).rejects.toThrow(
-      /Expected JSON from \/api\/costs\/sync, got text\/html/,
+    await expect(sendJson(RETRY_URL, 'POST')).rejects.toThrow(
+      `Expected JSON from ${RETRY_URL}, got text/html`,
     );
   });
 

@@ -8,7 +8,6 @@ initSentry(process.env);
 const config = readControlCenterConfig();
 const app = createControlCenterApp({
   config,
-  allowCostSync: false,
   auth: requireControlCenterAuth(config),
 });
 
