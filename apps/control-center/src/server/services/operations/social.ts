@@ -1,5 +1,6 @@
-import { createClient } from '@supabase/supabase-js';
+import type { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
+import { createServiceRoleClient } from '../supabase.js';
 
 import type {
   OperationalSignal,
@@ -208,10 +209,12 @@ export async function loadOperationsSocial(input: {
   }
 
   try {
-    const client = (input.createClient ?? createClient)(url, key, {
-      db: { schema: input.config.SUPABASE_DB_SCHEMA },
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
+    const client = createServiceRoleClient(
+      url,
+      key,
+      input.config.SUPABASE_DB_SCHEMA,
+      input.createClient,
+    );
     const [jobResult, daemonResult, waitingResult] = await Promise.all([
       client
         .from('social_publish_jobs')

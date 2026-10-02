@@ -13,8 +13,9 @@ export function createServiceRoleClient(
   url: string,
   key: string,
   schema = 'public',
+  factory: typeof createClient = createClient,
 ) {
-  return createClient(url, key, {
+  return factory(url, key, {
     db: { schema },
     auth: { autoRefreshToken: false, persistSession: false },
   });

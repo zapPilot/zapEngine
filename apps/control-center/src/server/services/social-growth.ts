@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import type { createClient } from '@supabase/supabase-js';
 
 import { loadWaitlistGrowth } from './waitlist-growth.js';
 import { unavailableWaitlist } from '../../shared/waitlist-growth.js';
@@ -12,7 +12,7 @@ import type {
 } from '../../shared/types.js';
 import type { ControlCenterConfig } from '../config/env.js';
 import { createAsyncCache } from './cache.js';
-import { postgrestErrorMessage } from './supabase.js';
+import { createServiceRoleClient, postgrestErrorMessage } from './supabase.js';
 import {
   buildFollowerAttribution,
   exactYoutubeFollowersByPost,
@@ -78,13 +78,19 @@ export async function loadSocialGrowth(input: {
     return empty('unconfigured', 'Supabase is not connected');
   }
 
-  const create = input.createSupabaseClient ?? createClient;
-  const waitlist = loadWaitlistGrowth({ create, url, key, now: input.now });
+  const waitlist = loadWaitlistGrowth({
+    create: input.createSupabaseClient,
+    url,
+    key,
+    now: input.now,
+  });
   try {
-    const client = create(url, key, {
-      db: { schema: input.config.SUPABASE_DB_SCHEMA },
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
+    const client = createServiceRoleClient(
+      url,
+      key,
+      input.config.SUPABASE_DB_SCHEMA,
+      input.createSupabaseClient,
+    );
     const attributionSince = new Date(
       input.now.getTime() - (ATTRIBUTION_HORIZON_DAYS + 1) * DAY_MS,
     ).toISOString();
