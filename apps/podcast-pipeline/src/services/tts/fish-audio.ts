@@ -559,9 +559,9 @@ function splitTextIntoChunks(text: string, maxChars: number): string[] {
     remaining = remaining.slice(splitIndex);
   }
 
-  if (remaining.length > 0) {
-    chunks.push(remaining);
-  }
+  // Remainder is always non-empty: each split removes at most maxChars from a
+  // longer string, so the loop exits with 1..maxChars chars left.
+  chunks.push(remaining);
 
   return chunks;
 }
