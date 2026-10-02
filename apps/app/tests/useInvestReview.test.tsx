@@ -103,15 +103,18 @@ let active: Harness | null = null;
 
 function Probe({
   onValue,
+  autoReview,
 }: {
   onValue: (value: UseInvestReviewResult) => void;
+  autoReview?: boolean;
 }) {
-  onValue(useInvestReview());
+  onValue(useInvestReview(autoReview === undefined ? {} : { autoReview }));
   return null;
 }
 
 async function render(
   queries: { retry?: number | false; retryDelay?: number } = {},
+  autoReview?: boolean,
 ): Promise<Harness> {
   const container = document.createElement('div');
   document.body.appendChild(container);
@@ -126,7 +129,10 @@ async function render(
       createElement(
         QueryClientProvider,
         { client },
-        createElement(Probe, { onValue: (next) => (value = next) }),
+        createElement(Probe, {
+          onValue: (next) => (value = next),
+          ...(autoReview === undefined ? {} : { autoReview }),
+        }),
       ),
     );
     await Promise.resolve();
@@ -174,6 +180,13 @@ afterEach(async () => {
 });
 
 describe('useInvestReview', () => {
+  it('does not request an automatic review when autoReview is false', async () => {
+    mocks.account.address = WALLET;
+    mocks.invest.stageDrafts = [morphoDraft];
+    await render({}, false);
+    expect(mocks.getDepositReview).not.toHaveBeenCalled();
+  });
+
   it('stays disabled with no frozen stages', async () => {
     const harness = await render();
     expect(mocks.getDepositReview).not.toHaveBeenCalled();

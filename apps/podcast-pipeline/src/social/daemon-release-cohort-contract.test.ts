@@ -48,7 +48,6 @@ const mocks = vi.hoisted(() => ({
   captureDueAccountSnapshots: vi.fn().mockResolvedValue([]),
   capturePrePublishAccountSnapshots: vi.fn().mockResolvedValue([]),
   refreshSocialStrategies: vi.fn(),
-  getOrCreateExperimentAssignment: vi.fn(),
 }));
 
 vi.mock('./release-cohort-store.js', () => ({
@@ -102,10 +101,6 @@ vi.mock('./metric-collectors.js', () => ({
 vi.mock('./strategy.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./strategy.js')>()),
   refreshSocialStrategies: mocks.refreshSocialStrategies,
-}));
-vi.mock('./experiments.js', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('./experiments.js')>()),
-  getOrCreateExperimentAssignment: mocks.getOrCreateExperimentAssignment,
 }));
 
 import { runSocialCatchUpOnce, runSocialDaemonTick } from './daemon.js';
@@ -213,23 +208,6 @@ beforeEach(() => {
   mocks.listUnfinishedSocialPublishJobs.mockResolvedValue([]);
   mocks.listSocialPostsByEpisode.mockResolvedValue([]);
   mocks.listSocialEpisodeLocalizationTitles.mockResolvedValue([]);
-  mocks.getOrCreateExperimentAssignment.mockImplementation(
-    ({
-      experimentKey,
-      episodeId,
-      variants,
-    }: {
-      experimentKey: string;
-      episodeId: string;
-      variants?: readonly [string, ...string[]];
-    }) =>
-      Promise.resolve({
-        experiment_key: experimentKey,
-        episode_id: episodeId,
-        variant: variants?.[0] ?? 'en',
-        assigned_at: CREATED_AT,
-      }),
-  );
 });
 
 describe('NON-NEGOTIABLE episode release cohort contract', () => {
@@ -328,7 +306,6 @@ describe('NON-NEGOTIABLE episode release cohort contract', () => {
       expect(lane.experimentKey).toBeUndefined();
       expect(lane.experimentVariant).toBeUndefined();
     }
-    expect(mocks.getOrCreateExperimentAssignment).not.toHaveBeenCalled();
     expect(new Set(lanes.map((lane) => lane.language))).toEqual(
       new Set(['zh-Hant', 'ja', 'en']),
     );

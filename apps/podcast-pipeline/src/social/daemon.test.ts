@@ -39,7 +39,6 @@ const mocks = vi.hoisted(() => ({
   captureDueAccountSnapshots: vi.fn(),
   capturePrePublishAccountSnapshots: vi.fn(),
   collectRollingPostMetrics: vi.fn(),
-  getOrCreateExperimentAssignment: vi.fn(),
   capturePipelineException: vi.fn(),
   flushSentry: vi.fn(),
   initSentry: vi.fn(),
@@ -102,10 +101,6 @@ vi.mock('./metric-collectors.js', () => ({
 vi.mock('./strategy.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./strategy.js')>()),
   refreshSocialStrategies: mocks.refreshSocialStrategies,
-}));
-vi.mock('./experiments.js', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('./experiments.js')>()),
-  getOrCreateExperimentAssignment: mocks.getOrCreateExperimentAssignment,
 }));
 vi.mock('../observability/sentry.js', () => ({
   capturePipelineException: mocks.capturePipelineException,
@@ -232,26 +227,6 @@ beforeEach(() => {
     waitingVideos: [],
   });
   mocks.listPendingSocialPublishSchedules.mockResolvedValue([]);
-  // The language experiment is pinned so lane assertions stay deterministic;
-  // the slot experiments answer with their own primary variant.
-  mocks.getOrCreateExperimentAssignment.mockImplementation(
-    ({
-      experimentKey,
-      episodeId,
-      variants,
-    }: {
-      experimentKey: string;
-      episodeId: string;
-      variants?: readonly [string, ...string[]];
-    }) =>
-      Promise.resolve({
-        experiment_key: experimentKey,
-        episode_id: episodeId,
-        variant:
-          experimentKey === 'x-language-v1' ? 'ja' : (variants?.[0] ?? 'ja'),
-        assigned_at: '2026-08-24T00:00:00.000Z',
-      }),
-  );
   mocks.claimSocialPublishJob.mockResolvedValue(null);
   mocks.listUnfinishedSocialPublishJobs.mockResolvedValue([]);
   mocks.reconcileSocialPublishJob.mockResolvedValue(true);

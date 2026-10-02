@@ -3,6 +3,8 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { sqlCode } from './__fixtures__/migrationSql.js';
+
 const repoRoot = path.resolve(process.cwd(), '../..');
 const expectedUserStateReadColumns = [
   'user_id',
@@ -15,7 +17,10 @@ const expectedDataApiTableGrants = {
   user_episode_state: ['insert', 'select', 'update'],
 };
 
-describe('Supabase user_episode_state grants', () => {
+// Pins the frozen app-local snapshot at apps/podcast-pipeline/supabase/*
+// (declared frozen at migration 035), not the live root supabase/migrations.
+// These assertions only keep schema.sql and the app-local migrations in parity.
+describe('Supabase grants parity for the frozen app-local snapshot', () => {
   it('keeps schema.sql aligned with mobile feed state reads', () => {
     const schema = readRepoFile('apps/podcast-pipeline/supabase/schema.sql');
     const mobileColumns = mobileUserEpisodeStateSelectColumns();
@@ -92,7 +97,9 @@ describe('Supabase user_episode_state grants', () => {
       .sort();
 
     const grantTouchingFiles = filenames.filter((file) => {
-      const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
+      const sql = sqlCode(
+        fs.readFileSync(path.join(migrationsDir, file), 'utf8'),
+      );
       return /(grant|revoke)[\s\S]+?from_fed_to_chain\.(likes|user_episode_state)/i.test(
         sql,
       );
@@ -103,7 +110,9 @@ describe('Supabase user_episode_state grants', () => {
     );
 
     for (const file of grantTouchingFiles) {
-      const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
+      const sql = sqlCode(
+        fs.readFileSync(path.join(migrationsDir, file), 'utf8'),
+      );
       expect(
         sql,
         `${file} must signal "notify pgrst, 'reload schema'" so PostgREST picks up grant changes without restart`,
@@ -216,9 +225,8 @@ describe('Supabase user_episode_state grants', () => {
       .filter((f) => /restore_language_classrooms/i.test(f))
       .at(-1);
     expect(restoreMigration).toBeDefined();
-    const sql = fs.readFileSync(
-      path.join(migrationsDir, restoreMigration!),
-      'utf8',
+    const sql = sqlCode(
+      fs.readFileSync(path.join(migrationsDir, restoreMigration!), 'utf8'),
     );
 
     expect(sql).toMatch(
@@ -615,9 +623,11 @@ function readSortedMigrations(): string[] {
     .readdirSync(migrationsDir)
     .filter((file) => file.endsWith('.sql'))
     .sort()
-    .map((file) => fs.readFileSync(path.join(migrationsDir, file), 'utf8'));
+    .map((file) =>
+      sqlCode(fs.readFileSync(path.join(migrationsDir, file), 'utf8')),
+    );
 }
 
 function readRepoFile(relativePath: string): string {
-  return fs.readFileSync(path.join(repoRoot, relativePath), 'utf8');
+  return sqlCode(fs.readFileSync(path.join(repoRoot, relativePath), 'utf8'));
 }

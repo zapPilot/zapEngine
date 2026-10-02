@@ -95,6 +95,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
+      RUN_INTEGRATION: 'true'
       DATABASE_READ_ONLY: 'true'
       # Snapshot gate (test:strategy-snapshot:fast) boots the FastAPI app and
       # reads alpha_raw.* via this URL. Point at the Supabase read-only replica.
@@ -485,6 +486,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
+      RUN_INTEGRATION: 'true'
       DATABASE_READ_ONLY: 'true'
       DATABASE_READ_ONLY_URL: ${{ secrets.DATABASE_READ_ONLY_URL }}
       TEST_DATABASE_URL: postgresql+psycopg://test_user:testpass123@localhost:5432/test_db

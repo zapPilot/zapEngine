@@ -65,6 +65,29 @@ describe('Fish Audio TTS facade', () => {
     });
   });
 
+  it('normalizes Fish byte usage to zero billed USD', async () => {
+    mocks.synthesize.mockResolvedValue({
+      audio: Buffer.from('audio'),
+      cost: [
+        {
+          category: 'tts',
+          label: 'TTS audio',
+          provider: 'fish-audio',
+          model: 's2-pro',
+          costUsd: 9,
+          usage: { unit: 'utf8_bytes', quantity: 12 },
+        },
+      ],
+    });
+    const result = await textToSpeech('market', { languageCode: 'en' });
+    expect(result.cost).toEqual([
+      expect.objectContaining({
+        costUsd: 0,
+        usage: { unit: 'utf8_bytes', quantity: 12, unitPriceUsd: 0 },
+      }),
+    ]);
+  });
+
   it('passes a custom cost label through to Fish Audio', async () => {
     await textToSpeech('market liquidity', {
       languageCode: 'en',

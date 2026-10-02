@@ -63,11 +63,20 @@ def canonical_service(mock_db, mock_query_service):
     return CanonicalSnapshotService(mock_db, mock_query_service)
 
 
+@pytest.fixture
+def mock_borrowing_service():
+    from src.models.portfolio import BorrowingSummary
+
+    service = MagicMock()
+    service.get_borrowing_summary.return_value = BorrowingSummary(has_debt=False)
+    return service
+
+
 class TestLandingPageSnapshotConsistency:
     """Test that landing page components use consistent snapshot dates."""
 
     def test_landing_totals_match_pool_details_snapshot_date(
-        self, user_id, snapshot_date
+        self, user_id, snapshot_date, mock_borrowing_service
     ):
         """
         Verify that landing page totals and pool_details use the same snapshot_date.
@@ -102,6 +111,7 @@ class TestLandingPageSnapshotConsistency:
         landing_service = LandingPageService(
             db=mock_db,
             wallet_service=mock_wallet_service,
+            borrowing_service=mock_borrowing_service,
             query_service=mock_query_service,
             roi_calculator=mock_roi_calculator,
             portfolio_snapshot_service=mock_portfolio_service,
@@ -120,7 +130,9 @@ class TestLandingPageSnapshotConsistency:
         # Since portfolio snapshot was None, other services shouldn't be called
         # But if there was data, they would all receive the same snapshot_date
 
-    def test_landing_all_services_use_canonical_date(self, user_id, snapshot_date):
+    def test_landing_all_services_use_canonical_date(
+        self, user_id, snapshot_date, mock_borrowing_service
+    ):
         """
         Verify all landing page services receive the canonical snapshot date.
 
@@ -182,6 +194,7 @@ class TestLandingPageSnapshotConsistency:
         landing_service = LandingPageService(
             db=mock_db,
             wallet_service=mock_wallet_service,
+            borrowing_service=mock_borrowing_service,
             query_service=mock_query_service,
             roi_calculator=mock_roi_calculator,
             portfolio_snapshot_service=mock_portfolio_service,
@@ -1277,7 +1290,7 @@ class TestDashboardTotalsComposition:
         result = await integration_db_session.execute(
             text(
                 """
-                SELECT amount, time_at
+                SELECT amount, snapshot_date
                 FROM alpha_raw.daily_wallet_token_snapshots
                 WHERE user_wallet_address = :wallet
             """
@@ -1287,7 +1300,7 @@ class TestDashboardTotalsComposition:
         row = result.first()
         assert row is not None
         assert float(row.amount) == 20
-        assert int(row.time_at) == 200
+        assert row.snapshot_date == snapshot_date
 
 
 class TestCrossServiceDateAlignment:

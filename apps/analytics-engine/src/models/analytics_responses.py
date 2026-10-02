@@ -143,9 +143,9 @@ class MaxDrawdownResponse(PeriodAwareResponseMixin, AnalyticsResponseModel):
         default=0.0,
         description="Current drawdown percentage of latest portfolio value.",
     )
-    recovery_needed_percentage: PercentageRounded = Field(
+    recovery_needed_percentage: PercentageRounded | None = Field(
         default=0.0,
-        description="Percentage gain required to recover to previous peak.",
+        description="Gain required from the maximum-drawdown trough to its peak; null for total loss.",
     )
 
     @computed_field(return_type=PercentageRounded)

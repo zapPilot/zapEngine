@@ -64,7 +64,10 @@ describe('X CreateTweet response parsing', () => {
   });
 
   it('caps recursive fallback scanning at the defensive depth limit', () => {
-    let nested: unknown = { ignored: true };
+    let nested: unknown = { rest_id: '123' };
+    let atLimit: unknown = { rest_id: '123' };
+    for (let index = 0; index < 8; index += 1) atLimit = { data: atLimit };
+    expect(extractCreatedTweetId(atLimit)).toBe('123');
     for (let index = 0; index < 10; index += 1) {
       nested = { data: nested };
     }

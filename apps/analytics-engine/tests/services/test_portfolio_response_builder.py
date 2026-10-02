@@ -510,3 +510,26 @@ class TestPortfolioResponseBuilder:
         assert portfolio_roi.windows["roi_30d"].start_balance == 0.0  # Default
         assert portfolio_roi.recommended_yearly_roi == 0.0  # Default
         assert portfolio_roi.estimated_yearly_pnl_usd == 0.0  # Default
+
+
+def test_snapshot_debt_categories_survive_response_building(
+    builder, sample_portfolio_summary, sample_wallet_aggregate, sample_roi_data
+):
+    from src.models.portfolio_snapshot import PortfolioSnapshot
+
+    snapshot = PortfolioSnapshot.model_validate(
+        {
+            **sample_portfolio_summary,
+            "user_id": str(uuid4()),
+            "snapshot_date": "2024-01-15",
+        }
+    )
+    response = builder.build_portfolio_response(
+        snapshot.to_portfolio_summary(), sample_wallet_aggregate, sample_roi_data
+    )
+    assert response.category_summary_debt.model_dump() == {
+        "btc": 100.0,
+        "eth": 200.0,
+        "stablecoins": 300.0,
+        "others": 400.0,
+    }

@@ -3,17 +3,23 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { sqlCode } from './__fixtures__/migrationSql.js';
+
 const repoRoot = path.resolve(process.cwd(), '../..');
-const schema = fs.readFileSync(
-  path.join(repoRoot, 'apps/podcast-pipeline/supabase/schema.sql'),
-  'utf8',
-);
-const migration = fs.readFileSync(
-  path.join(
-    repoRoot,
-    'apps/podcast-pipeline/supabase/migrations/026_allow_native_video_duration_telemetry.sql',
+const schema = sqlCode(
+  fs.readFileSync(
+    path.join(repoRoot, 'apps/podcast-pipeline/supabase/schema.sql'),
+    'utf8',
   ),
-  'utf8',
+);
+const migration = sqlCode(
+  fs.readFileSync(
+    path.join(
+      repoRoot,
+      'apps/podcast-pipeline/supabase/migrations/026_allow_native_video_duration_telemetry.sql',
+    ),
+    'utf8',
+  ),
 );
 const migration026Constraint =
   /constraint social_posts_video_matches_platform check[\s\S]+?platform = 'rednote'[\s\S]+?video_duration_sec is not null[\s\S]+?video_duration_sec > 0[\s\S]+?platform <> 'rednote'[\s\S]+?video_duration_sec is null[\s\S]+?or video_duration_sec > 0/i;

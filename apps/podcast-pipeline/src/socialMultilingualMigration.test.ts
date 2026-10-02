@@ -3,15 +3,18 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { sqlCode } from './__fixtures__/migrationSql.js';
 import { SUPPORTED_PRIMARY_LANGUAGE_CODES } from './types.js';
 
 const repoRoot = path.resolve(process.cwd(), '../..');
-const migration = fs.readFileSync(
-  path.join(
-    repoRoot,
-    'supabase/migrations/20260824090000_social_multilingual_distribution.sql',
+const migration = sqlCode(
+  fs.readFileSync(
+    path.join(
+      repoRoot,
+      'supabase/migrations/20260824090000_social_multilingual_distribution.sql',
+    ),
+    'utf8',
   ),
-  'utf8',
 );
 const languageValues = SUPPORTED_PRIMARY_LANGUAGE_CODES.map(
   (language) => `'${language}'`,

@@ -3,13 +3,17 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { sqlCode } from './__fixtures__/migrationSql.js';
+
 const repoRoot = path.resolve(process.cwd(), '../..');
-const migration = fs.readFileSync(
-  path.join(
-    repoRoot,
-    'supabase/migrations/20260920111500_group_video_completion_notifications.sql',
+const migration = sqlCode(
+  fs.readFileSync(
+    path.join(
+      repoRoot,
+      'supabase/migrations/20260920111500_group_video_completion_notifications.sql',
+    ),
+    'utf8',
   ),
-  'utf8',
 );
 const normalized = migration.toLowerCase();
 

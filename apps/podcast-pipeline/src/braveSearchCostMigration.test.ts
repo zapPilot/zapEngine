@@ -3,13 +3,17 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-const migration = fs.readFileSync(
-  path.resolve(
-    process.cwd(),
-    '../..',
-    'supabase/migrations/20260904110000_add_brave_search_cost_observability.sql',
+import { sqlCode } from './__fixtures__/migrationSql.js';
+
+const migration = sqlCode(
+  fs.readFileSync(
+    path.resolve(
+      process.cwd(),
+      '../..',
+      'supabase/migrations/20260904110000_add_brave_search_cost_observability.sql',
+    ),
+    'utf8',
   ),
-  'utf8',
 );
 
 describe('Brave Search cost migration', () => {

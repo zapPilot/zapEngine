@@ -15,7 +15,10 @@ import {
 } from 'viem';
 import { describe, expect, it, vi } from 'vitest';
 
-import { createPlanOrchestrationService } from '../../../../src/modules/plan-orchestration/service';
+import {
+  createPlanOrchestrationService,
+  type PlanSimulationDeps,
+} from '../../../../src/modules/plan-orchestration/service';
 
 const USER = '0x1111111111111111111111111111111111111111' as Address;
 const USDC = '0xaf88d065e77c8cC2239327C5EDb3A432268e5831' as Address;
@@ -99,7 +102,7 @@ const gmxWithdrawPlan = {
   },
 };
 
-function makeService(allowance: bigint) {
+function makeService(allowance: bigint, simulation?: PlanSimulationDeps) {
   const readContract = vi.fn().mockResolvedValue(allowance);
   const getGasPrice = vi.fn().mockResolvedValue(100_000_000n);
   const getTokenPrice = vi.fn().mockResolvedValue({
@@ -112,6 +115,7 @@ function makeService(allowance: bigint) {
   const buildGmxV2Withdraw = vi.fn().mockResolvedValue(gmxWithdrawPlan);
   const buildWithdrawSwap = vi.fn();
   const service = createPlanOrchestrationService({
+    simulation,
     intentEngine: {
       buildGmxV2Supply,
       buildGmxV2Withdraw,
@@ -464,236 +468,251 @@ describe('plan-orchestration chain batches', () => {
 });
 
 describe('plan-orchestration service', () => {
-  it('builds fixed 40/30/30 groups and splits Base ETH into manual swap and supply calls', async () => {
-    const buildSupply = vi.fn().mockImplementation(({ fromAmount }) => ({
-      transaction: {
-        to: '0x7BfA7C4f149E7415b73bdeDfe609237e29CBF34A',
-        data: '0x1234',
-        value: '0',
-        chainId: 8453,
-        gasLimit: '150000',
-        meta: { intentType: 'SUPPLY', route: { tool: 'direct' } },
-      },
-      estimate: {
-        fromAmount,
-        toAmount: fromAmount,
-        toAmountMin: fromAmount,
-        gasCostUsd: '0.03',
-        executionDuration: 12,
-      },
-      route: { tool: 'direct' },
-    }));
-    const buildSwap = vi
-      .fn()
-      .mockImplementation(({ fromAmount }: { fromAmount: string }) => ({
+  it.each(['passed', 'failed'] as const)(
+    'builds fixed 40/30/30 groups with simulation %s',
+    async (status) => {
+      const buildSupply = vi.fn().mockImplementation(({ fromAmount }) => ({
         transaction: {
-          to: '0x2222222222222222222222222222222222222222',
-          data: '0x9876',
-          value: fromAmount,
+          to: '0x7BfA7C4f149E7415b73bdeDfe609237e29CBF34A',
+          data: '0x1234',
+          value: '0',
           chainId: 8453,
-          gasLimit: '250000',
-          meta: {
-            intentType: 'SWAP',
-            route: {
-              action: {
-                fromToken: { symbol: 'ETH' },
-                toToken: { symbol: 'USDC' },
-              },
-              estimate: {
-                toAmount: '40000000',
-                toAmountMin: '39800000',
-              },
-            },
-          },
+          gasLimit: '150000',
+          meta: { intentType: 'SUPPLY', route: { tool: 'direct' } },
         },
         estimate: {
           fromAmount,
-          toAmount: '40000000',
-          toAmountMin: '39800000',
-          gasCostUsd: '0.05',
-          executionDuration: 10,
+          toAmount: fromAmount,
+          toAmountMin: fromAmount,
+          gasCostUsd: '0.03',
+          executionDuration: 12,
         },
+        route: { tool: 'direct' },
       }));
-    const buildGmxV2Supply = vi
-      .fn()
-      .mockImplementation(
-        ({
-          marketKey,
-          fromAmount,
-        }: {
-          marketKey: string;
-          fromAmount: string;
-        }) => ({
-          approvals: [
-            {
-              to: USDC,
-              data: approveData(GMX_ROUTER, BigInt(fromAmount)),
-              value: '0',
-              chainId: 42161,
-              gasLimit: '60000',
-              meta: { intentType: 'APPROVAL' },
-            },
-          ],
-          steps: [
-            {
-              to: EXCHANGE_ROUTER,
-              data: marketKey === 'btc-usdc' ? '0x1234' : '0x5678',
-              value: '1000000000000000',
-              chainId: 42161,
-              gasLimit: '1200000',
-              meta: {
-                intentType: 'SUPPLY',
-                route: { tool: 'gmx-v2-direct', marketKey },
+      const buildSwap = vi
+        .fn()
+        .mockImplementation(({ fromAmount }: { fromAmount: string }) => ({
+          transaction: {
+            to: '0x2222222222222222222222222222222222222222',
+            data: '0x9876',
+            value: fromAmount,
+            chainId: 8453,
+            gasLimit: '250000',
+            meta: {
+              intentType: 'SWAP',
+              route: {
+                action: {
+                  fromToken: { symbol: 'ETH' },
+                  toToken: { symbol: 'USDC' },
+                },
+                estimate: {
+                  toAmount: '40000000',
+                  toAmountMin: '39800000',
+                },
               },
             },
-          ],
-          executionFeeWei: '1000000000000000',
-          estimatedMarketTokens:
-            marketKey === 'btc-usdc'
-              ? '25000000000000000000'
-              : '20000000000000000000',
-          minMarketTokens:
-            marketKey === 'btc-usdc'
-              ? '24750000000000000000'
-              : '19800000000000000000',
-          market: {
-            key: marketKey,
-            collateralToken: USDC,
-            marketToken:
-              marketKey === 'btc-usdc'
-                ? '0x47c031236e19d024b42f8AE6780E44A573170703'
-                : GM_TOKEN,
           },
-        }),
-      );
-    const getTokenPrice = vi
-      .fn()
-      .mockImplementation((_chainId: number, tokenAddress: string) =>
-        Promise.resolve(
-          tokenAddress.toLowerCase() ===
-            '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
-            ? {
-                address: tokenAddress,
-                symbol: 'ETH',
-                decimals: 18,
-                priceUSD: '3000',
-              }
-            : {
-                address: tokenAddress,
-                symbol: 'USDC',
-                decimals: 6,
-                priceUSD: '1',
+          estimate: {
+            fromAmount,
+            toAmount: '40000000',
+            toAmountMin: '39800000',
+            gasCostUsd: '0.05',
+            executionDuration: 10,
+          },
+        }));
+      const buildGmxV2Supply = vi
+        .fn()
+        .mockImplementation(
+          ({
+            marketKey,
+            fromAmount,
+          }: {
+            marketKey: string;
+            fromAmount: string;
+          }) => ({
+            approvals: [
+              {
+                to: USDC,
+                data: approveData(GMX_ROUTER, BigInt(fromAmount)),
+                value: '0',
+                chainId: 42161,
+                gasLimit: '60000',
+                meta: { intentType: 'APPROVAL' },
               },
-        ),
+            ],
+            steps: [
+              {
+                to: EXCHANGE_ROUTER,
+                data: marketKey === 'btc-usdc' ? '0x1234' : '0x5678',
+                value: '1000000000000000',
+                chainId: 42161,
+                gasLimit: '1200000',
+                meta: {
+                  intentType: 'SUPPLY',
+                  route: { tool: 'gmx-v2-direct', marketKey },
+                },
+              },
+            ],
+            executionFeeWei: '1000000000000000',
+            estimatedMarketTokens:
+              marketKey === 'btc-usdc'
+                ? '25000000000000000000'
+                : '20000000000000000000',
+            minMarketTokens:
+              marketKey === 'btc-usdc'
+                ? '24750000000000000000'
+                : '19800000000000000000',
+            market: {
+              key: marketKey,
+              collateralToken: USDC,
+              marketToken:
+                marketKey === 'btc-usdc'
+                  ? '0x47c031236e19d024b42f8AE6780E44A573170703'
+                  : GM_TOKEN,
+            },
+          }),
+        );
+      const getTokenPrice = vi
+        .fn()
+        .mockImplementation((_chainId: number, tokenAddress: string) =>
+          Promise.resolve(
+            tokenAddress.toLowerCase() ===
+              '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
+              ? {
+                  address: tokenAddress,
+                  symbol: 'ETH',
+                  decimals: 18,
+                  priceUSD: '3000',
+                }
+              : {
+                  address: tokenAddress,
+                  symbol: 'USDC',
+                  decimals: 6,
+                  priceUSD: '1',
+                },
+          ),
+        );
+      const readContract = vi.fn().mockResolvedValue(0n);
+      const getGasPrice = vi.fn().mockResolvedValue(100_000_000n);
+      const simulateBundle = vi
+        .fn()
+        .mockResolvedValue({ status, reason: 'strategy simulation reverted' });
+      const service = createPlanOrchestrationService({
+        simulation: { adapter: { simulateBundle } },
+        intentEngine: {
+          buildSupply,
+          buildSwap,
+          buildGmxV2Supply,
+          getTokenPrice,
+          buildGmxV2Withdraw: vi.fn(),
+          buildWithdrawSwap: vi.fn(),
+        },
+        adapter: { getQuote: vi.fn(), getContractCallQuote: vi.fn() } as never,
+        publicClients: {
+          8453: { readContract, getGasPrice },
+          42161: { readContract, getGasPrice },
+        } as never,
+      });
+
+      const pending = service.buildDeposit({
+        kind: 'strategy',
+        strategyId: 'zap-morpho-gmx-v1',
+        userAddress: USER,
+        totalUsd6: '100000000',
+        fundingSources: [
+          { chainId: 8453, fromToken: BASE_USDC },
+          { chainId: 42161, fromToken: USDC },
+        ],
+      });
+      if (status === 'failed') {
+        await expect(pending).rejects.toThrow('strategy simulation reverted');
+        expect(simulateBundle).toHaveBeenCalledTimes(2);
+        return;
+      }
+      const plan = await pending;
+      expect(simulateBundle).toHaveBeenCalledTimes(2);
+
+      expect(
+        plan.allocations.map((allocation) => allocation.weightBps),
+      ).toEqual([4000, 3000, 3000]);
+      expect(plan.executionGroups.map((group) => group.fromAmount)).toEqual([
+        '40000000',
+        '60000000',
+      ]);
+      expect(plan.executionGroups[1]!.approvals).toHaveLength(1);
+      const mergedApproval = decodeFunctionData({
+        abi: erc20Abi,
+        data: plan.executionGroups[1]!.approvals[0]!.data as `0x${string}`,
+      });
+      expect(mergedApproval.args).toEqual([GMX_ROUTER, 60000000n]);
+      expect(plan.allocations[1]).toMatchObject({
+        toToken: '0x47c031236e19d024b42f8AE6780E44A573170703',
+        toAmountMin: '24750000000000000000',
+        gasUsd: '0.369',
+      });
+      expect(plan.allocations[2]).toMatchObject({
+        toToken: GM_TOKEN,
+        toAmountMin: '19800000000000000000',
+        gasUsd: '0.369',
+      });
+      expect(plan.allocations[0]).toMatchObject({ gasUsd: '0.063' });
+      expect(plan.executionGroups[1]!.gasUsd).toBe('0.738');
+      expect(plan.totalGasUsd).toBe('0.801');
+      expect(plan.checkpoints).toHaveLength(1);
+      expect(
+        plan.executionGroups.flatMap((group) => [
+          ...group.approvals,
+          ...group.calls,
+        ]),
+      ).not.toContainEqual(expect.objectContaining({ chainId: 1 }));
+      expect(buildSwap).not.toHaveBeenCalled();
+
+      const nativePlan = await service.buildDeposit({
+        kind: 'strategy',
+        strategyId: 'zap-morpho-gmx-v1',
+        userAddress: USER,
+        totalUsd6: '100000000',
+        fundingSources: [
+          { chainId: 8453, fromToken: NATIVE_TOKEN_ADDRESS },
+          { chainId: 42161, fromToken: USDC },
+        ],
+      });
+
+      expect(buildSwap).toHaveBeenCalledWith({
+        type: 'SWAP',
+        chainId: 8453,
+        fromAddress: USER,
+        fromToken: NATIVE_TOKEN_ADDRESS,
+        toToken: BASE_USDC,
+        fromAmount: '13333333333333333',
+      });
+      expect(buildSupply).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          fromToken: BASE_USDC,
+          fromAmount: '39800000',
+        }),
+        expect.anything(),
       );
-    const readContract = vi.fn().mockResolvedValue(0n);
-    const getGasPrice = vi.fn().mockResolvedValue(100_000_000n);
-    const service = createPlanOrchestrationService({
-      intentEngine: {
-        buildSupply,
-        buildSwap,
-        buildGmxV2Supply,
-        getTokenPrice,
-        buildGmxV2Withdraw: vi.fn(),
-        buildWithdrawSwap: vi.fn(),
-      },
-      adapter: { getQuote: vi.fn(), getContractCallQuote: vi.fn() } as never,
-      publicClients: {
-        8453: { readContract, getGasPrice },
-        42161: { readContract, getGasPrice },
-      } as never,
-    });
-
-    const plan = await service.buildDeposit({
-      kind: 'strategy',
-      strategyId: 'zap-morpho-gmx-v1',
-      userAddress: USER,
-      totalUsd6: '100000000',
-      fundingSources: [
-        { chainId: 8453, fromToken: BASE_USDC },
-        { chainId: 42161, fromToken: USDC },
-      ],
-    });
-
-    expect(plan.allocations.map((allocation) => allocation.weightBps)).toEqual([
-      4000, 3000, 3000,
-    ]);
-    expect(plan.executionGroups.map((group) => group.fromAmount)).toEqual([
-      '40000000',
-      '60000000',
-    ]);
-    expect(plan.executionGroups[1]!.approvals).toHaveLength(1);
-    const mergedApproval = decodeFunctionData({
-      abi: erc20Abi,
-      data: plan.executionGroups[1]!.approvals[0]!.data as `0x${string}`,
-    });
-    expect(mergedApproval.args).toEqual([GMX_ROUTER, 60000000n]);
-    expect(plan.allocations[1]).toMatchObject({
-      toToken: '0x47c031236e19d024b42f8AE6780E44A573170703',
-      toAmountMin: '24750000000000000000',
-      gasUsd: '0.369',
-    });
-    expect(plan.allocations[2]).toMatchObject({
-      toToken: GM_TOKEN,
-      toAmountMin: '19800000000000000000',
-      gasUsd: '0.369',
-    });
-    expect(plan.allocations[0]).toMatchObject({ gasUsd: '0.063' });
-    expect(plan.executionGroups[1]!.gasUsd).toBe('0.738');
-    expect(plan.totalGasUsd).toBe('0.801');
-    expect(plan.checkpoints).toHaveLength(1);
-    expect(
-      plan.executionGroups.flatMap((group) => [
-        ...group.approvals,
-        ...group.calls,
-      ]),
-    ).not.toContainEqual(expect.objectContaining({ chainId: 1 }));
-    expect(buildSwap).not.toHaveBeenCalled();
-
-    const nativePlan = await service.buildDeposit({
-      kind: 'strategy',
-      strategyId: 'zap-morpho-gmx-v1',
-      userAddress: USER,
-      totalUsd6: '100000000',
-      fundingSources: [
-        { chainId: 8453, fromToken: NATIVE_TOKEN_ADDRESS },
-        { chainId: 42161, fromToken: USDC },
-      ],
-    });
-
-    expect(buildSwap).toHaveBeenCalledWith({
-      type: 'SWAP',
-      chainId: 8453,
-      fromAddress: USER,
-      fromToken: NATIVE_TOKEN_ADDRESS,
-      toToken: BASE_USDC,
-      fromAmount: '13333333333333333',
-    });
-    expect(buildSupply).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        fromToken: BASE_USDC,
-        fromAmount: '39800000',
-      }),
-      expect.anything(),
-    );
-    expect(nativePlan.executionGroups[0]).toMatchObject({
-      fromToken: NATIVE_TOKEN_ADDRESS,
-      fromAmount: '13333333333333333',
-    });
-    expect(
-      nativePlan.executionGroups[0]!.calls.map(
-        (transaction) => transaction.meta.intentType,
-      ),
-    ).toEqual(['SWAP', 'SUPPLY']);
-    const baseVaultApproval = decodeFunctionData({
-      abi: erc20Abi,
-      data: nativePlan.executionGroups[0]!.approvals[0]!.data as `0x${string}`,
-    });
-    expect(baseVaultApproval.args).toEqual([
-      '0x7BfA7C4f149E7415b73bdeDfe609237e29CBF34A',
-      39800000n,
-    ]);
-  });
+      expect(nativePlan.executionGroups[0]).toMatchObject({
+        fromToken: NATIVE_TOKEN_ADDRESS,
+        fromAmount: '13333333333333333',
+      });
+      expect(
+        nativePlan.executionGroups[0]!.calls.map(
+          (transaction) => transaction.meta.intentType,
+        ),
+      ).toEqual(['SWAP', 'SUPPLY']);
+      const baseVaultApproval = decodeFunctionData({
+        abi: erc20Abi,
+        data: nativePlan.executionGroups[0]!.approvals[0]!
+          .data as `0x${string}`,
+      });
+      expect(baseVaultApproval.args).toEqual([
+        '0x7BfA7C4f149E7415b73bdeDfe609237e29CBF34A',
+        39800000n,
+      ]);
+    },
+  );
 
   it('builds one rich review without running the pass/fail simulation twice', async () => {
     const composeDeposit = vi.fn().mockResolvedValue({
@@ -1672,4 +1691,44 @@ describe('plan-orchestration service', () => {
       });
     }
   });
+});
+
+describe('GMX simulation submission gates', () => {
+  it.each(['deposit', 'withdraw'] as const)(
+    'blocks %s on explicit simulation failure',
+    async (kind) => {
+      const simulateBundle = vi
+        .fn()
+        .mockResolvedValue({ status: 'failed', reason: 'execution reverted' });
+      const { service } = makeService(0n, { adapter: { simulateBundle } });
+      const operation =
+        kind === 'deposit'
+          ? service.buildDeposit({
+              kind: 'gmx-v2',
+              marketKey: 'eth-usdc',
+              fromToken: USDC,
+              amount: '1000',
+              userAddress: USER,
+            })
+          : service.buildWithdraw({
+              kind: 'gmx-v2',
+              marketKey: 'eth-usdc',
+              gmAmount: '5000',
+              userAddress: USER,
+            });
+      await expect(operation).rejects.toThrow('execution reverted');
+      expect(simulateBundle).toHaveBeenCalledWith({
+        chainId: 42161,
+        from: USER,
+        calls: [
+          expect.objectContaining({
+            to: kind === 'deposit' ? USDC : GM_TOKEN,
+            data: approveData(GMX_ROUTER, kind === 'deposit' ? 1000n : 5000n),
+            chainId: 42161,
+          }),
+          ...(kind === 'deposit' ? gmxPlan.steps : gmxWithdrawPlan.steps),
+        ],
+      });
+    },
+  );
 });

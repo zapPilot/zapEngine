@@ -86,6 +86,23 @@ describe('WalletBindingChallengeService', () => {
     ).resolves.toBe(false);
   });
 
+  it('cannot use wallet A proof to verify wallet B with its own pending challenge', async () => {
+    const other = privateKeyToAccount(
+      '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d',
+    );
+    const service = createWalletBindingChallengeService();
+    const first = service.issueChallenge(USER_ID, account.address);
+    const second = service.issueChallenge(USER_ID, other.address);
+    const signature = await account.signMessage({ message: first.message });
+    await expect(
+      service.verifyChallenge(USER_ID, other.address, signature),
+    ).resolves.toBe(false);
+    const valid = await other.signMessage({ message: second.message });
+    await expect(
+      service.verifyChallenge(USER_ID, other.address, valid),
+    ).resolves.toBe(true);
+  });
+
   it('consumes the challenge on successful verification (no replay)', async () => {
     const service = createWalletBindingChallengeService();
     const challenge = service.issueChallenge(USER_ID, account.address);

@@ -360,6 +360,25 @@ describe('composeDeposit', () => {
     expect(
       plan.legs.reduce((sum, leg) => sum + BigInt(leg.fromAmount), 0n),
     ).toBe(10001n);
+    expect(plan.approvals).toHaveLength(2);
+    expect(
+      plan.approvals.map((approval) => ({
+        token: approval.to,
+        decoded: decodeFunctionData({
+          abi: erc20Abi,
+          data: approval.data as `0x${string}`,
+        }),
+      })),
+    ).toEqual([
+      {
+        token: BASE_USDC,
+        decoded: { functionName: 'approve', args: [MORPHO_BASE_USDC, 6000n] },
+      },
+      {
+        token: BASE_USDC,
+        decoded: { functionName: 'approve', args: [LIFI_DIAMOND, 4001n] },
+      },
+    ]);
     // Execution invariant: the frontend correlates legs[i] with calls[i].
     expect(plan.calls).toHaveLength(plan.legs.length);
   });

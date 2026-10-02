@@ -240,6 +240,34 @@ describe('Hono app routes', () => {
     ).not.toHaveBeenCalled();
   });
 
+  it.each([undefined, 'Basic privy-access-token'])(
+    'rejects prepare calls without a Bearer token (%s)',
+    async (authorization) => {
+      const services = createServices();
+      const response = await createApp(services).request(
+        'http://localhost/wallet-execution/privy/prepare-send-calls',
+        {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            ...(authorization ? { authorization } : {}),
+          },
+          body: JSON.stringify({
+            walletId: 'privy-wallet-id',
+            walletAddress: '0x1111111111111111111111111111111111111111',
+            chainId: 8453,
+            calls: [{ to: '0x2222222222222222222222222222222222222222' }],
+            idempotencyKey: 'batch-request-id',
+          }),
+        },
+      );
+      expect(response.status).toBe(401);
+      expect(
+        services.privyWalletExecutionService.prepareSendCalls,
+      ).not.toHaveBeenCalled();
+    },
+  );
+
   it('handles connect-wallet with validated JSON body', async () => {
     const services = createServices();
     const app = createApp(services);

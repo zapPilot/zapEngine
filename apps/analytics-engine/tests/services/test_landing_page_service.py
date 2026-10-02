@@ -71,7 +71,7 @@ def _make_snapshot(
 
 
 def _make_service(
-    db_session: Session,
+    mock_db: Session,
     *,
     snapshot: PortfolioSnapshot | None = None,
     pool_details: list[dict[str, Any]] | None = None,
@@ -122,7 +122,7 @@ def _make_service(
     )
 
     service = LandingPageService(
-        db=db_session,
+        db=mock_db,
         wallet_service=wallet_service,
         query_service=query_service,
         portfolio_snapshot_service=snapshot_service,
@@ -135,10 +135,12 @@ def _make_service(
     return service, wallet_service, snapshot_service, pool_service
 
 
-def test_get_landing_page_data_with_wallet_summary(
-    db_session: Session, create_test_user_and_wallets: tuple
-) -> None:
-    user_id, wallet_addresses = create_test_user_and_wallets
+def test_get_landing_page_data_with_wallet_summary(mock_db: Session) -> None:
+    user_id = UUID("123e4567-e89b-12d3-a456-426614174000")
+    wallet_addresses = [
+        "0x1111111111111111111111111111111111111111",
+        "0x2222222222222222222222222222222222222222",
+    ]
 
     summary = {
         "total_assets": 230.0,
@@ -168,7 +170,7 @@ def test_get_landing_page_data_with_wallet_summary(
     )
 
     service, wallet_service, snapshot_service, _ = _make_service(
-        db_session,
+        mock_db,
         snapshot=snapshot,
     )
 
@@ -198,8 +200,8 @@ def test_get_landing_page_data_with_wallet_summary(
     assert result.positions == 0  # No pool positions
 
 
-def test_fetch_wallet_summary_without_wallets(db_session: Session) -> None:
-    service, wallet_service, _, _ = _make_service(db_session)
+def test_fetch_wallet_summary_without_wallets(mock_db: Session) -> None:
+    service, wallet_service, _, _ = _make_service(mock_db)
 
     aggregate = service._fetch_wallet_summary(UUID(int=0), wallet_addresses=[])
 
@@ -208,8 +210,8 @@ def test_fetch_wallet_summary_without_wallets(db_session: Session) -> None:
     assert aggregate.token_count == 0
 
 
-def test_fetch_wallet_summary_applies_override(db_session: Session) -> None:
-    service, wallet_service, _, _ = _make_service(db_session)
+def test_fetch_wallet_summary_applies_override(mock_db: Session) -> None:
+    service, wallet_service, _, _ = _make_service(mock_db)
 
     wallet_addresses = ["0xabc"]
     mock_summary = WalletAggregate(
@@ -248,11 +250,13 @@ def test_fetch_wallet_summary_applies_override(db_session: Session) -> None:
     assert aggregate.categories["btc"].value == pytest.approx(200.0)
 
 
-def test_get_landing_page_data_includes_pool_counts(
-    db_session: Session, create_test_user_and_wallets: tuple
-) -> None:
+def test_get_landing_page_data_includes_pool_counts(mock_db: Session) -> None:
     """Verify pool counts are populated in landing page response."""
-    user_id, wallet_addresses = create_test_user_and_wallets
+    user_id = UUID("123e4567-e89b-12d3-a456-426614174000")
+    wallet_addresses = [
+        "0x1111111111111111111111111111111111111111",
+        "0x2222222222222222222222222222222222222222",
+    ]
 
     # Mock pool counts (simulating 1 position on Aave V3 on ethereum)
     pool_counts = {"positions": 1, "protocols": 1, "chains": 1}
@@ -281,7 +285,7 @@ def test_get_landing_page_data_includes_pool_counts(
     )
 
     service, wallet_service, _, pool_service = _make_service(
-        db_session,
+        mock_db,
         snapshot=snapshot,
         pool_details=[],  # No longer used, but kept for _make_service compatibility
     )
@@ -316,11 +320,13 @@ def test_get_landing_page_data_includes_pool_counts(
     assert hasattr(result, "chains")
 
 
-def test_get_landing_page_data_handles_pool_service_failure(
-    db_session: Session, create_test_user_and_wallets: tuple
-) -> None:
+def test_get_landing_page_data_handles_pool_service_failure(mock_db: Session) -> None:
     """Verify graceful degradation when pool service fails."""
-    user_id, wallet_addresses = create_test_user_and_wallets
+    user_id = UUID("123e4567-e89b-12d3-a456-426614174000")
+    wallet_addresses = [
+        "0x1111111111111111111111111111111111111111",
+        "0x2222222222222222222222222222222222222222",
+    ]
 
     summary = {
         "total_assets": 1000.0,
@@ -341,7 +347,7 @@ def test_get_landing_page_data_handles_pool_service_failure(
     )
 
     service, wallet_service, _, pool_service = _make_service(
-        db_session,
+        mock_db,
         snapshot=snapshot,
     )
 
@@ -374,9 +380,9 @@ def test_get_landing_page_data_handles_pool_service_failure(
     assert result.total_net_usd == pytest.approx(1000.0)
 
 
-def test_empty_response_has_zero_pool_counts(db_session: Session) -> None:
+def test_empty_response_has_zero_pool_counts(mock_db: Session) -> None:
     """Verify empty response includes zero pool counts."""
-    service, _, _, _ = _make_service(db_session, snapshot=None)
+    service, _, _, _ = _make_service(mock_db, snapshot=None)
 
     result = service.get_landing_page_data(UUID(int=0))
 
@@ -387,9 +393,9 @@ def test_empty_response_has_zero_pool_counts(db_session: Session) -> None:
     assert result.wallet_count == 0
 
 
-def test_validate_consistency_wallet_match(db_session: Session) -> None:
+def test_validate_consistency_wallet_match(mock_db: Session) -> None:
     """Wallet totals match - validation should pass."""
-    service, _, _, _ = _make_service(db_session, snapshot=None)
+    service, _, _, _ = _make_service(mock_db, snapshot=None)
     user_id = UUID(int=1)
 
     # Both wallet totals match - should NOT raise
@@ -400,9 +406,9 @@ def test_validate_consistency_wallet_match(db_session: Session) -> None:
     )
 
 
-def test_validate_consistency_wallet_within_threshold(db_session: Session) -> None:
+def test_validate_consistency_wallet_within_threshold(mock_db: Session) -> None:
     """Wallet totals differ but within 5% threshold - should pass."""
-    service, _, _, _ = _make_service(db_session, snapshot=None)
+    service, _, _, _ = _make_service(mock_db, snapshot=None)
     user_id = UUID(int=1)
 
     # 3% difference - should NOT raise
@@ -413,9 +419,9 @@ def test_validate_consistency_wallet_within_threshold(db_session: Session) -> No
     )
 
 
-def test_validate_consistency_wallet_mismatch(db_session: Session) -> None:
+def test_validate_consistency_wallet_mismatch(mock_db: Session) -> None:
     """Wallet totals differ >5% - validation should raise."""
-    service, _, _, _ = _make_service(db_session, snapshot=None)
+    service, _, _, _ = _make_service(mock_db, snapshot=None)
     user_id = UUID(int=1)
 
     # 50% difference - should raise CrossServiceConsistencyError
@@ -432,9 +438,9 @@ def test_validate_consistency_wallet_mismatch(db_session: Session) -> None:
     assert "1000.0" in str(error)
 
 
-def test_validate_consistency_both_zero(db_session: Session) -> None:
+def test_validate_consistency_both_zero(mock_db: Session) -> None:
     """Both totals are zero - validation should pass."""
-    service, _, _, _ = _make_service(db_session, snapshot=None)
+    service, _, _, _ = _make_service(mock_db, snapshot=None)
     user_id = UUID(int=1)
 
     # Both zero - should NOT raise
@@ -445,9 +451,9 @@ def test_validate_consistency_both_zero(db_session: Session) -> None:
     )
 
 
-def test_validate_consistency_one_zero(db_session: Session) -> None:
+def test_validate_consistency_one_zero(mock_db: Session) -> None:
     """One total is zero, other is not - validation should raise."""
-    service, _, _, _ = _make_service(db_session, snapshot=None)
+    service, _, _, _ = _make_service(mock_db, snapshot=None)
     user_id = UUID(int=1)
 
     # One is zero, other is not - should raise
@@ -460,12 +466,16 @@ def test_validate_consistency_one_zero(db_session: Session) -> None:
 
 
 def test_snapshot_date_extracted_and_passed_to_pool_performance(
-    db_session: Session, create_test_user_and_wallets: tuple
+    mock_db: Session,
 ) -> None:
     """Test that canonical snapshot date is passed to pool service."""
     from datetime import date
 
-    user_id, wallet_addresses = create_test_user_and_wallets
+    user_id = UUID("123e4567-e89b-12d3-a456-426614174000")
+    wallet_addresses = [
+        "0x1111111111111111111111111111111111111111",
+        "0x2222222222222222222222222222222222222222",
+    ]
 
     # Create snapshot with specific last_updated date (no longer used for routing)
     # Use consistent values: 500 wallet total out of 500 total (100% wallet, 0% DeFi)
@@ -498,7 +508,7 @@ def test_snapshot_date_extracted_and_passed_to_pool_performance(
     # Create service with mocked pool service
     canonical_date = date(2025, 12, 27)
     service, wallet_service, snapshot_service, pool_service = _make_service(
-        db_session,
+        mock_db,
         snapshot=snapshot,
         pool_details=[],
         canonical_snapshot_date=canonical_date,
@@ -533,11 +543,13 @@ def test_snapshot_date_extracted_and_passed_to_pool_performance(
     assert call_args.kwargs["snapshot_date"] == canonical_date
 
 
-def test_snapshot_date_none_when_snapshot_has_no_last_updated(
-    db_session: Session, create_test_user_and_wallets: tuple
-) -> None:
+def test_snapshot_date_none_when_snapshot_has_no_last_updated(mock_db: Session) -> None:
     """Test that empty response returned when canonical snapshot date is None."""
-    user_id, wallet_addresses = create_test_user_and_wallets
+    user_id = UUID("123e4567-e89b-12d3-a456-426614174000")
+    wallet_addresses = [
+        "0x1111111111111111111111111111111111111111",
+        "0x2222222222222222222222222222222222222222",
+    ]
 
     # Create snapshot without last_updated (canonical date will be None)
     # Use consistent values: 500 wallet total out of 500 total (100% wallet, 0% DeFi)
@@ -568,7 +580,7 @@ def test_snapshot_date_none_when_snapshot_has_no_last_updated(
 
     # Create service with mocked pool service
     service, wallet_service, snapshot_service, pool_service = _make_service(
-        db_session,
+        mock_db,
         snapshot=snapshot,
         pool_details=[],
         canonical_snapshot_date=None,
@@ -602,11 +614,13 @@ def test_snapshot_date_none_when_snapshot_has_no_last_updated(
     pool_service.get_pool_performance.assert_not_called()
 
 
-def test_injects_precise_timestamp_into_response(
-    db_session: Session, create_test_user_and_wallets: tuple
-) -> None:
+def test_injects_precise_timestamp_into_response(mock_db: Session) -> None:
     """Verify that precise last_updated timestamp from SnapshotInfo is injected."""
-    user_id, wallet_addresses = create_test_user_and_wallets
+    user_id = UUID("123e4567-e89b-12d3-a456-426614174000")
+    wallet_addresses = [
+        "0x1111111111111111111111111111111111111111",
+        "0x2222222222222222222222222222222222222222",
+    ]
 
     # Create a precise timestamp
     precise_ts = datetime(2025, 1, 1, 14, 30, 0, tzinfo=UTC)
@@ -620,7 +634,7 @@ def test_injects_precise_timestamp_into_response(
     # or is used.
 
     # Create service
-    service, _, _, _ = _make_service(db_session, snapshot=snapshot)
+    service, _, _, _ = _make_service(mock_db, snapshot=snapshot)
 
     # Mock get_snapshot_info to return our precise timestamp
     service.canonical_snapshot_service.get_snapshot_info.return_value = SnapshotInfo(

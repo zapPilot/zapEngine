@@ -245,18 +245,23 @@ async def _replace_daily_snapshots_from_test_raw_data(
                   user_wallet_address, token_address, chain, symbol,
                   amount, price, snapshot_date
                 )
-                SELECT
+                SELECT DISTINCT ON (
+                  lower(user_wallet_address), token_address, chain,
+                  (inserted_at AT TIME ZONE 'UTC')::date
+                )
                   lower(user_wallet_address),
                   token_address,
                   chain,
                   symbol,
                   amount,
                   price,
-                  inserted_at::date
+                  (inserted_at AT TIME ZONE 'UTC')::date
                 FROM alpha_raw.wallet_token_snapshots
                 WHERE is_wallet IS TRUE
                   AND token_address IS NOT NULL
                   AND btrim(token_address) <> ''
+                ORDER BY lower(user_wallet_address), token_address, chain,
+                  (inserted_at AT TIME ZONE 'UTC')::date, inserted_at DESC, id DESC
                 ON CONFLICT (
                   user_wallet_address, token_address, chain, snapshot_date
                 ) DO UPDATE SET

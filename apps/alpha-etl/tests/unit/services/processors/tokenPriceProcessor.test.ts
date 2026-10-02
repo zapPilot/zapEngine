@@ -1,15 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import {
-  generateDateRange,
-  calculateMissingDates,
-  formatDateToYYYYMMDD,
-} from '../../../../src/utils/dateUtils.js';
-import { logger as mockLogger } from '../../../../src/utils/logger.js';
-
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // Hoisted mocks - must be declared before vi.mock
 const { mockFetcher, mockWriter } = vi.hoisted(() => ({
   mockFetcher: {
-    fetchCurrentPrice: vi.fn(),
+    fetchCurrentPrices: vi.fn(),
     fetchHistoricalPrice: vi.fn(),
     formatDateForApi: vi.fn((date: Date) =>
       date.toISOString().split('T')[0].split('-').reverse().join('-'),
@@ -32,185 +25,35 @@ vi.mock('../../../../src/utils/logger.js', async () => {
   return mockLogger();
 });
 
-vi.mock('../../../../src/modules/token-price/processor.js', async () => {
-  const actualModule = await vi.importActual<
-    typeof import('../../../../src/modules/token-price/processor.js')
-  >('../../../../src/modules/token-price/processor.js');
-
-  // Create a MockedTokenPriceETLProcessor that uses hoisted mock objects directly
-  class MockedTokenPriceETLProcessor {
-    private fetcher = mockFetcher;
-    private writer = mockWriter;
-    private stats = {
-      totalProcessed: 0,
-      totalInserted: 0,
-      totalErrors: 0,
-      lastProcessedAt: null as Date | null,
+vi.mock('../../../../src/modules/token-price/fetcher.js', () => ({
+  CoinGeckoFetcher: vi.fn(function () {
+    return mockFetcher;
+  }),
+}));
+vi.mock('../../../../src/modules/token-price/writer.js', () => ({
+  TokenPriceWriter: vi.fn(function () {
+    return mockWriter;
+  }),
+}));
+vi.mock('../../../../src/modules/token-price/coinMarketCapFetcher.js', () => ({
+  CoinMarketCapPriceFetcher: vi.fn(function () {
+    return {
+      fetchCurrentPrices: vi
+        .fn()
+        .mockRejectedValue(new Error('Fallback unavailable')),
     };
-
-    getSourceType() {
-      return 'token-price';
-    }
-
-    getStats() {
-      const successRate =
-        this.stats.totalProcessed > 0
-          ? (
-              ((this.stats.totalProcessed - this.stats.totalErrors) /
-                this.stats.totalProcessed) *
-              100
-            ).toFixed(2) + '%'
-          : '0.00%';
-      return { ...this.stats, successRate };
-    }
-
-    async process() {
-      this.stats.totalProcessed++;
-      this.stats.lastProcessedAt = new Date();
-
-      try {
-        const priceData = await this.fetcher.fetchCurrentPrice(
-          'bitcoin',
-          'BTC',
-        );
-        await this.writer.insertSnapshot(priceData);
-        this.stats.totalInserted++;
-        return {
-          success: true,
-          recordsProcessed: 1,
-          recordsInserted: 1,
-          errors: [],
-          source: 'token-price',
-        };
-      } catch (error) {
-        this.stats.totalErrors++;
-        return {
-          success: false,
-          recordsProcessed: 1,
-          recordsInserted: 0,
-          errors: [error instanceof Error ? error.message : 'Unknown error'],
-          source: 'token-price',
-        };
-      }
-    }
-
-    async backfillHistory(
-      daysBack = 30,
-      tokenId = 'bitcoin',
-      tokenSymbol = 'BTC',
-    ) {
-      const source = 'coingecko';
-      const endDate = new Date();
-      endDate.setUTCHours(0, 0, 0, 0);
-
-      const startDate = new Date(endDate);
-      startDate.setUTCDate(startDate.getUTCDate() - daysBack + 1);
-
-      // Use gap detection via writer
-      let existingDates: string[] = [];
-      try {
-        existingDates = await this.writer.getExistingDatesInRange(
-          startDate,
-          endDate,
-          tokenSymbol,
-          source,
-        );
-      } catch (error) {
-        mockLogger.warn('Gap detection failed, proceeding with full backfill', {
-          error,
-        });
-        existingDates = [];
-      }
-
-      // Generate all dates in range and find missing ones
-      const allDates = generateDateRange(startDate, endDate);
-      const missingDates = calculateMissingDates(allDates, existingDates);
-
-      const snapshots: unknown[] = [];
-
-      // Only fetch missing dates (missingDates is Date[] from calculateMissingDates)
-      for (const date of missingDates) {
-        try {
-          const formattedDate = this.fetcher.formatDateForApi(date);
-          const priceData = await this.fetcher.fetchHistoricalPrice(
-            formattedDate,
-            tokenId,
-            tokenSymbol,
-          );
-          snapshots.push(priceData);
-        } catch (error) {
-          const dateStr = formatDateToYYYYMMDD(date);
-          mockLogger.error('Failed to fetch historical price', {
-            date: dateStr,
-            error,
-          });
-        }
-      }
-
-      // Batch insert
-      let inserted = 0;
-      if (snapshots.length > 0) {
-        inserted = await this.writer.insertBatch(snapshots);
-      }
-
-      return {
-        requested: daysBack,
-        existing: existingDates.length,
-        fetched: snapshots.length,
-        inserted,
-      };
-    }
-
-    async healthCheck(tokenId = 'bitcoin', tokenSymbol = 'BTC') {
-      try {
-        const apiStatus = await this.fetcher.healthCheck(tokenId, tokenSymbol);
-        const latestSnapshot = await this.writer.getLatestSnapshot(tokenSymbol);
-        const totalSnapshots = await this.writer.getSnapshotCount(tokenSymbol);
-
-        // Check data freshness
-        let dataFresh = false;
-        if (latestSnapshot) {
-          const lastDate = new Date(latestSnapshot.date);
-          const now = new Date();
-          const daysDiff = Math.floor(
-            (now.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24),
-          );
-          dataFresh = daysDiff <= 1;
-        }
-
-        const isHealthy = apiStatus.status === 'healthy' && dataFresh;
-
-        return {
-          status: isHealthy ? 'healthy' : 'unhealthy',
-          details: JSON.stringify({
-            apiStatus: apiStatus.status,
-            latestSnapshot: latestSnapshot?.date || 'none',
-            totalSnapshots,
-            dataFresh,
-            tokenId,
-            tokenSymbol,
-          }),
-        };
-      } catch (error) {
-        return {
-          status: 'unhealthy',
-          details: error instanceof Error ? error.message : 'Unknown error',
-        };
-      }
-    }
-  }
-
-  return {
-    ...actualModule,
-    TokenPriceETLProcessor: MockedTokenPriceETLProcessor,
-    CoinGeckoFetcher: vi.fn(function CoinGeckoFetcher() {
-      return mockFetcher;
-    }),
-    TokenPriceWriter: vi.fn(function TokenPriceWriter() {
-      return mockWriter;
-    }),
-  };
-});
+  }),
+}));
+vi.mock('../../../../src/config/database.js', () => ({ getDbPool: vi.fn() }));
+vi.mock('../../../../src/modules/token-price/dmaService.js', () => ({
+  TokenPriceDmaService: vi.fn(function () {
+    return {
+      updateDmaForToken: vi.fn().mockResolvedValue({ recordsInserted: 1 }),
+      updateEthBtcRatioDma: vi.fn().mockResolvedValue({ recordsInserted: 1 }),
+      getLatestDmaSnapshot: vi.fn().mockResolvedValue(null),
+    };
+  }),
+}));
 
 import { TokenPriceETLProcessor } from '../../../../src/modules/token-price/processor.js';
 
@@ -219,10 +62,12 @@ describe('TokenPriceProcessor', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-01-05T12:00:00Z'));
 
     // Reset mock implementations
     mockFetcher.fetchHistoricalPrice.mockReset();
-    mockFetcher.fetchCurrentPrice.mockReset();
+    mockFetcher.fetchCurrentPrices.mockReset();
     mockFetcher.healthCheck.mockReset();
     mockFetcher.formatDateForApi.mockImplementation((date: Date) =>
       date.toISOString().split('T')[0].split('-').reverse().join('-'),
@@ -235,6 +80,8 @@ describe('TokenPriceProcessor', () => {
 
     processor = new TokenPriceETLProcessor();
   });
+
+  afterEach(() => vi.useRealTimers());
 
   describe('backfillHistory with gap detection', () => {
     it('should call writer.getExistingDatesInRange with correct parameters', async () => {
@@ -277,7 +124,10 @@ describe('TokenPriceProcessor', () => {
       await processor.backfillHistory(2, 'bitcoin', 'BTC');
 
       // Verify batch insert was called
-      expect(mockWriter.insertBatch).toHaveBeenCalled();
+      expect(mockWriter.insertBatch).toHaveBeenCalledWith([
+        expect.objectContaining({ priceUsd: 50000, tokenSymbol: 'BTC' }),
+        expect.objectContaining({ priceUsd: 50000, tokenSymbol: 'BTC' }),
+      ]);
     }, 15000);
 
     it('should return result structure with all required fields', async () => {
@@ -295,14 +145,12 @@ describe('TokenPriceProcessor', () => {
 
       const result = await processor.backfillHistory(2, 'bitcoin', 'BTC');
 
-      expect(result).toHaveProperty('requested');
-      expect(result).toHaveProperty('existing');
-      expect(result).toHaveProperty('fetched');
-      expect(result).toHaveProperty('inserted');
-      expect(typeof result.requested).toBe('number');
-      expect(typeof result.existing).toBe('number');
-      expect(typeof result.fetched).toBe('number');
-      expect(typeof result.inserted).toBe('number');
+      expect(result).toEqual({
+        requested: 2,
+        existing: 0,
+        fetched: 2,
+        inserted: 2,
+      });
     }, 15000);
 
     it('should handle database errors gracefully during gap detection', async () => {
@@ -460,16 +308,18 @@ describe('TokenPriceProcessor', () => {
     };
 
     it('should process current price successfully', async () => {
-      mockFetcher.fetchCurrentPrice.mockResolvedValue({
-        priceUsd: 97500,
-        marketCapUsd: 1900000000000,
-        volume24hUsd: 45000000000,
-        tokenSymbol: 'BTC',
-        tokenId: 'bitcoin',
-        source: 'coingecko',
-        timestamp: new Date(),
-      });
-      mockWriter.insertSnapshot.mockResolvedValue(undefined);
+      mockFetcher.fetchCurrentPrices.mockResolvedValue([
+        {
+          priceUsd: 97500,
+          marketCapUsd: 1900000000000,
+          volume24hUsd: 45000000000,
+          tokenSymbol: 'BTC',
+          tokenId: 'bitcoin',
+          source: 'coingecko',
+          timestamp: new Date(),
+        },
+      ]);
+      mockWriter.insertSnapshot.mockResolvedValue(true);
 
       const result = await processor.process(mockJob);
 
@@ -477,32 +327,36 @@ describe('TokenPriceProcessor', () => {
       expect(result.recordsProcessed).toBe(1);
       expect(result.recordsInserted).toBe(1);
       expect(result.source).toBe('token-price');
-      expect(mockFetcher.fetchCurrentPrice).toHaveBeenCalledWith(
-        'bitcoin',
-        'BTC',
-      );
+      expect(mockFetcher.fetchCurrentPrices).toHaveBeenCalledWith([
+        { tokenId: 'bitcoin', tokenSymbol: 'BTC', coinMarketCapId: 1 },
+        { tokenId: 'ethereum', tokenSymbol: 'ETH', coinMarketCapId: 1027 },
+      ]);
     });
 
     it('should handle processing error', async () => {
-      mockFetcher.fetchCurrentPrice.mockRejectedValue(new Error('API Error'));
+      mockFetcher.fetchCurrentPrices.mockRejectedValue(new Error('API Error'));
 
       const result = await processor.process(mockJob);
 
       expect(result.success).toBe(false);
-      expect(result.errors).toContain('API Error');
+      expect(result.errors).toEqual([
+        'CoinGecko: API Error; CoinMarketCap: Fallback unavailable',
+      ]);
     });
 
     it('should track stats', async () => {
-      mockFetcher.fetchCurrentPrice.mockResolvedValue({
-        priceUsd: 97500,
-        marketCapUsd: 1900000000000,
-        volume24hUsd: 45000000000,
-        tokenSymbol: 'BTC',
-        tokenId: 'bitcoin',
-        source: 'coingecko',
-        timestamp: new Date(),
-      });
-      mockWriter.insertSnapshot.mockResolvedValue(undefined);
+      mockFetcher.fetchCurrentPrices.mockResolvedValue([
+        {
+          priceUsd: 97500,
+          marketCapUsd: 1900000000000,
+          volume24hUsd: 45000000000,
+          tokenSymbol: 'BTC',
+          tokenId: 'bitcoin',
+          source: 'coingecko',
+          timestamp: new Date(),
+        },
+      ]);
+      mockWriter.insertSnapshot.mockResolvedValue(true);
 
       await processor.process(mockJob);
 

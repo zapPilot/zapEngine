@@ -95,6 +95,8 @@ describe('verifySecret', () => {
   it('rejects missing and mismatched secret values', () => {
     expect(verifySecret(undefined, 'secret')).toBe(false);
     expect(verifySecret('wrong', 'secret')).toBe(false);
+    expect(verifySecret('secreT', 'secret')).toBe(false);
+    expect(verifySecret('xxxxxx', 'secret')).toBe(false);
   });
 
   it('accepts matching secret values', () => {

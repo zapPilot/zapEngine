@@ -37,12 +37,14 @@ const debankUsage = {
 
 describe('buildUserResourceUsageRows', () => {
   beforeEach(() => {
+    vi.stubEnv('TZ', 'Asia/Taipei');
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-08-28T23:30:00.000Z'));
   });
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.unstubAllEnvs();
   });
 
   it('bills only the wallets whose fetch succeeded', () => {

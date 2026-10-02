@@ -87,6 +87,15 @@ describe('MacroFearGreedWriter', () => {
       recordsInserted: 1,
       duplicatesSkipped: 0,
     });
+    expect(mockClient.query.mock.calls[0][0]).toMatch(
+      /ON CONFLICT \(source, snapshot_date\)\s+DO UPDATE SET/,
+    );
+    expect(mockClient.query.mock.calls[0][0]).toContain(
+      'score = EXCLUDED.score',
+    );
+    expect(mockClient.query.mock.calls[0][0]).toContain(
+      'label = EXCLUDED.label',
+    );
     expect(mockClient.query).toHaveBeenCalledWith(
       expect.stringContaining(
         'INSERT INTO alpha_raw.macro_fear_greed_snapshots',

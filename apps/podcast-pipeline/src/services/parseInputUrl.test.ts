@@ -1,19 +1,7 @@
 import { HTTPException } from 'hono/http-exception';
 import { describe, expect, it } from 'vitest';
 
-function parseInputUrl(value: string): string {
-  try {
-    const url = new URL(value);
-
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-      throw new Error('URL must use http or https');
-    }
-
-    return url.toString();
-  } catch {
-    throw new HTTPException(400, { message: 'Invalid url' });
-  }
-}
+import { parseInputUrl } from './request-validation.js';
 
 describe('parseInputUrl', () => {
   it('accepts https URLs', () => {

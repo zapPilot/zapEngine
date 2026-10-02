@@ -46,6 +46,27 @@ export function resolveError(
   error: unknown,
   requestId: string,
 ): ErrorResolution {
+  const bodyParserError = z
+    .object({
+      status: z.number().int().min(400).max(499),
+      type: z.string(),
+    })
+    .safeParse(error);
+  if (bodyParserError.success) {
+    const tooLarge = bodyParserError.data.status === 413;
+    return {
+      statusCode: bodyParserError.data.status,
+      apiError: {
+        code: 'VALIDATION_ERROR',
+        message: tooLarge
+          ? 'Request body exceeds the size limit'
+          : 'Invalid request body',
+        source: 'system',
+        context: { requestId },
+      },
+    };
+  }
+
   if (error instanceof z.ZodError) {
     return {
       statusCode: 400,

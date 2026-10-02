@@ -222,6 +222,26 @@ describe('POST /jobs/maintenance/telegram-token-cleanup', () => {
 });
 
 describe('POST /jobs/daily-suggestion/batch', () => {
+  it.each([undefined, 'wrong-key'])(
+    'rejects an unauthorized operator (%s) before queuing',
+    async (key) => {
+      const services = createServices();
+      const response = await createApp(services).request(
+        'http://localhost/jobs/daily-suggestion/batch',
+        {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            ...(key ? { 'x-api-key': key } : {}),
+          },
+          body: JSON.stringify({ userIds: [USER_ID] }),
+        },
+      );
+      expect(response.status).toBe(401);
+      expect(services.jobQueueService.createJob).not.toHaveBeenCalled();
+    },
+  );
+
   it.each([undefined, {}, { userIds: [] }, { userIds: ['not-a-uuid'] }])(
     'returns 400 for an invalid operator list',
     async (body) => {

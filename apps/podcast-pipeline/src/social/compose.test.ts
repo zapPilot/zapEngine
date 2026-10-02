@@ -84,7 +84,7 @@ describe('composeSocialContent', () => {
     });
     expect(composed.title).toBe('界'.repeat(100));
     expect(Array.from(composed.title ?? '')).toHaveLength(100);
-    expect(composed.body.startsWith('S'.repeat(4_500))).toBe(true);
+    expect(composed.body.split('\n\n')[0]).toBe('S'.repeat(4_500));
     expect(composed.body).toContain('https://www.zap-pilot.org');
   });
 

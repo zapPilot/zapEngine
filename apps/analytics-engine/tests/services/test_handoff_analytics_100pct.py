@@ -656,69 +656,7 @@ class TestRiskValidationEngineGaps:
         assert signal.latest_state is None
 
 
-class TestAllocatorMetricsRuleGaps:
-    def test_allocator_zero_weights_use_demands(self) -> None:
-        from unittest.mock import patch
-
-        import src.services.backtesting.asset_class_allocator as allocator_module
-        from src.services.backtesting.asset_class_allocator import (
-            allocate_stock_crypto_target,
-        )
-
-        # Lines asset_class_allocator.py:258-259 — zero weights fall back to
-        # demand-proportional split. Weights are zero for stable gates, so
-        # force that shape with demands summing above one.
-        with (
-            patch.object(allocator_module, "_gate_state", return_value="stable"),
-            patch.object(
-                allocator_module,
-                "_class_demand",
-                side_effect=[(0.7, 0.0), (0.6, 0.0)],
-            ),
-            patch.object(allocator_module, "_overextension_pressure", return_value=0.0),
-            patch.object(allocator_module, "_accumulation_score", return_value=0.0),
-        ):
-            result = allocate_stock_crypto_target(
-                stock_dma_distance=0.0,
-                crypto_dma_distance=0.0,
-                crypto_fgi_regime="neutral",
-                eth_share_in_crypto=0.5,
-                current_allocation={"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0},
-            )
-        assert result.allocation["spy"] == __import__("pytest").approx(
-            0.7 / 1.3, rel=1e-6
-        )
-        assert result.allocation["stable"] == __import__("pytest").approx(0.0)
-
-    def test_allocator_partial_score_reason(self) -> None:
-        from unittest.mock import patch
-
-        import src.services.backtesting.asset_class_allocator as allocator_module
-        from src.services.backtesting.asset_class_allocator import (
-            allocate_stock_crypto_target,
-        )
-
-        # Line asset_class_allocator.py:280 — stable with small demands and no
-        # pressure/accumulation/cross_down reads as a partial score.
-        with (
-            patch.object(allocator_module, "_gate_state", return_value="stable"),
-            patch.object(
-                allocator_module,
-                "_class_demand",
-                side_effect=[(0.2, 0.1), (0.1, 0.05)],
-            ),
-            patch.object(allocator_module, "_overextension_pressure", return_value=0.0),
-            patch.object(allocator_module, "_accumulation_score", return_value=0.0),
-        ):
-            result = allocate_stock_crypto_target(
-                stock_dma_distance=0.0,
-                crypto_dma_distance=0.0,
-                crypto_fgi_regime="neutral",
-                eth_share_in_crypto=0.5,
-                current_allocation={"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0},
-            )
-        assert result.stable_reason == "partial_asset_class_score"
-
+class TestMetricsAndRuleBoundaries:
     def test_performance_metrics_edge_cases(self) -> None:
         import numpy as np
 

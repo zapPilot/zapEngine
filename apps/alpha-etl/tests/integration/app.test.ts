@@ -57,6 +57,10 @@ const { mockWebhooksRouter, mockHealthRouter } = vi.hoisted(() => {
   const mockHealthRouter = Router();
 
   // Add mock routes to the routers
+  mockHealthRouter.post('/echo', (req: Request, res: Response) => {
+    res.json(req.body);
+  });
+
   mockHealthRouter.get('/', (_req: Request, res: Response) => {
     res.json({ status: 'healthy', timestamp: new Date().toISOString() });
   });
@@ -129,12 +133,9 @@ describe('Express Application', () => {
     it('should parse JSON bodies correctly', async () => {
       const testData = { test: 'data', nested: { value: 123 } };
 
-      // Since we can't easily test POST to / (it's not defined), we'll test that JSON parsing works
-      // by checking that the middleware is configured properly
-      const response = await request(app).get('/').send(testData);
-
-      // The request should still succeed even with a body on GET
+      const response = await request(app).post('/health/echo').send(testData);
       expect(response.status).toBe(200);
+      expect(response.body).toEqual(testData);
     });
 
     it('should handle large JSON payloads within limit', async () => {
@@ -149,6 +150,17 @@ describe('Express Application', () => {
       expect(response.status).toBe(200);
     });
 
+    it('rejects JSON above the configured 10 MB limit', async () => {
+      const response = await request(app)
+        .post('/health/echo')
+        .send({ data: 'a'.repeat(10 * 1024 * 1024) });
+      expect(response.status).toBe(413);
+      expect(response.body).toMatchObject({
+        success: false,
+        error: { code: 'VALIDATION_ERROR' },
+      });
+    });
+
     it('should add request ID header to all requests', async () => {
       const response = await request(app).get('/');
 
@@ -159,11 +171,12 @@ describe('Express Application', () => {
 
     it('should handle URL encoded data', async () => {
       const response = await request(app)
-        .get('/')
+        .post('/health/echo')
         .type('form')
         .send('name=test&value=123');
 
       expect(response.status).toBe(200);
+      expect(response.body).toEqual({ name: 'test', value: '123' });
     });
   });
 
@@ -378,8 +391,11 @@ describe('Express Application', () => {
         .set('Content-Type', 'application/json')
         .send('{ invalid json }');
 
-      // Should return 500 for malformed JSON (actual behavior)
-      expect(response.status).toBe(500);
+      expect(response.status).toBe(400);
+      expect(response.body).toMatchObject({
+        success: false,
+        error: { code: 'VALIDATION_ERROR' },
+      });
     });
 
     it('should handle very long URLs', async () => {

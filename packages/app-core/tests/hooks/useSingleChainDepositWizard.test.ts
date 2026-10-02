@@ -233,6 +233,32 @@ describe('useSingleChainDepositWizard', () => {
     });
   });
 
+  it('deduplicates concurrent advances while a refreshed plan is pending', async () => {
+    mocks.readContract.mockResolvedValue(100_000_000n);
+    let resolveRefresh!: (plan: DepositPlan) => void;
+    mocks.getDepositPlan.mockResolvedValueOnce(basePlan).mockReturnValueOnce(
+      new Promise<DepositPlan>((resolve) => {
+        resolveRefresh = resolve;
+      }),
+    );
+    const { result } = renderHook(() => useSingleChainDepositWizard());
+    await act(async () => {
+      await result.current.start(baseRequest);
+    });
+    let first!: Promise<void>;
+    let second!: Promise<void>;
+    act(() => {
+      first = result.current.advance();
+      second = result.current.advance();
+    });
+    await waitFor(() => expect(mocks.getDepositPlan).toHaveBeenCalledTimes(2));
+    await act(async () => {
+      resolveRefresh(basePlan);
+      await Promise.all([first, second]);
+    });
+    expect(mocks.executeDepositPlanWithWallet).toHaveBeenCalledTimes(1);
+  });
+
   it('rejects execution when the connected account changed after planning', async () => {
     mocks.getDepositPlan.mockResolvedValue(basePlan);
     const { result } = renderHook(() => useSingleChainDepositWizard());

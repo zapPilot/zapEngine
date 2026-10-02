@@ -99,9 +99,13 @@ describe('checkReviewedBatchGuards', () => {
     });
   });
 
-  it('blocks a review missing its safety hashes', () => {
+  it.each([
+    'expectedRiskHash',
+    'expectedSimulationFingerprint',
+    'expectedBatchFingerprint',
+  ] as const)('blocks a review missing %s', (field) => {
     const guard = checkReviewedBatchGuards(
-      input({ expectedRiskHash: '' }),
+      input({ [field]: '' }),
       WALLET_ADDRESS,
     );
     expect(guard).toMatchObject({

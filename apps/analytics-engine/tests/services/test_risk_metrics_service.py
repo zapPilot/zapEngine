@@ -316,7 +316,7 @@ class TestMaxDrawdownCalculation:
         assert result["max_drawdown_date"] == "2023-01-04"
         assert result["peak_value"] == 1200.0
         assert result["trough_value"] == 600.0
-        assert result["recovery_needed_percentage"] == 50.0
+        assert result["recovery_needed_percentage"] == 100.0
         assert result["current_drawdown"] == -0.25
         assert result["current_drawdown_percentage"] == -25.0
 
@@ -1014,3 +1014,32 @@ class TestSharpeRatioConfigurableRiskFreeRate:
         assert result_7_days["period_days"] == 7
         assert result_30_days["period_days"] == 30
         assert result_90_days["period_days"] == 90
+
+
+@pytest.mark.parametrize(
+    ("trough", "recovery"), [(1000.0, 0.0), (800.0, 25.0), (500.0, 100.0), (0.0, None)]
+)
+def test_recovery_gain_from_maximum_drawdown_trough(
+    risk_service, sample_user_id, mocker, trough, recovery
+):
+    mocker.patch.object(
+        QueryService,
+        "execute_query",
+        return_value=[
+            {
+                "date": "2023-01-01",
+                "portfolio_value": 1000.0,
+                "peak_value": 1000.0,
+                "drawdown_pct": 0.0,
+            },
+            {
+                "date": "2023-01-02",
+                "portfolio_value": trough,
+                "peak_value": 1000.0,
+                "drawdown_pct": (trough - 1000.0) / 1000.0,
+            },
+        ],
+    )
+    result = risk_service.calculate_max_drawdown(sample_user_id)
+    assert result["recovery_needed_percentage"] == recovery
+    assert result.model_dump(mode="json")["recovery_needed_percentage"] == recovery

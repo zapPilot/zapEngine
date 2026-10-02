@@ -658,16 +658,27 @@ describe('Fish Audio TTS provider', () => {
     vi.stubGlobal('fetch', mockFetch);
     vi.stubEnv('FISH_AUDIO_API_KEY', 'fish-test-key');
 
-    const result = await synthesize('retry after test', {
-      languageCode: 'en',
-      config: {
-        modelId: 'custom-reference-id',
-        engine: 's2-pro',
-      },
-    });
+    vi.useFakeTimers();
+    try {
+      const pending = synthesize('retry after test', {
+        languageCode: 'en',
+        config: {
+          modelId: 'custom-reference-id',
+          engine: 's2-pro',
+        },
+      });
 
-    expect(result.audio).toEqual(Buffer.from([0x49, 0x44, 0x33, 0x04]));
-    expect(mockFetch).toHaveBeenCalledTimes(2);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1999);
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      const result = await pending;
+      expect(result.audio).toEqual(Buffer.from([0x49, 0x44, 0x33, 0x04]));
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('falls back from an invalid retry-after header to the configured retry delay', async () => {
@@ -736,16 +747,27 @@ describe('Fish Audio TTS provider', () => {
     vi.stubGlobal('fetch', mockFetch);
     vi.stubEnv('FISH_AUDIO_API_KEY', 'fish-test-key');
 
-    const result = await synthesize('invalid env retry delay', {
-      languageCode: 'en',
-      config: {
-        modelId: 'custom-reference-id',
-        engine: 's2-pro',
-      },
-    });
+    vi.useFakeTimers();
+    try {
+      const pending = synthesize('invalid env retry delay', {
+        languageCode: 'en',
+        config: {
+          modelId: 'custom-reference-id',
+          engine: 's2-pro',
+        },
+      });
 
-    expect(result.audio).toEqual(Buffer.from([0x49, 0x44, 0x33, 0x04]));
-    expect(mockFetch).toHaveBeenCalledTimes(2);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1999);
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      const result = await pending;
+      expect(result.audio).toEqual(Buffer.from([0x49, 0x44, 0x33, 0x04]));
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('uses request-size and inter-request-delay defaults when env vars are absent', async () => {
@@ -839,7 +861,7 @@ describe('Fish Audio TTS provider', () => {
       },
     });
 
-    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(mockFetch).toHaveBeenCalledTimes(3);
 
     const firstBody = JSON.parse(
       (mockFetch.mock.calls[0] as [string, { body: string }])[1].body,
@@ -851,10 +873,15 @@ describe('Fish Audio TTS provider', () => {
     );
     expect(secondBody.text).toContain('。');
 
-    expect(result.audio).toBeDefined();
+    const texts = mockFetch.mock.calls.map(
+      ([, init]) => JSON.parse(init.body).text as string,
+    );
+    expect(texts.join('')).toBe(text);
+    expect(texts.every((chunk) => chunk.length <= 20)).toBe(true);
+    expect(result.audio.length).toBeGreaterThan(0);
   });
 
-  it('does not append an empty trailing chunk when a delimiter consumes the remainder', async () => {
+  it('keeps a delimiter beyond the character cap in the next chunk', async () => {
     vi.stubEnv('FISH_AUDIO_MAX_CHARS_PER_REQUEST', '10');
     vi.stubEnv('FISH_AUDIO_API_KEY', 'fish-test-key');
     const mockFetch = vi
@@ -867,11 +894,16 @@ describe('Fish Audio TTS provider', () => {
       config: { modelId: 'model', engine: 's2-pro' },
     });
 
-    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
     const body = JSON.parse(
       (mockFetch.mock.calls[0] as [string, { body: string }])[1].body,
     ) as { text: string };
-    expect(body.text).toBe('abcdefghij. ');
+    expect(body.text).toBe('abcdefghij');
+    const texts = mockFetch.mock.calls.map(
+      ([, init]) => JSON.parse(init.body).text as string,
+    );
+    expect(texts).toEqual(['abcdefghij', '. ']);
+    expect(texts.every((chunk) => chunk.length <= 10)).toBe(true);
   });
 
   // === WP-9: Resilience tests (idle/total timeout, chunking, concat order) ===

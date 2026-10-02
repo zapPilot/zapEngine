@@ -214,6 +214,39 @@ describe('createVideoJobRepository', () => {
       p_lease_owner: 'worker-1',
       p_visual_version: EPISODE_VIDEO_VISUAL_VERSION,
     });
+    expect(supabase.rpc).toHaveBeenNthCalledWith(
+      3,
+      'renew_episode_video_lease',
+      {
+        p_episode_localization_id: 'localization-1',
+        p_lease_owner: 'worker-1',
+      },
+    );
+    expect(supabase.rpc).toHaveBeenNthCalledWith(
+      4,
+      'save_episode_video_manifest',
+      {
+        p_episode_localization_id: 'localization-1',
+        p_lease_owner: 'worker-1',
+        p_manifest: { schemaVersion: 'v1' },
+        p_manifest_hash: 'manifest-hash',
+        p_renderer_version: 'renderer-v1',
+        p_storyboard_provider: 'deterministic',
+        p_storyboard_model: 'model',
+        p_storyboard_prompt_version: 'prompt-v1',
+        p_script_hash: 'script-hash',
+      },
+    );
+    expect(supabase.rpc).toHaveBeenNthCalledWith(5, 'complete_episode_video', {
+      p_episode_localization_id: 'localization-1',
+      p_lease_owner: 'worker-1',
+      p_mp4_url: 'https://cdn.example.com/video.mp4',
+      p_thumbnail_url: 'https://cdn.example.com/thumbnail.png',
+      p_manifest_url: 'https://cdn.example.com/manifest.json',
+      p_captions_ass_url: 'https://cdn.example.com/captions.ass',
+      p_r2_prefix: 'episodes/1/video',
+      p_duration_seconds: 90,
+    });
     expect(supabase.rpc).toHaveBeenNthCalledWith(6, 'fail_episode_video', {
       p_episode_localization_id: 'localization-1',
       p_lease_owner: 'worker-1',

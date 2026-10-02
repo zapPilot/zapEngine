@@ -3,13 +3,17 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { sqlCode } from './__fixtures__/migrationSql.js';
+
 const repoRoot = path.resolve(process.cwd(), '../..');
-const migration = fs.readFileSync(
-  path.join(
-    repoRoot,
-    'supabase/migrations/20260827065915_add_ops_pipeline_telemetry.sql',
+const migration = sqlCode(
+  fs.readFileSync(
+    path.join(
+      repoRoot,
+      'supabase/migrations/20260827065915_add_ops_pipeline_telemetry.sql',
+    ),
+    'utf8',
   ),
-  'utf8',
 );
 
 describe('ops pipeline telemetry migration', () => {

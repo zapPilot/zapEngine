@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 
 import type { BrowserContext } from 'playwright-core';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { captureFlyBilling, FLY_BILLING_URL } from './capture.js';
 
@@ -35,7 +35,12 @@ function contextFor(p: ReturnType<typeof page>) {
   } as unknown as BrowserContext;
 }
 
-describe('captureFlyBilling coverage', () => {
+afterEach(() => {
+  vi.useRealTimers();
+  vi.clearAllMocks();
+});
+
+describe('captureFlyBilling session and timeout behavior', () => {
   it('exposes the single billing URL', () => {
     expect(FLY_BILLING_URL).toContain('fly.io/dashboard/');
   });
@@ -76,18 +81,27 @@ describe('captureFlyBilling coverage', () => {
     launchFlyChrome.mockResolvedValueOnce(ctx);
     restoreFlySession.mockResolvedValueOnce(0);
     saveFlySession.mockResolvedValueOnce(0);
-    const result = await captureFlyBilling();
-    expect(result).toEqual({ status: 'auth_required' });
-  }, 40000);
+    vi.useFakeTimers();
+    const pending = captureFlyBilling();
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(await pending).toEqual({ status: 'auth_required' });
+    expect(ctx.close).toHaveBeenCalledOnce();
+  });
 
   it('reports unavailable when the card never renders on the billing page', async () => {
     const p = page(FLY_BILLING_URL, '<html>no money</html>');
     const ctx = contextFor(p);
     launchFlyChrome.mockResolvedValueOnce(ctx);
     restoreFlySession.mockResolvedValueOnce(0);
-    const result = await captureFlyBilling();
-    expect(result.status).toBe('unavailable');
-  }, 40000);
+    vi.useFakeTimers();
+    const pending = captureFlyBilling();
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(await pending).toEqual({
+      status: 'unavailable',
+      reason: `Fly billing card did not render within 30s at ${FLY_BILLING_URL}`,
+    });
+    expect(ctx.close).toHaveBeenCalledOnce();
+  });
 
   it('maps a mid-capture exception to unavailable with a non-Error reason', async () => {
     const p = page(FLY_BILLING_URL);

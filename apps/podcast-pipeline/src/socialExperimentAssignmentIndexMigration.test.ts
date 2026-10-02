@@ -3,13 +3,17 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { sqlCode } from './__fixtures__/migrationSql.js';
+
 const repoRoot = path.resolve(process.cwd(), '../..');
-const migration = fs.readFileSync(
-  path.join(
-    repoRoot,
-    'supabase/migrations/20260824133000_index_social_experiment_assignments_episode.sql',
+const migration = sqlCode(
+  fs.readFileSync(
+    path.join(
+      repoRoot,
+      'supabase/migrations/20260824133000_index_social_experiment_assignments_episode.sql',
+    ),
+    'utf8',
   ),
-  'utf8',
 );
 
 describe('social experiment assignment episode index migration', () => {

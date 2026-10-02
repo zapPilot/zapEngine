@@ -80,13 +80,6 @@ describe('stock-price/writer', () => {
     mockClient = { query: vi.fn() } as MockDatabaseClient;
   });
 
-  it('should create writer', async () => {
-    const { StockPriceWriter } =
-      await import('../../../../src/modules/stock-price/writer.js');
-    writer = new StockPriceWriter();
-    expect(writer).toBeDefined();
-  });
-
   describe('insertSnapshot', () => {
     it('should insert snapshot successfully', async () => {
       mockClient.query.mockResolvedValue({
@@ -108,7 +101,12 @@ describe('stock-price/writer', () => {
         timestamp: new Date('2024-12-15'),
       });
 
-      expect(mockClient.query).toHaveBeenCalled();
+      expect(mockClient.query).toHaveBeenCalledWith(
+        expect.stringMatching(
+          /ON CONFLICT \(source, symbol, snapshot_date\)\s+DO UPDATE SET\s+price_usd = EXCLUDED.price_usd/,
+        ),
+        ['SPY', '2024-12-15', 4510.75, 'yahoo-finance', expect.any(String)],
+      );
 
       await writer.insertSnapshot({
         priceUsd: 4511,
@@ -116,7 +114,13 @@ describe('stock-price/writer', () => {
         source: 'yahoo-finance',
         timestamp: new Date('2024-12-16T12:00:00.000Z'),
       });
-      expect(mockClient.query).toHaveBeenCalledTimes(2);
+      expect(mockClient.query).toHaveBeenNthCalledWith(2, expect.any(String), [
+        'SPY',
+        '2024-12-16',
+        4511,
+        'yahoo-finance',
+        expect.any(String),
+      ]);
     });
 
     it('should throw when insert fails', async () => {
@@ -185,7 +189,7 @@ describe('stock-price/writer', () => {
 
     it('should fall back to rows length when rowCount is absent', async () => {
       mockClient.query.mockResolvedValue({
-        rows: [{ id: 1 }, { id: 2 }, { id: 3 }],
+        rows: [{ id: 1 }, { id: 2 }],
       });
 
       const { StockPriceWriter: Writer } =
@@ -209,7 +213,7 @@ describe('stock-price/writer', () => {
         },
       ]);
 
-      expect(result).toBe(3);
+      expect(result).toBe(2);
     });
 
     it('should throw on batch insert failure', async () => {

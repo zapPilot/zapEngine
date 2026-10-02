@@ -3,6 +3,7 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { sqlCode } from './__fixtures__/migrationSql.js';
 import {
   RENDER_JOB_PROGRESS_STAGES,
   VISUAL_JOB_PROGRESS_STAGES,
@@ -755,5 +756,5 @@ function functionDefinition(sql: string, name: string): string {
 }
 
 function readRepoFile(relativePath: string): string {
-  return fs.readFileSync(path.join(repoRoot, relativePath), 'utf8');
+  return sqlCode(fs.readFileSync(path.join(repoRoot, relativePath), 'utf8'));
 }

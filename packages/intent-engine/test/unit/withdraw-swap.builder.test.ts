@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { Address, PublicClient } from 'viem';
+import { decodeFunctionData, type Address, type PublicClient } from 'viem';
+import { MORPHO_VAULT_ABI } from '../../src/protocols/morpho/morpho.constants.js';
 
 import type { LiFiAdapter } from '../../src/adapters/lifi.adapter.js';
 import { buildWithdrawSwapTx } from '../../src/builders/withdraw-swap.builder.js';
@@ -82,6 +83,15 @@ describe('buildWithdrawSwapTx', () => {
     expect(getSwapQuote).not.toHaveBeenCalled();
     expect(plan.steps).toHaveLength(1);
     expect(plan.steps[0]!.to).toBe(VAULT);
+    expect(
+      decodeFunctionData({
+        abi: MORPHO_VAULT_ABI,
+        data: plan.steps[0]!.data as `0x${string}`,
+      }),
+    ).toMatchObject({
+      functionName: 'redeem',
+      args: [BigInt(SHARES), USER, USER],
+    });
     expect(plan.steps[0]!.meta.intentType).toBe('WITHDRAW');
     expect(plan.approval).toBeUndefined();
     expect(plan.estimates.expectedOutput).toBe(REDEEM_OUT.toString());
@@ -138,7 +148,16 @@ describe('buildWithdrawSwapTx', () => {
     });
 
     expect(plan.steps).toHaveLength(2);
-    expect(plan.steps[0]!.to).toBe(VAULT); // redeem
+    expect(plan.steps[0]!.to).toBe(VAULT);
+    expect(
+      decodeFunctionData({
+        abi: MORPHO_VAULT_ABI,
+        data: plan.steps[0]!.data as `0x${string}`,
+      }),
+    ).toMatchObject({
+      functionName: 'redeem',
+      args: [BigInt(SHARES), USER, USER],
+    }); // redeem
     expect(plan.steps[0]!.meta.intentType).toBe('WITHDRAW');
     expect(plan.steps[1]!.to).toBe(SWAP_TARGET); // LiFi swap
     expect(plan.approval).toEqual({

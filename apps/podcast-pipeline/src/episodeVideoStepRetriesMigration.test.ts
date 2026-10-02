@@ -3,13 +3,17 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { sqlCode } from './__fixtures__/migrationSql.js';
+
 const repoRoot = path.resolve(process.cwd(), '../..');
-const migration = fs.readFileSync(
-  path.join(
-    repoRoot,
-    'supabase/migrations/20260903090100_episode_video_step_retries_and_failure_diagnostics.sql',
+const migration = sqlCode(
+  fs.readFileSync(
+    path.join(
+      repoRoot,
+      'supabase/migrations/20260903090100_episode_video_step_retries_and_failure_diagnostics.sql',
+    ),
+    'utf8',
   ),
-  'utf8',
 );
 
 describe('episode video step retries migration', () => {

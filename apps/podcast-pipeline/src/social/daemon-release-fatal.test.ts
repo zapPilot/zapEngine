@@ -48,7 +48,6 @@ const mocks = vi.hoisted(() => ({
   captureDueAccountSnapshots: vi.fn().mockResolvedValue([]),
   capturePrePublishAccountSnapshots: vi.fn().mockResolvedValue([]),
   refreshSocialStrategies: vi.fn(),
-  getOrCreateExperimentAssignment: vi.fn(),
   getAllowedTelegramUserIds: vi.fn(),
   sendTelegramNotification: vi.fn().mockResolvedValue(undefined),
 }));
@@ -103,10 +102,6 @@ vi.mock('./metric-collectors.js', () => ({
 vi.mock('./strategy.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./strategy.js')>()),
   refreshSocialStrategies: mocks.refreshSocialStrategies,
-}));
-vi.mock('./experiments.js', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('./experiments.js')>()),
-  getOrCreateExperimentAssignment: mocks.getOrCreateExperimentAssignment,
 }));
 vi.mock('../lib/env.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../lib/env.js')>()),

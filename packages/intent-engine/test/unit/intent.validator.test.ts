@@ -167,6 +167,42 @@ describe('Intent Validators', () => {
     });
   });
 
+  it.each(['withdraw', 'rotate-source', 'rotate-target'] as const)(
+    'rejects a vault on the wrong chain for %s',
+    (kind) => {
+      const base = {
+        fromAddress: '0x1234567890123456789012345678901234567890',
+        chainId: 1,
+        shareAmount: '1000000',
+        protocol: 'morpho',
+      };
+      const baseVault = '0x7bfa7c4f149e7415b73bdefe609237e29cbf34a';
+      if (kind === 'withdraw')
+        expect(() =>
+          validateWithdrawIntent({
+            ...base,
+            type: 'WITHDRAW',
+            vaultAddress: baseVault,
+          }),
+        ).toThrow(ValidationError);
+      else
+        expect(() =>
+          validateRotateIntent({
+            ...base,
+            type: 'ROTATE',
+            fromVault:
+              kind === 'rotate-source'
+                ? baseVault
+                : '0x1111111111111111111111111111111111111111',
+            toVault:
+              kind === 'rotate-target'
+                ? baseVault
+                : '0x2222222222222222222222222222222222222222',
+          }),
+        ).toThrow(ValidationError);
+    },
+  );
+
   describe('validateIntent', () => {
     it('validates any valid intent type', () => {
       const intent = {

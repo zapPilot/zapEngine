@@ -3,11 +3,13 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { sqlCode } from './__fixtures__/migrationSql.js';
+
 const repoRoot = path.resolve(process.cwd(), '../..');
 const readMigration = (file: string) =>
-  fs
-    .readFileSync(path.join(repoRoot, 'supabase/migrations', file), 'utf8')
-    .toLowerCase();
+  sqlCode(
+    fs.readFileSync(path.join(repoRoot, 'supabase/migrations', file), 'utf8'),
+  ).toLowerCase();
 
 const guard = readMigration(
   '20260905120000_abandon_episode_video_pipeline.sql',

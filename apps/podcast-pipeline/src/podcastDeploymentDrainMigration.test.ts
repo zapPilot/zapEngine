@@ -3,20 +3,26 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { sqlCode } from './__fixtures__/migrationSql.js';
+
 const repoRoot = path.resolve(process.cwd(), '../..');
-const gateMigration = fs.readFileSync(
-  path.join(
-    repoRoot,
-    'supabase/migrations/20260909120000_podcast_deployment_drain_gate.sql',
+const gateMigration = sqlCode(
+  fs.readFileSync(
+    path.join(
+      repoRoot,
+      'supabase/migrations/20260909120000_podcast_deployment_drain_gate.sql',
+    ),
+    'utf8',
   ),
-  'utf8',
 );
-const lineageMigration = fs.readFileSync(
-  path.join(
-    repoRoot,
-    'supabase/migrations/20260909120100_pipeline_execution_lineage.sql',
+const lineageMigration = sqlCode(
+  fs.readFileSync(
+    path.join(
+      repoRoot,
+      'supabase/migrations/20260909120100_pipeline_execution_lineage.sql',
+    ),
+    'utf8',
   ),
-  'utf8',
 );
 
 describe('podcast deployment drain migration', () => {
@@ -85,12 +91,14 @@ describe('podcast deployment drain migration', () => {
 
 describe('pipeline execution lineage migration', () => {
   it('preserves the existing view column order when appending lineage', () => {
-    const original = fs.readFileSync(
-      path.join(
-        repoRoot,
-        'supabase/migrations/20260827065915_add_ops_pipeline_telemetry.sql',
+    const original = sqlCode(
+      fs.readFileSync(
+        path.join(
+          repoRoot,
+          'supabase/migrations/20260827065915_add_ops_pipeline_telemetry.sql',
+        ),
+        'utf8',
       ),
-      'utf8',
     );
     const columns = (sql: string) =>
       /create or replace view from_fed_to_chain\.ops_pipeline_stage_runs[\s\S]*?select([\s\S]*?)from ops\.pipeline_stage_runs;/i
