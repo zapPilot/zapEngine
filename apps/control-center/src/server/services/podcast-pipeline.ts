@@ -71,7 +71,6 @@ interface LegacyIngestRunRow {
 
 interface VisualRow extends LifecycleRow {
   episode_id: string;
-  visual_payload: Record<string, unknown> | null;
   visual_version?: string | null;
   abandoned_at?: string | null;
   abandoned_reason?: string | null;
@@ -136,7 +135,7 @@ export function createPodcastPipelineService(input: {
           client
             .from('episode_video_visuals')
             .select(
-              'episode_id,status,progress_percent,progress_stage,attempt_count,lease_expires_at,last_error,visual_payload,visual_version,updated_at',
+              'episode_id,status,progress_percent,progress_stage,attempt_count,lease_expires_at,last_error,visual_version,updated_at',
             )
             .in('episode_id', episodeIds),
           client
