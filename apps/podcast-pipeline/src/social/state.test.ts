@@ -45,8 +45,15 @@ describe('social publish state', () => {
     });
 
     state = await readPublishState(path);
-    expect(getPublishedPlatform(state, 'episode-1', 'x')).toBeDefined();
-    expect(getPublishedPlatform(state, 'episode-1', 'rednote')).toBeDefined();
+    expect(getPublishedPlatform(state, 'episode-1', 'x')).toEqual({
+      published: true,
+      publishedAt: '2026-08-11T00:00:00.000Z',
+      url: 'https://x.com/example/status/1',
+    });
+    expect(getPublishedPlatform(state, 'episode-1', 'rednote')).toEqual({
+      published: true,
+      publishedAt: '2026-08-11T00:01:00.000Z',
+    });
   });
 
   it('rejects non-object persisted state', async () => {

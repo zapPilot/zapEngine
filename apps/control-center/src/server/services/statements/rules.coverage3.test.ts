@@ -69,8 +69,8 @@ describe('rules coverage3', () => {
       },
       metricSeries: new Map(),
     } as unknown as StatementInputs);
-    expect(f.delta).toBeDefined();
-    expect(f.fact?.note).not.toContain('driving');
+    expect(f.delta).toBe('+100% · MoM');
+    expect(f.fact?.note).toBe('+100% vs August');
   });
 
   it('R4 covers nulls, second-wins, negative and zero totals', () => {
