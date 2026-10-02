@@ -18,6 +18,7 @@ function abandonRequest(
 ) {
   return app.request(`/api/podcast-pipeline/${episodeId}/abandon`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
   });
 }
 

@@ -53,13 +53,12 @@ describe('script system prompt output contract', () => {
     expect(prompt).toContain(
       '你的工作是「講解」，不是把原文逐句念一遍或換句話說一遍。',
     );
-    expect(prompt).toContain('用自問自答推進');
+    expect(prompt).toContain('用問題推動認知');
+    expect(prompt).toContain('形成問題鏈');
     expect(prompt).toContain(
       'title 与 script 一律使用简体中文，保留原文用词（例如：硅基、网络、软件、数据），不要改写成台湾用语。',
     );
-    expect(prompt).toContain(
-      '只問原文答得出來的問題，答案必須來自原文；原文沒有交代的原因或細節，不要自己補一個答案。',
-    );
+    expect(prompt).toContain('而且只問原文能回答的問題');
     expect(prompt).toContain(
       '不要自己換算倍數、數量級、百分比或「幾成」，除非原文已經算好',
     );

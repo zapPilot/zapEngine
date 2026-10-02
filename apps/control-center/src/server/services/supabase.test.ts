@@ -2,7 +2,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const createClient = vi.hoisted(() => vi.fn());
 
-vi.mock('@supabase/supabase-js', () => ({ createClient }));
+vi.mock('@supabase/supabase-js', () => ({
+  createClient: (...args: unknown[]) => {
+    const client = createClient(...args);
+    client.schema = () => client;
+    return client;
+  },
+}));
 
 import { readControlCenterConfig } from '../config/env.js';
 import {
@@ -32,13 +38,15 @@ describe('Supabase service helpers', () => {
       {
         db: { schema: 'ops' },
         auth: { autoRefreshToken: false, persistSession: false },
+        global: { fetch: expect.any(Function) },
       },
     );
   });
 
   it('uses public by default and refuses partial configuration', () => {
-    createClient.mockReturnValue({});
-    expect(createServiceRoleClient('https://db.example', 'key')).toEqual({});
+    const client = { from: vi.fn() };
+    createClient.mockReturnValue(client);
+    expect(createServiceRoleClient('https://db.example', 'key')).toBe(client);
     expect(createClient).toHaveBeenLastCalledWith(
       'https://db.example',
       'key',

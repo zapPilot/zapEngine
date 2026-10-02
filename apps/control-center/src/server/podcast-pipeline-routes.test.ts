@@ -30,7 +30,6 @@ function createApp(
     service: {
       getOverview: vi.fn(),
       getCostHistory: vi.fn(),
-      syncCosts: vi.fn(),
       getSocial: vi.fn(),
     } as never,
     operations: {
@@ -52,6 +51,7 @@ function retryRequest(
 ) {
   return app.request(`/api/podcast-pipeline/${episodeId}/${stage}/retry`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
   });
 }
 
@@ -135,7 +135,7 @@ function retryRender(
 ) {
   return app.request(
     `/api/podcast-pipeline/${EPISODE_ID}/renders/${localizationId}/retry`,
-    { method: 'POST' },
+    { method: 'POST', headers: { 'Content-Type': 'application/json' } },
   );
 }
 
@@ -289,6 +289,23 @@ describe('podcast pipeline routes', () => {
     });
   });
 
+  it.each(['{', 'null', '[]', '"retry"', 'true', '2', '   '])(
+    'rejects invalid video retry payload %s before scheduling work',
+    async (body) => {
+      const { app, restartVideo } = retryApp();
+      const response = await app.request(
+        `/api/podcast-pipeline/${EPISODE_ID}/video/retry`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body,
+        },
+      );
+      expect(response.status).toBe(400);
+      expect(restartVideo).not.toHaveBeenCalled();
+    },
+  );
+
   it('rejects a non-boolean forceReplan before touching the pipeline', async () => {
     const { restartVideo, response } = await videoRetryWith({
       forceReplan: 'yes',
@@ -298,13 +315,11 @@ describe('podcast pipeline routes', () => {
     expect(restartVideo).not.toHaveBeenCalled();
   });
 
-  it('treats a malformed JSON body as an ordinary retry', async () => {
+  it('rejects malformed JSON instead of silently scheduling an ordinary retry', async () => {
     const { restartVideo, response } = await videoRetryWith('{not json');
 
-    expect(response.status).toBe(200);
-    expect(restartVideo).toHaveBeenCalledWith(EPISODE_ID, {
-      forceReplan: false,
-    });
+    expect(response.status).toBe(400);
+    expect(restartVideo).not.toHaveBeenCalled();
   });
 
   describe('per-language render retry', () => {

@@ -75,35 +75,6 @@ describe('overview coverage', () => {
     });
   });
 
-  it('syncCosts throws without a repository', async () => {
-    const service = createOverviewService({
-      config: readControlCenterConfig({}),
-      repository: null,
-      now: () => NOW,
-    });
-    await expect(service.syncCosts()).rejects.toThrow(
-      'Supabase ops repository is not configured',
-    );
-  });
-
-  it('syncCosts runs sync and refreshes the social cache', async () => {
-    const loadSocial = loadSocialMock();
-    const sync = vi.fn().mockResolvedValue({ ok: true });
-    const service = createOverviewService({
-      config: readControlCenterConfig({}),
-      repository: costRepositoryFake(),
-      loadSocial,
-      sync: sync as never,
-      now: () => NOW,
-    });
-    await service.getOverview();
-    expect(loadSocial).toHaveBeenCalledTimes(1);
-    await service.syncCosts();
-    expect(sync).toHaveBeenCalledTimes(1);
-    // forced refresh bypasses the cache
-    expect(loadSocial).toHaveBeenCalledTimes(2);
-  });
-
   it('getSocial forwards the requested window', async () => {
     const loadSocial = loadSocialMock();
     const service = createOverviewService({

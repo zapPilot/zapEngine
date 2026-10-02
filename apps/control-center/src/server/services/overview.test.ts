@@ -8,6 +8,7 @@ import { readControlCenterConfig } from '../config/env.js';
 import {
   cloudflareRow,
   costRepositoryFake,
+  EMPTY_COST_HISTORY,
   flyBilledRow,
   flyRunRateOnlyRow,
   ledgerRow,
@@ -86,6 +87,120 @@ function overviewOverLedger(rows: SnapshotRow[]) {
 }
 
 describe('createOverviewService', () => {
+  it('shares overlapping overview and history reads without retaining completed values', async () => {
+    let finishHistory!: (value: typeof EMPTY_COST_HISTORY) => void;
+    const loadHistory = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<typeof EMPTY_COST_HISTORY>((resolve) => {
+            finishHistory = resolve;
+          }),
+      )
+      .mockResolvedValue({ ...EMPTY_COST_HISTORY, cashSpendUsd: 9 });
+    const loadLatestProviders = vi.fn().mockResolvedValue([]);
+    const service = createOverviewService({
+      config: readControlCenterConfig({}),
+      repository: costRepositoryFake({ loadHistory, loadLatestProviders }),
+      loadSocial: vi.fn().mockResolvedValue(social),
+      now: () => NOW,
+    });
+    const first = service.getOverview();
+    const second = service.getOverview();
+    const history = service.getCostHistory();
+    expect(loadLatestProviders).toHaveBeenCalledTimes(1);
+    expect(loadHistory).toHaveBeenCalledTimes(1);
+    finishHistory({ ...EMPTY_COST_HISTORY, cashSpendUsd: 4 });
+    expect((await first).cashInvoiceSpendUsd).toBe(4);
+    expect(await second).toEqual(await first);
+    expect((await history).cashSpendUsd).toBe(4);
+    expect((await service.getOverview()).cashInvoiceSpendUsd).toBe(9);
+    expect(loadLatestProviders).toHaveBeenCalledTimes(2);
+    expect(loadHistory).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not swallow a forced social refresh while an ordinary overview is pending', async () => {
+    let finishProviders!: (value: CostProviderResult[]) => void;
+    const loadLatestProviders = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<CostProviderResult[]>((resolve) => {
+            finishProviders = resolve;
+          }),
+      )
+      .mockResolvedValue([]);
+    const loadSocial = vi.fn().mockResolvedValue(social);
+    const service = createOverviewService({
+      config: readControlCenterConfig({
+        CONTROL_CENTER_CACHE_TTL_MS: '900000',
+      }),
+      repository: costRepositoryFake({ loadLatestProviders }),
+      loadSocial,
+      now: () => NOW,
+    });
+    const ordinary = service.getOverview();
+    // Let the social read complete while the ledger still holds overview open.
+    await vi.waitFor(() => expect(loadSocial).toHaveBeenCalledTimes(1));
+    await service.getOverview(true);
+    expect(loadSocial).toHaveBeenCalledTimes(2);
+    finishProviders([]);
+    await ordinary;
+  });
+
+  it('retries a social read that resolved an error payload', async () => {
+    const socialError = {
+      ...social,
+      status: 'error' as const,
+      message: 'social unavailable',
+    };
+    const loadSocial = vi
+      .fn()
+      .mockResolvedValueOnce(socialError)
+      .mockResolvedValue(social);
+    const service = createOverviewService({
+      config: readControlCenterConfig({
+        CONTROL_CENTER_CACHE_TTL_MS: '900000',
+      }),
+      repository: costRepositoryFake({
+        loadLatestProviders: vi.fn().mockResolvedValue([]),
+      }),
+      loadSocial,
+      now: () => NOW,
+    });
+
+    expect((await service.getOverview()).social.status).toBe('error');
+    expect((await service.getOverview()).social.status).toBe('ok');
+    expect(loadSocial).toHaveBeenCalledTimes(2);
+  });
+
+  it('retries history after a shared failed read', async () => {
+    let failHistory!: (reason: Error) => void;
+    const loadHistory = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise((_, reject) => {
+            failHistory = reject;
+          }),
+      )
+      .mockResolvedValue({ ...EMPTY_COST_HISTORY, cashSpendUsd: 7 });
+    const service = createOverviewService({
+      config: readControlCenterConfig({}),
+      repository: costRepositoryFake({ loadHistory }),
+      loadSocial: vi.fn().mockResolvedValue(social),
+      now: () => NOW,
+    });
+    const overview = service.getOverview();
+    const history = service.getCostHistory();
+    expect(loadHistory).toHaveBeenCalledTimes(1);
+    failHistory(new Error('ledger unavailable'));
+    expect((await overview).cashInvoiceSpendUsd).toBeNull();
+    expect(await history).toEqual(EMPTY_COST_HISTORY);
+    expect((await service.getCostHistory()).cashSpendUsd).toBe(7);
+    expect(loadHistory).toHaveBeenCalledTimes(2);
+  });
+
   it('reads persisted costs fresh even when an external process changes the ledger', async () => {
     const loadLatestProviders = vi
       .fn()

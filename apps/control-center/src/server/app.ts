@@ -15,18 +15,19 @@ import type {
 import type { SocialPerformanceResponse } from '../shared/types.js';
 import type { ControlCenterConfig } from './config/env.js';
 import { registerOpsMcpHttp } from './mcp/http.js';
+import { localHostGuard, requestOriginGuard } from './request-origin-guard.js';
 import {
   type PodcastAbandonService,
   registerPodcastAbandonRoute,
 } from './register-podcast-abandon.js';
 import { captureServerException } from './observability/sentry.js';
 import { createOperationsService } from './services/operations/aggregate.js';
+import { createAsyncCache } from './services/cache.js';
 import { createOverviewService } from './services/overview.js';
 import { createPipelineQueuesService } from './services/pipeline-queues.js';
 import { createPodcastCostService } from './services/podcast-costs.js';
 import { createPodcastPipelineService } from './services/podcast-pipeline.js';
 import { createPodcastVisualService } from './services/podcast-visual.js';
-import { createSocialReleaseCleanupService } from './services/social-release-cleanup.js';
 import {
   isMissingRpcError,
   postgrestErrorMessage,
@@ -59,11 +60,6 @@ export function createControlCenterApp(input: {
    * so the remote operator surface authenticates here instead.
    */
   auth?: { username: string; password: string };
-  /**
-   * Local operator processes may explicitly refresh provider cost snapshots.
-   * Remote dashboards stay read-only for cost collection by omitting this route.
-   */
-  allowCostSync?: boolean;
 }) {
   const app = new Hono();
   // One mis-served cacheable HTML answer is enough to strand a dashboard: the
@@ -91,13 +87,32 @@ export function createControlCenterApp(input: {
       context.req.path === '/api/mcp' ? next() : guard(context, next),
     );
   }
+  if (!input.auth) {
+    app.use('/api/*', localHostGuard);
+  }
+  app.use('/api/*', requestOriginGuard);
   const service =
     input.service ?? createOverviewService({ config: input.config });
-  const podcastCosts =
+  const podcastCostSource =
     input.podcastCosts ?? createPodcastCostService({ config: input.config });
-  const podcastPipeline =
+  const podcastPipelineSource =
     input.podcastPipeline ??
     createPodcastPipelineService({ config: input.config });
+  // Direct dashboard routes and statements share pending work; completed
+  // results expire immediately, including errors, so the next load is fresh.
+  const podcastCostReads = createAsyncCache({
+    ttlMs: 0,
+    load: () => podcastCostSource.getPodcastCosts(),
+  });
+  const podcastPipelineReads = createAsyncCache({
+    ttlMs: 0,
+    load: () => podcastPipelineSource.getPipeline(),
+  });
+  const podcastCosts = { getPodcastCosts: () => podcastCostReads.get() };
+  const podcastPipeline = {
+    ...podcastPipelineSource,
+    getPipeline: () => podcastPipelineReads.get(),
+  };
   const pipelineQueues = createPipelineQueuesService({ config: input.config });
   const podcastVisual =
     input.podcastVisual ?? createPodcastVisualService({ config: input.config });
@@ -109,9 +124,6 @@ export function createControlCenterApp(input: {
   const operations =
     input.operations ??
     createOperationsService({ config: input.config, socialGrowth });
-  const socialReleaseCleanup = createSocialReleaseCleanupService({
-    config: input.config,
-  });
   const statements =
     input.statements ??
     createStatementsService({
@@ -132,25 +144,6 @@ export function createControlCenterApp(input: {
   app.get('/api/costs/podcast', async (context) => {
     return context.json(await podcastCosts.getPodcastCosts());
   });
-  if (input.allowCostSync !== false) {
-    app.post('/api/costs/sync', async (context) => {
-      try {
-        const summary = await service.syncCosts();
-        return context.json(summary);
-      } catch (error) {
-        captureServerException(error, {
-          method: context.req.method,
-          route: routePath(context),
-        });
-        return context.json(
-          {
-            error: postgrestErrorMessage(error, 'Cost synchronization failed'),
-          },
-          503,
-        );
-      }
-    });
-  }
   app.get('/api/social-performance', async (context) => {
     const requested = context.req.query('window');
     const window = WINDOWS.includes(
@@ -179,37 +172,6 @@ export function createControlCenterApp(input: {
   });
   app.get('/api/operations/social', async (context) => {
     return context.json(await operations.getSocial(isForced(context)));
-  });
-  app.get('/api/operations/social/release-evidence', async (context) => {
-    return context.json(await socialReleaseCleanup.getEvidence());
-  });
-  app.post('/api/operations/social/:episodeId/complete', async (context) => {
-    const episodeIdOrResponse = episodeIdOrErrorResponse(context);
-    if (typeof episodeIdOrResponse !== 'string') {
-      return episodeIdOrResponse;
-    }
-    const episodeId = episodeIdOrResponse;
-    try {
-      return context.json(await socialReleaseCleanup.closeRelease(episodeId));
-    } catch (error) {
-      const message = postgrestErrorMessage(error, 'Podcast retry failed');
-      if (isPodcastRetryConflict(error, message)) {
-        return context.json({ error: message }, 409);
-      }
-      if (isMissingRpcError(error)) {
-        return context.json(
-          {
-            error: 'Social release cleanup migration has not been applied yet',
-          },
-          503,
-        );
-      }
-      captureServerException(error, {
-        method: context.req.method,
-        route: routePath(context),
-      });
-      return context.json({ error: message }, 503);
-    }
   });
   app.get('/api/customers', async (context) => {
     return context.json(await operations.getCustomers(isForced(context)));
@@ -274,9 +236,24 @@ export function createControlCenterApp(input: {
 
   app.post('/api/podcast-pipeline/:episodeId/video/retry', (context) =>
     handlePodcastMutation(context, async (episodeId) => {
-      const body = await context.req.json().catch(() => ({}));
+      const text = await context.req.text();
+      let body: unknown = {};
+      if (text.length > 0) {
+        try {
+          body = JSON.parse(text) as unknown;
+        } catch {
+          throw new HTTPException(400, {
+            message: 'Video retry requires valid JSON',
+          });
+        }
+      }
+      if (!body || typeof body !== 'object' || Array.isArray(body)) {
+        throw new HTTPException(400, {
+          message: 'Video retry payload must be an object',
+        });
+      }
       const forceReplan =
-        body && typeof body === 'object' && 'forceReplan' in body
+        'forceReplan' in body
           ? (body as { forceReplan?: unknown }).forceReplan
           : false;
       if (typeof forceReplan !== 'boolean') {

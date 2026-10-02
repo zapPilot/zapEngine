@@ -13,6 +13,7 @@ import { createControlCenterApp } from './app.js';
 import { readControlCenterConfig } from './config/env.js';
 import type { createOperationsService } from './services/operations/aggregate.js';
 import { createOverviewService } from './services/overview.js';
+import { createPodcastPipelineService } from './services/podcast-pipeline.js';
 import type { createSocialGrowthService } from './services/social-growth.js';
 
 const overview: OverviewResponse = {
@@ -144,7 +145,13 @@ function createTestApp(
   overrides: Partial<ReturnType<typeof createOverviewService>> = {},
   operationsOverrides: Partial<ReturnType<typeof createOperationsService>> = {},
   growthOverrides: Partial<ReturnType<typeof createSocialGrowthService>> = {},
-  options: { allowCostSync?: boolean } = {},
+  options: {
+    auth?: Parameters<typeof createControlCenterApp>[0]['auth'];
+    podcastCosts?: Parameters<typeof createControlCenterApp>[0]['podcastCosts'];
+    podcastPipeline?: Parameters<
+      typeof createControlCenterApp
+    >[0]['podcastPipeline'];
+  } = {},
 ) {
   return createControlCenterApp({
     config: readControlCenterConfig({}),
@@ -187,13 +194,6 @@ function createTestApp(
           cashSpendUsd: null,
           previousMonthByProvider: [],
         }),
-      syncCosts:
-        overrides.syncCosts ??
-        vi.fn(async () => ({
-          syncedAt: '2026-08-22T00:00:00.000Z',
-          persisted: 0,
-          providers: [],
-        })),
       getSocial:
         overrides.getSocial ?? vi.fn().mockResolvedValue(overview.social),
     },
@@ -202,14 +202,68 @@ function createTestApp(
         growthOverrides.getSocialGrowth ??
         vi.fn().mockResolvedValue(socialGrowth),
     },
-    podcastCosts: {
+    podcastCosts: options.podcastCosts ?? {
       getPodcastCosts: vi.fn().mockResolvedValue(podcastCosts),
     },
-    allowCostSync: options.allowCostSync,
+    podcastPipeline: options.podcastPipeline,
+    auth: options.auth,
   });
 }
 
 describe('control center API', () => {
+  it.each(['costs', 'pipeline'] as const)(
+    'shares overlapping podcast %s reads between direct routes and statements',
+    async (kind) => {
+      const pipeline = {
+        generatedAt: overview.generatedAt,
+        status: 'ok' as const,
+        message: null,
+        episodes: [],
+      };
+      let finish!: () => void;
+      const waiting = new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      const getPodcastCosts = vi.fn(async () => {
+        await waiting;
+        return podcastCosts;
+      });
+      const getPipeline = vi.fn(async () => {
+        await waiting;
+        return pipeline;
+      });
+      const app = createTestApp(
+        {},
+        {},
+        {},
+        {
+          podcastCosts: { getPodcastCosts },
+          podcastPipeline: {
+            ...createPodcastPipelineService({
+              config: readControlCenterConfig({}),
+            }),
+            getPipeline,
+          },
+        },
+      );
+      const url =
+        kind === 'costs' ? '/api/costs/podcast' : '/api/podcast-pipeline';
+      const direct = app.request(url);
+      const statements = app.request('/api/statements');
+      const load = kind === 'costs' ? getPodcastCosts : getPipeline;
+      // Statements must reach both source reads before their gate is released.
+      await vi.waitFor(() => {
+        expect(getPodcastCosts).toHaveBeenCalled();
+        expect(getPipeline).toHaveBeenCalled();
+      });
+      expect(load).toHaveBeenCalledTimes(1);
+      finish();
+      expect((await direct).status).toBe(200);
+      expect((await statements).status).toBe(200);
+      expect((await app.request(url)).status).toBe(200);
+      expect(load).toHaveBeenCalledTimes(2);
+    },
+  );
   it('returns persisted overview without triggering a provider refresh', async () => {
     const getOverview = vi.fn().mockResolvedValue(overview);
     const app = createTestApp({
@@ -250,27 +304,111 @@ describe('control center API', () => {
     expect(getSocialGrowth).toHaveBeenCalledWith(true);
   });
 
-  it('syncs costs only through the POST endpoint', async () => {
-    const syncCosts = vi.fn().mockResolvedValue({
-      syncedAt: '2026-08-22T00:00:00.000Z',
-      persisted: 3,
-      providers: [],
+  it('rejects non-loopback hosts on the local API', async () => {
+    const getOverview = vi.fn();
+    const app = createTestApp({ getOverview });
+    const response = await app.request('http://evil.example/api/overview');
+    expect(response.status).toBe(403);
+    expect(getOverview).not.toHaveBeenCalled();
+  });
+
+  it('rejects text/plain JSON before video retry and accepts the JSON client contract', async () => {
+    const restartVideo = vi.fn();
+    const app = createTestApp(
+      {},
+      {},
+      {},
+      {
+        podcastPipeline: {
+          ...createPodcastPipelineService({
+            config: readControlCenterConfig({}),
+          }),
+          restartVideo,
+        },
+      },
+    );
+    const path =
+      '/api/podcast-pipeline/826f4b87-6278-4275-bff5-535ba5ef438d/video/retry';
+    const body = JSON.stringify({ forceReplan: true });
+    const rejected = await app.request(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body,
     });
-    const app = createTestApp({ syncCosts });
-
-    const response = await app.request('/api/costs/sync', { method: 'POST' });
-    expect(response.status).toBe(200);
-    expect(syncCosts).toHaveBeenCalledOnce();
+    expect(rejected.status).toBe(415);
+    expect(restartVideo).not.toHaveBeenCalled();
+    const accepted = await app.request(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+      body,
+    });
+    expect(accepted.status).toBe(200);
+    expect(restartVideo).toHaveBeenCalledWith(
+      '826f4b87-6278-4275-bff5-535ba5ef438d',
+      { forceReplan: true },
+    );
   });
 
-  it('omits the cost sync mutation when remote read-only mode is enabled', async () => {
-    const syncCosts = vi.fn();
-    const app = createTestApp({ syncCosts }, {}, {}, { allowCostSync: false });
-
-    const response = await app.request('/api/costs/sync', { method: 'POST' });
-    expect(response.status).toBe(404);
-    expect(syncCosts).not.toHaveBeenCalled();
+  it('blocks cross-origin ingest mutations before invoking the service', async () => {
+    const restartIngest = vi.fn();
+    const app = createTestApp(
+      {},
+      {},
+      {},
+      {
+        podcastPipeline: {
+          ...createPodcastPipelineService({
+            config: readControlCenterConfig({}),
+          }),
+          restartIngest,
+        },
+      },
+    );
+    const response = await app.request(
+      '/api/podcast-pipeline/826f4b87-6278-4275-bff5-535ba5ef438d/ingest/retry',
+      {
+        method: 'POST',
+        headers: {
+          Origin: 'https://evil.example',
+          'Sec-Fetch-Site': 'cross-site',
+        },
+      },
+    );
+    expect(response.status).toBe(403);
+    expect(restartIngest).not.toHaveBeenCalled();
+    const allowed = await app.request(
+      '/api/podcast-pipeline/826f4b87-6278-4275-bff5-535ba5ef438d/ingest/retry',
+      { method: 'POST', headers: { 'Content-Type': 'application/json' } },
+    );
+    expect(allowed.status).toBe(200);
+    expect(restartIngest).toHaveBeenCalledOnce();
   });
+
+  it.each([false, true])(
+    'does not expose cost collection as a dashboard mutation (authenticated: %s)',
+    async (authenticated) => {
+      const app = createTestApp(
+        {},
+        {},
+        {},
+        {
+          auth: authenticated
+            ? { username: 'operator', password: 'test-password' }
+            : undefined,
+        },
+      );
+      const response = await app.request('/api/costs/sync', {
+        method: 'POST',
+        headers: authenticated
+          ? {
+              Authorization: `Basic ${btoa('operator:test-password')}`,
+              'Content-Type': 'application/json',
+            }
+          : { 'Content-Type': 'application/json' },
+      });
+      expect(response.status).toBe(404);
+    },
+  );
 
   it('serves the operations snapshot and its social detail', async () => {
     const getOperations = vi.fn().mockResolvedValue(operations);
@@ -338,6 +476,7 @@ describe('API surface boundary', () => {
   it('answers an unmatched API path the same way for a mutation', async () => {
     const response = await createTestApp().request('/api/does-not-exist', {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
     });
 
     expect(response.status).toBe(404);

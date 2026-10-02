@@ -1,15 +1,15 @@
-import type { createClient, SupabaseClient } from '@supabase/supabase-js';
+import type { createClient } from '@supabase/supabase-js';
 
 import {
   unavailableWaitlist,
   type SocialWaitlistSummary,
 } from '../../shared/waitlist-growth.js';
-import { postgrestErrorMessage } from './supabase.js';
+import { createServiceRoleClient, postgrestErrorMessage } from './supabase.js';
 
 const DAY_MS = 86_400_000;
 const PAGE_SIZE = 500;
 const JOB_BATCH_SIZE = 100;
-type Client = SupabaseClient;
+type Client = ReturnType<typeof createServiceRoleClient>;
 interface Signup {
   id: string;
   created_at: string;
@@ -25,16 +25,18 @@ interface Job {
 
 /** Read only acquisition metadata; email never enters the dashboard read model. */
 export async function loadWaitlistGrowth(input: {
-  create: typeof createClient;
+  create?: typeof createClient;
   url: string;
   key: string;
   now: Date;
 }): Promise<SocialWaitlistSummary> {
   try {
-    const client = input.create(input.url, input.key, {
-      db: { schema: 'public' },
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
+    const client = createServiceRoleClient(
+      input.url,
+      input.key,
+      'public',
+      input.create,
+    );
     const until = input.now.toISOString();
     const since7d = new Date(input.now.getTime() - 7 * DAY_MS).toISOString();
     const since30d = new Date(input.now.getTime() - 30 * DAY_MS).toISOString();

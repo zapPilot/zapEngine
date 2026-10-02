@@ -42,10 +42,10 @@ export async function sendJson<T>(
 ): Promise<T | null> {
   const response = await fetch(url, {
     method,
+    headers: { 'content-type': 'application/json' },
     ...(body === undefined
       ? {}
       : {
-          headers: { 'content-type': 'application/json' },
           body: JSON.stringify(body),
         }),
   });

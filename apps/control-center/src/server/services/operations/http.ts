@@ -41,22 +41,27 @@ export async function fetchJson<T>(input: {
   /** GET by default without a body, POST by default with a body. */
   method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
 }): Promise<T> {
-  const response = await authenticatedFetch({
-    label: input.label,
-    url: input.url,
-    token: input.token,
-    fetchImpl: input.fetchImpl,
-    headers: input.headers,
-    body: input.body,
-    method: input.method,
-  });
+  return withRequestDeadline(async (signal) => {
+    const response = await authenticatedFetch({
+      signal,
+      label: input.label,
+      url: input.url,
+      token: input.token,
+      fetchImpl: input.fetchImpl,
+      headers: input.headers,
+      body: input.body,
+      method: input.method,
+    });
 
-  const parsed = input.schema.safeParse(await response.json());
-  if (!parsed.success) {
-    throw new Error(`${input.label} returned an unrecognised body`);
-  }
-  input.onResponseHeaders?.(response.headers);
-  return parsed.data;
+    const body: unknown = await response.json();
+    signal.throwIfAborted();
+    const parsed = input.schema.safeParse(body);
+    if (!parsed.success) {
+      throw new Error(`${input.label} returned an unrecognised body`);
+    }
+    input.onResponseHeaders?.(response.headers);
+    return parsed.data;
+  });
 }
 
 /**
@@ -72,12 +77,33 @@ export async function fetchText(input: {
   fetchImpl: typeof fetch;
   headers?: Record<string, string>;
 }): Promise<string> {
-  const response = await authenticatedFetch(input);
-  return response.text();
+  return withRequestDeadline(async (signal) => {
+    const response = await authenticatedFetch({ ...input, signal });
+    return response.text();
+  });
 }
 /* jscpd:ignore-end */
 
+/** Bound headers and body reads even when a transport ignores its signal. */
+async function withRequestDeadline<T>(
+  read: (signal: AbortSignal) => Promise<T>,
+): Promise<T> {
+  const signal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+  signal.throwIfAborted();
+  let onAbort!: () => void;
+  const expired = new Promise<never>((_, reject) => {
+    onAbort = () => reject(signal.reason);
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
+  try {
+    return await Promise.race([read(signal), expired]);
+  } finally {
+    signal.removeEventListener('abort', onAbort);
+  }
+}
+
 async function authenticatedFetch(input: {
+  signal: AbortSignal;
   label: string;
   url: string;
   token?: string;
@@ -95,7 +121,7 @@ async function authenticatedFetch(input: {
       ...input.headers,
     },
     ...(sendsBody ? { body: JSON.stringify(input.body) } : {}),
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    signal: input.signal,
   });
   if (!response.ok) {
     throw new Error(`${input.label} failed (${response.status})`);

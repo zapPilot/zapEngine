@@ -126,11 +126,8 @@ export function App() {
   // persisted podcast ledger supplies failed-attempt spend. Statements stay
   // lazy: only the pipeline view reads them.
   const loadHome = useCallback(
-    (sync = false) =>
+    () =>
       run(async () => {
-        if (sync) {
-          await sendJson('/api/costs/sync', 'POST');
-        }
         const [next, history, snapshot, episodeCosts] = await Promise.all([
           getJson<OverviewResponse>('/api/overview'),
           getJson<CostHistoryResponse>('/api/costs/history'),
@@ -395,9 +392,9 @@ export function App() {
         } else if (view === 'product') {
           void loadCustomers(true);
         } else {
-          // Local dev keeps the operator convenience of syncing costs before a
-          // refresh. Production builds only reread persisted cost snapshots.
-          void loadHome(import.meta.env.DEV);
+          // Refresh rereads persisted snapshots in every environment; the
+          // explicit ops:sync command owns cost collection.
+          void loadHome();
         }
       }}
       subtitle={VIEW_META[view].subtitle}

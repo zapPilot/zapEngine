@@ -1,12 +1,14 @@
-import { createClient } from '@supabase/supabase-js';
-
 import type {
   PodcastCostBreakdown,
   PodcastCostResponse,
   PodcastEpisodeCostSummary,
 } from '../../shared/types.js';
 import type { ControlCenterConfig } from '../config/env.js';
-import { postgrestErrorCode, postgrestErrorMessage } from './supabase.js';
+import {
+  createServiceRoleClient,
+  postgrestErrorCode,
+  postgrestErrorMessage,
+} from './supabase.js';
 
 interface PipelineRunRow {
   id: string;
@@ -57,18 +59,7 @@ const PAGE_SIZE = 500;
 const RUN_ID_CHUNK = 100;
 const USD_SCALE = 100_000_000;
 
-function createPodcastCostClient(
-  url: string,
-  serviceRoleKey: string,
-  schema: string,
-) {
-  return createClient(url, serviceRoleKey, {
-    db: { schema },
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-}
-
-type PodcastCostClient = ReturnType<typeof createPodcastCostClient>;
+type PodcastCostClient = ReturnType<typeof createServiceRoleClient>;
 
 export function createPodcastCostService(input: {
   config: ControlCenterConfig;
@@ -89,7 +80,7 @@ export function createPodcastCostService(input: {
       }
 
       try {
-        const client = createPodcastCostClient(
+        const client = createServiceRoleClient(
           input.config.SUPABASE_URL,
           input.config.SUPABASE_SERVICE_ROLE_KEY,
           input.config.SUPABASE_DB_SCHEMA,
