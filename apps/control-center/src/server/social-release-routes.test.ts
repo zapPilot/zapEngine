@@ -22,8 +22,11 @@ describe('retired social release routes', () => {
         const response = await app.request(path, {
           method,
           headers: authenticated
-            ? { Authorization: `Basic ${btoa('operator:test-password')}` }
-            : {},
+            ? {
+                Authorization: `Basic ${btoa('operator:test-password')}`,
+                'Content-Type': 'application/json',
+              }
+            : { 'Content-Type': 'application/json' },
         });
         expect(response.status).toBe(404);
       }

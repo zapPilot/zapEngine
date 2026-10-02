@@ -105,6 +105,7 @@ describe('remote dashboard authentication', () => {
         headers: {
           Authorization: HEADER,
           Origin: 'https://dashboard.example',
+          'Content-Type': 'application/json',
           'Sec-Fetch-Site': 'same-origin',
         },
       },

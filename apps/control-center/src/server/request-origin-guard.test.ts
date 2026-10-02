@@ -15,6 +15,43 @@ function guardedApp() {
 }
 
 describe('requestOriginGuard', () => {
+  it.each([
+    undefined,
+    'text/plain',
+    'application/x-www-form-urlencoded',
+    'multipart/form-data',
+    'application/jsonp',
+  ])(
+    'rejects non-JSON mutation content type %s before the handler',
+    async (contentType) => {
+      const { app, mutate } = guardedApp();
+      const response = await app.request(
+        'https://dashboard.example/api/retry',
+        {
+          method: 'POST',
+          headers: contentType ? { 'Content-Type': contentType } : {},
+        },
+      );
+      expect(response.status).toBe(415);
+      expect(mutate).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['POST', 'PUT', 'PATCH', 'DELETE'])(
+    'allows JSON media types with charset for %s',
+    async (method) => {
+      const { app, mutate } = guardedApp();
+      const response = await app.request(
+        'https://dashboard.example/api/retry',
+        {
+          method,
+          headers: { 'Content-Type': 'Application/JSON; charset=utf-8' },
+        },
+      );
+      expect(response.status).toBe(200);
+      expect(mutate).toHaveBeenCalledOnce();
+    },
+  );
   it.each<Record<string, string>>([
     { 'Sec-Fetch-Site': 'cross-site' },
     { 'Sec-Fetch-Site': 'same-site' },
@@ -42,14 +79,14 @@ describe('requestOriginGuard', () => {
     { Origin: 'https://dashboard.example' },
     { Origin: 'https://dashboard.example', 'Sec-Fetch-Site': 'same-origin' },
   ])(
-    'allows same-origin metadata and headerless clients: %o',
+    'allows same-origin metadata and CLI clients without browser headers: %o',
     async (headers) => {
       const { app, mutate } = guardedApp();
       const response = await app.request(
         'https://dashboard.example/api/retry',
         {
           method: 'POST',
-          headers,
+          headers: { 'Content-Type': 'application/json', ...headers },
         },
       );
       expect(response.status).toBe(200);

@@ -16,7 +16,15 @@ export const requestOriginGuard: MiddlewareHandler = async (context, next) => {
   ) {
     return context.json({ error: 'Cross-origin mutation denied' }, 403);
   }
-  // Headerless CLI clients continue through the existing authentication guard.
+  const mediaType = context.req
+    .header('content-type')
+    ?.split(';', 1)[0]
+    ?.trim()
+    .toLowerCase();
+  if (mediaType !== 'application/json') {
+    return context.json({ error: 'Mutation requires application/json' }, 415);
+  }
+  // CLI clients may omit browser metadata but must identify JSON mutations.
   return next();
 };
 

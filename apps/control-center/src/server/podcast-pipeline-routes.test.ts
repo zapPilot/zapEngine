@@ -51,6 +51,7 @@ function retryRequest(
 ) {
   return app.request(`/api/podcast-pipeline/${episodeId}/${stage}/retry`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
   });
 }
 
@@ -134,7 +135,7 @@ function retryRender(
 ) {
   return app.request(
     `/api/podcast-pipeline/${EPISODE_ID}/renders/${localizationId}/retry`,
-    { method: 'POST' },
+    { method: 'POST', headers: { 'Content-Type': 'application/json' } },
   );
 }
 

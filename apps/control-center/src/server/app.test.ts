@@ -312,6 +312,43 @@ describe('control center API', () => {
     expect(getOverview).not.toHaveBeenCalled();
   });
 
+  it('rejects text/plain JSON before video retry and accepts the JSON client contract', async () => {
+    const restartVideo = vi.fn();
+    const app = createTestApp(
+      {},
+      {},
+      {},
+      {
+        podcastPipeline: {
+          ...createPodcastPipelineService({
+            config: readControlCenterConfig({}),
+          }),
+          restartVideo,
+        },
+      },
+    );
+    const path =
+      '/api/podcast-pipeline/826f4b87-6278-4275-bff5-535ba5ef438d/video/retry';
+    const body = JSON.stringify({ forceReplan: true });
+    const rejected = await app.request(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body,
+    });
+    expect(rejected.status).toBe(415);
+    expect(restartVideo).not.toHaveBeenCalled();
+    const accepted = await app.request(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+      body,
+    });
+    expect(accepted.status).toBe(200);
+    expect(restartVideo).toHaveBeenCalledWith(
+      '826f4b87-6278-4275-bff5-535ba5ef438d',
+      { forceReplan: true },
+    );
+  });
+
   it('blocks cross-origin ingest mutations before invoking the service', async () => {
     const restartIngest = vi.fn();
     const app = createTestApp(
@@ -341,7 +378,7 @@ describe('control center API', () => {
     expect(restartIngest).not.toHaveBeenCalled();
     const allowed = await app.request(
       '/api/podcast-pipeline/826f4b87-6278-4275-bff5-535ba5ef438d/ingest/retry',
-      { method: 'POST' },
+      { method: 'POST', headers: { 'Content-Type': 'application/json' } },
     );
     expect(allowed.status).toBe(200);
     expect(restartIngest).toHaveBeenCalledOnce();
@@ -363,8 +400,11 @@ describe('control center API', () => {
       const response = await app.request('/api/costs/sync', {
         method: 'POST',
         headers: authenticated
-          ? { Authorization: `Basic ${btoa('operator:test-password')}` }
-          : {},
+          ? {
+              Authorization: `Basic ${btoa('operator:test-password')}`,
+              'Content-Type': 'application/json',
+            }
+          : { 'Content-Type': 'application/json' },
       });
       expect(response.status).toBe(404);
     },
@@ -436,6 +476,7 @@ describe('API surface boundary', () => {
   it('answers an unmatched API path the same way for a mutation', async () => {
     const response = await createTestApp().request('/api/does-not-exist', {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
     });
 
     expect(response.status).toBe(404);

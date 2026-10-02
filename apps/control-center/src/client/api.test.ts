@@ -67,13 +67,14 @@ describe('getJson', () => {
 });
 
 describe('sendJson', () => {
-  it('omits a body and its content-type when none is given', async () => {
+  it('identifies JSON mutations even when no body is needed', async () => {
     const fetchMock = stubFetch(json({ ok: true }));
 
     await sendJson(RETRY_URL, 'POST');
 
     expect(fetchMock).toHaveBeenCalledWith(RETRY_URL, {
       method: 'POST',
+      headers: { 'content-type': 'application/json' },
     });
   });
 

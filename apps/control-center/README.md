@@ -133,6 +133,8 @@ Production migrations are applied and verified by the production-gated `deploy-s
 
 The orphaned social release-evidence and release-completion routes were removed with their unused service; no dashboard caller remains.
 
+Dashboard mutations require `Content-Type: application/json`, including bodyless retry commands; charset parameters are accepted. MCP keeps its separate protocol and bearer boundary.
+
 The dashboard API does not register `POST /api/costs/sync` in any environment; the explicit `ops:sync` command owns cost collection.
 
 Fly operational signals use the Fly Machines HTTP API and require `FLY_OPS_TOKEN`; they do not depend on `flyctl` being installed in Vercel.
