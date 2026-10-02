@@ -217,3 +217,24 @@ describe('Growth guidance', () => {
     expect(screen.queryByText('高影響')).toBeNull();
   });
 });
+
+describe('Growth decision clarity', () => {
+  it('separates traffic leadership from signups and independent wallet totals', () => {
+    renderGrowth();
+    expect(screen.getByText(/Threads 帶來 161 位到站訪客/)).toBeVisible();
+    expect(screen.getByText(/目前沒有註冊證據支持增加發文量/)).toBeVisible();
+    expect(screen.queryByText('App 訪客沒有連上錢包')).toBeNull();
+    expect(
+      screen.getByText('wallet_connected · independent count'),
+    ).toBeVisible();
+    expect(
+      screen.getByText('查看逐集到站與 CTA 明細').closest('details'),
+    ).not.toHaveAttribute('open');
+  });
+
+  it('explains missing post links instead of leaving a silent gap', () => {
+    renderGrowth();
+    expect(screen.getByText('貼文連結未取得')).toBeVisible();
+    expect(screen.getByText('近期內容表現')).toBeVisible();
+  });
+});

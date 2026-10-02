@@ -43,7 +43,10 @@ export function GrowthPage(props: {
 }) {
   return (
     <div className="cc-stack">
+      <DecisionBrief journey={props.journey} growth={props.growth} />
+
       <div className="growth-toolbar">
+        <span>貼文量測時間（到站與轉換固定為 30 天）</span>
         <WindowPicker
           active={props.data?.window ?? 'latest'}
           onChange={props.onWindowChange}
@@ -56,7 +59,10 @@ export function GrowthPage(props: {
         community={props.acquisition?.community ?? null}
       />
 
-      <PublishingCadence />
+      <details>
+        <summary>查看發佈排程</summary>
+        <PublishingCadence />
+      </details>
 
       <div className="cc-grid rel-main">
         <Card
@@ -86,15 +92,18 @@ export function GrowthPage(props: {
         </Card>
       </div>
 
-      <Card title="Podcast → Discord 逐集漏斗">
-        <GrowthLaneTable acquisition={props.acquisition} />
-      </Card>
+      <details>
+        <summary>查看逐集到站與 CTA 明細</summary>
+        <Card title="Podcast → Discord 逐集漏斗">
+          <GrowthLaneTable acquisition={props.acquisition} />
+        </Card>
+      </details>
 
       <div className="cc-grid rel-main">
         <Card
           icon={Video}
-          subtitle="Most recent release, per platform"
-          title="本週內容表現"
+          subtitle="最近 3 集 · 觀看與互動不代表到站或註冊"
+          title="近期內容表現"
           tone="info"
         >
           <ContentPerformance data={props.data} />
@@ -102,8 +111,8 @@ export function GrowthPage(props: {
 
         <Card
           icon={Lightbulb}
-          subtitle="Learned from published posts, not generated advice"
-          title="你現在該做什麼"
+          subtitle="依觀看樣本歸納，尚未驗證能提高註冊"
+          title="內容題材參考"
           tone="accent"
         >
           <RankedList
@@ -118,6 +127,58 @@ export function GrowthPage(props: {
         </Card>
       </div>
     </div>
+  );
+}
+
+function DecisionBrief(props: {
+  journey: SocialGrowthJourney | null;
+  growth: SocialGrowthResponse | null;
+}) {
+  const journey = props.journey;
+  const waitlist = props.growth?.waitlist;
+  if (journey?.status !== 'ok') {
+    return (
+      <Card title="本次決策">
+        <p>到站資料不可用，先恢復量測再比較渠道。</p>
+      </Card>
+    );
+  }
+  const sources = [
+    ['Threads', journey.landingThreads30d],
+    ['X', journey.landingX30d],
+    ['YouTube', journey.landingYoutube30d],
+    ['Rednote', journey.landingRednote30d],
+    ['Direct', journey.landingDirect30d],
+    ['Other', journey.landingOther30d],
+  ] as const;
+  const leader = [...sources].sort((a, b) => b[1] - a[1])[0];
+  return (
+    <Card title="本次決策" subtitle="過去 30 天 · 到站來源不等於客戶來源">
+      <div className="growth-waitlist-stats">
+        <Stat label="到站訪客" value={integer(journey.landingVisitors30d)} />
+        <Stat label="Waitlist CTA" value={integer(journey.ctaUsers30d)} />
+        <Stat
+          label="Waitlist 註冊"
+          value={waitlist?.status === 'ok' ? integer(waitlist.signups30d) : '—'}
+        />
+      </div>
+      <p>
+        {journey.landingVisitors30d > 0 && leader
+          ? `${leader[0]} 帶來 ${integer(leader[1])} 位到站訪客（${percent(leader[1] / journey.landingVisitors30d)}）。歸因使用視窗內首次到站的 UTM／referrer。`
+          : '尚無到站訪客，暫時無法比較渠道。'}
+      </p>
+      {sources.reduce((sum, source) => sum + source[1], 0) !==
+        journey.landingVisitors30d && (
+        <p>來源分組與到站總數尚未完全對齊，來源占比僅供方向判斷。</p>
+      )}
+      <p>
+        {waitlist?.status !== 'ok'
+          ? '註冊資料不可用，先恢復資料再評估成效。'
+          : waitlist.signups30d === 0 && journey.landingVisitors30d > 0
+            ? '優先檢查 Landing → CTA → 表單是否可完成，再測試與貼文內容一致的價值主張；目前沒有註冊證據支持增加發文量。'
+            : '比較渠道帶來的註冊結果，再決定下一個內容實驗；觀看數只作題材參考。'}
+      </p>
+    </Card>
   );
 }
 
@@ -219,12 +280,6 @@ function leakItems(
         id: 'landing-discord',
         label: '到站訪客沒有點擊 Discord CTA',
         to: journey.discordCtaUsers30d,
-      },
-      {
-        from: journey.appVisitors30d,
-        id: 'app-wallet',
-        label: 'App 訪客沒有連上錢包',
-        to: journey.walletConnectedUsers30d,
       },
     ];
     for (const step of steps) {
@@ -344,11 +399,15 @@ function ContentPerformance(props: { data: SocialPerformanceResponse | null }) {
                   ? '—'
                   : percent(platform.engagementRate)}
               </span>
-              <ProviderLink
-                label="查看"
-                title={`${episode.title} on ${platform.platform}`}
-                url={platform.postUrl}
-              />
+              {platform.postUrl ? (
+                <ProviderLink
+                  label="查看"
+                  title={`${episode.title} on ${platform.platform}`}
+                  url={platform.postUrl}
+                />
+              ) : (
+                <span className="growth-content-metric">貼文連結未取得</span>
+              )}
             </div>
           ))}
         </div>

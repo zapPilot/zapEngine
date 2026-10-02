@@ -57,8 +57,8 @@ export function GrowthJourneyPanel(props: {
           <span className={styles['kicker']}>Cross-channel journey · 30d</span>
           <h2>哪裡把流量變成產品需求？</h2>
           <p>
-            Sankey 寬度只使用可比較的 unique people。社群 views 是 aggregate
-            reach，不會偽裝成逐人 CTR。
+            到站來源依視窗內首次到站的 UTM／referrer 分類。只有 Landing → CTA
+            是一天內的有序漏斗；Waitlist、App 與錢包事件是獨立總數。
           </p>
         </div>
         <div className={styles['legend']}>
@@ -135,10 +135,10 @@ export function GrowthJourneyPanel(props: {
               note="PostHog · not identity-linked"
               value={app}
             />
-            <FlowArrow />
+            <CrossSourceArrow />
             <JourneyStage
               label="Activated"
-              note="wallet_connected"
+              note="wallet_connected · independent count"
               value={activated}
             />
           </div>
