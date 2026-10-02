@@ -250,6 +250,14 @@ describe('control center API', () => {
     expect(getSocialGrowth).toHaveBeenCalledWith(true);
   });
 
+  it('rejects non-loopback hosts on the local API', async () => {
+    const getOverview = vi.fn();
+    const app = createTestApp({ getOverview });
+    const response = await app.request('http://evil.example/api/overview');
+    expect(response.status).toBe(403);
+    expect(getOverview).not.toHaveBeenCalled();
+  });
+
   it('blocks cross-origin cost mutations before invoking the service', async () => {
     const syncCosts = vi.fn();
     const app = createTestApp({ syncCosts });

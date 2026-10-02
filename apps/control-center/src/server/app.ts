@@ -15,7 +15,7 @@ import type {
 import type { SocialPerformanceResponse } from '../shared/types.js';
 import type { ControlCenterConfig } from './config/env.js';
 import { registerOpsMcpHttp } from './mcp/http.js';
-import { requestOriginGuard } from './request-origin-guard.js';
+import { localHostGuard, requestOriginGuard } from './request-origin-guard.js';
 import {
   type PodcastAbandonService,
   registerPodcastAbandonRoute,
@@ -91,6 +91,9 @@ export function createControlCenterApp(input: {
     app.use('*', (context, next) =>
       context.req.path === '/api/mcp' ? next() : guard(context, next),
     );
+  }
+  if (!input.auth) {
+    app.use('/api/*', localHostGuard);
   }
   app.use('/api/*', requestOriginGuard);
   const service =

@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { describe, expect, it, vi } from 'vitest';
 
-import { requestOriginGuard } from './request-origin-guard.js';
+import { localHostGuard, requestOriginGuard } from './request-origin-guard.js';
 
 function guardedApp() {
   const mutate = vi.fn();
@@ -42,7 +42,7 @@ describe('requestOriginGuard', () => {
     { Origin: 'https://dashboard.example' },
     { Origin: 'https://dashboard.example', 'Sec-Fetch-Site': 'same-origin' },
   ])(
-    'allows authenticated same-origin and non-browser clients: %o',
+    'allows same-origin metadata and headerless clients: %o',
     async (headers) => {
       const { app, mutate } = guardedApp();
       const response = await app.request(
@@ -72,5 +72,38 @@ describe('requestOriginGuard', () => {
     });
     expect(response.status).toBe(200);
     expect(mutate).toHaveBeenCalledOnce();
+  });
+});
+
+describe('localHostGuard', () => {
+  it.each(['localhost:4174', '127.0.0.1:4175', '[::1]:4175'])(
+    'allows the loopback host %s',
+    async (host) => {
+      const app = new Hono();
+      app.use('/api/*', localHostGuard);
+      app.get('/api/overview', (context) => context.json({ ok: true }));
+      const response = await app.request(`http://${host}/api/overview`);
+      expect(response.status).toBe(200);
+    },
+  );
+
+  it('blocks rebinding hosts before either reads or mutations', async () => {
+    const access = vi.fn();
+    const app = new Hono();
+    app.use('/api/*', localHostGuard);
+    app.all('/api/*', (context) => {
+      access();
+      return context.json({ ok: true });
+    });
+    for (const method of ['GET', 'POST']) {
+      const response = await app.request('http://evil.example/api/overview', {
+        method,
+      });
+      expect(response.status).toBe(403);
+      expect(await response.json()).toEqual({
+        error: 'Unexpected local API host',
+      });
+    }
+    expect(access).not.toHaveBeenCalled();
   });
 });

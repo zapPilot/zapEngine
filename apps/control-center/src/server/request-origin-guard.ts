@@ -19,3 +19,13 @@ export const requestOriginGuard: MiddlewareHandler = async (context, next) => {
   // Headerless CLI clients continue through the existing authentication guard.
   return next();
 };
+
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+
+/** The unauthenticated local API is available only on loopback hostnames. */
+export const localHostGuard: MiddlewareHandler = async (context, next) => {
+  if (!LOOPBACK_HOSTS.has(new URL(context.req.url).hostname)) {
+    return context.json({ error: 'Unexpected local API host' }, 403);
+  }
+  return next();
+};

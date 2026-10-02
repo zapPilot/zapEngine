@@ -29,8 +29,10 @@ The Vite UI listens on `127.0.0.1:4174`; its Hono API listens on `CONTROL_CENTER
 API mutations reject explicitly cross-origin browser requests (`Origin` must match
 the request URL, and `Sec-Fetch-Site: cross-site` / `same-site` is denied).
 Headerless CLI clients still require the existing authentication checks. The MCP
-endpoint retains its separate bearer authentication. This guard does not add a
-local Host allowlist or enforce JSON content types; those remain open in #677.
+endpoint retains its separate bearer authentication. The unauthenticated local
+API also requires a loopback hostname (`localhost`, `127.0.0.1`, or `::1`) on
+reads and writes to block DNS rebinding. JSON content-type enforcement and the
+remaining mutation-surface decisions stay open in #677.
 
 ## Views
 
