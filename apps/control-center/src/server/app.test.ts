@@ -13,6 +13,7 @@ import { createControlCenterApp } from './app.js';
 import { readControlCenterConfig } from './config/env.js';
 import type { createOperationsService } from './services/operations/aggregate.js';
 import { createOverviewService } from './services/overview.js';
+import { createPodcastPipelineService } from './services/podcast-pipeline.js';
 import type { createSocialGrowthService } from './services/social-growth.js';
 
 const overview: OverviewResponse = {
@@ -144,7 +145,13 @@ function createTestApp(
   overrides: Partial<ReturnType<typeof createOverviewService>> = {},
   operationsOverrides: Partial<ReturnType<typeof createOperationsService>> = {},
   growthOverrides: Partial<ReturnType<typeof createSocialGrowthService>> = {},
-  options: { allowCostSync?: boolean } = {},
+  options: {
+    allowCostSync?: boolean;
+    podcastCosts?: Parameters<typeof createControlCenterApp>[0]['podcastCosts'];
+    podcastPipeline?: Parameters<
+      typeof createControlCenterApp
+    >[0]['podcastPipeline'];
+  } = {},
 ) {
   return createControlCenterApp({
     config: readControlCenterConfig({}),
@@ -202,14 +209,68 @@ function createTestApp(
         growthOverrides.getSocialGrowth ??
         vi.fn().mockResolvedValue(socialGrowth),
     },
-    podcastCosts: {
+    podcastCosts: options.podcastCosts ?? {
       getPodcastCosts: vi.fn().mockResolvedValue(podcastCosts),
     },
+    podcastPipeline: options.podcastPipeline,
     allowCostSync: options.allowCostSync,
   });
 }
 
 describe('control center API', () => {
+  it.each(['costs', 'pipeline'] as const)(
+    'shares overlapping podcast %s reads between direct routes and statements',
+    async (kind) => {
+      const pipeline = {
+        generatedAt: overview.generatedAt,
+        status: 'ok' as const,
+        message: null,
+        episodes: [],
+      };
+      let finish!: () => void;
+      const waiting = new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      const getPodcastCosts = vi.fn(async () => {
+        await waiting;
+        return podcastCosts;
+      });
+      const getPipeline = vi.fn(async () => {
+        await waiting;
+        return pipeline;
+      });
+      const app = createTestApp(
+        {},
+        {},
+        {},
+        {
+          podcastCosts: { getPodcastCosts },
+          podcastPipeline: {
+            ...createPodcastPipelineService({
+              config: readControlCenterConfig({}),
+            }),
+            getPipeline,
+          },
+        },
+      );
+      const url =
+        kind === 'costs' ? '/api/costs/podcast' : '/api/podcast-pipeline';
+      const direct = app.request(url);
+      const statements = app.request('/api/statements');
+      const load = kind === 'costs' ? getPodcastCosts : getPipeline;
+      // Statements must reach both source reads before their gate is released.
+      await vi.waitFor(() => {
+        expect(getPodcastCosts).toHaveBeenCalled();
+        expect(getPipeline).toHaveBeenCalled();
+      });
+      expect(load).toHaveBeenCalledTimes(1);
+      finish();
+      expect((await direct).status).toBe(200);
+      expect((await statements).status).toBe(200);
+      expect((await app.request(url)).status).toBe(200);
+      expect(load).toHaveBeenCalledTimes(2);
+    },
+  );
   it('returns persisted overview without triggering a provider refresh', async () => {
     const getOverview = vi.fn().mockResolvedValue(overview);
     const app = createTestApp({

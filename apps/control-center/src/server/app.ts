@@ -22,6 +22,7 @@ import {
 } from './register-podcast-abandon.js';
 import { captureServerException } from './observability/sentry.js';
 import { createOperationsService } from './services/operations/aggregate.js';
+import { createAsyncCache } from './services/cache.js';
 import { createOverviewService } from './services/overview.js';
 import { createPipelineQueuesService } from './services/pipeline-queues.js';
 import { createPodcastCostService } from './services/podcast-costs.js';
@@ -98,11 +99,26 @@ export function createControlCenterApp(input: {
   app.use('/api/*', requestOriginGuard);
   const service =
     input.service ?? createOverviewService({ config: input.config });
-  const podcastCosts =
+  const podcastCostSource =
     input.podcastCosts ?? createPodcastCostService({ config: input.config });
-  const podcastPipeline =
+  const podcastPipelineSource =
     input.podcastPipeline ??
     createPodcastPipelineService({ config: input.config });
+  // Direct dashboard routes and statements share pending work; completed
+  // results expire immediately, including errors, so the next load is fresh.
+  const podcastCostReads = createAsyncCache({
+    ttlMs: 0,
+    load: () => podcastCostSource.getPodcastCosts(),
+  });
+  const podcastPipelineReads = createAsyncCache({
+    ttlMs: 0,
+    load: () => podcastPipelineSource.getPipeline(),
+  });
+  const podcastCosts = { getPodcastCosts: () => podcastCostReads.get() };
+  const podcastPipeline = {
+    ...podcastPipelineSource,
+    getPipeline: () => podcastPipelineReads.get(),
+  };
   const pipelineQueues = createPipelineQueuesService({ config: input.config });
   const podcastVisual =
     input.podcastVisual ?? createPodcastVisualService({ config: input.config });
