@@ -10,11 +10,6 @@ const operatorState = vi.hoisted(() => ({
   historyCalls: 0,
 }));
 
-const cleanupState = vi.hoisted(() => ({
-  closeImpl: null as null | ((episodeId: string) => Promise<unknown>),
-  closeCalls: [] as string[],
-}));
-
 vi.mock('./observability/sentry.js', () => ({
   captureServerException: vi.fn(),
 }));
@@ -24,20 +19,6 @@ vi.mock('./services/operations/operator/store.js', () => ({
     history: () => {
       operatorState.historyCalls += 1;
       return operatorState.historyImpl!();
-    },
-  }),
-}));
-
-vi.mock('./services/social-release-cleanup.js', () => ({
-  createSocialReleaseCleanupService: () => ({
-    getEvidence: async () => ({
-      generatedAt: '2026-09-28T00:00:00.000Z',
-      posts: [],
-      message: null,
-    }),
-    closeRelease: (episodeId: string) => {
-      cleanupState.closeCalls.push(episodeId);
-      return cleanupState.closeImpl!(episodeId);
     },
   }),
 }));
@@ -105,8 +86,6 @@ function jsonRequest(
 beforeEach(() => {
   operatorState.historyImpl = null;
   operatorState.historyCalls = 0;
-  cleanupState.closeImpl = null;
-  cleanupState.closeCalls = [];
   vi.mocked(captureServerException).mockClear();
 });
 
@@ -149,64 +128,6 @@ describe('control center coverage gaps', () => {
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toEqual({
       error: 'Operator history is unavailable.',
-    });
-  });
-
-  it('rejects a malformed release id before touching the service', async () => {
-    cleanupState.closeImpl = async () => ({ ok: true });
-    const app = buildApp({});
-
-    const response = await app.request(
-      '/api/operations/social/not-a-uuid/complete',
-      { method: 'POST' },
-    );
-
-    expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({
-      error: 'Invalid episode id',
-    });
-    expect(cleanupState.closeCalls).toEqual([]);
-  });
-
-  it('maps a missing release RPC to the migration message', async () => {
-    cleanupState.closeImpl = async () => {
-      throw Object.assign(new Error('function not found'), {
-        code: 'PGRST202',
-      });
-    };
-    const app = buildApp({});
-
-    const response = await app.request(
-      `/api/operations/social/${EPISODE_ID}/complete`,
-      { method: 'POST' },
-    );
-
-    expect(response.status).toBe(503);
-    await expect(response.json()).resolves.toEqual({
-      error: 'Social release cleanup migration has not been applied yet',
-    });
-    expect(cleanupState.closeCalls).toEqual([EPISODE_ID]);
-  });
-
-  it('maps an unexpected release failure to 503', async () => {
-    const failure = new Error('database offline');
-    cleanupState.closeImpl = async () => {
-      throw failure;
-    };
-    const app = buildApp({});
-
-    const response = await app.request(
-      `/api/operations/social/${EPISODE_ID}/complete`,
-      { method: 'POST' },
-    );
-
-    expect(response.status).toBe(503);
-    await expect(response.json()).resolves.toEqual({
-      error: 'database offline',
-    });
-    expect(captureServerException).toHaveBeenCalledWith(failure, {
-      method: 'POST',
-      route: '/api/operations/social/:episodeId/complete',
     });
   });
 

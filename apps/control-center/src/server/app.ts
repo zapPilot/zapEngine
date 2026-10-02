@@ -28,7 +28,6 @@ import { createPipelineQueuesService } from './services/pipeline-queues.js';
 import { createPodcastCostService } from './services/podcast-costs.js';
 import { createPodcastPipelineService } from './services/podcast-pipeline.js';
 import { createPodcastVisualService } from './services/podcast-visual.js';
-import { createSocialReleaseCleanupService } from './services/social-release-cleanup.js';
 import {
   isMissingRpcError,
   postgrestErrorMessage,
@@ -125,9 +124,6 @@ export function createControlCenterApp(input: {
   const operations =
     input.operations ??
     createOperationsService({ config: input.config, socialGrowth });
-  const socialReleaseCleanup = createSocialReleaseCleanupService({
-    config: input.config,
-  });
   const statements =
     input.statements ??
     createStatementsService({
@@ -176,37 +172,6 @@ export function createControlCenterApp(input: {
   });
   app.get('/api/operations/social', async (context) => {
     return context.json(await operations.getSocial(isForced(context)));
-  });
-  app.get('/api/operations/social/release-evidence', async (context) => {
-    return context.json(await socialReleaseCleanup.getEvidence());
-  });
-  app.post('/api/operations/social/:episodeId/complete', async (context) => {
-    const episodeIdOrResponse = episodeIdOrErrorResponse(context);
-    if (typeof episodeIdOrResponse !== 'string') {
-      return episodeIdOrResponse;
-    }
-    const episodeId = episodeIdOrResponse;
-    try {
-      return context.json(await socialReleaseCleanup.closeRelease(episodeId));
-    } catch (error) {
-      const message = postgrestErrorMessage(error, 'Podcast retry failed');
-      if (isPodcastRetryConflict(error, message)) {
-        return context.json({ error: message }, 409);
-      }
-      if (isMissingRpcError(error)) {
-        return context.json(
-          {
-            error: 'Social release cleanup migration has not been applied yet',
-          },
-          503,
-        );
-      }
-      captureServerException(error, {
-        method: context.req.method,
-        route: routePath(context),
-      });
-      return context.json({ error: message }, 503);
-    }
   });
   app.get('/api/customers', async (context) => {
     return context.json(await operations.getCustomers(isForced(context)));

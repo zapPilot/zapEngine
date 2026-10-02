@@ -131,6 +131,8 @@ Dashboard HTTP views are generally read-only, with four narrowly bounded classes
 
 Production migrations are applied and verified by the production-gated `deploy-supabase-migrations` CI job before Fly deployment. The HTTP handlers still fail explicitly when a required schema change is absent — for example during local development or an independently deployed Vercel revision: a missing RPC (`PGRST202` / `42883`) answers `503` with "migration has not been applied yet", the abandon route maps a missing `abandoned_at` / `abandoned_reason` column (`42703`) to its own explicit `503`, and reads of not-yet-existing columns or tables (`42703`, `42P01`) are separate queries that fall back to empty values. The Basic guard described above is the load-bearing boundary for all of these operator actions; `/api/mcp` sits outside it because one `Authorization` header cannot carry Basic and Bearer at once, and it verifies its own bearer token instead.
 
+The orphaned social release-evidence and release-completion routes were removed with their unused service; no dashboard caller remains.
+
 The dashboard API does not register `POST /api/costs/sync` in any environment; the explicit `ops:sync` command owns cost collection.
 
 Fly operational signals use the Fly Machines HTTP API and require `FLY_OPS_TOKEN`; they do not depend on `flyctl` being installed in Vercel.
