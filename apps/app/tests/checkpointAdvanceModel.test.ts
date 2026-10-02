@@ -172,6 +172,20 @@ describe('advanceCheckpoint', () => {
     expect(order).toEqual(['baseline', 'submit']);
   });
 
+  it('does not submit when capturing the HLP baseline fails', async () => {
+    const input = ports({
+      reviewNext: vi.fn(async () => batch({ plan: plan([hlpStep]) })),
+      captureHlpBaseline: vi.fn(async () => {
+        throw new Error('baseline unavailable');
+      }),
+    });
+    await expect(advanceCheckpoint(input)).rejects.toThrow(
+      'baseline unavailable',
+    );
+    expect(input.captureHlpBaseline).toHaveBeenCalledWith(hlpStep);
+    expect(input.submitNext).not.toHaveBeenCalled();
+  });
+
   it('stops on changed evidence and hands back the fresh review', async () => {
     const fresh = batch({ review: group({ batchFingerprint: HASH_A }) });
     const input = ports({ reviewNext: vi.fn(async () => fresh) });

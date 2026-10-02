@@ -3,6 +3,8 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { sqlCode } from './__fixtures__/migrationSql.js';
+
 const appliedMigration = fs.readFileSync(
   path.resolve(
     process.cwd(),
@@ -12,13 +14,15 @@ const appliedMigration = fs.readFileSync(
   'utf8',
 );
 
-const reconciliationMigration = fs.readFileSync(
-  path.resolve(
-    process.cwd(),
-    '../..',
-    'supabase/migrations/20260903224914_reconcile_production_schema_drift.sql',
+const reconciliationMigration = sqlCode(
+  fs.readFileSync(
+    path.resolve(
+      process.cwd(),
+      '../..',
+      'supabase/migrations/20260903224914_reconcile_production_schema_drift.sql',
+    ),
+    'utf8',
   ),
-  'utf8',
 );
 
 describe('Fish Audio rate-card migration', () => {

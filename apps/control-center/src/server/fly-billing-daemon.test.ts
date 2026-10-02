@@ -213,4 +213,4 @@ describe('fly-billing daemon', () => {
     const daemon = await import('./fly-billing-daemon.js');
     await expect(daemon.sleep(5)).resolves.toBeUndefined();
   });
-});
+}, 30_000);

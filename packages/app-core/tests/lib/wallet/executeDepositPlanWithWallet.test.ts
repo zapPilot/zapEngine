@@ -29,7 +29,15 @@ vi.mock('@zapengine/intent-engine', () => ({
 }));
 
 const plan = {
-  approvals: [],
+  approvals: [
+    {
+      to: '0x3333333333333333333333333333333333333333',
+      data: '0x095ea7b3',
+      value: '0',
+      chainId: 8453,
+      meta: { intentType: 'APPROVAL' },
+    },
+  ],
   calls: [
     {
       to: '0x2222222222222222222222222222222222222222',
@@ -74,7 +82,10 @@ describe('executeDepositPlanWithWallet', () => {
     });
 
     expect(getWalletClient).not.toHaveBeenCalled();
-    expect(executeAtomicBatch).toHaveBeenCalledWith(plan.calls, 8453);
+    expect(executeAtomicBatch).toHaveBeenCalledWith(
+      [...plan.approvals, ...plan.calls],
+      8453,
+    );
     expect(result).toEqual({
       kind: 'eip7702',
       callsId: '0xbundle',
@@ -152,7 +163,11 @@ describe('executeDepositPlanWithWallet', () => {
         }),
       ).resolves.toEqual({ kind: 'eip7702', callsId: '0xbundle' });
 
-      expect(mocks.executeWithEIP7702).toHaveBeenCalledTimes(1);
+      expect(mocks.executeWithEIP7702).toHaveBeenCalledWith(
+        [...plan.approvals, ...plan.calls],
+        walletClient,
+        { chainId: 8453 },
+      );
     },
   );
 
@@ -166,7 +181,11 @@ describe('executeDepositPlanWithWallet', () => {
       }),
     ).resolves.toEqual({ kind: 'eip7702', callsId: '0xbundle' });
 
-    expect(mocks.executeWithEIP7702).toHaveBeenCalledTimes(1);
+    expect(mocks.executeWithEIP7702).toHaveBeenCalledWith(
+      [...plan.approvals, ...plan.calls],
+      walletClient,
+      { chainId: 8453 },
+    );
   });
 
   it.each([

@@ -38,80 +38,16 @@ let mockFetcher: ReturnType<typeof createMockFearGreedFetcher>;
 let mockWriter: ReturnType<typeof createMockSentimentWriter>;
 
 // Mock external dependencies with factory functions
-vi.mock('../../src/modules/sentiment/processor.js', async (importOriginal) => {
-  const actual =
-    await importOriginal<
-      typeof import('../../src/modules/sentiment/processor.js')
-    >();
-  const { SentimentDataTransformer } = await vi.importActual<
-    typeof import('../../src/modules/sentiment/transformer.js')
-  >('../../src/modules/sentiment/transformer.js');
-
-  // Create a MockedSentimentETLProcessor that uses the mock dependencies
-  // but uses the real SentimentDataTransformer for integration testing
-  class MockedSentimentETLProcessor {
-    private fetcher = mockFetcher;
-    private transformer = new SentimentDataTransformer();
-    private writer = mockWriter;
-
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    async process(_job: { jobId: string }) {
-      try {
-        const rawData = await this.fetcher.fetchCurrentSentiment();
-        const transformed = this.transformer.transform(rawData);
-
-        if (!transformed) {
-          return {
-            success: false,
-            recordsProcessed: 1,
-            recordsInserted: 0,
-            errors: ['Sentiment data failed validation'],
-            source: 'feargreed',
-          };
-        }
-
-        const writeResult = await this.writer.writeSentimentSnapshots(
-          [transformed],
-          'feargreed',
-        );
-
-        return {
-          success: writeResult.success,
-          recordsProcessed: 1,
-          recordsInserted: writeResult.recordsInserted,
-          errors: writeResult.errors,
-          source: 'feargreed',
-        };
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      } catch (_error) {
-        return {
-          success: false,
-          recordsProcessed: 1,
-          recordsInserted: 0,
-          errors: ['Failed to fetch sentiment data from API'],
-          source: 'feargreed',
-        };
-      }
-    }
-
-    async healthCheck() {
-      return this.fetcher.healthCheck();
-    }
-
-    getStats() {
-      return { feargreed: this.fetcher.getRequestStats() };
-    }
-
-    getSourceType() {
-      return 'feargreed';
-    }
-  }
-
-  return {
-    ...actual,
-    SentimentETLProcessor: MockedSentimentETLProcessor,
-  };
-});
+vi.mock('../../src/modules/sentiment/fetcher.js', () => ({
+  FearGreedFetcher: vi.fn(function () {
+    return mockFetcher;
+  }),
+}));
+vi.mock('../../src/modules/sentiment/writer.js', () => ({
+  SentimentWriter: vi.fn(function () {
+    return mockWriter;
+  }),
+}));
 
 // Silence logger
 vi.mock('../../src/utils/logger.js', async () => {
@@ -577,7 +513,7 @@ describe('Sentiment Pipeline Integration Tests', () => {
       expect(mockFetcher.fetchCurrentSentiment).toHaveBeenCalledTimes(3);
     });
 
-    it('queues requests when rate limit exceeded', async () => {
+    it('reports a rate-limit failure without writing a snapshot', async () => {
       const job = createTestJob();
 
       // Simulate rate limit error on first call
@@ -597,7 +533,7 @@ describe('Sentiment Pipeline Integration Tests', () => {
       // Should fail due to rate limit
       expect(result.success).toBe(false);
       expect(result.errors).toHaveLength(1);
-      expect(result.errors[0]).toContain('Failed to fetch sentiment data');
+      expect(result.errors[0]).toContain('429');
     });
 
     it('respects 6-second delay between requests', async () => {
@@ -635,7 +571,7 @@ describe('Sentiment Pipeline Integration Tests', () => {
 
       expect(result.success).toBe(false);
       expect(result.errors).toHaveLength(1);
-      expect(result.errors[0]).toContain('Failed to fetch sentiment data');
+      expect(result.errors[0]).toContain('429');
 
       // Verify it doesn't crash the processor
       expect(mockFetcher.fetchCurrentSentiment).toHaveBeenCalled();
@@ -653,10 +589,10 @@ describe('Sentiment Pipeline Integration Tests', () => {
       const result = await processor.process(job);
 
       expect(result.success).toBe(false);
-      expect(result.recordsProcessed).toBe(1);
+      expect(result.recordsProcessed).toBe(0);
       expect(result.recordsInserted).toBe(0);
       expect(result.errors).toHaveLength(1);
-      expect(result.errors[0]).toContain('Failed to fetch sentiment data');
+      expect(result.errors[0]).toContain('Request timeout');
 
       // Verify processor doesn't crash
       expect(result).toBeDefined();
@@ -667,7 +603,7 @@ describe('Sentiment Pipeline Integration Tests', () => {
 
       // Mock fetcher returns null (simulating transformation failure)
       mockFetcher.fetchCurrentSentiment.mockResolvedValue(
-        null as unknown as SentimentData,
+        createMockSentimentData({ value: 101 }),
       );
 
       const result = await processor.process(job);
@@ -795,7 +731,7 @@ describe('Sentiment Pipeline Integration Tests', () => {
       const result = await processor.process(job);
 
       expect(result.success).toBe(false);
-      expect(result.recordsProcessed).toBe(1);
+      expect(result.recordsProcessed).toBe(0);
       expect(result.recordsInserted).toBe(0);
       expect(result.errors).toHaveLength(1);
 

@@ -568,7 +568,7 @@ function splitTextIntoChunks(text: string, maxChars: number): string[] {
 
 function findBestSplitIndex(text: string, maxChars: number): number {
   for (const delimiter of SENTENCE_DELIMITERS) {
-    const index = text.lastIndexOf(delimiter, maxChars);
+    const index = text.lastIndexOf(delimiter, maxChars - delimiter.length);
     if (index > 0) {
       return index + delimiter.length;
     }

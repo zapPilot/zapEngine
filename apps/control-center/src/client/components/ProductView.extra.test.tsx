@@ -105,6 +105,7 @@ describe('ProductView coverage', () => {
       <ProductView
         customers={customers([
           customer({ aumUsd: 500, userId: 'b-user' }),
+          customer({ aumUsd: 1000, userId: 'larger' }),
           customer({ aumUsd: 500, userId: 'a-user' }),
           customer({
             aumUsd: 100_000,
@@ -119,7 +120,9 @@ describe('ProductView coverage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Show all/ }));
     const rows = screen.getAllByRole('row');
-    expect(rows[1]).toHaveTextContent('risky');
+    expect(
+      rows.slice(1).map((row) => row.querySelector('.cell-title')?.textContent),
+    ).toEqual(['risky', 'larger', 'a-user', 'b-user']);
   });
 
   it('explains a priority account whose last activity is unknown', () => {

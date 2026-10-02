@@ -7,6 +7,7 @@ import {
   render,
   screen,
   within,
+  waitFor,
 } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -176,7 +177,7 @@ function response(payload: PipelineQueuesResponse): Response {
   });
 }
 
-function workItem(
+function renderWorkItem(
   overrides: Partial<PipelineQueueItem> = {},
 ): PipelineQueueItem {
   return {
@@ -227,7 +228,7 @@ describe('PipelineQueuesBoard', () => {
     payload.render = {
       processing: [],
       queued: [
-        workItem({
+        renderWorkItem({
           key: `visual:${EPISODE_ID}`,
           kind: 'visual',
           languageCode: undefined,
@@ -239,7 +240,7 @@ describe('PipelineQueuesBoard', () => {
             disabledReason: 'Waiting for a worker; nothing to retry yet.',
           },
         }),
-        workItem({
+        renderWorkItem({
           key: 'render:zh-hant',
           languageCode: 'zh-Hant',
           state: 'queued',
@@ -249,7 +250,7 @@ describe('PipelineQueuesBoard', () => {
             disabledReason: 'Waiting for a worker; nothing to retry yet.',
           },
         }),
-        workItem({
+        renderWorkItem({
           key: 'render:en',
           languageCode: 'en',
           state: 'queued',
@@ -260,7 +261,7 @@ describe('PipelineQueuesBoard', () => {
           },
         }),
       ],
-      attention: [workItem({ key: 'render:ja' })],
+      attention: [renderWorkItem({ key: 'render:ja' })],
     };
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(payload)));
     vi.spyOn(window, 'setInterval').mockImplementation(() => TIMER_HANDLE);
@@ -369,7 +370,7 @@ describe('PipelineQueuesBoard', () => {
       queued: [],
       attention: [],
       abandoned: [
-        workItem({
+        renderWorkItem({
           key: 'render:abandoned-1',
           abandoned: {
             at: '2026-09-04T00:00:00.000Z',
@@ -379,7 +380,7 @@ describe('PipelineQueuesBoard', () => {
             disabledReason: 'Closed by an operator: Legacy zh-Hant-only render',
           },
         }),
-        workItem({
+        renderWorkItem({
           key: 'render:abandoned-2',
           episodeId: SECOND_EPISODE_ID,
           title: 'Another closed episode',
@@ -407,7 +408,7 @@ describe('PipelineQueuesBoard', () => {
     payload.render = {
       processing: [],
       queued: [],
-      attention: [workItem()],
+      attention: [renderWorkItem()],
     };
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(payload)));
     vi.spyOn(window, 'setInterval').mockImplementation(() => TIMER_HANDLE);
@@ -430,5 +431,825 @@ describe('PipelineQueuesBoard', () => {
 
     await screen.findByRole('button', { name: /Why We Build/i });
     expect(screen.queryByText(/abandoned/i)).not.toBeInTheDocument();
+  });
+});
+
+const emptyLane = { attention: [], processing: [], queued: [] };
+
+function queues(
+  overrides: Partial<PipelineQueuesResponse> = {},
+): PipelineQueuesResponse {
+  return {
+    api: emptyLane,
+    generatedAt: '2026-09-05T06:00:00.000Z',
+    status: 'ok',
+    message: null,
+    summary: {
+      queueDepth: 0,
+      processing: 0,
+      blockedOrFailed: 0,
+      publishedToday: 0,
+      abandoned: 0,
+    },
+    render: emptyLane,
+    social: emptyLane,
+    ...overrides,
+  } as PipelineQueuesResponse;
+}
+
+function workItem(
+  overrides: Partial<PipelineQueueItem> = {},
+): PipelineQueueItem {
+  return {
+    key: `api:${EPISODE_ID}`,
+    kind: 'ingest',
+    episodeId: EPISODE_ID,
+    title: 'Morning ingest',
+    state: 'failed',
+    queuedAt: '2026-09-05T04:00:00.000Z',
+    updatedAt: '2026-09-05T04:30:00.000Z',
+    retryCount: 0,
+    history: [],
+    publishedLinks: [],
+    actions: { restart: { step: 'ingest' } },
+    ...overrides,
+  };
+}
+
+function stubPoll(fetchMock: ReturnType<typeof vi.fn>) {
+  vi.stubGlobal('fetch', fetchMock);
+  if (typeof window !== 'undefined') {
+    (window as unknown as { fetch: typeof fetch }).fetch =
+      fetchMock as unknown as typeof fetch;
+  }
+  vi.spyOn(window, 'setInterval').mockImplementation(() => TIMER_HANDLE);
+}
+
+describe('PipelineQueuesBoard loading', () => {
+  it('says the runtime queues are loading', () => {
+    stubPoll(vi.fn().mockImplementation(() => new Promise(() => undefined)));
+
+    render(<PipelineQueuesBoard {...boardProps()} />);
+
+    expect(screen.getByText('Loading runtime queues…')).toBeVisible();
+  });
+
+  it('names a queue read failure', async () => {
+    stubPoll(vi.fn().mockRejectedValue(new Error('connection refused')));
+
+    render(<PipelineQueuesBoard {...boardProps()} />);
+
+    expect(
+      await screen.findByText(
+        'Pipeline queues unavailable: connection refused',
+      ),
+    ).toBeVisible();
+  });
+
+  it('reports an unreadable failure as a plain refresh failure', async () => {
+    stubPoll(vi.fn().mockRejectedValue('string-boom'));
+
+    render(<PipelineQueuesBoard {...boardProps()} />);
+
+    expect(
+      await screen.findByText(
+        'Pipeline queues unavailable: Queue refresh failed',
+      ),
+    ).toBeVisible();
+  });
+
+  it('renders the unconfigured message instead of empty lanes', async () => {
+    stubPoll(
+      vi.fn().mockResolvedValue(
+        response(
+          queues({
+            status: 'unconfigured',
+            message: 'Supabase is not configured',
+          }),
+        ),
+      ),
+    );
+
+    render(<PipelineQueuesBoard {...boardProps()} />);
+
+    expect(await screen.findByText('Supabase is not configured')).toBeVisible();
+    expect(screen.getByText('API queue')).toBeVisible();
+  });
+
+  it('keeps an inline refresh error beside live lanes', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(response(queues()))
+      .mockRejectedValueOnce(new Error('refresh blew up'));
+    let poll: (() => void) | null = null;
+    vi.stubGlobal('fetch', fetchMock);
+    (window as unknown as { fetch: typeof fetch }).fetch =
+      fetchMock as unknown as typeof fetch;
+    vi.spyOn(window, 'setInterval').mockImplementation((callback, ms) => {
+      if (ms === 7000) {
+        poll = callback as () => void;
+      }
+      return TIMER_HANDLE;
+    });
+
+    render(<PipelineQueuesBoard {...boardProps()} />);
+    await screen.findByText('API queue');
+    expect(poll).not.toBeNull();
+
+    await act(async () => {
+      poll?.();
+      await Promise.resolve();
+    });
+
+    expect(
+      await screen.findByText('Last refresh: refresh blew up'),
+    ).toBeVisible();
+    expect(screen.getByText('API queue')).toBeVisible();
+  });
+});
+
+describe('PipelineQueuesBoard search', () => {
+  it('filters every lane by title or episode UUID', async () => {
+    stubPoll(
+      vi.fn().mockResolvedValue(
+        response(
+          queues({
+            api: {
+              ...emptyLane,
+              queued: [
+                workItem({ title: 'Morning ingest' }),
+                workItem({
+                  key: 'api:other',
+                  episodeId: 'other-episode',
+                  title: 'Evening ingest',
+                }),
+              ],
+            },
+          }),
+        ),
+      ),
+    );
+
+    render(<PipelineQueuesBoard {...boardProps()} />);
+    await screen.findByText('Morning ingest');
+
+    const search = screen.getByRole('searchbox', {
+      name: 'Search pipeline queues',
+    });
+    fireEvent.change(search, { target: { value: 'morning' } });
+
+    expect(screen.getByText('Morning ingest')).toBeVisible();
+    expect(screen.queryByText('Evening ingest')).toBeNull();
+
+    fireEvent.change(search, { target: { value: 'other-episode' } });
+    expect(screen.getByText('Evening ingest')).toBeVisible();
+    expect(screen.queryByText('Morning ingest')).toBeNull();
+  });
+});
+
+describe('PipelineQueuesBoard queue operations', () => {
+  function singleRenderBoard(
+    fetchMock: ReturnType<typeof vi.fn>,
+    props: ReturnType<typeof boardProps>,
+  ) {
+    stubPoll(fetchMock);
+    render(<PipelineQueuesBoard {...props} />);
+  }
+
+  it('refetches right after a restart so the moved card is visible', async () => {
+    const payload = queues({ api: { ...emptyLane, attention: [workItem()] } });
+    const fetchMock = vi.fn().mockResolvedValue(response(payload));
+    const props = boardProps();
+    singleRenderBoard(fetchMock, props);
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: /Morning ingest/i }),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Restart ingest' }));
+
+    await waitFor(() =>
+      expect(props.onRestartStep).toHaveBeenCalledWith(EPISODE_ID, {
+        step: 'ingest',
+      }),
+    );
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+  });
+
+  it('abandons a failed episode and refetches', async () => {
+    const payload = queues({
+      render: {
+        ...emptyLane,
+        attention: [
+          workItem({
+            key: 'render:ja',
+            kind: 'render',
+            languageCode: 'ja',
+            currentStep: 'Rendering',
+            retryCount: 1,
+          }),
+        ],
+      },
+    });
+    const fetchMock = vi.fn(async (url: string) => {
+      if (typeof url === 'string' && url.includes('/abandon')) {
+        return new Response('{}', {
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      return response(payload);
+    });
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const props = boardProps();
+    singleRenderBoard(fetchMock, props);
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: /Morning ingest/i }),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Abandon episode' }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      `/api/podcast-pipeline/${EPISODE_ID}/abandon`,
+      { method: 'POST' },
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(3, '/api/pipeline/queues');
+  });
+
+  it('names an abandon refusal from the API', async () => {
+    const payload = queues({
+      render: {
+        ...emptyLane,
+        attention: [
+          workItem({
+            key: 'render:ja',
+            kind: 'render',
+            languageCode: 'ja',
+            currentStep: 'Rendering',
+            retryCount: 1,
+          }),
+        ],
+      },
+    });
+    const fetchMock = vi.fn(async (url: string) => {
+      if (typeof url === 'string' && url.includes('/abandon')) {
+        return new Response(JSON.stringify({ error: 'already processing' }), {
+          status: 409,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      return response(payload);
+    });
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    singleRenderBoard(fetchMock, boardProps());
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: /Morning ingest/i }),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Abandon episode' }));
+
+    expect(await screen.findByText('already processing')).toBeVisible();
+  });
+
+  it('falls back to the status when an abandon refusal names nothing', async () => {
+    const payload = queues({
+      render: {
+        ...emptyLane,
+        attention: [
+          workItem({
+            key: 'render:ja',
+            kind: 'render',
+            languageCode: 'ja',
+            currentStep: 'Rendering',
+            retryCount: 1,
+          }),
+        ],
+      },
+    });
+    const fetchMock = vi.fn(async (url: string) => {
+      if (typeof url === 'string' && url.includes('/abandon')) {
+        return new Response(JSON.stringify({}), {
+          status: 500,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      return response(payload);
+    });
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    singleRenderBoard(fetchMock, boardProps());
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: /Morning ingest/i }),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Abandon episode' }));
+
+    expect(await screen.findByText('HTTP 500')).toBeVisible();
+  });
+});
+
+describe('PipelineQueuesBoard cards', () => {
+  it('renders work cards with thumbnails, progress, errors and timing', async () => {
+    stubPoll(
+      vi.fn().mockResolvedValue(
+        response(
+          queues({
+            api: {
+              processing: [
+                workItem({
+                  kind: 'ingest',
+                  currentStep: undefined,
+                  thumbnailUrl: 'https://cdn.example.com/t.jpg',
+                  workerId: 'worker-1',
+                  startedAt: new Date(Date.now() - 90_000).toISOString(),
+                  progressPercent: 150,
+                  lastError: 'fetch failed',
+                  retryCount: 3,
+                }),
+              ],
+              queued: [
+                workItem({
+                  key: 'api:visual',
+                  kind: 'visual',
+                  episodeId: undefined,
+                  currentStep: undefined,
+                  queuedAt: new Date(Date.now() - 5_000).toISOString(),
+                  progressPercent: -5,
+                  lastError: undefined,
+                  retryCount: 0,
+                  actions: {},
+                }),
+                workItem({
+                  key: 'api:render',
+                  kind: 'render',
+                  languageCode: undefined,
+                  currentStep: undefined,
+                  queuedAt: '2020-01-01T00:00:00.000Z',
+                  lastError: undefined,
+                  retryCount: 0,
+                  actions: {},
+                }),
+              ],
+              attention: [],
+            },
+          }),
+        ),
+      ),
+    );
+
+    render(<PipelineQueuesBoard {...boardProps()} />);
+
+    expect(await screen.findByText('Ingest')).toBeVisible();
+    expect(screen.getByText('Visual planning')).toBeVisible();
+    expect(screen.getByText('Rendering')).toBeVisible();
+    // Progress clamps to the 0–100 range it can actually draw.
+    expect(screen.getByText('100%')).toBeVisible();
+    expect(screen.getByText('0%')).toBeVisible();
+    expect(screen.getByText('fetch failed')).toBeVisible();
+    expect(screen.getByText('worker · worker-1')).toBeVisible();
+    expect(screen.getByText(/elapsed/)).toBeVisible();
+    expect(screen.getAllByText(/waiting/)).toHaveLength(2);
+    expect(screen.getByText('retry 3')).toBeVisible();
+    expect(screen.getByText('no episode row')).toBeVisible();
+  });
+
+  it('opens the drawer for api work', async () => {
+    stubPoll(
+      vi
+        .fn()
+        .mockResolvedValue(
+          response(queues({ api: { ...emptyLane, attention: [workItem()] } })),
+        ),
+    );
+
+    render(<PipelineQueuesBoard {...boardProps()} />);
+    fireEvent.click(
+      await screen.findByRole('button', { name: /Morning ingest/i }),
+    );
+
+    const drawer = screen.getByRole('complementary', {
+      name: 'Episode queue details',
+    });
+    expect(within(drawer).getByText('API QUEUE')).toBeVisible();
+  });
+
+  it('shows an empty lane as none rather than nothing', async () => {
+    stubPoll(vi.fn().mockResolvedValue(response(queues())));
+
+    render(<PipelineQueuesBoard {...boardProps()} />);
+
+    expect(await screen.findAllByText('None')).toHaveLength(6);
+  });
+});
+
+describe('itemMatches edges', () => {
+  it('matches everything on an empty query', () => {
+    expect(itemMatches('Morning ingest', EPISODE_ID, '   ')).toBe(true);
+  });
+
+  it('matches nothing without an episode id when the title misses', () => {
+    expect(itemMatches('Morning ingest', undefined, 'zzz')).toBe(false);
+  });
+
+  it('matches titles case-insensitively', () => {
+    expect(itemMatches('Morning ingest', undefined, 'MORNING')).toBe(true);
+  });
+});
+
+describe('abandoned work and unavailable detail', () => {
+  it('uses the singular abandoned copy for one hidden job', async () => {
+    stubPoll(
+      vi.fn().mockResolvedValue(
+        response(
+          queues({
+            summary: {
+              queueDepth: 0,
+              processing: 0,
+              blockedOrFailed: 0,
+              publishedToday: 0,
+              abandoned: 1,
+            },
+            render: {
+              ...emptyLane,
+              abandoned: [
+                workItem({
+                  key: 'render:abandoned-1',
+                  kind: 'render',
+                  state: 'failed',
+                }),
+              ],
+            } as never,
+          }),
+        ),
+      ),
+    );
+    render(<PipelineQueuesBoard {...boardProps()} />);
+    expect(
+      await screen.findByText(/1 abandoned job hidden from the render/),
+    ).toBeVisible();
+    // Singular has no trailing s.
+    expect(screen.queryByText(/1 abandoned jobs hidden/)).toBeNull();
+  });
+
+  it('opens the drawer from an abandoned card', async () => {
+    stubPoll(
+      vi.fn().mockResolvedValue(
+        response(
+          queues({
+            summary: {
+              queueDepth: 0,
+              processing: 0,
+              blockedOrFailed: 0,
+              publishedToday: 0,
+              abandoned: 1,
+            },
+            render: {
+              ...emptyLane,
+              abandoned: [
+                workItem({
+                  key: 'render:abandoned-1',
+                  kind: 'render',
+                  title: 'Closed episode',
+                  state: 'failed',
+                }),
+              ],
+            } as never,
+          }),
+        ),
+      ),
+    );
+    render(<PipelineQueuesBoard {...boardProps()} />);
+    fireEvent.click(
+      await screen.findByRole('button', { name: /Closed episode/i }),
+    );
+    expect(
+      screen.getByRole('complementary', { name: 'Episode queue details' }),
+    ).toBeVisible();
+  });
+
+  it('shows the queue error status message from the payload', async () => {
+    stubPoll(
+      vi
+        .fn()
+        .mockResolvedValue(
+          response(queues({ status: 'error', message: 'Queue store is down' })),
+        ),
+    );
+    render(<PipelineQueuesBoard {...boardProps()} />);
+    expect(await screen.findByText(/Queue store is down/)).toBeVisible();
+  });
+
+  it('renders work cards with language badges and thumbnails', async () => {
+    stubPoll(
+      vi.fn().mockResolvedValue(
+        response(
+          queues({
+            api: {
+              ...emptyLane,
+              queued: [
+                workItem({
+                  kind: 'ingest',
+                  languageCode: 'en',
+                  currentStep: 'Fetching',
+                  thumbnailUrl: 'https://cdn.example.com/t.jpg',
+                  progressPercent: 50,
+                  workerId: 'worker-9',
+                  startedAt: new Date(Date.now() - 30_000).toISOString(),
+                  lastError: 'fetch failed',
+                  retryCount: 1,
+                }),
+              ],
+            },
+          }),
+        ),
+      ),
+    );
+    render(<PipelineQueuesBoard {...boardProps()} />);
+    expect(await screen.findByText('Morning ingest')).toBeVisible();
+    expect(screen.getByText('en')).toBeVisible();
+    expect(screen.getByText('50%')).toBeVisible();
+  });
+
+  it('aggregates an episode with a processing job carrying elapsed time', async () => {
+    const startedAt = new Date(Date.now() - 120_000).toISOString();
+    stubPoll(
+      vi.fn().mockResolvedValue(
+        response(
+          queues({
+            render: {
+              ...emptyLane,
+              processing: [
+                {
+                  ...workItem({
+                    key: 'visual:ep1',
+                    kind: 'visual',
+                    state: 'processing',
+                    currentStep: undefined,
+                    startedAt,
+                  }),
+                  episodeId: EPISODE_ID,
+                  title: 'Episode One',
+                },
+                {
+                  ...workItem({
+                    key: 'render:ep1-en',
+                    kind: 'render',
+                    languageCode: undefined,
+                    state: 'processing',
+                    currentStep: 'Rendering',
+                    startedAt,
+                  }),
+                  episodeId: EPISODE_ID,
+                  title: 'Episode One',
+                },
+              ],
+            } as never,
+          }),
+        ),
+      ),
+    );
+    render(<PipelineQueuesBoard {...boardProps()} />);
+    expect(await screen.findByText('Episode One')).toBeVisible();
+    // Visual without a step falls back to its label; render without a
+    // language falls back to unknown.
+    expect(screen.getByText('Visual planning')).toBeVisible();
+    expect(screen.getByText('Render · unknown')).toBeVisible();
+    expect(screen.getByText(/elapsed/)).toBeVisible();
+  });
+
+  it('shows waiting time for a queued aggregated episode', async () => {
+    stubPoll(
+      vi.fn().mockResolvedValue(
+        response(
+          queues({
+            render: {
+              ...emptyLane,
+              queued: [
+                {
+                  ...workItem({
+                    key: 'visual:ep2',
+                    kind: 'visual',
+                    state: 'queued',
+                    currentStep: 'planning-scenes',
+                    startedAt: undefined,
+                    queuedAt: new Date(Date.now() - 60_000).toISOString(),
+                  }),
+                  episodeId: 'episode-2',
+                  title: 'Episode Two',
+                },
+              ],
+            } as never,
+          }),
+        ),
+      ),
+    );
+    render(<PipelineQueuesBoard {...boardProps()} />);
+    expect(await screen.findByText('Episode Two')).toBeVisible();
+    expect(screen.getByText(/waiting/)).toBeVisible();
+  });
+
+  it('keeps the drawer closed for an unknown selection key', async () => {
+    stubPoll(
+      vi.fn().mockResolvedValue(
+        response(
+          queues({
+            api: { ...emptyLane, queued: [workItem()] },
+          }),
+        ),
+      ),
+    );
+    render(<PipelineQueuesBoard {...boardProps()} />);
+    await screen.findByText('Morning ingest');
+    expect(
+      screen.queryByRole('complementary', {
+        name: 'Episode queue details',
+      }),
+    ).toBeNull();
+  });
+
+  it('names an abandon refusal when the error body cannot be parsed', async () => {
+    const payload = queues({
+      render: {
+        ...emptyLane,
+        attention: [
+          workItem({
+            key: 'render:ja',
+            kind: 'render',
+            languageCode: 'ja',
+            currentStep: 'Rendering',
+            retryCount: 1,
+          }),
+        ],
+      },
+    });
+    const fetchMock = vi.fn(async (url: string) => {
+      if (typeof url === 'string' && url.includes('/abandon')) {
+        return {
+          ok: false,
+          status: 500,
+          json: () => Promise.reject(new Error('not json')),
+        } as unknown as Response;
+      }
+      return response(payload);
+    });
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    stubPoll(fetchMock);
+    render(<PipelineQueuesBoard {...boardProps()} />);
+    fireEvent.click(
+      await screen.findByRole('button', { name: /Morning ingest/i }),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Abandon episode' }));
+    expect(await screen.findByText('HTTP 500')).toBeVisible();
+  });
+
+  it('renders a drawer without an episode row when the card has none', async () => {
+    stubPoll(
+      vi.fn().mockResolvedValue(
+        response(
+          queues({
+            api: {
+              ...emptyLane,
+              queued: [
+                workItem({ episodeId: undefined, title: 'Orphan ingest' }),
+              ],
+            },
+          }),
+        ),
+      ),
+    );
+    render(<PipelineQueuesBoard {...boardProps()} />);
+    fireEvent.click(
+      await screen.findByRole('button', { name: /Orphan ingest/i }),
+    );
+    const drawer = screen.getByRole('complementary', {
+      name: 'Episode queue details',
+    });
+    expect(within(drawer).getByText('no episode row')).toBeVisible();
+  });
+});
+
+describe('selection lifecycle and polling', () => {
+  it('renders an aggregated episode thumbnail', async () => {
+    stubPoll(
+      vi.fn().mockResolvedValue(
+        response(
+          queues({
+            render: {
+              ...emptyLane,
+              queued: [
+                {
+                  ...workItem({
+                    key: 'visual:ep-thumb',
+                    kind: 'visual',
+                    state: 'queued',
+                    currentStep: 'planning-scenes',
+                    startedAt: undefined,
+                    queuedAt: '2026-09-05T04:00:00.000Z',
+                  }),
+                  episodeId: EPISODE_ID,
+                  title: 'Episode With Thumb',
+                },
+                {
+                  ...workItem({
+                    key: 'render:ep-thumb-en',
+                    kind: 'render',
+                    languageCode: 'en',
+                    state: 'queued',
+                    currentStep: 'Rendering',
+                    thumbnailUrl: 'https://cdn.example.com/thumb.jpg',
+                    startedAt: undefined,
+                    queuedAt: '2026-09-05T04:00:00.000Z',
+                  }),
+                  episodeId: EPISODE_ID,
+                  title: 'Episode With Thumb',
+                },
+              ],
+            } as never,
+          }),
+        ),
+      ),
+    );
+    render(<PipelineQueuesBoard {...boardProps()} />);
+    expect(await screen.findByText('Episode With Thumb')).toBeVisible();
+    const thumbs = document.querySelectorAll('img.queue-thumb');
+    expect(thumbs.length).toBeGreaterThan(0);
+    expect(thumbs[0]?.getAttribute('src')).toBe(
+      'https://cdn.example.com/thumb.jpg',
+    );
+  });
+
+  it('renders an aggregated episode with no timing at all', async () => {
+    stubPoll(
+      vi.fn().mockResolvedValue(
+        response(
+          queues({
+            render: {
+              ...emptyLane,
+              queued: [
+                {
+                  ...workItem({
+                    key: 'visual:ep-notime',
+                    kind: 'visual',
+                    state: 'queued',
+                    currentStep: 'planning-scenes',
+                    startedAt: undefined,
+                    queuedAt: undefined,
+                    updatedAt: undefined,
+                  }),
+                  episodeId: 'episode-no-time',
+                  title: 'Episode Without Time',
+                  queuedAt: undefined,
+                  updatedAt: undefined,
+                },
+              ],
+            } as never,
+          }),
+        ),
+      ),
+    );
+    render(<PipelineQueuesBoard {...boardProps()} />);
+    expect(await screen.findByText('Episode Without Time')).toBeVisible();
+    expect(screen.queryByText(/elapsed/)).toBeNull();
+    expect(screen.queryByText(/waiting/)).toBeNull();
+  });
+
+  it('closes the drawer when polling drops the selected item', async () => {
+    const first = queues({
+      api: { ...emptyLane, queued: [workItem()] },
+    });
+    const second = queues();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(response(first))
+      .mockResolvedValue(response(second));
+    vi.stubGlobal('fetch', fetchMock);
+    (window as unknown as { fetch: typeof fetch }).fetch =
+      fetchMock as unknown as typeof fetch;
+    let poll: (() => void) | null = null;
+    vi.spyOn(window, 'setInterval').mockImplementation((callback, ms) => {
+      if (ms === 7000) {
+        poll = callback as () => void;
+      }
+      return TIMER_HANDLE;
+    });
+
+    render(<PipelineQueuesBoard {...boardProps()} />);
+    fireEvent.click(
+      await screen.findByRole('button', { name: /Morning ingest/i }),
+    );
+    expect(
+      screen.getByRole('complementary', { name: 'Episode queue details' }),
+    ).toBeVisible();
+    expect(poll).not.toBeNull();
+
+    await act(async () => {
+      poll?.();
+      await new Promise((r) => setTimeout(r, 50));
+    });
+
+    expect(
+      screen.queryByRole('complementary', {
+        name: 'Episode queue details',
+      }),
+    ).toBeNull();
   });
 });

@@ -440,7 +440,7 @@ export function ruleR6(input: StatementInputs): RuleFinding {
           ? '.'
           : direction === 'flat'
             ? `, flat for ${weeksOfHistory} weeks.`
-            : `, trending ${direction} over the last ${weeksOfHistory || 1} week${weeksOfHistory === 1 ? '' : 's'}.`,
+            : `, trending ${direction} over the last ${weeksOfHistory || 1} week${weeksOfHistory <= 1 ? '' : 's'}.`,
     },
   );
   finding.series = series.series;

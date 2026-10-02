@@ -3,29 +3,36 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { sqlCode } from './__fixtures__/migrationSql.js';
 import { PODCAST_INGEST_MAX_CONCURRENT_JOBS } from './services/ingest-jobs.js';
 
 const repoRoot = path.resolve(process.cwd(), '../..');
-const migration = fs.readFileSync(
-  path.join(
-    repoRoot,
-    'supabase/migrations/20260830064000_add_podcast_ingest_jobs.sql',
+const migration = sqlCode(
+  fs.readFileSync(
+    path.join(
+      repoRoot,
+      'supabase/migrations/20260830064000_add_podcast_ingest_jobs.sql',
+    ),
+    'utf8',
   ),
-  'utf8',
 );
-const emptyClaimFixMigration = fs.readFileSync(
-  path.join(
-    repoRoot,
-    'supabase/migrations/20260830224500_fix_podcast_ingest_claim_empty_result.sql',
+const emptyClaimFixMigration = sqlCode(
+  fs.readFileSync(
+    path.join(
+      repoRoot,
+      'supabase/migrations/20260830224500_fix_podcast_ingest_claim_empty_result.sql',
+    ),
+    'utf8',
   ),
-  'utf8',
 );
-const boundedConcurrencyMigration = fs.readFileSync(
-  path.join(
-    repoRoot,
-    'supabase/migrations/20260922064600_raise_podcast_ingest_concurrency_to_4.sql',
+const boundedConcurrencyMigration = sqlCode(
+  fs.readFileSync(
+    path.join(
+      repoRoot,
+      'supabase/migrations/20260922064600_raise_podcast_ingest_concurrency_to_4.sql',
+    ),
+    'utf8',
   ),
-  'utf8',
 );
 
 describe('podcast ingest jobs migration', () => {

@@ -65,14 +65,12 @@ class PerformanceMetricsCalculator:
             Annualized Sortino ratio
         """
         mean_return = np.mean(returns)
-        negative_returns = returns[returns < 0]
-        has_downside_returns = negative_returns.size > 0
-        downside_std = np.std(negative_returns) if has_downside_returns else 0.0
+        downside_returns = np.minimum(returns, 0.0)
+        downside_std = np.sqrt(np.mean(np.square(downside_returns)))
 
         if downside_std > 0:
             return float((mean_return / downside_std) * np.sqrt(365))
-        # If no negative returns, return Sharpe; if only negative, return 0
-        return sharpe_ratio if not has_downside_returns else 0.0
+        return sharpe_ratio
 
     @staticmethod
     def calculate_max_drawdown(values: np.ndarray) -> float:
@@ -131,7 +129,7 @@ class PerformanceMetricsCalculator:
         strat_aligned = strategy_returns[:min_len]
         bench_aligned = benchmark_returns[:min_len]
 
-        covariance = np.cov(strat_aligned, bench_aligned)[0][1]
+        covariance = np.cov(strat_aligned, bench_aligned, ddof=0)[0][1]
         benchmark_variance = np.var(bench_aligned)
 
         if benchmark_variance > 0:

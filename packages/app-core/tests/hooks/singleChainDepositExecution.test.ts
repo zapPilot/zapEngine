@@ -120,6 +120,41 @@ describe('singleChainDepositExecution', () => {
     ).toThrow('cross-chain action');
   });
 
+  it('rejects cross-chain approvals even when every call uses the source chain', () => {
+    const plan = planWithValue('0');
+    plan.approvals = [{ ...plan.calls[0]!, chainId: 8453 }];
+    expect(() => assertSingleChainPlan(plan, gmxRequest)).toThrow(
+      'cross-chain action',
+    );
+  });
+
+  it.each([
+    ['10000000000000000', '5000000000000000', '10500000000000000'],
+    ['1000000000000000', '5000000000000000', '5500000000000000'],
+  ])(
+    'requires max(request=%s, calls=%s) plus gas at the exact boundary',
+    async (requested, planned, required) => {
+      const request = {
+        kind: 'invest' as const,
+        sourceChainId: 8453 as const,
+        fromToken: NATIVE_TOKEN_ADDRESS,
+        fromAmount: requested,
+        userAddress: USER,
+      };
+      const plan = planWithValue(planned);
+      plan.sourceChainId = 8453;
+      plan.calls[0]!.chainId = 8453;
+      mocks.getBalance.mockResolvedValueOnce(BigInt(required) - 1n);
+      await expect(
+        assertSingleChainPreflight({ request, plan, address: USER }),
+      ).rejects.toThrow('Native balance too low');
+      mocks.getBalance.mockResolvedValueOnce(BigInt(required));
+      await expect(
+        assertSingleChainPreflight({ request, plan, address: USER }),
+      ).resolves.toBeUndefined();
+    },
+  );
+
   it('validates the planned account', () => {
     expect(() => assertPlannedAccount(USER, USER, 'deposit')).not.toThrow();
     expect(() => assertPlannedAccount(undefined, USER, 'deposit')).toThrow(

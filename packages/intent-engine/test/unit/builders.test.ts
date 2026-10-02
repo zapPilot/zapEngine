@@ -350,6 +350,15 @@ describe('buildRotateTx', () => {
     expect(plan.steps).toHaveLength(2);
     expect(plan.steps[0]?.to).toBe(BASE_SPARK_USDC);
     expect(plan.steps[0]?.data.slice(0, 10)).toBe(REDEEM_SELECTOR);
+    expect(
+      decodeFunctionData({
+        abi: MORPHO_VAULT_ABI,
+        data: plan.steps[0]!.data as `0x${string}`,
+      }),
+    ).toMatchObject({
+      functionName: 'redeem',
+      args: [1_000_000n, FROM_ADDRESS, FROM_ADDRESS],
+    });
     expect(plan.steps[0]?.meta.intentType).toBe('ROTATE_WITHDRAW');
     expect(plan.steps[1]?.meta.intentType).toBe('SUPPLY');
     expect(plan.estimates.expectedOutput).toBe('500000000000000000');

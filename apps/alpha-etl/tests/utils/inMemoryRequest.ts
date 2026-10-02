@@ -1,7 +1,6 @@
 import type { Application } from 'express';
 import { IncomingMessage, ServerResponse } from 'http';
 import { PassThrough } from 'stream';
-import { parse as parseQuery } from 'querystring';
 
 type Headers = Record<string, string>;
 
@@ -21,18 +20,6 @@ type MockSocket = PassThrough & {
   setNoDelay: (...args: unknown[]) => MockSocket;
   setKeepAlive: (...args: unknown[]) => MockSocket;
 };
-
-type MutableIncomingRequest = IncomingMessage & {
-  app?: Application;
-  res?: ServerResponse;
-  body?: unknown;
-  _body?: boolean;
-};
-type MutableServerResponse = ServerResponse & {
-  app?: Application;
-  req?: IncomingMessage;
-};
-type ExpressBodyParseError = Error & { status?: number; type?: string };
 
 class InMemoryTestRequest {
   private readonly app: Application;
@@ -175,14 +162,6 @@ function createMockSocket(): MockSocket {
   return socket;
 }
 
-function createExpressBodyParseError(error: unknown): ExpressBodyParseError {
-  const parseError =
-    error instanceof Error ? error : new SyntaxError('Invalid JSON');
-  parseError.status = 400;
-  parseError.type = 'entity.parse.failed';
-  return parseError;
-}
-
 function dispatchRequest(
   app: Application,
   options: {
@@ -195,7 +174,6 @@ function dispatchRequest(
   return new Promise((resolve, reject) => {
     const socket = createMockSocket();
     const req = new IncomingMessage(socket);
-    const mutableReq = req as MutableIncomingRequest;
 
     req.method = options.method;
     req.url = options.path;
@@ -204,7 +182,6 @@ function dispatchRequest(
     req.connection = socket;
 
     const res = new ServerResponse(req);
-    const mutableRes = res as MutableServerResponse;
     res.assignSocket(socket);
 
     const chunks: Buffer[] = [];
@@ -291,92 +268,6 @@ function dispatchRequest(
       req.headers['content-length'] = Buffer.byteLength(raw).toString();
     }
 
-    const contentTypeHeader = req.headers['content-type'];
-    const contentTypeValue =
-      typeof contentTypeHeader === 'string'
-        ? contentTypeHeader.toLowerCase()
-        : '';
-    const isJsonBody = contentTypeValue.includes('application/json');
-    const isFormBody = contentTypeValue.includes(
-      'application/x-www-form-urlencoded',
-    );
-
-    const primeExpressResponse = () => {
-      const appAny = app as Application & {
-        request?: object;
-        response?: object;
-      };
-      if (appAny.request && Object.getPrototypeOf(req) !== appAny.request) {
-        Object.setPrototypeOf(req, appAny.request);
-      }
-      if (appAny.response && Object.getPrototypeOf(res) !== appAny.response) {
-        Object.setPrototypeOf(res, appAny.response);
-      }
-      mutableReq.app = app;
-      mutableRes.app = app;
-      mutableReq.res = res;
-      mutableRes.req = req;
-    };
-
-    if (
-      isJsonBody &&
-      options.body !== null &&
-      typeof options.body === 'object' &&
-      !Buffer.isBuffer(options.body)
-    ) {
-      mutableReq.body = options.body;
-      mutableReq._body = true;
-    }
-
-    if (typeof options.body === 'string' && (isJsonBody || isFormBody)) {
-      if (isJsonBody) {
-        try {
-          mutableReq.body = JSON.parse(options.body);
-          mutableReq._body = true;
-        } catch (error) {
-          const parseError = createExpressBodyParseError(error);
-
-          const routerStack =
-            (
-              app as Application & {
-                _router?: {
-                  stack: Array<{ handle?: (...args: unknown[]) => void }>;
-                };
-              }
-            )._router?.stack ?? [];
-          const errorHandlerLayer = [...routerStack]
-            .reverse()
-            .find((layer) => (layer.handle?.length ?? 0) === 4);
-
-          if (errorHandlerLayer?.handle) {
-            primeExpressResponse();
-            (
-              errorHandlerLayer.handle as (
-                err: Error,
-                req: IncomingMessage,
-                res: ServerResponse,
-                next: () => void,
-              ) => void
-            )(parseError, req, res, () => {});
-          } else {
-            primeExpressResponse();
-            res.statusCode = 400;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ error: 'Invalid JSON' }));
-          }
-
-          return;
-        }
-      }
-
-      if (isFormBody) {
-        mutableReq.body = parseQuery(options.body);
-        mutableReq._body = true;
-      }
-    }
-
-    const shouldStreamBody = raw !== null && !mutableReq._body;
-
     try {
       app.handle(req, res);
     } catch (error) {
@@ -386,15 +277,23 @@ function dispatchRequest(
       );
     }
 
+    // A manually constructed IncomingMessage auto-destroys on end in Node,
+    // which tears down the socket shared with the response. Keep the stream
+    // alive and mark the request complete so error handling (on-finished)
+    // still sees a finished request.
+    const reqState = req as unknown as {
+      _readableState?: { autoDestroy?: boolean };
+    };
+    if (reqState._readableState) {
+      reqState._readableState.autoDestroy = false;
+    }
+
     process.nextTick(() => {
-      if (!shouldStreamBody) {
-        return;
+      req.complete = true;
+      if (raw !== null) {
+        req.push(Buffer.isBuffer(raw) ? raw : Buffer.from(raw));
       }
-      if (socket.readableEnded || socket.destroyed) {
-        return;
-      }
-      socket.push(raw);
-      socket.push(null);
+      req.push(null);
     });
   });
 }

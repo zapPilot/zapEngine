@@ -555,3 +555,582 @@ describe('rule helpers', () => {
     expect(sumKnown([])).toBeNull();
   });
 });
+
+function series(delta7d: number | null, rowCount = 8): MetricSeries {
+  return { series: [1, 2, 3, 4, 5, 6, 7, 8], latest: 8, delta7d, rowCount };
+}
+
+describe('narrative direction and attribution', () => {
+  it('covers platformLabel fallback via R4 other platform', () => {
+    const finding = ruleR4({
+      socialGrowth: {
+        platforms: [
+          {
+            platform: 'bluesky',
+            followersNow: 50,
+            followersDelta7d: 5,
+            followersDelta24h: 1,
+          },
+        ],
+      },
+      metricSeries: new Map([['followers_bluesky', series(2)]]),
+    } as unknown as StatementInputs);
+    expect(finding.deltaTone).toBe('good');
+  });
+
+  it('covers R4 negative delta tone', () => {
+    const finding = ruleR4({
+      socialGrowth: {
+        platforms: [
+          {
+            platform: 'x',
+            followersNow: 100,
+            followersDelta7d: -4,
+            followersDelta24h: -1,
+          },
+        ],
+      },
+      metricSeries: new Map([['followers_x', series(-3)]]),
+    } as unknown as StatementInputs);
+    expect(finding.deltaTone).toBe('bad');
+  });
+
+  it('covers R1 series tone both sides and unconfigured + elapsed', () => {
+    const good = ruleR1({
+      operations: {
+        signals: [],
+        domains: [{ status: 'healthy' }, { status: 'unknown' }],
+        priorities: [],
+      },
+      metricSeries: new Map([['healthy_domains', series(1)]]),
+    } as unknown as StatementInputs);
+    expect(good.deltaTone).toBe('good');
+    const bad = ruleR1({
+      operations: {
+        signals: [
+          {
+            status: 'critical',
+            title: 'DB',
+            evidence: { criticalSinceMinutes: 90 },
+          },
+        ],
+        domains: [{ status: 'critical' }],
+        priorities: [],
+      },
+      metricSeries: new Map([['healthy_domains', series(-2)]]),
+    } as unknown as StatementInputs);
+    expect(bad.deltaTone).toBe('bad');
+    expect(
+      bad.segments.map((s) => ('text' in s ? s.text : s.value)).join(''),
+    ).toContain('(');
+  });
+
+  it('covers R2 driver reduce both sides and pct null baseline', () => {
+    const finding = ruleR2({
+      now: NOW,
+      overview: {
+        projectedCostUsd: 60.8,
+        providers: [
+          {
+            provider: 'openrouter',
+            label: 'OpenRouter',
+            snapshot: { projectedCostUsd: 17.4 },
+          },
+          { provider: 'fly', label: 'Fly', snapshot: { projectedCostUsd: 5 } },
+        ],
+      },
+      costHistory: {
+        previousMonthByProvider: [
+          { provider: 'openrouter', accruedCostUsd: 11.2 },
+          { provider: 'fly', accruedCostUsd: 10 },
+        ],
+      },
+      metricSeries: new Map([['usage_run_rate_usd', series(1)]]),
+    } as unknown as StatementInputs);
+    expect(sentence(finding)).toContain('OpenRouter');
+
+    const noBaseline = ruleR2({
+      now: NOW,
+      overview: {
+        projectedCostUsd: 10,
+        providers: [
+          {
+            provider: 'openrouter',
+            label: 'O',
+            snapshot: { projectedCostUsd: 10 },
+          },
+        ],
+      },
+      costHistory: { previousMonthByProvider: [] },
+      metricSeries: new Map(),
+    } as unknown as StatementInputs);
+    expect(noBaseline.delta).toContain('collecting');
+    expect(noBaseline.deltaTone).toBe('neutral');
+  });
+
+  it('covers R5 sort with two candidates and missing slot', () => {
+    const finding = ruleR5({
+      socialPerformance: {
+        decisions: [
+          {
+            platform: 'x',
+            bestTopic: 'a',
+            bestTopicLiftVsPlatformMedian: 1.8,
+            confidence: 'medium',
+            publishSlotsJst: null,
+            bestTopicSamples: 3,
+          },
+          {
+            platform: 'youtube',
+            bestTopic: 'b',
+            bestTopicLiftVsPlatformMedian: 3.1,
+            confidence: 'high',
+            publishSlotsJst: 'Fri 20:00 JST',
+            bestTopicSamples: 8,
+          },
+        ],
+      },
+    } as unknown as StatementInputs);
+    expect(finding.fact?.value).toContain('b: 3.1');
+  });
+
+  it('covers R6 flat and down', () => {
+    const flatEntry: MetricSeries = {
+      series: [9, 9, 9, 9, 9, 9, 9, 9, 9],
+      latest: 9,
+      delta7d: 0,
+      rowCount: 28,
+    };
+    const flat = ruleR6({
+      product: { activePortfolios7d: 9, wau: 1, mau: 2, registeredUsers: 3 },
+      metricSeries: new Map([['active_portfolios_7d', flatEntry]]),
+    } as unknown as StatementInputs);
+    expect(flat.deltaTone).toBe('good');
+    expect(sentence(flat)).toBe('9 active portfolios, flat for 4 weeks.');
+    const down = ruleR6({
+      product: { activePortfolios7d: 5, wau: 1, mau: 2, registeredUsers: 3 },
+      metricSeries: new Map([['active_portfolios_7d', series(-5, 8)]]),
+    } as unknown as StatementInputs);
+    expect(down.deltaTone).toBe('bad');
+    expect(sentence(down)).toBe(
+      '5 active portfolios, trending down over the last 1 week.',
+    );
+  });
+
+  it('covers R7 prior ratio rise and fall', () => {
+    const base = { product: { portfolioFresh24h: 10, portfolioUsers: 20 } };
+    const mk = (freshPrior: number, obsPrior: number) =>
+      new Map([
+        [
+          'fresh_24h',
+          {
+            series: [freshPrior, 1, 1, 1, 1, 1, 1, 1],
+            latest: 1,
+            delta7d: 0,
+            rowCount: 9,
+          } as MetricSeries,
+        ],
+        [
+          'observed_portfolios',
+          {
+            series: [obsPrior, 20, 20, 20, 20, 20, 20, 20],
+            latest: 20,
+            delta7d: 0,
+            rowCount: 9,
+          } as MetricSeries,
+        ],
+      ]);
+    const fell = ruleR7({
+      ...base,
+      metricSeries: mk(18, 20),
+    } as unknown as StatementInputs);
+    expect(sentence(fell)).toContain('fell from 90% to 50%');
+    const rose = ruleR7({
+      ...base,
+      metricSeries: mk(5, 20),
+    } as unknown as StatementInputs);
+    expect(sentence(rose)).toContain('rose from 25% to 50%');
+    const nullUsers = ruleR7({
+      product: { portfolioFresh24h: null, portfolioUsers: 0 },
+      metricSeries: new Map(),
+    } as unknown as StatementInputs);
+    expect(nullUsers.value).toBe('—');
+  });
+
+  it('covers R8 null inactiveDays and null cost', () => {
+    const finding = ruleR8({
+      customers: {
+        summary: { inactiveButPriority: 1 },
+        users: [
+          {
+            effectiveTier: 'priority',
+            inactiveDays: null,
+            attributedCostUsd30d: null,
+          },
+        ],
+      },
+    } as unknown as StatementInputs);
+    expect(finding.status).toBe('degraded');
+    expect(finding.fact?.note).toContain('no attributable');
+  });
+
+  it('covers R10 series and avg null paths', () => {
+    const finding = ruleR10({
+      now: NOW,
+      podcastPipeline: { episodes: [] },
+      podcastCosts: { episodes: [] },
+      metricSeries: new Map([['episodes_in_production', series(1)]]),
+    } as unknown as StatementInputs);
+    expect(finding.series).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+  });
+
+  it('covers R11 empty and overdue', () => {
+    const empty = ruleR11({
+      operationsSocial: { jobs: [] },
+    } as unknown as StatementInputs);
+    expect(empty.segments).toEqual([]);
+    const overdue = ruleR11({
+      operationsSocial: { jobs: [{ overdueMinutes: 5, title: 't' }] },
+    } as unknown as StatementInputs);
+    expect(overdue.status).toBe('degraded');
+  });
+});
+
+describe('narrative missing evidence and selection', () => {
+  it('R1 falls back when critical signal has no title', () => {
+    const sig = { status: 'critical', evidence: {} };
+    const f = ruleR1({
+      operations: {
+        signals: [sig],
+        domains: [{ status: 'critical' }],
+        priorities: [],
+      },
+      metricSeries: new Map(),
+    } as unknown as StatementInputs);
+    expect(
+      f.segments.map((s) => ('text' in s ? s.text : s.value)).join(''),
+    ).toContain('a critical signal');
+  });
+
+  it('R2 second provider wins and negative driver uses success tone', () => {
+    const f = ruleR2({
+      now: NOW,
+      overview: {
+        projectedCostUsd: 5,
+        providers: [
+          { provider: 'a', label: 'A', snapshot: { projectedCostUsd: 9 } },
+          { provider: 'b', label: 'B', snapshot: { projectedCostUsd: 1 } },
+        ],
+      },
+      costHistory: {
+        previousMonthByProvider: [
+          { provider: 'a', accruedCostUsd: 8 },
+          { provider: 'b', accruedCostUsd: 10 },
+        ],
+      },
+      metricSeries: new Map(),
+    } as unknown as StatementInputs);
+    // B delta -9 wins over A +1 by abs; negative driver -> success tone
+    expect(
+      f.segments.map((s) => ('text' in s ? s.text : s.value)).join(''),
+    ).toContain('B is the driver');
+  });
+
+  it('R2 handles null previous and recorded-bill exclusion (no driver)', () => {
+    const f = ruleR2({
+      now: NOW,
+      overview: {
+        projectedCostUsd: 20,
+        providers: [
+          {
+            provider: 'fly',
+            label: 'Fly',
+            snapshot: { projectedCostUsd: 20, source: 'manual' },
+          },
+        ],
+      },
+      costHistory: {
+        previousMonthByProvider: [{ provider: 'fly', accruedCostUsd: 10 }],
+      },
+      metricSeries: new Map(),
+    } as unknown as StatementInputs);
+    expect(f.delta).toBeDefined();
+    expect(f.fact?.note).not.toContain('driving');
+  });
+
+  it('R4 covers nulls, second-wins, negative and zero totals', () => {
+    const nulls = ruleR4({
+      socialGrowth: {
+        platforms: [
+          { platform: 'x', followersNow: null, followersDelta7d: null },
+        ],
+      },
+      metricSeries: new Map(),
+    } as unknown as StatementInputs);
+    expect(nulls.value).toBe('—');
+
+    const two = ruleR4({
+      socialGrowth: {
+        platforms: [
+          {
+            platform: 'x',
+            followersNow: 10,
+            followersDelta7d: 2,
+            followersDelta24h: 0,
+          },
+          {
+            platform: 'threads',
+            followersNow: 20,
+            followersDelta7d: 9,
+            followersDelta24h: 1,
+          },
+        ],
+      },
+      metricSeries: new Map(),
+    } as unknown as StatementInputs);
+    expect(
+      two.segments
+        .map((s) => ('text' in s ? s.text : s.value))
+        .join('')
+        .toLowerCase(),
+    ).toContain('threads');
+
+    const neg = ruleR4({
+      socialGrowth: {
+        platforms: [
+          {
+            platform: 'x',
+            followersNow: 90,
+            followersDelta7d: -10,
+            followersDelta24h: -1,
+          },
+        ],
+      },
+      metricSeries: new Map(),
+    } as unknown as StatementInputs);
+    expect(neg.deltaTone).toBe('bad');
+
+    const zero = ruleR4({
+      socialGrowth: {
+        platforms: [
+          {
+            platform: 'x',
+            followersNow: 100,
+            followersDelta7d: 0,
+            followersDelta24h: 0,
+          },
+        ],
+      },
+      metricSeries: new Map(),
+    } as unknown as StatementInputs);
+    expect(zero.delta).toContain('±0');
+  });
+
+  it('R5 winner without slot uses dot', () => {
+    const f = ruleR5({
+      socialPerformance: {
+        decisions: [
+          {
+            platform: 'x',
+            bestTopic: 'solo',
+            bestTopicLiftVsPlatformMedian: 2.5,
+            confidence: 'high',
+            publishSlotsJst: null,
+            bestTopicSamples: null,
+          },
+        ],
+      },
+    } as unknown as StatementInputs);
+    expect(
+      f.segments.map((s) => ('text' in s ? s.text : s.value)).join(''),
+    ).toContain('.');
+    expect(f.fact?.note).toContain('n=0');
+  });
+
+  it('R6 plural weeks and collecting', () => {
+    const plural = ruleR6({
+      product: { activePortfolios7d: 9, wau: 1, mau: 2, registeredUsers: 3 },
+      metricSeries: new Map([
+        [
+          'active_portfolios_7d',
+          {
+            series: [1, 2, 3, 4, 5, 6, 7, 8],
+            latest: 8,
+            delta7d: 2,
+            rowCount: 28,
+          },
+        ],
+      ]),
+    } as unknown as StatementInputs);
+    expect(
+      plural.segments.map((s) => ('text' in s ? s.text : s.value)).join(''),
+    ).toContain('weeks');
+  });
+
+  it('R10 worst without stage and without elapsed, null share', () => {
+    const f = ruleR10({
+      now: NOW,
+      podcastPipeline: {
+        episodes: [
+          {
+            currentPhase: 'render',
+            ingest: { status: 'failed', updatedAt: 'not-a-date' },
+            visual: null,
+            renders: [],
+          },
+        ],
+      },
+      podcastCosts: {
+        episodes: [{ totalCostUsd: 0, failedAttemptCostUsd: 0 }],
+      },
+      metricSeries: new Map(),
+    } as unknown as StatementInputs);
+    expect(f.status).toBe('degraded');
+  });
+
+  it('R11 second overdue wins and Infinity fallback', () => {
+    const f = ruleR11({
+      operationsSocial: {
+        jobs: [
+          { overdueMinutes: 5, platform: 'x', languageCode: 'en' },
+          { overdueMinutes: 50, platform: 'youtube', languageCode: null },
+        ],
+      },
+    } as unknown as StatementInputs);
+    expect(
+      f.segments.map((s) => ('text' in s ? s.text : s.value)).join(''),
+    ).toContain('youtube');
+
+    const inf = ruleR11({
+      operationsSocial: {
+        jobs: [{ overdueMinutes: Number.POSITIVE_INFINITY, platform: 'x' }],
+      },
+    } as unknown as StatementInputs);
+    expect(
+      inf.segments.map((s) => ('text' in s ? s.text : s.value)).join(''),
+    ).toContain('Infinity');
+  });
+});
+
+describe('history and freshness boundaries', () => {
+  it('R6 uses 1-week fallback when no history weeks', () => {
+    const f = ruleR6({
+      product: { activePortfolios7d: 5, wau: 1, mau: 2, registeredUsers: 3 },
+      metricSeries: new Map([
+        [
+          'active_portfolios_7d',
+          { series: [5], latest: 5, delta7d: 2, rowCount: 1 },
+        ],
+      ]),
+    } as unknown as StatementInputs);
+    const text = f.segments
+      .map((s) => ('text' in s ? s.text : s.value))
+      .join('');
+    expect(text).toContain('1 week.');
+    expect(text).not.toContain('1 weeks');
+  });
+
+  it('R7 null prior when observed is zero', () => {
+    const f = ruleR7({
+      product: { portfolioFresh24h: 10, portfolioUsers: 20 },
+      metricSeries: new Map([
+        [
+          'fresh_24h',
+          {
+            series: [10, 10, 10, 10, 10, 10, 10, 10],
+            latest: 10,
+            delta7d: 0,
+            rowCount: 8,
+          },
+        ],
+        [
+          'observed_portfolios',
+          {
+            series: [0, 20, 20, 20, 20, 20, 20, 20],
+            latest: 20,
+            delta7d: 0,
+            rowCount: 8,
+          },
+        ],
+      ]),
+    } as unknown as StatementInputs);
+    expect(f.delta).toBe('no prior reading');
+  });
+
+  it('R7 null prior on sparse hole', () => {
+    const fresh = [10, 10, 10, 10, 10, 10, 10, 10];
+    delete (fresh as unknown as Record<number, unknown>)[0];
+    const f = ruleR7({
+      product: { portfolioFresh24h: 10, portfolioUsers: 20 },
+      metricSeries: new Map([
+        [
+          'fresh_24h',
+          { series: fresh as number[], latest: 10, delta7d: 0, rowCount: 8 },
+        ],
+        [
+          'observed_portfolios',
+          {
+            series: [20, 20, 20, 20, 20, 20, 20, 20],
+            latest: 20,
+            delta7d: 0,
+            rowCount: 8,
+          },
+        ],
+      ]),
+    } as unknown as StatementInputs);
+    expect(f.delta).toBe('no prior reading');
+  });
+
+  it('R7 null prior on observed hole', () => {
+    const observed = [20, 20, 20, 20, 20, 20, 20, 20];
+    delete (observed as unknown as Record<number, unknown>)[0];
+    const f = ruleR7({
+      product: { portfolioFresh24h: 10, portfolioUsers: 20 },
+      metricSeries: new Map([
+        [
+          'fresh_24h',
+          {
+            series: [10, 10, 10, 10, 10, 10, 10, 10],
+            latest: 10,
+            delta7d: 0,
+            rowCount: 8,
+          },
+        ],
+        [
+          'observed_portfolios',
+          { series: observed as number[], latest: 20, delta7d: 0, rowCount: 8 },
+        ],
+      ]),
+    } as unknown as StatementInputs);
+    expect(f.delta).toBe('no prior reading');
+  });
+
+  it('R10 stage with no elapsed omits duration', () => {
+    const f = ruleR10({
+      now: NOW,
+      podcastPipeline: {
+        episodes: [
+          {
+            currentPhase: 'render',
+            ingest: {
+              status: 'failed',
+              stage: 'download',
+              updatedAt: 'not-a-date',
+            },
+            visual: null,
+            renders: [],
+          },
+        ],
+      },
+      podcastCosts: {
+        episodes: [{ totalCostUsd: 10, failedAttemptCostUsd: 1 }],
+      },
+      metricSeries: new Map(),
+    } as unknown as StatementInputs);
+    const text = f.segments
+      .map((s) => ('text' in s ? s.text : s.value))
+      .join('');
+    expect(text).toContain('stuck at download');
+    expect(text).not.toContain('for');
+  });
+});

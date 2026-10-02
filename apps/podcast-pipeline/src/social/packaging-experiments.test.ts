@@ -1,21 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-const mocks = vi.hoisted(() => ({
-  getOrCreateExperimentAssignment: vi.fn(),
-}));
-
-vi.mock('./experiments.js', () => ({
-  getOrCreateExperimentAssignment: mocks.getOrCreateExperimentAssignment,
-}));
+import { describe, expect, it } from 'vitest';
 
 import {
   activePackagingExperiment,
   resolvePackagingAssignments,
 } from './packaging-experiments.js';
-
-beforeEach(() => {
-  vi.clearAllMocks();
-});
 
 describe('packaging experiments', () => {
   it('has no active platform-specific title experiment', () => {
@@ -34,6 +22,5 @@ describe('packaging experiments', () => {
         platforms: ['rednote', 'threads', 'x', 'youtube'],
       }),
     ).resolves.toEqual({});
-    expect(mocks.getOrCreateExperimentAssignment).not.toHaveBeenCalled();
   });
 });

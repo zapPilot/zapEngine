@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  createPlanOrchestrationModule,
   parseDepositDefaultSplit,
   planSimulationConfigFromEnv,
 } from '../../../../src/modules/plan-orchestration/module';
@@ -95,5 +96,25 @@ describe('planSimulationConfigFromEnv', () => {
         mode: undefined,
       }),
     ).toEqual({ required: false });
+  });
+});
+
+describe('createPlanOrchestrationModule startup safety', () => {
+  it('refuses to boot when simulation is required without Tenderly credentials', () => {
+    expect(() =>
+      createPlanOrchestrationModule({
+        lifi: { integrator: 'test' },
+        publicClients: {},
+        simulation: planSimulationConfigFromEnv({
+          accountSlug: undefined,
+          projectSlug: undefined,
+          accessToken: undefined,
+          required: 'true',
+          mode: 'off',
+        }),
+      }),
+    ).toThrow(
+      'Plan simulation is required but Tenderly credentials are incomplete',
+    );
   });
 });

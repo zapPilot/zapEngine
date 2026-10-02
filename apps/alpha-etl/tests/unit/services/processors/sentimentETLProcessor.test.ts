@@ -20,96 +20,21 @@ vi.mock('../../../../src/utils/logger.js', async () => {
   return mockLogger();
 });
 
-vi.mock('../../../../src/modules/sentiment/processor.js', async () => {
-  const actualModule = await vi.importActual<
-    typeof import('../../../../src/modules/sentiment/processor.js')
-  >('../../../../src/modules/sentiment/processor.js');
-
-  // Create a custom SentimentETLProcessor that uses the mocked dependencies
-  class MockedSentimentETLProcessor {
-    private fetcher = mockFetcher;
-    private transformer = mockTransformer;
-    private writer = mockWriter;
-
-    async process(job: { jobId: string }) {
-      mockLogger.info('Processing sentiment data', { jobId: job.jobId });
-
-      try {
-        const rawData = await this.fetcher.fetchCurrentSentiment();
-        const transformed = this.transformer.transform(rawData);
-
-        if (!transformed) {
-          return {
-            success: false,
-            recordsProcessed: 1,
-            recordsInserted: 0,
-            errors: ['Sentiment data failed validation'],
-            source: 'feargreed',
-          };
-        }
-
-        const writeResult = await this.writer.writeSentimentSnapshots(
-          [transformed],
-          'feargreed',
-        );
-
-        mockLogger.info('Sentiment processing completed', {
-          jobId: job.jobId,
-          recordsProcessed: 1,
-          recordsInserted: writeResult.recordsInserted,
-          errorCount: writeResult.errors.length,
-          success: writeResult.success,
-        });
-
-        return {
-          success: writeResult.success,
-          recordsProcessed: 1,
-          recordsInserted: writeResult.recordsInserted,
-          errors: writeResult.errors,
-          source: 'feargreed',
-        };
-      } catch (error) {
-        mockLogger.error('Failed to fetch sentiment data', {
-          jobId: job.jobId,
-          error: error instanceof Error ? error.message : 'Unknown error',
-        });
-        return {
-          success: false,
-          recordsProcessed: 1,
-          recordsInserted: 0,
-          errors: ['Failed to fetch sentiment data from API'],
-          source: 'feargreed',
-        };
-      }
-    }
-
-    async healthCheck() {
-      return this.fetcher.healthCheck();
-    }
-
-    getStats() {
-      return { feargreed: this.fetcher.getRequestStats() };
-    }
-
-    getSourceType() {
-      return 'feargreed';
-    }
-  }
-
-  return {
-    ...actualModule,
-    SentimentETLProcessor: MockedSentimentETLProcessor,
-    FearGreedFetcher: vi.fn(function FearGreedFetcher() {
-      return mockFetcher;
-    }),
-    SentimentDataTransformer: vi.fn(function SentimentDataTransformer() {
-      return mockTransformer;
-    }),
-    SentimentWriter: vi.fn(function SentimentWriter() {
-      return mockWriter;
-    }),
-  };
-});
+vi.mock('../../../../src/modules/sentiment/fetcher.js', () => ({
+  FearGreedFetcher: vi.fn(function () {
+    return mockFetcher;
+  }),
+}));
+vi.mock('../../../../src/modules/sentiment/transformer.js', () => ({
+  SentimentDataTransformer: vi.fn(function () {
+    return mockTransformer;
+  }),
+}));
+vi.mock('../../../../src/modules/sentiment/writer.js', () => ({
+  SentimentWriter: vi.fn(function () {
+    return mockWriter;
+  }),
+}));
 
 import { SentimentETLProcessor } from '../../../../src/modules/sentiment/processor.js';
 import type { ETLJob } from '../../../../src/types/index.js';
@@ -246,11 +171,9 @@ describe('SentimentETLProcessor', () => {
       const result = await processor.process(createJob());
 
       expect(result.success).toBe(false);
-      expect(result.recordsProcessed).toBe(1); // Fetch attempted
+      expect(result.recordsProcessed).toBe(0); // Fetch attempted
       expect(result.recordsInserted).toBe(0);
-      expect(result.errors).toContain(
-        'Failed to fetch sentiment data from API',
-      );
+      expect(result.errors).toContain(apiError.message);
       expect(mockWriter.writeSentimentSnapshots).not.toHaveBeenCalled();
     });
 
@@ -261,10 +184,8 @@ describe('SentimentETLProcessor', () => {
       const result = await processor.process(createJob());
 
       expect(result.success).toBe(false);
-      expect(result.recordsProcessed).toBe(1); // Fetch attempted
-      expect(result.errors).toContain(
-        'Failed to fetch sentiment data from API',
-      );
+      expect(result.recordsProcessed).toBe(0); // Fetch attempted
+      expect(result.errors).toContain(rateLimitError.message);
       expect(mockLogger.error).toHaveBeenCalled();
     });
 
@@ -277,9 +198,7 @@ describe('SentimentETLProcessor', () => {
       const result = await processor.process(createJob());
 
       expect(result.success).toBe(false);
-      expect(result.errors).toContain(
-        'Failed to fetch sentiment data from API',
-      );
+      expect(result.errors).toContain(serverError.message);
       expect(result.recordsInserted).toBe(0);
     });
 
@@ -291,10 +210,8 @@ describe('SentimentETLProcessor', () => {
       const result = await processor.process(createJob());
 
       expect(result.success).toBe(false);
-      expect(result.errors).toContain(
-        'Failed to fetch sentiment data from API',
-      );
-      expect(result.recordsProcessed).toBe(1); // Fetch attempted
+      expect(result.errors).toContain(timeoutError.message);
+      expect(result.recordsProcessed).toBe(0); // Fetch attempted
     });
 
     it('handles malformed JSON responses', async () => {
@@ -306,9 +223,7 @@ describe('SentimentETLProcessor', () => {
       const result = await processor.process(createJob());
 
       expect(result.success).toBe(false);
-      expect(result.errors).toContain(
-        'Failed to fetch sentiment data from API',
-      );
+      expect(result.errors).toContain(parseError.message);
       expect(mockLogger.error).toHaveBeenCalled();
     });
 
@@ -322,9 +237,9 @@ describe('SentimentETLProcessor', () => {
 
       expect(result.success).toBe(false);
       expect(result.errors).toHaveLength(1);
-      expect(result.errors[0]).toBe('Failed to fetch sentiment data from API');
+      expect(result.errors[0]).toBe(detailedError.message);
       expect(mockLogger.error).toHaveBeenCalledWith(
-        expect.stringContaining('Failed to fetch sentiment data'),
+        'feargreed processing failed:',
         expect.objectContaining({
           jobId: 'job-1',
         }),
@@ -454,7 +369,7 @@ describe('SentimentETLProcessor', () => {
 
       expect(result.success).toBe(true);
       expect(mockLogger.info).toHaveBeenCalledWith(
-        'Sentiment processing completed',
+        'feargreed processing completed',
         expect.objectContaining({
           jobId: 'job-1',
           recordsInserted: 1,
@@ -786,10 +701,10 @@ describe('SentimentETLProcessor', () => {
       expect(result.errors.length).toBeGreaterThan(0);
       expect(result.errors[0]).toContain('Unique constraint violation');
       expect(mockLogger.info).toHaveBeenCalledWith(
-        'Sentiment processing completed',
+        'feargreed processing completed',
         expect.objectContaining({
           jobId: expect.any(String),
-          success: false,
+          errorCount: 1,
         }),
       );
     });

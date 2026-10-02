@@ -4,6 +4,7 @@ Tests each metric calculation independently and the aggregate method.
 """
 
 import numpy as np
+import pytest
 
 from src.services.backtesting.execution.performance_metrics import (
     PerformanceMetricsCalculator,
@@ -85,15 +86,14 @@ class TestCalculateSortinoRatio:
         assert sortino < 0.0
         assert sharpe < 0.0
 
-    def test_constant_downside_returns_zero(self):
-        """Constant downside returns (zero std dev) should return 0."""
+    def test_constant_losses_have_negative_sortino(self):
+        """Constant losses have nonzero downside deviation."""
         returns = np.array([-0.01, -0.01, -0.01])
         calc = PerformanceMetricsCalculator()
         sharpe = calc.calculate_sharpe_ratio(returns)
         sortino = calc.calculate_sortino_ratio(returns, sharpe)
 
-        # Sharpe is 0 (zero std dev), Sortino should also be 0
-        assert sortino == 0.0
+        assert sortino == pytest.approx(-(365**0.5))
         assert sharpe == 0.0
 
     def test_mixed_returns(self):
@@ -103,8 +103,7 @@ class TestCalculateSortinoRatio:
         sharpe = calc.calculate_sharpe_ratio(returns)
         sortino = calc.calculate_sortino_ratio(returns, sharpe)
 
-        # Sortino should be higher than Sharpe (only considers downside)
-        assert sortino >= sharpe
+        assert sortino == pytest.approx(0.006 / 0.01 * 365**0.5)
 
 
 class TestCalculateMaxDrawdown:
@@ -182,15 +181,12 @@ class TestCalculateBeta:
         assert beta == 0.0
 
     def test_perfect_correlation(self):
-        """Identical returns should have beta close to 1 (may vary due to ddof)."""
+        """Identical returns have beta exactly one."""
         returns = np.array([0.01, -0.02, 0.03, -0.01])
         calc = PerformanceMetricsCalculator()
         beta = calc.calculate_beta(returns, returns)
 
-        # Beta should be positive and reasonably close to 1
-        # (exact value depends on numpy cov/var ddof defaults)
-        assert beta > 0.0
-        assert abs(beta - 1.0) < 0.5  # Relax tolerance for ddof differences
+        assert beta == pytest.approx(1.0)
 
     def test_negative_correlation(self):
         """Negatively correlated returns should have negative beta."""
@@ -360,7 +356,7 @@ class TestCalculateInformationRatio:
         benchmark = np.array([0.01, 0.01, 0.012, 0.011])
         calc = PerformanceMetricsCalculator()
         ir = calc.calculate_information_ratio(strategy, benchmark)
-        assert ir > 0.0
+        assert ir == pytest.approx(0.015 / np.sqrt(0.0000145) * np.sqrt(365))
 
 
 class TestCalculateAllMetrics:
@@ -415,15 +411,30 @@ class TestCalculateAllMetrics:
         expected_dd_percent = -25.0
         assert abs(metrics["max_drawdown_percent"] - expected_dd_percent) < 0.01
 
-    def test_consistency_with_original(self):
-        """Results should match original engine.py implementation."""
+    def test_aggregate_metrics_match_independent_daily_return_calculation(self):
+        """Aggregate wiring preserves the independently calculated metric values."""
         # Use same test data as original tests
         values = [100.0, 105.0, 110.0, 108.0, 115.0, 120.0]
         prices = [50.0, 52.0, 54.0, 53.0, 56.0, 58.0]
         calc = PerformanceMetricsCalculator()
         metrics = calc.calculate_all_metrics(values, prices)
 
-        # Verify all metrics are calculated (non-zero for this data)
-        assert metrics["volatility"] > 0.0
-        assert metrics["sharpe_ratio"] != 0.0
-        assert metrics["beta"] != 0.0
+        strategy = np.diff(values) / np.array(values[:-1])
+        benchmark = np.diff(prices) / np.array(prices[:-1])
+        mean = np.mean(strategy)
+        variance = np.mean((strategy - mean) ** 2)
+        beta = np.mean((strategy - mean) * (benchmark - np.mean(benchmark))) / np.mean(
+            (benchmark - np.mean(benchmark)) ** 2
+        )
+        assert metrics["volatility"] == pytest.approx(np.sqrt(variance * 365))
+        assert metrics["sharpe_ratio"] == pytest.approx(
+            mean / np.sqrt(variance) * np.sqrt(365)
+        )
+        assert metrics["beta"] == pytest.approx(beta)
+        assert metrics["alpha"] == pytest.approx(
+            (np.prod(1 + strategy) ** (365 / len(strategy)) - 1)
+            - beta * (np.prod(1 + benchmark) ** (365 / len(benchmark)) - 1)
+        )
+        assert metrics["sortino_ratio"] == pytest.approx(
+            mean / np.sqrt(np.mean(np.minimum(strategy, 0) ** 2)) * np.sqrt(365)
+        )

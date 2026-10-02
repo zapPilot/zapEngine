@@ -3,15 +3,18 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { sqlCode } from './__fixtures__/migrationSql.js';
 import { SOCIAL_REQUIRED_RELEASE_LANGUAGES } from './social/policy.js';
 
 const repoRoot = path.resolve(process.cwd(), '../..');
-const migration = fs.readFileSync(
-  path.join(
-    repoRoot,
-    'supabase/migrations/20260901031500_social_language_v2_recovery_guards.sql',
+const migration = sqlCode(
+  fs.readFileSync(
+    path.join(
+      repoRoot,
+      'supabase/migrations/20260901031500_social_language_v2_recovery_guards.sql',
+    ),
+    'utf8',
   ),
-  'utf8',
 );
 
 /**

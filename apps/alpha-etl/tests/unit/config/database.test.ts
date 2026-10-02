@@ -96,15 +96,27 @@ describe('Database Configuration', () => {
       expect(mockClient.release).toHaveBeenCalled();
     });
 
-    it('should return false for failed connection test', async () => {
+    it('exhausts three connection attempts with 2s and 4s backoff', async () => {
       const { testDatabaseConnection } =
         await import('../../../src/config/database.js');
-
-      mockPool.connect.mockRejectedValue(new Error('Connection failed'));
-
-      const result = await testDatabaseConnection();
-
-      expect(result).toBe(false);
+      vi.useFakeTimers();
+      try {
+        mockPool.connect.mockRejectedValue(new Error('Connection failed'));
+        const pending = testDatabaseConnection();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(mockPool.connect).toHaveBeenCalledTimes(1);
+        await vi.advanceTimersByTimeAsync(1999);
+        expect(mockPool.connect).toHaveBeenCalledTimes(1);
+        await vi.advanceTimersByTimeAsync(1);
+        expect(mockPool.connect).toHaveBeenCalledTimes(2);
+        await vi.advanceTimersByTimeAsync(3999);
+        expect(mockPool.connect).toHaveBeenCalledTimes(2);
+        await vi.advanceTimersByTimeAsync(1);
+        await expect(pending).resolves.toBe(false);
+        expect(mockPool.connect).toHaveBeenCalledTimes(3);
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it('should release client even if query fails', async () => {

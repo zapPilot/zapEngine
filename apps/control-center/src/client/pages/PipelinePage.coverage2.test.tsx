@@ -69,7 +69,7 @@ describe('PipelinePage coverage2', () => {
         queues={queues()}
       />,
     );
-    expect(screen.getByText('失敗嘗試成本')).toBeVisible();
+    expect(screen.getByText('Ledger unavailable')).toBeVisible();
   });
 
   it('sorts multiple failed-attempt episodes by cost descending', () => {
@@ -95,8 +95,14 @@ describe('PipelinePage coverage2', () => {
         queues={queues()}
       />,
     );
-    expect(screen.getByText('Cheap episode')).toBeVisible();
-    expect(screen.getByText('Pricey episode')).toBeVisible();
+    expect(
+      Array.from(document.querySelectorAll('.cc-bar-row')).map(
+        (row) => row.textContent,
+      ),
+    ).toEqual([
+      expect.stringContaining('Pricey episode'),
+      expect.stringContaining('Cheap episode'),
+    ]);
   });
 
   it('falls back to the episode id when a costly episode has no title', () => {

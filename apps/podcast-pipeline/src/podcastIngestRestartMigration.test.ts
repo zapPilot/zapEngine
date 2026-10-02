@@ -3,13 +3,17 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { sqlCode } from './__fixtures__/migrationSql.js';
+
 const repoRoot = path.resolve(process.cwd(), '../..');
-const migration = fs.readFileSync(
-  path.join(
-    repoRoot,
-    'supabase/migrations/20260903090000_podcast_ingest_restart.sql',
+const migration = sqlCode(
+  fs.readFileSync(
+    path.join(
+      repoRoot,
+      'supabase/migrations/20260903090000_podcast_ingest_restart.sql',
+    ),
+    'utf8',
   ),
-  'utf8',
 );
 
 describe('podcast ingest restart migration', () => {

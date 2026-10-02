@@ -3,13 +3,17 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { sqlCode } from './__fixtures__/migrationSql.js';
+
 const repoRoot = path.resolve(process.cwd(), '../..');
-const migration = fs.readFileSync(
-  path.join(
-    repoRoot,
-    'supabase/migrations/20260924053500_legacy_rednote_title_overrides.sql',
+const migration = sqlCode(
+  fs.readFileSync(
+    path.join(
+      repoRoot,
+      'supabase/migrations/20260924053500_legacy_rednote_title_overrides.sql',
+    ),
+    'utf8',
   ),
-  'utf8',
 );
 
 describe('legacy Rednote title override migration', () => {

@@ -28,16 +28,16 @@ def _mk_roi_calculator(rows: list[dict[str, Any]]):
     return ROICalculator(query)
 
 
-def test_compute_portfolio_roi_empty_rows_returns_zeros(db_session: Session):
+def test_compute_portfolio_roi_empty_rows_returns_zeros(mock_db: Session):
     roi_calc = _mk_roi_calculator([])
-    result = roi_calc.compute_portfolio_roi(db_session, uuid4())
+    result = roi_calc.compute_portfolio_roi(mock_db, uuid4())
     assert result["recommended_roi"] == 0.0
     assert result["recommended_period"] in result["windows"]
     assert result["windows"]["roi_7d"]["value"] == 0.0
     assert result["windows"]["roi_7d"]["days_spanned"] == 0
 
 
-def test_compute_portfolio_roi_handles_string_dates(db_session: Session):
+def test_compute_portfolio_roi_handles_string_dates(mock_db: Session):
     # Two points within 7 days window to compute a small positive ROI (1%)
     last_day = datetime(2025, 1, 8, tzinfo=UTC)
     rows = [
@@ -45,14 +45,14 @@ def test_compute_portfolio_roi_handles_string_dates(db_session: Session):
         {"date": last_day.isoformat(), "net_value_usd": 101.0},
     ]
     roi_calc = _mk_roi_calculator(rows)
-    result = roi_calc.compute_portfolio_roi(db_session, uuid4())
+    result = roi_calc.compute_portfolio_roi(mock_db, uuid4())
     window_value = result["windows"]["roi_7d"]["value"]
     assert 0.99 <= window_value <= 1.01
     assert result["recommended_period"] in result["windows"]
 
 
 def test_compute_portfolio_roi_earliest_zero_value_yields_zero_gain(
-    db_session: Session,
+    mock_db: Session,
 ):
     # Earliest value zero should force 0 ROI for that window
     last_day = datetime(2025, 1, 8, tzinfo=UTC)
@@ -61,13 +61,13 @@ def test_compute_portfolio_roi_earliest_zero_value_yields_zero_gain(
         {"date": last_day.isoformat(), "net_value_usd": 50.0},
     ]
     roi_calc = _mk_roi_calculator(rows)
-    result = roi_calc.compute_portfolio_roi(db_session, uuid4())
+    result = roi_calc.compute_portfolio_roi(mock_db, uuid4())
     assert result["windows"]["roi_7d"]["value"] == 0.0
     assert result["windows"]["roi_7d"]["days_spanned"] == 7
 
 
 def test_compute_portfolio_roi_uses_days_spanned_in_annualization(
-    db_session: Session,
+    mock_db: Session,
 ):
     # Window spans two days with a 10% gain; ensure we annualize using actual span
     last_day = datetime(2025, 1, 3, tzinfo=UTC)
@@ -76,7 +76,7 @@ def test_compute_portfolio_roi_uses_days_spanned_in_annualization(
         {"date": last_day.isoformat(), "net_value_usd": 110.0},
     ]
     roi_calc = _mk_roi_calculator(rows)
-    result = roi_calc.compute_portfolio_roi(db_session, uuid4())
+    result = roi_calc.compute_portfolio_roi(mock_db, uuid4())
 
     window = result["windows"]["roi_7d"]
     assert window["value"] == pytest.approx(10.0, rel=1e-6)
@@ -91,7 +91,7 @@ def test_compute_portfolio_roi_uses_days_spanned_in_annualization(
 
 
 def test_compute_portfolio_roi_prefers_lowest_positive_annualized_roi(
-    db_session: Session,
+    mock_db: Session,
 ):
     last_day = datetime(2025, 1, 15, tzinfo=UTC)
     rows = [
@@ -102,7 +102,7 @@ def test_compute_portfolio_roi_prefers_lowest_positive_annualized_roi(
     ]
 
     roi_calc = _mk_roi_calculator(rows)
-    result = roi_calc.compute_portfolio_roi(db_session, uuid4())
+    result = roi_calc.compute_portfolio_roi(mock_db, uuid4())
 
     assert result["recommended_period"] == "roi_14d"
     recommended = result["windows"]["roi_14d"]
@@ -115,7 +115,7 @@ def test_compute_portfolio_roi_prefers_lowest_positive_annualized_roi(
 
 
 def test_compute_portfolio_roi_prefers_smallest_abs_negative_when_no_positive(
-    db_session: Session,
+    mock_db: Session,
 ):
     last_day = datetime(2025, 1, 15, tzinfo=UTC)
     rows = [
@@ -126,7 +126,7 @@ def test_compute_portfolio_roi_prefers_smallest_abs_negative_when_no_positive(
     ]
 
     roi_calc = _mk_roi_calculator(rows)
-    result = roi_calc.compute_portfolio_roi(db_session, uuid4())
+    result = roi_calc.compute_portfolio_roi(mock_db, uuid4())
 
     assert result["recommended_period"] == "roi_14d"
     recommended = result["windows"]["roi_14d"]
@@ -139,7 +139,7 @@ def test_compute_portfolio_roi_prefers_smallest_abs_negative_when_no_positive(
 
 
 def test_compute_portfolio_roi_defaults_to_nominal_window_for_zero_returns(
-    db_session: Session,
+    mock_db: Session,
 ):
     last_day = datetime(2025, 1, 31, tzinfo=UTC)
     rows = [
@@ -148,7 +148,7 @@ def test_compute_portfolio_roi_defaults_to_nominal_window_for_zero_returns(
     ]
 
     roi_calc = _mk_roi_calculator(rows)
-    result = roi_calc.compute_portfolio_roi(db_session, uuid4())
+    result = roi_calc.compute_portfolio_roi(mock_db, uuid4())
 
     assert result["recommended_period"] == "roi_30d"
     assert result["recommended_roi"] == pytest.approx(0.0)

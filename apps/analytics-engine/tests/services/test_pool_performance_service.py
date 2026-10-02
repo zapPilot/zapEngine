@@ -53,10 +53,10 @@ class _RaisingQueryService:
         return None
 
 
-def _create_service(rows: list[dict[str, Any]], db_session: Session):
+def _create_service(rows: list[dict[str, Any]], mock_db: Session):
     """Helper factory to create PoolPerformanceService with mock query service."""
     query_service = _DummyQueryService(rows)
-    return PoolPerformanceService(db_session, query_service), query_service
+    return PoolPerformanceService(mock_db, query_service), query_service
 
 
 def _create_pool_row(
@@ -118,19 +118,19 @@ def _create_pool_row(
 # ============================================================================
 
 
-def test_init_with_valid_dependencies(db_session: Session):
+def test_init_with_valid_dependencies(mock_db: Session):
     """Test that service initializes correctly with valid db and query_service."""
     query_service = _DummyQueryService([])
-    service = PoolPerformanceService(db_session, query_service)
+    service = PoolPerformanceService(mock_db, query_service)
 
-    assert service.db is db_session
+    assert service.db is mock_db
     assert service.query_service is query_service
 
 
-def test_init_raises_when_query_service_is_none(db_session: Session):
+def test_init_raises_when_query_service_is_none(mock_db: Session):
     """Test that ValueError is raised when query_service is None."""
     with pytest.raises(ValueError, match="Query service is required"):
-        PoolPerformanceService(db_session, None)  # type: ignore
+        PoolPerformanceService(mock_db, None)  # type: ignore
 
 
 def test_init_raises_when_db_is_none():
@@ -145,9 +145,9 @@ def test_init_raises_when_db_is_none():
 # ============================================================================
 
 
-def test_get_pool_performance_empty_results_returns_empty_list(db_session: Session):
+def test_get_pool_performance_empty_results_returns_empty_list(mock_db: Session):
     """Test that empty query results return an empty list."""
-    service, _ = _create_service([], db_session)
+    service, _ = _create_service([], mock_db)
     user_id = uuid4()
 
     result = service.get_pool_performance(user_id)
@@ -156,7 +156,7 @@ def test_get_pool_performance_empty_results_returns_empty_list(db_session: Sessi
     assert isinstance(result, list)
 
 
-def test_get_pool_performance_single_pool_complete_data(db_session: Session):
+def test_get_pool_performance_single_pool_complete_data(mock_db: Session):
     """Test retrieval of a single pool with complete APR data."""
     snapshot_id = str(uuid4())
     rows = [
@@ -171,7 +171,7 @@ def test_get_pool_performance_single_pool_complete_data(db_session: Session):
         )
     ]
 
-    service, query_service = _create_service(rows, db_session)
+    service, query_service = _create_service(rows, mock_db)
     user_id = uuid4()
 
     result = service.get_pool_performance(user_id)
@@ -201,7 +201,7 @@ def test_get_pool_performance_single_pool_complete_data(db_session: Session):
     assert "apr_data" not in pool or pool.get("apr_data") is None
 
 
-def test_get_pool_performance_multiple_pools_mixed_protocols(db_session: Session):
+def test_get_pool_performance_multiple_pools_mixed_protocols(mock_db: Session):
     """Test retrieval of multiple DeFi protocol pools."""
     rows = [
         _create_pool_row(
@@ -233,7 +233,7 @@ def test_get_pool_performance_multiple_pools_mixed_protocols(db_session: Session
         ),
     ]
 
-    service, _ = _create_service(rows, db_session)
+    service, _ = _create_service(rows, mock_db)
     user_id = uuid4()
 
     result = service.get_pool_performance(user_id)
@@ -250,7 +250,7 @@ def test_get_pool_performance_multiple_pools_mixed_protocols(db_session: Session
     assert hl_pool["protocol"] == "hyperliquid"
 
 
-def test_get_pool_performance_deprecated_apr_fields_omitted(db_session: Session):
+def test_get_pool_performance_deprecated_apr_fields_omitted(mock_db: Session):
     """Deprecated APR fields should be absent from results."""
     rows = [
         _create_pool_row(
@@ -259,7 +259,7 @@ def test_get_pool_performance_deprecated_apr_fields_omitted(db_session: Session)
         )
     ]
 
-    service, _ = _create_service(rows, db_session)
+    service, _ = _create_service(rows, mock_db)
     user_id = uuid4()
 
     result = service.get_pool_performance(user_id)
@@ -272,7 +272,7 @@ def test_get_pool_performance_deprecated_apr_fields_omitted(db_session: Session)
     assert "apr_data" not in pool or pool.get("apr_data") is None
 
 
-def test_get_pool_performance_no_apr_fields_when_unmatched(db_session: Session):
+def test_get_pool_performance_no_apr_fields_when_unmatched(mock_db: Session):
     """Protocols without APR data should not expose deprecated fields."""
     rows = [
         _create_pool_row(
@@ -281,7 +281,7 @@ def test_get_pool_performance_no_apr_fields_when_unmatched(db_session: Session):
         )
     ]
 
-    service, _ = _create_service(rows, db_session)
+    service, _ = _create_service(rows, mock_db)
     user_id = uuid4()
 
     result = service.get_pool_performance(user_id)
@@ -294,7 +294,7 @@ def test_get_pool_performance_no_apr_fields_when_unmatched(db_session: Session):
     assert "apr_data" not in pool or pool.get("apr_data") is None
 
 
-def test_get_pool_performance_data_transformation_correctness(db_session: Session):
+def test_get_pool_performance_data_transformation_correctness(mock_db: Session):
     """Test that data is correctly transformed from SQL result to response format."""
     snapshot_id = str(uuid4())
     rows = [
@@ -311,7 +311,7 @@ def test_get_pool_performance_data_transformation_correctness(db_session: Sessio
         }
     ]
 
-    service, _ = _create_service(rows, db_session)
+    service, _ = _create_service(rows, mock_db)
     user_id = uuid4()
 
     result = service.get_pool_performance(user_id)
@@ -343,7 +343,7 @@ def test_get_pool_performance_data_transformation_correctness(db_session: Sessio
 # ============================================================================
 
 
-def test_get_pool_performance_missing_optional_snapshot_ids(db_session: Session):
+def test_get_pool_performance_missing_optional_snapshot_ids(mock_db: Session):
     """Test that missing snapshot_ids field is handled correctly."""
     rows = [
         _create_pool_row(
@@ -351,7 +351,7 @@ def test_get_pool_performance_missing_optional_snapshot_ids(db_session: Session)
         )
     ]
 
-    service, _ = _create_service(rows, db_session)
+    service, _ = _create_service(rows, mock_db)
     user_id = uuid4()
 
     result = service.get_pool_performance(user_id)
@@ -361,14 +361,14 @@ def test_get_pool_performance_missing_optional_snapshot_ids(db_session: Session)
     assert pool["snapshot_ids"] is None
 
 
-def test_get_pool_performance_missing_optional_contribution(db_session: Session):
+def test_get_pool_performance_missing_optional_contribution(mock_db: Session):
     """Test that missing contribution_to_portfolio defaults to 0.0."""
     row = _create_pool_row()
     # Remove contribution_to_portfolio to test .get() default
     del row["contribution_to_portfolio"]
     rows = [row]
 
-    service, _ = _create_service(rows, db_session)
+    service, _ = _create_service(rows, mock_db)
     user_id = uuid4()
 
     result = service.get_pool_performance(user_id)
@@ -378,11 +378,11 @@ def test_get_pool_performance_missing_optional_contribution(db_session: Session)
     assert pool["contribution_to_portfolio"] == 0.0
 
 
-def test_get_pool_performance_null_values_in_apr_data(db_session: Session):
+def test_get_pool_performance_null_values_in_apr_data(mock_db: Session):
     """Deprecated APR payload should not appear even when NULLs are provided."""
     rows = [_create_pool_row()]
 
-    service, _ = _create_service(rows, db_session)
+    service, _ = _create_service(rows, mock_db)
     user_id = uuid4()
 
     result = service.get_pool_performance(user_id)
@@ -392,7 +392,7 @@ def test_get_pool_performance_null_values_in_apr_data(db_session: Session):
     assert "apr_data" not in pool or pool.get("apr_data") is None
 
 
-def test_get_pool_performance_zero_asset_values(db_session: Session):
+def test_get_pool_performance_zero_asset_values(mock_db: Session):
     """Test handling of pools with zero asset values."""
     rows = [
         _create_pool_row(
@@ -401,7 +401,7 @@ def test_get_pool_performance_zero_asset_values(db_session: Session):
         )
     ]
 
-    service, _ = _create_service(rows, db_session)
+    service, _ = _create_service(rows, mock_db)
     user_id = uuid4()
 
     result = service.get_pool_performance(user_id)
@@ -412,7 +412,7 @@ def test_get_pool_performance_zero_asset_values(db_session: Session):
     assert pool["contribution_to_portfolio"] == 0.0
 
 
-def test_get_pool_performance_multiple_snapshot_ids(db_session: Session):
+def test_get_pool_performance_multiple_snapshot_ids(mock_db: Session):
     """Test pool with multiple aggregated snapshot IDs."""
     snapshot_ids = [str(uuid4()), str(uuid4()), str(uuid4())]
     rows = [
@@ -422,7 +422,7 @@ def test_get_pool_performance_multiple_snapshot_ids(db_session: Session):
         )
     ]
 
-    service, _ = _create_service(rows, db_session)
+    service, _ = _create_service(rows, mock_db)
     user_id = uuid4()
 
     result = service.get_pool_performance(user_id)
@@ -434,7 +434,7 @@ def test_get_pool_performance_multiple_snapshot_ids(db_session: Session):
     assert len(pool["snapshot_ids"]) == 3
 
 
-def test_get_pool_performance_empty_pool_symbols(db_session: Session):
+def test_get_pool_performance_empty_pool_symbols(mock_db: Session):
     """Test pool with empty pool_symbols list."""
     rows = [
         _create_pool_row(
@@ -442,7 +442,7 @@ def test_get_pool_performance_empty_pool_symbols(db_session: Session):
         )
     ]
 
-    service, _ = _create_service(rows, db_session)
+    service, _ = _create_service(rows, mock_db)
     user_id = uuid4()
 
     result = service.get_pool_performance(user_id)
@@ -452,11 +452,11 @@ def test_get_pool_performance_empty_pool_symbols(db_session: Session):
     assert pool["pool_symbols"] == []
 
 
-def test_get_pool_performance_large_apr_values(db_session: Session):
+def test_get_pool_performance_large_apr_values(mock_db: Session):
     """Test handling of very large APR values (e.g., 1000% APR)."""
     rows = [_create_pool_row()]
 
-    service, _ = _create_service(rows, db_session)
+    service, _ = _create_service(rows, mock_db)
     user_id = uuid4()
 
     result = service.get_pool_performance(user_id)
@@ -472,10 +472,10 @@ def test_get_pool_performance_large_apr_values(db_session: Session):
 # ============================================================================
 
 
-def test_get_pool_performance_sqlalchemy_error_raises(db_session: Session):
+def test_get_pool_performance_sqlalchemy_error_raises(mock_db: Session):
     """Test that SQLAlchemyError from database is wrapped in DatabaseError."""
     query_service = _RaisingQueryService()
-    service = PoolPerformanceService(db_session, query_service)
+    service = PoolPerformanceService(mock_db, query_service)
     user_id = uuid4()
 
     with pytest.raises(DatabaseError, match="Failed to fetch pool performance"):
@@ -483,7 +483,7 @@ def test_get_pool_performance_sqlalchemy_error_raises(db_session: Session):
 
 
 def test_get_pool_performance_missing_required_field_raises_value_error(
-    db_session: Session,
+    mock_db: Session,
 ):
     """Test that missing required field in query result raises ValueError."""
     # Missing 'chain' field
@@ -499,7 +499,7 @@ def test_get_pool_performance_missing_required_field_raises_value_error(
         }
     ]
 
-    service, _ = _create_service(rows, db_session)
+    service, _ = _create_service(rows, mock_db)
     user_id = uuid4()
 
     with pytest.raises(ValidationError, match="Invalid query result structure"):
@@ -507,7 +507,7 @@ def test_get_pool_performance_missing_required_field_raises_value_error(
 
 
 def test_get_pool_performance_missing_protocol_id_raises_value_error(
-    db_session: Session,
+    mock_db: Session,
 ):
     """Test that missing protocol_id field raises ValidationError."""
     rows = [
@@ -522,7 +522,7 @@ def test_get_pool_performance_missing_protocol_id_raises_value_error(
         }
     ]
 
-    service, _ = _create_service(rows, db_session)
+    service, _ = _create_service(rows, mock_db)
     user_id = uuid4()
 
     with pytest.raises(ValidationError, match="Invalid query result structure"):
@@ -530,7 +530,7 @@ def test_get_pool_performance_missing_protocol_id_raises_value_error(
 
 
 def test_get_pool_performance_missing_apr_data_raises_value_error(
-    db_session: Session,
+    mock_db: Session,
 ):
     """Test that missing wallet field raises ValidationError."""
     rows = [
@@ -545,7 +545,7 @@ def test_get_pool_performance_missing_apr_data_raises_value_error(
         }
     ]
 
-    service, _ = _create_service(rows, db_session)
+    service, _ = _create_service(rows, mock_db)
     user_id = uuid4()
 
     with pytest.raises(ValidationError, match="Invalid query result structure"):
@@ -557,9 +557,9 @@ def test_get_pool_performance_missing_apr_data_raises_value_error(
 # ============================================================================
 
 
-def test_get_pool_performance_uuid_converted_to_string(db_session: Session):
+def test_get_pool_performance_uuid_converted_to_string(mock_db: Session):
     """Test that UUID parameter is correctly converted to string for query."""
-    service, query_service = _create_service([], db_session)
+    service, query_service = _create_service([], mock_db)
     user_id = uuid4()
 
     service.get_pool_performance(user_id)
@@ -571,12 +571,12 @@ def test_get_pool_performance_uuid_converted_to_string(db_session: Session):
     assert query_service.last_params["user_id"] == str(user_id)
 
 
-def test_get_pool_performance_preserves_snapshot_id_as_string(db_session: Session):
+def test_get_pool_performance_preserves_snapshot_id_as_string(mock_db: Session):
     """Test that snapshot_id is preserved as string in response."""
     snapshot_id = str(uuid4())
     rows = [_create_pool_row(snapshot_id=snapshot_id)]
 
-    service, _ = _create_service(rows, db_session)
+    service, _ = _create_service(rows, mock_db)
     user_id = uuid4()
 
     result = service.get_pool_performance(user_id)
@@ -630,7 +630,7 @@ class _RaisingAggregator:
         raise ValueError("Aggregator processing failed")
 
 
-def test_service_delegates_to_aggregator(db_session: Session):
+def test_service_delegates_to_aggregator(mock_db: Session):
     """Test that service calls aggregator.aggregate_positions() with query results."""
     # Setup: Create raw query results
     raw_rows = [
@@ -670,7 +670,7 @@ def test_service_delegates_to_aggregator(db_session: Session):
 
     # Create service with mock aggregator instance
     query_service = _DummyQueryService(raw_rows)
-    service = PoolPerformanceService(db_session, query_service, mock_aggregator)
+    service = PoolPerformanceService(mock_db, query_service, mock_aggregator)
     user_id = uuid4()
 
     # Execute
@@ -691,7 +691,7 @@ def test_service_delegates_to_aggregator(db_session: Session):
     assert result[0]["asset_usd_value"] == 3000.0
 
 
-def test_service_returns_aggregator_results_directly(db_session: Session):
+def test_service_returns_aggregator_results_directly(mock_db: Session):
     """Test that service returns aggregator output without modification."""
     raw_rows = [_create_pool_row()]
 
@@ -714,7 +714,7 @@ def test_service_returns_aggregator_results_directly(db_session: Session):
     _MockAggregator.set_instance(mock_aggregator)
 
     query_service = _DummyQueryService(raw_rows)
-    service = PoolPerformanceService(db_session, query_service, mock_aggregator)
+    service = PoolPerformanceService(mock_db, query_service, mock_aggregator)
     user_id = uuid4()
 
     result = service.get_pool_performance(user_id)
@@ -726,7 +726,7 @@ def test_service_returns_aggregator_results_directly(db_session: Session):
     assert result[0]["snapshot_ids"] == ["id1", "id2"]
 
 
-def test_service_handles_empty_aggregator_result(db_session: Session):
+def test_service_handles_empty_aggregator_result(mock_db: Session):
     """Test that service handles empty list from aggregator."""
     raw_rows = [_create_pool_row()]
 
@@ -735,7 +735,7 @@ def test_service_handles_empty_aggregator_result(db_session: Session):
     _MockAggregator.set_instance(mock_aggregator)
 
     query_service = _DummyQueryService(raw_rows)
-    service = PoolPerformanceService(db_session, query_service, mock_aggregator)
+    service = PoolPerformanceService(mock_db, query_service, mock_aggregator)
     user_id = uuid4()
 
     result = service.get_pool_performance(user_id)
@@ -745,12 +745,12 @@ def test_service_handles_empty_aggregator_result(db_session: Session):
     assert len(result) == 0
 
 
-def test_service_handles_aggregator_error(db_session: Session):
+def test_service_handles_aggregator_error(mock_db: Session):
     """Test that service handles aggregator errors appropriately."""
     raw_rows = [_create_pool_row()]
 
     query_service = _DummyQueryService(raw_rows)
-    service = PoolPerformanceService(db_session, query_service, _RaisingAggregator())
+    service = PoolPerformanceService(mock_db, query_service, _RaisingAggregator())
     user_id = uuid4()
 
     # Aggregator raises ValueError, service should propagate or wrap appropriately
@@ -758,13 +758,13 @@ def test_service_handles_aggregator_error(db_session: Session):
         service.get_pool_performance(user_id)
 
 
-def test_get_pool_performance_applies_min_value_filter(db_session: Session):
+def test_get_pool_performance_applies_min_value_filter(mock_db: Session):
     """Pools below the minimum USD threshold are filtered out."""
     rows = [
         _create_pool_row(protocol_id="protocol-small", asset_usd_value=1000.0),
         _create_pool_row(protocol_id="protocol-large", asset_usd_value=5000.0),
     ]
-    service, _ = _create_service(rows, db_session)
+    service, _ = _create_service(rows, mock_db)
     user_id = uuid4()
 
     result = service.get_pool_performance(user_id, min_value_usd=2000.0)
@@ -773,14 +773,14 @@ def test_get_pool_performance_applies_min_value_filter(db_session: Session):
     assert result[0]["asset_usd_value"] == 5000.0
 
 
-def test_get_pool_performance_applies_limit_after_sort(db_session: Session):
+def test_get_pool_performance_applies_limit_after_sort(mock_db: Session):
     """Limit is applied after sorting pools by asset value descending."""
     rows = [
         _create_pool_row(protocol_id="pool-a", asset_usd_value=1000.0),
         _create_pool_row(protocol_id="pool-b", asset_usd_value=3000.0),
         _create_pool_row(protocol_id="pool-c", asset_usd_value=2000.0),
     ]
-    service, _ = _create_service(rows, db_session)
+    service, _ = _create_service(rows, mock_db)
     user_id = uuid4()
 
     result = service.get_pool_performance(user_id, limit=2)
@@ -790,7 +790,7 @@ def test_get_pool_performance_applies_limit_after_sort(db_session: Session):
     assert result[1]["asset_usd_value"] == 2000.0
 
 
-def test_service_passes_all_query_rows_to_aggregator(db_session: Session):
+def test_service_passes_all_query_rows_to_aggregator(mock_db: Session):
     """Test that service passes all query results to aggregator, not just first."""
     # Create 5 different positions
     raw_rows = [
@@ -803,7 +803,7 @@ def test_service_passes_all_query_rows_to_aggregator(db_session: Session):
     _MockAggregator.set_instance(mock_aggregator)
 
     query_service = _DummyQueryService(raw_rows)
-    service = PoolPerformanceService(db_session, query_service, mock_aggregator)
+    service = PoolPerformanceService(mock_db, query_service, mock_aggregator)
     user_id = uuid4()
 
     service.get_pool_performance(user_id)
@@ -821,12 +821,12 @@ def test_service_passes_all_query_rows_to_aggregator(db_session: Session):
 
 
 def test_get_pool_performance_with_snapshot_date_passes_date_to_query(
-    db_session: Session,
+    mock_db: Session,
 ):
     """Test that snapshot_date parameter is correctly passed to SQL query."""
     from datetime import date
 
-    service, query_service = _create_service([], db_session)
+    service, query_service = _create_service([], mock_db)
     user_id = uuid4()
     target_date = date(2025, 12, 27)
 
@@ -839,10 +839,10 @@ def test_get_pool_performance_with_snapshot_date_passes_date_to_query(
 
 
 def test_get_pool_performance_without_snapshot_date_passes_none_to_query(
-    db_session: Session,
+    mock_db: Session,
 ):
     """Test that omitting snapshot_date maintains backward compatibility (None in params)."""
-    service, query_service = _create_service([], db_session)
+    service, query_service = _create_service([], mock_db)
     user_id = uuid4()
 
     # Call without snapshot_date parameter
@@ -855,7 +855,7 @@ def test_get_pool_performance_without_snapshot_date_passes_none_to_query(
 
 
 def test_get_pool_performance_with_snapshot_date_returns_filtered_results(
-    db_session: Session,
+    mock_db: Session,
 ):
     """Test that snapshot_date filtering returns expected results."""
     from datetime import date
@@ -869,7 +869,7 @@ def test_get_pool_performance_with_snapshot_date_returns_filtered_results(
         )
     ]
 
-    service, query_service = _create_service(rows, db_session)
+    service, query_service = _create_service(rows, mock_db)
     user_id = uuid4()
     target_date = date(2025, 12, 27)
 

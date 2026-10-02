@@ -112,6 +112,7 @@
     "test": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*", "!**/*.md"],
+      "env": ["RUN_INTEGRATION"],
       "passThroughEnv": [
         "DATABASE_READ_ONLY",
         "DATABASE_READ_ONLY_URL",
@@ -123,6 +124,7 @@
     "test:coverage": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*", "!**/*.md"],
+      "env": ["RUN_INTEGRATION"],
       "passThroughEnv": [
         "DATABASE_READ_ONLY",
         "DATABASE_READ_ONLY_URL",

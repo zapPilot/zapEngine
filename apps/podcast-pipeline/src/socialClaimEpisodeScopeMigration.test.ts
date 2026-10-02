@@ -3,13 +3,17 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { sqlCode } from './__fixtures__/migrationSql.js';
+
 const repoRoot = path.resolve(process.cwd(), '../..');
-const migration = fs.readFileSync(
-  path.join(
-    repoRoot,
-    'supabase/migrations/20260826120000_claim_social_publish_batch_episode_scope.sql',
+const migration = sqlCode(
+  fs.readFileSync(
+    path.join(
+      repoRoot,
+      'supabase/migrations/20260826120000_claim_social_publish_batch_episode_scope.sql',
+    ),
+    'utf8',
   ),
-  'utf8',
 );
 
 describe('claim_social_publish_batch episode-scope migration', () => {

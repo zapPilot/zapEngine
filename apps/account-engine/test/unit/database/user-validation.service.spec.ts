@@ -49,6 +49,13 @@ describe('UserValidationService', () => {
 
       const result = await service.validateWalletOwnership('0x123', 'user-1');
       expect(result).toEqual(wallet);
+      expect(dbMock.supabase.client.from).toHaveBeenCalledWith(
+        'user_crypto_wallets',
+      );
+      expect(qb().eq.mock.calls).toEqual([
+        ['wallet', '0x123'],
+        ['user_id', 'user-1'],
+      ]);
     });
 
     it('throws NotFoundException when wallet not found', async () => {
@@ -80,6 +87,10 @@ describe('UserValidationService', () => {
         ownership_verified_at: '2026-08-22T00:00:00.000Z',
       });
       expect(qb().select).toHaveBeenCalledWith('id, ownership_verified_at');
+      expect(qb().eq.mock.calls).toEqual([
+        ['wallet', '0x123'],
+        ['user_id', 'user-1'],
+      ]);
     });
 
     it('rejects an unverified wallet with a conflict', async () => {
@@ -179,6 +190,8 @@ describe('UserValidationService', () => {
         'user-1',
       );
       expect(result.isAvailable).toBe(false);
+      expect(qb().eq).toHaveBeenCalledWith('email', 'taken@test.com');
+      expect(qb().neq).toHaveBeenCalledWith('id', 'user-1');
     });
 
     it('throws ServiceLayerException on non-PGRST116 database error', async () => {
@@ -205,6 +218,13 @@ describe('UserValidationService', () => {
 
       const result = await service.getActiveSubscriptionWithPlan('user-1');
       expect(result).toEqual(subscription);
+      expect(dbMock.supabase.client.from).toHaveBeenCalledWith(
+        'user_subscriptions',
+      );
+      expect(qb().eq.mock.calls).toEqual([
+        ['user_id', 'user-1'],
+        ['is_canceled', false],
+      ]);
     });
 
     it('returns null when no active subscription', async () => {

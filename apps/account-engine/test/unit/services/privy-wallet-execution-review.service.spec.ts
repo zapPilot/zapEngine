@@ -188,24 +188,59 @@ describe('PrivyWalletExecutionService review lifecycle', () => {
     });
   });
 
-  it('requires the exact risk hash before confirming a warning preview', async () => {
-    const client = createClient();
-    const service = createPrivyWalletExecutionService({
-      client,
-      tenderlySimulationService: createSimulationService(warningReview()),
-    });
-    const prepared = await service.prepareSendCalls(batch, accessToken);
-    if (prepared.status !== 'warning')
-      throw new Error('Expected warning preview');
+  it.each([undefined, CHANGED_FINGERPRINT])(
+    'requires the exact risk hash before confirming a warning preview (%s)',
+    async (acknowledgement) => {
+      const client = createClient();
+      const service = createPrivyWalletExecutionService({
+        client,
+        tenderlySimulationService: createSimulationService(warningReview()),
+      });
+      const prepared = await service.prepareSendCalls(batch, accessToken);
+      if (prepared.status !== 'warning')
+        throw new Error('Expected warning preview');
 
-    await expect(
-      service.confirmSendCalls(confirmRequest(prepared.previewId), accessToken),
-    ).rejects.toMatchObject({
-      statusCode: 400,
-      message: 'Warning risks must be acknowledged before signing',
-    });
-    expect(client.sendCalls).not.toHaveBeenCalled();
-  });
+      await expect(
+        service.confirmSendCalls(
+          confirmRequest(prepared.previewId, acknowledgement),
+          accessToken,
+        ),
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        message: 'Warning risks must be acknowledged before signing',
+      });
+      expect(client.sendCalls).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['token', 'ownership'] as const)(
+    'revalidates %s at confirmation before re-simulation or submission',
+    async (failure) => {
+      const client = createClient();
+      const simulation = createSimulationService(review(), review());
+      const service = createPrivyWalletExecutionService({
+        client,
+        tenderlySimulationService: simulation,
+      });
+      const prepared = await service.prepareSendCalls(batch, accessToken);
+      if (prepared.status !== 'passed')
+        throw new Error('Expected passed preview');
+      if (failure === 'token')
+        vi.mocked(client.verifyAccessToken).mockRejectedValueOnce(
+          new Error('revoked'),
+        );
+      else vi.mocked(client.getUserWallets).mockResolvedValueOnce([]);
+      await expect(
+        service.confirmSendCalls(
+          confirmRequest(prepared.previewId),
+          accessToken,
+        ),
+      ).rejects.toMatchObject({ statusCode: failure === 'token' ? 401 : 400 });
+      expect(client.verifyAccessToken).toHaveBeenCalledTimes(2);
+      expect(simulation.simulateBundle).toHaveBeenCalledTimes(1);
+      expect(client.sendCalls).not.toHaveBeenCalled();
+    },
+  );
 
   it('broadcasts when the material result is unchanged', async () => {
     const client = createClient();

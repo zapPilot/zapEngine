@@ -53,7 +53,24 @@ describe('createTenderlyBundleSimulationAdapter', () => {
       simulations: Array<{ network_id: string; from: string }>;
     };
     expect(payload.simulations).toHaveLength(2);
-    expect(payload.simulations[0]?.network_id).toBe('8453');
+    expect(init.method).toBe('POST');
+    expect(init.headers).toEqual({
+      'Content-Type': 'application/json',
+      'X-Access-Key': CONFIG.accessKey,
+    });
+    expect(payload.simulations).toEqual(
+      REQUEST.calls.map((call) => ({
+        network_id: '8453',
+        from: REQUEST.from,
+        to: call.to,
+        input: call.data,
+        value: call.value,
+        gas: 8000000,
+        save: false,
+        save_if_fails: false,
+        simulation_type: 'quick',
+      })),
+    );
   });
 
   it('returns failed with the revert reason when a call reverts', async () => {

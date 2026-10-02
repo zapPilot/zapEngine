@@ -3,17 +3,23 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { sqlCode } from './__fixtures__/migrationSql.js';
+
 const repoRoot = path.resolve(process.cwd(), '../..');
-const migration = fs.readFileSync(
-  path.join(
-    repoRoot,
-    'apps/podcast-pipeline/supabase/migrations/030_add_language_classroom_audio.sql',
+const migration = sqlCode(
+  fs.readFileSync(
+    path.join(
+      repoRoot,
+      'apps/podcast-pipeline/supabase/migrations/030_add_language_classroom_audio.sql',
+    ),
+    'utf8',
   ),
-  'utf8',
 );
-const schema = fs.readFileSync(
-  path.join(repoRoot, 'apps/podcast-pipeline/supabase/schema.sql'),
-  'utf8',
+const schema = sqlCode(
+  fs.readFileSync(
+    path.join(repoRoot, 'apps/podcast-pipeline/supabase/schema.sql'),
+    'utf8',
+  ),
 );
 
 const sources = [
@@ -41,7 +47,7 @@ describe('language classroom audio schema', () => {
   });
 
   it('keeps migration bounded and reloads PostgREST', () => {
-    expect(migration.trim()).toMatch(/^--[\s\S]+?begin;/i);
+    expect(migration.trim()).toMatch(/^begin;/i);
     expect(migration).toMatch(/set local lock_timeout = '5s'/i);
     expect(migration).toMatch(/set local statement_timeout = '2min'/i);
     expect(migration).toMatch(/notify pgrst, 'reload schema'/i);

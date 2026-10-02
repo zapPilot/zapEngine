@@ -1,12 +1,7 @@
 import type { DailySnapshot, TrackRecordMeta } from '@zapengine/types/strategy';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-const viemMocks = vi.hoisted(() => ({ recoverMessageAddress: vi.fn() }));
-
-vi.mock('viem', async () => {
-  const actual = await vi.importActual<typeof import('viem')>('viem');
-  return { ...actual, recoverMessageAddress: viemMocks.recoverMessageAddress };
-});
+import { privateKeyToAccount } from 'viem/accounts';
 
 import {
   canonicalizeSnapshotForSigning,
@@ -19,8 +14,10 @@ import {
   verifySignature,
 } from '../track-record-accessor';
 
-const SIGNER_A = '0x0000000000000000000000000000000000000001';
-const SIGNER_B = '0x0000000000000000000000000000000000000002';
+const accountA = privateKeyToAccount(`0x${'1'.repeat(64)}`);
+const accountB = privateKeyToAccount(`0x${'2'.repeat(64)}`);
+const SIGNER_A = accountA.address;
+const SIGNER_B = accountB.address;
 
 function snapshot(
   date = '2026-01-01',
@@ -74,7 +71,6 @@ function response(body: unknown, ok = true, status = 200): Response {
   } as unknown as Response;
 }
 
-beforeEach(() => viemMocks.recoverMessageAddress.mockReset());
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.useRealTimers();
@@ -251,9 +247,9 @@ describe('performance edge cases', () => {
 });
 
 describe('signature verification branches', () => {
-  function signed(
+  async function signed(
     overrides: Partial<NonNullable<DailySnapshot['signature']>> = {},
-  ): DailySnapshot {
+  ): Promise<DailySnapshot> {
     const base = snapshot();
     return {
       ...base,
@@ -261,7 +257,9 @@ describe('signature verification branches', () => {
         signer: SIGNER_A,
         signedAt: '2026-01-01T00:00:00.000Z',
         messageHash: createSnapshotMessageHash(base),
-        signature: '0x1234',
+        signature: await accountA.signMessage({
+          message: { raw: createSnapshotMessageHash(base) as `0x${string}` },
+        }),
         ...overrides,
       },
     };
@@ -279,19 +277,19 @@ describe('signature verification branches', () => {
 
   it('rejects missing fields and invalid expected signers', async () => {
     await expect(
-      verifySignature(signed({ signature: '' }), SIGNER_A),
+      verifySignature(await signed({ signature: '' }), SIGNER_A),
     ).resolves.toMatchObject({
       reason: 'missing_signature_field',
     });
     await expect(
-      verifySignature(signed(), 'not-an-address'),
+      verifySignature(await signed(), 'not-an-address'),
     ).resolves.toMatchObject({
       reason: 'invalid_expected_signer',
     });
   });
 
   it('reports message-hash mismatches with and without an expected signer', async () => {
-    const badHash = signed({ messageHash: '0xdead' });
+    const badHash = await signed({ messageHash: '0xdead' });
     await expect(verifySignature(badHash, SIGNER_A)).resolves.toMatchObject({
       reason: 'message_hash_mismatch',
       expectedSigner: SIGNER_A,
@@ -304,26 +302,40 @@ describe('signature verification branches', () => {
   });
 
   it('reports recovery and signer mismatches', async () => {
-    viemMocks.recoverMessageAddress.mockRejectedValueOnce(new Error('bad sig'));
-    await expect(verifySignature(signed(), SIGNER_A)).resolves.toMatchObject({
-      reason: 'recover_failed',
+    await expect(
+      verifySignature(await signed({ signature: '0xdead' }), SIGNER_A),
+    ).resolves.toMatchObject({ reason: 'recover_failed' });
+    const otherSignature = await accountB.signMessage({
+      message: { raw: createSnapshotMessageHash(snapshot()) as `0x${string}` },
     });
-    viemMocks.recoverMessageAddress.mockResolvedValueOnce(SIGNER_B);
-    await expect(verifySignature(signed(), SIGNER_A)).resolves.toMatchObject({
+    const otherSigned = await signed({ signature: otherSignature });
+    await expect(verifySignature(otherSigned, SIGNER_A)).resolves.toMatchObject(
+      { reason: 'signer_mismatch' },
+    );
+    await expect(verifySignature(otherSigned, SIGNER_B)).resolves.toMatchObject(
+      { reason: 'claimed_signer_mismatch' },
+    );
+  });
+
+  it('rejects payload tampering after a valid signature', async () => {
+    const value = await signed();
+    value.nav.usd = '101';
+    await expect(verifySignature(value, SIGNER_A)).resolves.toMatchObject({
+      reason: 'message_hash_mismatch',
+    });
+    value.signature!.messageHash = createSnapshotMessageHash(value);
+    await expect(verifySignature(value, SIGNER_A)).resolves.toMatchObject({
       reason: 'signer_mismatch',
-    });
-    viemMocks.recoverMessageAddress.mockResolvedValueOnce(SIGNER_B);
-    await expect(verifySignature(signed(), SIGNER_B)).resolves.toMatchObject({
-      reason: 'claimed_signer_mismatch',
     });
   });
 
   it('accepts matching signers with explicit or claimed expectations', async () => {
-    viemMocks.recoverMessageAddress.mockResolvedValue(SIGNER_A);
-    await expect(verifySignature(signed(), SIGNER_A)).resolves.toMatchObject({
+    await expect(
+      verifySignature(await signed(), SIGNER_A),
+    ).resolves.toMatchObject({
       valid: true,
     });
-    await expect(verifySignature(signed(), '')).resolves.toMatchObject({
+    await expect(verifySignature(await signed(), '')).resolves.toMatchObject({
       valid: true,
       expectedSigner: SIGNER_A,
     });

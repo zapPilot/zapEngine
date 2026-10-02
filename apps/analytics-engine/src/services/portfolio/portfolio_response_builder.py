@@ -91,12 +91,14 @@ class PortfolioResponseBuilder:
 
         # Build category summary debt from portfolio summary
         category_summary_debt = CategorySummaryDebt(
-            btc=portfolio_summary.get("category_debt", {}).get("btc", 0.0),
-            eth=portfolio_summary.get("category_debt", {}).get("eth", 0.0),
-            stablecoins=portfolio_summary.get("category_debt", {}).get(
+            btc=portfolio_summary.get("category_summary_debt", {}).get("btc", 0.0),
+            eth=portfolio_summary.get("category_summary_debt", {}).get("eth", 0.0),
+            stablecoins=portfolio_summary.get("category_summary_debt", {}).get(
                 "stablecoins", 0.0
             ),
-            others=portfolio_summary.get("category_debt", {}).get("others", 0.0),
+            others=portfolio_summary.get("category_summary_debt", {}).get(
+                "others", 0.0
+            ),
         )
 
         # Convert pool_details dicts to PoolDetail objects for type safety

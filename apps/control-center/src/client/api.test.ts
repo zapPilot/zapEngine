@@ -17,6 +17,7 @@ function stubFetch(response: Response) {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe('getJson', () => {
@@ -104,5 +105,73 @@ describe('sendJson', () => {
     await expect(
       sendJson('/api/podcast-pipeline/x/ingest/retry', 'POST'),
     ).rejects.toThrow(/Not signed in/);
+  });
+});
+
+describe('mutation response body handling', () => {
+  it('resolves null for a 204 with no body', async () => {
+    stubFetch(new Response(null, { status: 204 }));
+
+    await expect(sendJson('/api/reviews/resolve', 'POST')).resolves.toBeNull();
+  });
+
+  it('resolves null when a successful response has no JSON body', async () => {
+    stubFetch(
+      new Response('<!doctype html><html></html>', {
+        headers: { 'content-type': 'text/html' },
+      }),
+    );
+
+    await expect(sendJson('/api/costs/sync', 'POST')).resolves.toBeNull();
+  });
+
+  it('names a rejected body with no usable message', async () => {
+    const response = json({ unexpected: true }, 500);
+    stubFetch(response);
+
+    await expect(sendJson('/api/costs/sync', 'POST')).rejects.toThrow(
+      'HTTP 500',
+    );
+  });
+
+  it('names a rejected HTML body instead of its parse failure', async () => {
+    stubFetch(
+      new Response('<!doctype html><html></html>', {
+        status: 500,
+        headers: { 'content-type': 'text/html' },
+      }),
+    );
+
+    await expect(sendJson('/api/costs/sync', 'POST')).rejects.toThrow(
+      /Expected JSON from \/api\/costs\/sync, got text\/html/,
+    );
+  });
+
+  it('reports a non-JSON rejection on a GET as well', async () => {
+    stubFetch(new Response('Bad Gateway', { status: 502 }));
+
+    await expect(getJson('/api/overview')).rejects.toThrow(/Expected JSON/);
+  });
+});
+
+describe('api content-type edge branches', () => {
+  it('reports no content-type when the header is absent', async () => {
+    const response = new Response('oops', { status: 200 });
+    vi.spyOn(response.headers, 'get').mockReturnValue(null);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response));
+
+    await expect(getJson('/api/overview')).rejects.toThrow(
+      'Expected JSON from /api/overview, got no content-type',
+    );
+  });
+
+  it('reports an empty content-type as no content-type', async () => {
+    const response = new Response('oops', { status: 200 });
+    vi.spyOn(response.headers, 'get').mockReturnValue('');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response));
+
+    await expect(getJson('/api/pipeline/queues')).rejects.toThrow(
+      /got no content-type/,
+    );
   });
 });

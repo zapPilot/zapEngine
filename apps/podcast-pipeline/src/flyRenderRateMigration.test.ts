@@ -3,15 +3,18 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { sqlCode } from './__fixtures__/migrationSql.js';
 import { RENDER_PRICING_METRIC_KEY } from './services/ops-ledger.js';
 
-const migration = fs.readFileSync(
-  path.resolve(
-    process.cwd(),
-    '../..',
-    'supabase/migrations/20260905111218_add_render_performance_1x_rate.sql',
+const migration = sqlCode(
+  fs.readFileSync(
+    path.resolve(
+      process.cwd(),
+      '../..',
+      'supabase/migrations/20260905111218_add_render_performance_1x_rate.sql',
+    ),
+    'utf8',
   ),
-  'utf8',
 );
 
 describe('Fly performance-1x render rate migration', () => {

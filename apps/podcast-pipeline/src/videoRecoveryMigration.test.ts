@@ -3,13 +3,20 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { sqlCode } from './__fixtures__/migrationSql.js';
+
 const repoRoot = path.resolve(process.cwd(), '../..');
-const migration = fs.readFileSync(
-  path.join(
-    repoRoot,
-    'supabase/migrations/20260901080500_video_visual_recovery.sql',
+const migration = sqlCode(
+  fs.readFileSync(
+    path.join(
+      repoRoot,
+      'supabase/migrations/20260901080500_video_visual_recovery.sql',
+    ),
+    'utf8',
   ),
-  'utf8',
+);
+const replanPathAt = migration.search(
+  /update from_fed_to_chain\.episode_videos video\s+set status = 'queued',\s+progress_percent = null,\s+progress_stage = null,\s+visual_hash = null,/,
 );
 
 describe('video visual recovery migration', () => {
@@ -60,9 +67,8 @@ describe('video visual recovery migration', () => {
     expect(migration).toMatch(
       /if visual_record\.status = 'completed'\s+and \(\s+target_visual_version is null\s+or visual_record\.visual_version = target_visual_version\s+\) then/i,
     );
-    const replanAt = migration.indexOf('An incomplete/failed shared visual');
-    expect(replanAt).toBeGreaterThan(-1);
-    expect(migration.slice(replanAt)).toMatch(
+    expect(replanPathAt).toBeGreaterThan(-1);
+    expect(migration.slice(replanPathAt)).toMatch(
       /visual_version = coalesce\(\s+target_visual_version,\s+visual_record\.visual_version\s+\)[\s\S]+?update from_fed_to_chain\.episode_video_visuals visual[\s\S]+?visual_version = coalesce\(\s+target_visual_version,\s+visual\.visual_version\s+\)/i,
     );
     // The one-argument overload must not survive, or a caller that forgets the
@@ -81,8 +87,8 @@ describe('video visual recovery migration', () => {
     const lockAt = migration.search(
       /perform 1\s+from from_fed_to_chain\.episode_videos video/i,
     );
-    const leasePreflightAt = migration.indexOf(
-      'a service-role caller must not be able to clear a live ffmpeg/render',
+    const leasePreflightAt = migration.search(
+      /if exists \(\s+select 1\s+from from_fed_to_chain\.episode_videos video\s+where video\.episode_id = p_episode_id\s+and video\.status = 'processing'\s+and video\.lease_expires_at > now\(\)/i,
     );
     expect(lockAt).toBeGreaterThan(-1);
     expect(leasePreflightAt).toBeGreaterThan(lockAt);
@@ -128,7 +134,7 @@ describe('video visual recovery migration', () => {
   it('clears downstream checkpoint references before requeueing a failed shared visual', () => {
     const downstreamReset = migration.indexOf(
       'update from_fed_to_chain.episode_videos video',
-      migration.indexOf('An incomplete/failed shared visual'),
+      replanPathAt,
     );
     const visualReset = migration.indexOf(
       'update from_fed_to_chain.episode_video_visuals visual',

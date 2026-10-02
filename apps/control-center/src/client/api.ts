@@ -52,7 +52,10 @@ export async function sendJson<T>(
   if (!response.ok) {
     // A rejected mutation names itself in the body; fall back to the helper's
     // reading of the response only when there is no such message.
-    const payload = (await response.json().catch(() => null)) as {
+    const payload = (await response
+      .clone()
+      .json()
+      .catch(() => null)) as {
       error?: string;
     } | null;
     if (payload?.error) {

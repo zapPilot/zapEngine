@@ -3,6 +3,7 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { sqlCode } from './__fixtures__/migrationSql.js';
 import { SOCIAL_PLATFORMS } from './social/platforms.js';
 import type { SocialPostMetricRow } from './types.js';
 
@@ -261,5 +262,5 @@ function canonicalTableDefinition(sql: string, table: string): string {
 }
 
 function readRepoFile(relativePath: string): string {
-  return fs.readFileSync(path.join(repoRoot, relativePath), 'utf8');
+  return sqlCode(fs.readFileSync(path.join(repoRoot, relativePath), 'utf8'));
 }

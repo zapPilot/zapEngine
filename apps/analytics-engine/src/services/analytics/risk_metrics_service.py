@@ -446,6 +446,11 @@ class RiskMetricsService(BaseAnalyticsService):
             drawdown_duration_days=computation.drawdown_duration_days,
             current_drawdown=computation.extrema.current_drawdown_ratio,
             current_drawdown_percentage=computation.extrema.current_drawdown_pct,
-            recovery_needed_percentage=abs(computation.extrema.max_drawdown_pct),
+            recovery_needed_percentage=(
+                abs(computation.extrema.max_drawdown_pct)
+                / (1 - abs(computation.extrema.max_drawdown_pct) / 100)
+                if computation.extrema.max_drawdown_pct > -100
+                else None
+            ),
             period_info=period_info,
         )
