@@ -250,6 +250,20 @@ describe('control center API', () => {
     expect(getSocialGrowth).toHaveBeenCalledWith(true);
   });
 
+  it('blocks cross-origin cost mutations before invoking the service', async () => {
+    const syncCosts = vi.fn();
+    const app = createTestApp({ syncCosts });
+    const response = await app.request('/api/costs/sync', {
+      method: 'POST',
+      headers: {
+        Origin: 'https://evil.example',
+        'Sec-Fetch-Site': 'cross-site',
+      },
+    });
+    expect(response.status).toBe(403);
+    expect(syncCosts).not.toHaveBeenCalled();
+  });
+
   it('syncs costs only through the POST endpoint', async () => {
     const syncCosts = vi.fn().mockResolvedValue({
       syncedAt: '2026-08-22T00:00:00.000Z',

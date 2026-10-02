@@ -15,6 +15,7 @@ import type {
 import type { SocialPerformanceResponse } from '../shared/types.js';
 import type { ControlCenterConfig } from './config/env.js';
 import { registerOpsMcpHttp } from './mcp/http.js';
+import { requestOriginGuard } from './request-origin-guard.js';
 import {
   type PodcastAbandonService,
   registerPodcastAbandonRoute,
@@ -91,6 +92,7 @@ export function createControlCenterApp(input: {
       context.req.path === '/api/mcp' ? next() : guard(context, next),
     );
   }
+  app.use('/api/*', requestOriginGuard);
   const service =
     input.service ?? createOverviewService({ config: input.config });
   const podcastCosts =

@@ -26,6 +26,12 @@ follow [`docs/operations/coverage-review.md`](../../docs/operations/coverage-rev
 
 The Vite UI listens on `127.0.0.1:4174`; its Hono API listens on `CONTROL_CENTER_PORT` (`4175` by default).
 
+API mutations reject explicitly cross-origin browser requests (`Origin` must match
+the request URL, and `Sec-Fetch-Site: cross-site` / `same-site` is denied).
+Headerless CLI clients still require the existing authentication checks. The MCP
+endpoint retains its separate bearer authentication. This guard does not add a
+local Host allowlist or enforce JSON content types; those remain open in #677.
+
 ## Views
 
 Four primary surfaces answer the operator's immediate questions:
