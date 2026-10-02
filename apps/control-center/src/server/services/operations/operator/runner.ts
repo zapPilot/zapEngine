@@ -3,6 +3,7 @@ import { fixSchema, observeRecovery } from './observe.js';
 import { randomUUID } from 'node:crypto';
 import type { OpsMcpOperations } from '../../../mcp/types.js';
 import { renderAction } from './actions.js';
+import { isRetryableRenderFailure } from './render-signals.js';
 import type { OperatorStore } from './store.js';
 
 type OperatorCycleInput = {
@@ -95,8 +96,8 @@ async function runOperatorCycleBody(input: OperatorCycleInput) {
   }
   const snapshot = await input.operations.getOperations(false);
   const targets = await input.store.renderTargets();
-  const target = targets.find(
-    (candidate) => candidate.renderStatus === 'failed',
+  const target = targets.find((candidate) =>
+    isRetryableRenderFailure(candidate),
   );
   const fingerprint = target
     ? `social-queue:render/${target.localizationId}`

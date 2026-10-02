@@ -88,7 +88,6 @@ docs/superpowers/
 # Claude
 .claude/scheduled_tasks.lock
 .claude/worktrees
-support.js
 
 # analytics-engine
 apps/analytics-engine/*.md

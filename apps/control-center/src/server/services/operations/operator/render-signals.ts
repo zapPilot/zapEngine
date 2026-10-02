@@ -21,6 +21,8 @@ function isRetryableRenderFailure(target: RenderTarget): boolean {
   );
 }
 
+export { isRetryableRenderFailure };
+
 export async function renderSignals(
   store: OperatorStore,
   now: Date,

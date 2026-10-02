@@ -235,17 +235,15 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('App orchestration', () => {
-  it('protects the invariant that Home renders only after both slow context reads settle', async () => {
-    let releaseQueues!: (value: unknown) => void;
-    const pendingQueues = new Promise((resolve) => {
-      releaseQueues = resolve;
-    });
+  it('renders Home once the four home reads resolve while statements, queues and journey stay pending', async () => {
+    const pending = new Promise(() => {});
     api.getJson.mockImplementation(async (url: string) => {
-      if (url === '/api/pipeline/queues') {
-        return pendingQueues;
-      }
-      if (url === '/api/growth') {
-        return acquisition;
+      if (
+        url === '/api/statements' ||
+        url === '/api/pipeline/queues' ||
+        url === '/api/growth'
+      ) {
+        return pending;
       }
       if (url === '/api/overview') {
         return overview;
@@ -259,19 +257,27 @@ describe('App orchestration', () => {
       if (url === '/api/costs/podcast') {
         return podcastCosts;
       }
-      if (url === '/api/statements') {
-        return statements;
-      }
       throw new Error(`unexpected read ${url}`);
     });
 
     render(<App />);
-    expect(await screen.findByText('skeleton-home')).toBeVisible();
-    expect(screen.queryByText('home-ready')).toBeNull();
-    releaseQueues(queues);
     expect(await screen.findByText('home-ready')).toBeVisible();
+    expect(screen.queryByText('skeleton-home')).toBeNull();
     expect(screen.getByTestId('shell')).toHaveTextContent('overview-at|false');
-    // mutation target — removing queues from dashboardViewReady renders Home early.
+  });
+
+  it('never requests statements on Home and lazy-loads them once on the pipeline view', async () => {
+    await renderReadyHome();
+    expect(api.getJson).not.toHaveBeenCalledWith('/api/statements');
+
+    await navigate('pipeline');
+    expect(screen.getByText('statement-pipeline is healthy')).toBeVisible();
+    expect(screen.getByTestId('shell')).toHaveTextContent('statements-at');
+    const statementCalls = api.getJson.mock.calls.filter(
+      (call) =>
+        (call[0] as string).replace('?force=1', '') === '/api/statements',
+    );
+    expect(statementCalls).toHaveLength(1);
   });
 
   it('protects the invariant that independent context failures degrade to readable data', async () => {

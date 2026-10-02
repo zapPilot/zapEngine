@@ -6,6 +6,7 @@ import {
   ShieldCheck,
   TrendingUp,
 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
 import type { SocialGrowthJourney } from '../../shared/growth-journey.js';
 import { podcastCostEvidenceTotals } from '../../shared/podcast-cost-evidence.js';
@@ -53,7 +54,19 @@ export function TodayPage(props: {
 }) {
   const operations = props.operations;
   const top = operations?.priorities.slice(0, 3) ?? [];
+  // Re-evaluate staleness on a timer so an idle tab flips from healthy to
+  // stale without a refetch. The tick carries no data; Date.now() is read
+  // during render.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((tick) => tick + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
   const stale = isStale(operations);
+  const unknownDomains = (operations?.domains ?? [])
+    .filter((entry) => entry.status === 'unknown')
+    .map((entry) => entry.domain);
+  const hasUnknown = unknownDomains.length > 0;
 
   return (
     <div className="cc-stack today-page">
@@ -74,7 +87,12 @@ export function TodayPage(props: {
           </div>
         </header>
         <div className="cc-card-body">
-          <HeroNotice operations={operations} stale={stale} top={top.length} />
+          <HeroNotice
+            operations={operations}
+            stale={stale}
+            top={top.length}
+            unknownDomains={unknownDomains}
+          />
           <div className="today-actions">
             {top.map((priority) => (
               <ActionCard
@@ -83,7 +101,10 @@ export function TodayPage(props: {
                 priority={priority}
               />
             ))}
-            {operations?.status === 'healthy' && !stale && top.length === 0 ? (
+            {operations?.status === 'healthy' &&
+            !stale &&
+            !hasUnknown &&
+            top.length === 0 ? (
               <EmptyState
                 detail="系統仍在收集 signals；有事情跨過 action threshold 才會出現在這裡。"
                 icon={ShieldCheck}
@@ -188,6 +209,7 @@ function HeroNotice(props: {
   operations: OperationsResponse | null;
   stale: boolean;
   top: number;
+  unknownDomains: string[];
 }) {
   if (!props.operations) {
     return <p className="today-notice">Waiting for operational signals.</p>;
@@ -196,6 +218,13 @@ function HeroNotice(props: {
     return (
       <p className="today-notice" role="status">
         營運資料已過期，請重新整理後再判斷系統是否恢復。
+      </p>
+    );
+  }
+  if (props.unknownDomains.length > 0 && props.top === 0) {
+    return (
+      <p className="today-notice" role="status">
+        部分觀測缺失（{props.unknownDomains.join('、')}），請查看可靠性。
       </p>
     );
   }
