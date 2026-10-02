@@ -10,7 +10,6 @@ import {
   createCostRepository,
   type CostRepository,
 } from './cost-repository.js';
-import { syncCosts } from './cost-sync.js';
 import { sumKnown } from './numbers.js';
 import { loadProductHealth } from './product-health.js';
 import { loadSocialPerformance } from './social.js';
@@ -28,12 +27,10 @@ export function createOverviewService(input: {
   now?: () => Date;
   repository?: CostRepository | null;
   loadSocial?: typeof loadSocialPerformance;
-  sync?: typeof syncCosts;
 }) {
   const now = input.now ?? (() => new Date());
   const repository = input.repository ?? createCostRepository(input.config);
   const loadSocial = input.loadSocial ?? loadSocialPerformance;
-  const runSync = input.sync ?? syncCosts;
   const socialCache = createAsyncCache({
     ttlMs: input.config.CONTROL_CENTER_CACHE_TTL_MS,
     load: () => loadSocial({ config: input.config, now: now() }),
@@ -100,18 +97,6 @@ export function createOverviewService(input: {
     getOverview: (forceSocial = false) =>
       (forceSocial ? forcedOverviewReads : overviewReads).get(),
     getCostHistory: () => historyReads.get(),
-    syncCosts: async () => {
-      if (!repository) {
-        throw new Error('Supabase ops repository is not configured');
-      }
-      const summary = await runSync({
-        config: input.config,
-        repository,
-        now: now(),
-      });
-      await socialCache.get(true);
-      return summary;
-    },
     getSocial: (
       window: Parameters<typeof loadSocialPerformance>[0]['window'],
     ) => loadSocial({ config: input.config, now: now(), window }),

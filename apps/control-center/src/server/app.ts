@@ -61,11 +61,6 @@ export function createControlCenterApp(input: {
    * so the remote operator surface authenticates here instead.
    */
   auth?: { username: string; password: string };
-  /**
-   * Local operator processes may explicitly refresh provider cost snapshots.
-   * Remote dashboards stay read-only for cost collection by omitting this route.
-   */
-  allowCostSync?: boolean;
 }) {
   const app = new Hono();
   // One mis-served cacheable HTML answer is enough to strand a dashboard: the
@@ -153,25 +148,6 @@ export function createControlCenterApp(input: {
   app.get('/api/costs/podcast', async (context) => {
     return context.json(await podcastCosts.getPodcastCosts());
   });
-  if (input.allowCostSync !== false) {
-    app.post('/api/costs/sync', async (context) => {
-      try {
-        const summary = await service.syncCosts();
-        return context.json(summary);
-      } catch (error) {
-        captureServerException(error, {
-          method: context.req.method,
-          route: routePath(context),
-        });
-        return context.json(
-          {
-            error: postgrestErrorMessage(error, 'Cost synchronization failed'),
-          },
-          503,
-        );
-      }
-    });
-  }
   app.get('/api/social-performance', async (context) => {
     const requested = context.req.query('window');
     const window = WINDOWS.includes(

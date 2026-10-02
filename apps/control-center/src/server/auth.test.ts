@@ -16,7 +16,6 @@ function createGuardedApp() {
     service: {
       getOverview: vi.fn().mockResolvedValue({}),
       getCostHistory: vi.fn(),
-      syncCosts: vi.fn(),
       getSocial: vi.fn(),
     } as never,
     operations: {
@@ -135,7 +134,6 @@ describe('remote dashboard authentication', () => {
       service: {
         getOverview: vi.fn().mockResolvedValue({}),
         getCostHistory: vi.fn(),
-        syncCosts: vi.fn(),
         getSocial: vi.fn(),
       } as never,
       operations: {

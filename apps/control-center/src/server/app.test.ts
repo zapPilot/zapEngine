@@ -146,7 +146,7 @@ function createTestApp(
   operationsOverrides: Partial<ReturnType<typeof createOperationsService>> = {},
   growthOverrides: Partial<ReturnType<typeof createSocialGrowthService>> = {},
   options: {
-    allowCostSync?: boolean;
+    auth?: Parameters<typeof createControlCenterApp>[0]['auth'];
     podcastCosts?: Parameters<typeof createControlCenterApp>[0]['podcastCosts'];
     podcastPipeline?: Parameters<
       typeof createControlCenterApp
@@ -194,13 +194,6 @@ function createTestApp(
           cashSpendUsd: null,
           previousMonthByProvider: [],
         }),
-      syncCosts:
-        overrides.syncCosts ??
-        vi.fn(async () => ({
-          syncedAt: '2026-08-22T00:00:00.000Z',
-          persisted: 0,
-          providers: [],
-        })),
       getSocial:
         overrides.getSocial ?? vi.fn().mockResolvedValue(overview.social),
     },
@@ -213,7 +206,7 @@ function createTestApp(
       getPodcastCosts: vi.fn().mockResolvedValue(podcastCosts),
     },
     podcastPipeline: options.podcastPipeline,
-    allowCostSync: options.allowCostSync,
+    auth: options.auth,
   });
 }
 
@@ -319,41 +312,63 @@ describe('control center API', () => {
     expect(getOverview).not.toHaveBeenCalled();
   });
 
-  it('blocks cross-origin cost mutations before invoking the service', async () => {
-    const syncCosts = vi.fn();
-    const app = createTestApp({ syncCosts });
-    const response = await app.request('/api/costs/sync', {
-      method: 'POST',
-      headers: {
-        Origin: 'https://evil.example',
-        'Sec-Fetch-Site': 'cross-site',
+  it('blocks cross-origin ingest mutations before invoking the service', async () => {
+    const restartIngest = vi.fn();
+    const app = createTestApp(
+      {},
+      {},
+      {},
+      {
+        podcastPipeline: {
+          ...createPodcastPipelineService({
+            config: readControlCenterConfig({}),
+          }),
+          restartIngest,
+        },
       },
-    });
+    );
+    const response = await app.request(
+      '/api/podcast-pipeline/826f4b87-6278-4275-bff5-535ba5ef438d/ingest/retry',
+      {
+        method: 'POST',
+        headers: {
+          Origin: 'https://evil.example',
+          'Sec-Fetch-Site': 'cross-site',
+        },
+      },
+    );
     expect(response.status).toBe(403);
-    expect(syncCosts).not.toHaveBeenCalled();
+    expect(restartIngest).not.toHaveBeenCalled();
+    const allowed = await app.request(
+      '/api/podcast-pipeline/826f4b87-6278-4275-bff5-535ba5ef438d/ingest/retry',
+      { method: 'POST' },
+    );
+    expect(allowed.status).toBe(200);
+    expect(restartIngest).toHaveBeenCalledOnce();
   });
 
-  it('syncs costs only through the POST endpoint', async () => {
-    const syncCosts = vi.fn().mockResolvedValue({
-      syncedAt: '2026-08-22T00:00:00.000Z',
-      persisted: 3,
-      providers: [],
-    });
-    const app = createTestApp({ syncCosts });
-
-    const response = await app.request('/api/costs/sync', { method: 'POST' });
-    expect(response.status).toBe(200);
-    expect(syncCosts).toHaveBeenCalledOnce();
-  });
-
-  it('omits the cost sync mutation when remote read-only mode is enabled', async () => {
-    const syncCosts = vi.fn();
-    const app = createTestApp({ syncCosts }, {}, {}, { allowCostSync: false });
-
-    const response = await app.request('/api/costs/sync', { method: 'POST' });
-    expect(response.status).toBe(404);
-    expect(syncCosts).not.toHaveBeenCalled();
-  });
+  it.each([false, true])(
+    'does not expose cost collection as a dashboard mutation (authenticated: %s)',
+    async (authenticated) => {
+      const app = createTestApp(
+        {},
+        {},
+        {},
+        {
+          auth: authenticated
+            ? { username: 'operator', password: 'test-password' }
+            : undefined,
+        },
+      );
+      const response = await app.request('/api/costs/sync', {
+        method: 'POST',
+        headers: authenticated
+          ? { Authorization: `Basic ${btoa('operator:test-password')}` }
+          : {},
+      });
+      expect(response.status).toBe(404);
+    },
+  );
 
   it('serves the operations snapshot and its social detail', async () => {
     const getOperations = vi.fn().mockResolvedValue(operations);

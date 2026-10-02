@@ -31,7 +31,6 @@ function app() {
     service: {
       getOverview: vi.fn(),
       getCostHistory: vi.fn(),
-      syncCosts: vi.fn(),
       getSocial: vi.fn(),
     } as never,
     operations: {

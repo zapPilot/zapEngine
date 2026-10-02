@@ -48,7 +48,6 @@ function buildApp(input: {
   service?: Record<string, ReturnType<typeof vi.fn>>;
   operations?: Record<string, ReturnType<typeof vi.fn>>;
   visual?: Record<string, ReturnType<typeof vi.fn>>;
-  allowCostSync?: boolean;
 }) {
   return createControlCenterApp({
     config: readControlCenterConfig({}),
@@ -57,11 +56,6 @@ function buildApp(input: {
       getCostHistory: vi.fn().mockResolvedValue({
         currentMonthDaily: [],
         monthlyTotals: [],
-      }),
-      syncCosts: vi.fn().mockResolvedValue({
-        syncedAt: '2026-09-28T00:00:00.000Z',
-        persisted: 0,
-        providers: [],
       }),
       getSocial: vi.fn().mockResolvedValue({ status: 'ok' }),
       ...input.service,
@@ -92,7 +86,6 @@ function buildApp(input: {
       resolveReview: vi.fn(),
       ...input.visual,
     } as never,
-    allowCostSync: input.allowCostSync,
   });
 }
 
@@ -132,23 +125,6 @@ describe('control center coverage gaps', () => {
       currentMonthDaily: [{ date: '2026-09-28', totalUsd: 1.5 }],
     });
     expect(getCostHistory).toHaveBeenCalledOnce();
-  });
-
-  it('maps a cost sync failure to 503 with the provider message', async () => {
-    const failure = { message: 'Cost snapshot write failed', code: 'XX000' };
-    const syncCosts = vi.fn().mockRejectedValue(failure);
-    const app = buildApp({ service: { syncCosts } });
-
-    const response = await app.request('/api/costs/sync', { method: 'POST' });
-
-    expect(response.status).toBe(503);
-    await expect(response.json()).resolves.toEqual({
-      error: 'Cost snapshot write failed',
-    });
-    expect(captureServerException).toHaveBeenCalledWith(failure, {
-      method: 'POST',
-      route: '/api/costs/sync',
-    });
   });
 
   it('serves operator history rows', async () => {
