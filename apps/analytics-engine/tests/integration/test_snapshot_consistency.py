@@ -1232,7 +1232,7 @@ class TestDashboardTotalsComposition:
             {"wallet_id": wallet_id, "user_id": user_id, "wallet": wallet_address},
         )
 
-        # Insert wallet token snapshots for same day, different time_at
+        # Insert wallet token snapshots for same UTC day, different ingestion times
         await integration_db_session.execute(
             text(
                 """
@@ -1275,7 +1275,7 @@ class TestDashboardTotalsComposition:
                 "price": 1,
                 "symbol": "USDC",
                 "chain": "eth",
-                "inserted_at": snapshot_time,
+                "inserted_at": snapshot_time + timedelta(hours=1),
                 "time_at": 200,
             },
         )
@@ -1297,8 +1297,9 @@ class TestDashboardTotalsComposition:
             ),
             {"wallet": wallet_address.lower()},
         )
-        row = result.first()
-        assert row is not None
+        rows = result.all()
+        assert len(rows) == 1
+        row = rows[0]
         assert float(row.amount) == 20
         assert row.snapshot_date == snapshot_date
 

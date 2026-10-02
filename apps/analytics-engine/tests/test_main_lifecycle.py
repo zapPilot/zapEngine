@@ -142,11 +142,11 @@ class TestApplicationLifecycle:
             },
         )
 
-        # CORS should be configured to handle the request
+        assert response.status_code == 200
         assert (
-            "access-control-allow-origin" in response.headers
-            or response.status_code in [200, 404]
+            response.headers["access-control-allow-origin"] == "http://localhost:3000"
         )
+        assert "GET" in response.headers["access-control-allow-methods"]
 
     @pytest.mark.parametrize(
         "origin",
@@ -169,12 +169,12 @@ class TestApplicationLifecycle:
 
     def test_exception_handler_registration(self):
         """Test that exception handlers are properly registered"""
-        # The app should have exception handlers registered
-        # We can verify this by checking that unhandled exceptions are caught
-        with patch("src.api.routers.portfolios.router"):
-            # This test verifies the exception handler is registered
-            # without needing to trigger an actual exception
-            assert app.exception_handlers is not None
+        from fastapi.exceptions import RequestValidationError
+
+        from src.core.exceptions import ServiceError
+
+        assert RequestValidationError in app.exception_handlers
+        assert ServiceError in app.exception_handlers
 
     @pytest.mark.asyncio
     async def test_health_check_database_status_formatting(self):
@@ -201,21 +201,6 @@ class TestApplicationLifecycle:
 
 class TestMainModuleDirectExecution:
     """Test direct module execution scenarios"""
-
-    def test_uvicorn_run_configuration(self):
-        """Test uvicorn run configuration when module is executed directly"""
-        # This tests the __name__ == "__main__" block indirectly
-        # by verifying the configuration values that would be passed to uvicorn.run
-
-        with patch("src.main.settings") as mock_settings:
-            mock_settings.port = 8001
-            mock_settings.debug = True
-
-            # Import the main module to verify it can be imported successfully
-
-            # Verify settings are accessible for uvicorn configuration
-            assert mock_settings.port == 8001
-            assert mock_settings.debug is True
 
     def test_module_imports_and_initialization(self):
         """Test that all module imports and initialization work correctly"""
@@ -264,8 +249,8 @@ class TestMainModuleDirectExecution:
         api_routes_exist = any("/api/v2" in path for path in route_paths)
         root_routes_exist = any(path in ["/", "/health"] for path in route_paths)
 
-        assert api_routes_exist or len(app.routes) > 0
-        assert root_routes_exist or len(app.routes) > 0
+        assert api_routes_exist
+        assert root_routes_exist
 
     def test_critical_routes_registered(self):
         """Deletion guard for routes the frontend depends on.

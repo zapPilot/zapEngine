@@ -89,7 +89,7 @@ describe('SentimentWriter', () => {
     expect(mockClient.query).not.toHaveBeenCalled();
   });
 
-  it('tracks duplicates when upsert returns fewer rows than sent', async () => {
+  it('reports rows not affected by the database', async () => {
     mockClient.query.mockResolvedValueOnce({ rows: [{ id: 1 }], rowCount: 1 });
 
     const snapshots = [makeSnapshot(), makeSnapshot({ sentiment_value: 42 })];
@@ -165,8 +165,7 @@ describe('SentimentWriter', () => {
   });
 
   it('allows different sources for same timestamp (multi-source coexistence)', async () => {
-    // This test verifies that the unique constraint (source, snapshot_time) allows
-    // both historical alternative.me data and new coinmarketcap data to coexist
+    // Verify the writer preserves both source keys in the parameterized upsert.
     const timestamp = new Date('2024-01-15T10:00:00.000Z').toISOString();
 
     const snapshots = [
@@ -201,6 +200,22 @@ describe('SentimentWriter', () => {
     expect(result.recordsInserted).toBe(2); // Both should be inserted
     expect(result.duplicatesSkipped).toBe(0);
     expect(result.errors).toEqual([]);
+    const [sql, values] = mockClient.query.mock.calls[0]!;
+    expect(sql.replace(/\s+/g, ' ')).toContain(
+      'ON CONFLICT (source, snapshot_time) DO UPDATE SET',
+    );
+    expect(values).toEqual([
+      50,
+      'Neutral',
+      'alternative.me',
+      timestamp,
+      { legacy: true },
+      52,
+      'Neutral',
+      'coinmarketcap',
+      timestamp,
+      { migrated: true },
+    ]);
   });
 
   describe('null/undefined rowCount handling', () => {
@@ -271,8 +286,11 @@ describe('SentimentWriter', () => {
       expect(firstResult.duplicatesSkipped).toBe(0);
 
       // Second call: same source + timestamp, upsert updates existing record
-      // Mock DB returning 0 new rows (update only, no insert)
-      mockClient.query.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+      // PostgreSQL counts the updated row and RETURNING yields its id.
+      mockClient.query.mockResolvedValueOnce({
+        rows: [{ id: 1 }],
+        rowCount: 1,
+      });
 
       const duplicateSnapshot = makeSnapshot({
         source: 'coinmarketcap',
@@ -287,8 +305,19 @@ describe('SentimentWriter', () => {
       );
 
       expect(secondResult.success).toBe(true);
-      expect(secondResult.recordsInserted).toBe(0); // No new insert
-      expect(secondResult.duplicatesSkipped).toBe(1); // Tracked as duplicate
+      expect(secondResult.recordsInserted).toBe(1); // Metric counts affected rows
+      expect(secondResult.duplicatesSkipped).toBe(0);
+      const [sql, values] = mockClient.query.mock.calls[1]!;
+      expect(sql.replace(/\s+/g, ' ')).toContain(
+        'ON CONFLICT (source, snapshot_time) DO UPDATE SET sentiment_value = EXCLUDED.sentiment_value, classification = EXCLUDED.classification, raw_data = EXCLUDED.raw_data RETURNING id',
+      );
+      expect(values).toEqual([
+        67,
+        'Greed',
+        'coinmarketcap',
+        timestamp,
+        { sample: true },
+      ]);
     });
   });
 });

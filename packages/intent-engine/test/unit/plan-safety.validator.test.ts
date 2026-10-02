@@ -65,6 +65,15 @@ describe('assertApprovalCaps', () => {
     ).toThrow(PlanSafetyViolationError);
   });
 
+  it('caps source-token approvals regardless of address case', () => {
+    expect(() =>
+      assertApprovalCaps(
+        { approvals: [approveTx(2_000_000n, TOKEN.toLowerCase())], calls: [] },
+        { fromToken: TOKEN, fromAmount: '1000000' },
+      ),
+    ).toThrow(expect.objectContaining({ code: 'APPROVAL_CAP' }));
+  });
+
   it('checks approve calls embedded in the calls array too', () => {
     expect(() =>
       assertApprovalCaps({ approvals: [], calls: [approveTx(maxUint256)] }, {}),
@@ -155,10 +164,15 @@ describe('assertMinReceived', () => {
   it('rejects a zero min-received', () => {
     expect(() =>
       assertMinReceived(
-        { calls: [lifiCall({ toAmount: '1000000', toAmountMin: '0' })] },
+        { calls: [lifiCall({ toAmount: '0', toAmountMin: '0' })] },
         { maxSlippageBps: 100 },
       ),
-    ).toThrow(PlanSafetyViolationError);
+    ).toThrow(
+      expect.objectContaining({
+        code: 'MIN_RECEIVED',
+        message: expect.stringContaining('non-positive min-received'),
+      }),
+    );
   });
 
   it('skips calls that carry no routed estimate', () => {

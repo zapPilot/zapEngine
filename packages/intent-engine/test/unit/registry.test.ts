@@ -76,6 +76,16 @@ describe('lookupVault', () => {
     expect(vault).not.toBeNull();
   });
 
+  it('does not return a Morpho vault for a GMX protocol request', () => {
+    expect(
+      lookupVault({
+        protocol: 'gmx-v2',
+        chainId: CHAIN_IDS.BASE,
+        asset: 'USDC',
+      }),
+    ).toBeNull();
+  });
+
   it('uses custom registry when provided', () => {
     const customRegistry = [
       {

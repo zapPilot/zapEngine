@@ -4,11 +4,13 @@ import { withRetry } from '../../../src/utils/retry.js';
 describe('Retry Utilities', () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    vi.stubEnv('NODE_ENV', 'development');
   });
 
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
   });
 
   describe('withRetry', () => {
@@ -36,9 +38,11 @@ describe('Retry Utilities', () => {
     it('throws after all retries exhausted', async () => {
       const fn = vi.fn().mockRejectedValue(new Error('persistent failure'));
 
-      await expect(
+      const assertion = expect(
         withRetry(fn, { maxAttempts: 2, baseDelayMs: 50 }),
       ).rejects.toThrow('persistent failure');
+      await vi.runAllTimersAsync();
+      await assertion;
 
       expect(fn).toHaveBeenCalledTimes(2);
     });
@@ -52,14 +56,16 @@ describe('Retry Utilities', () => {
 
       const promise = withRetry(fn, { maxAttempts: 3, baseDelayMs: 100 });
 
-      // First attempt fails immediately
       await vi.advanceTimersByTimeAsync(0);
-
-      // Second attempt after 100ms delay (2^0 * 100)
-      await vi.advanceTimersByTimeAsync(100);
-
-      // Third attempt after 200ms delay (2^1 * 100)
-      await vi.advanceTimersByTimeAsync(200);
+      expect(fn).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(99);
+      expect(fn).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(fn).toHaveBeenCalledTimes(2);
+      await vi.advanceTimersByTimeAsync(199);
+      expect(fn).toHaveBeenCalledTimes(2);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(fn).toHaveBeenCalledTimes(3);
 
       const result = await promise;
       expect(result).toBe('success');
@@ -78,7 +84,10 @@ describe('Retry Utilities', () => {
         maxDelayMs: 500,
       });
 
-      await vi.advanceTimersByTimeAsync(500);
+      await vi.advanceTimersByTimeAsync(499);
+      expect(fn).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(fn).toHaveBeenCalledTimes(2);
       const result = await promise;
 
       expect(result).toBe('success');
@@ -103,10 +112,11 @@ describe('Retry Utilities', () => {
     it('handles promises that reject with non-Error objects', async () => {
       const fn = vi.fn().mockRejectedValue({ code: 'ENOTFOUND' });
 
-      const promise = withRetry(fn, { maxAttempts: 2, baseDelayMs: 50 });
+      const assertion = expect(
+        withRetry(fn, { maxAttempts: 2, baseDelayMs: 50 }),
+      ).rejects.toThrow('[object Object]');
       await vi.advanceTimersByTimeAsync(50);
-
-      await expect(promise).rejects.toThrow();
+      await assertion;
     });
   });
 });

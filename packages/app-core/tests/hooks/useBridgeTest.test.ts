@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { act, renderHook } from '@testing-library/react';
 import { useBridgeTest } from '@core/hooks/useBridgeTest';
+import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const USER = '0x1111111111111111111111111111111111111111';
@@ -192,10 +192,14 @@ describe('useBridgeTest', () => {
     });
     await act(async () => {
       await result.current.prepare({ ...request, fromAmount: '20000000' });
-      resolveFirst(quote);
+      resolveFirst({
+        ...quote,
+        estimate: { ...quote.estimate, tool: 'stale-tool' },
+      });
       await staleSuccess;
     });
     expect(result.current.status).toBe('ready');
+    expect(result.current.quote).toEqual(quote);
 
     const firstFailure = new Promise<typeof quote>((_resolve, reject) => {
       rejectFirst = reject;

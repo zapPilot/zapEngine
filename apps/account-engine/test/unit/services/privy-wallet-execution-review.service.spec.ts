@@ -273,46 +273,59 @@ describe('PrivyWalletExecutionService review lifecycle', () => {
     expect(client.sendCalls).toHaveBeenCalledTimes(1);
   });
 
-  it('returns a replacement review and removes the old preview when material state changes', async () => {
-    const client = createClient();
-    const changed = warningReview({
-      simulationFingerprint: CHANGED_FINGERPRINT,
-      warnings: [
-        {
-          code: 'UNLIMITED_APPROVAL',
-          message: 'Approval changed',
-          callIndex: 0,
-          address: TARGET,
-        },
-      ],
-    });
-    const service = createPrivyWalletExecutionService({
-      client,
-      tenderlySimulationService: createSimulationService(review(), changed),
-    });
-    const prepared = await service.prepareSendCalls(batch, accessToken);
-    if (prepared.status !== 'passed')
-      throw new Error('Expected passed preview');
+  it.each(['simulation', 'risk'])(
+    'returns a replacement review when only the %s fingerprint changes',
+    async (field) => {
+      const client = createClient();
+      const changed = warningReview({
+        simulationFingerprint:
+          field === 'simulation' ? CHANGED_FINGERPRINT : FINGERPRINT,
+        riskHash: field === 'risk' ? CHANGED_FINGERPRINT : RISK_HASH,
+        warnings: [
+          {
+            code: 'UNLIMITED_APPROVAL',
+            message: 'Approval changed',
+            callIndex: 0,
+            address: TARGET,
+          },
+        ],
+      });
+      const service = createPrivyWalletExecutionService({
+        client,
+        tenderlySimulationService: createSimulationService(
+          warningReview(),
+          changed,
+        ),
+      });
+      const prepared = await service.prepareSendCalls(batch, accessToken);
+      if (prepared.status !== 'warning')
+        throw new Error('Expected warning preview');
 
-    const result = await service.confirmSendCalls(
-      confirmRequest(prepared.previewId),
-      accessToken,
-    );
+      const result = await service.confirmSendCalls(
+        confirmRequest(prepared.previewId, prepared.riskHash),
+        accessToken,
+      );
 
-    expect(result.status).toBe('review');
-    if (result.status !== 'review') throw new Error('Expected review response');
-    expect(result.preview).toMatchObject({
-      status: 'warning',
-      simulationFingerprint: CHANGED_FINGERPRINT,
-      previewId: expect.not.stringMatching(prepared.previewId),
-    });
-    expect(client.sendCalls).not.toHaveBeenCalled();
-    await expect(
-      service.confirmSendCalls(confirmRequest(prepared.previewId), accessToken),
-    ).rejects.toMatchObject({
-      message: 'Simulation preview not found',
-    });
-  });
+      expect(result.status).toBe('review');
+      if (result.status !== 'review')
+        throw new Error('Expected review response');
+      expect(result.preview).toMatchObject({
+        status: 'warning',
+        simulationFingerprint: changed.simulationFingerprint,
+        riskHash: changed.riskHash,
+        previewId: expect.not.stringMatching(prepared.previewId),
+      });
+      expect(client.sendCalls).not.toHaveBeenCalled();
+      await expect(
+        service.confirmSendCalls(
+          confirmRequest(prepared.previewId),
+          accessToken,
+        ),
+      ).rejects.toMatchObject({
+        message: 'Simulation preview not found',
+      });
+    },
+  );
 
   it.each([
     review({ status: 'failed', failureReason: 'oracle moved' }),

@@ -3,6 +3,8 @@ import type {
   PrivyConfirmSendCallsRequest,
   PrivyPrepareSendCallsRequest,
 } from '@zapengine/types/api';
+import { verifyTypedData } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -120,6 +122,177 @@ describe('PrivyWalletExecutionService', () => {
     vi.restoreAllMocks();
     vi.mocked(PrivyClient).mockReset();
   });
+
+  it('consumes one preview once when confirmations start together', async () => {
+    const client = createClient();
+    const service = createService(client);
+    const preview = await service.prepareSendCalls(batch, accessToken);
+    if (preview.status !== 'passed') throw new Error('Expected passed preview');
+    const results = await Promise.allSettled([
+      service.confirmSendCalls(confirmRequest(preview.previewId), accessToken),
+      service.confirmSendCalls(confirmRequest(preview.previewId), accessToken),
+    ]);
+    expect(results.map((result) => result.status)).toEqual([
+      'fulfilled',
+      'rejected',
+    ]);
+    expect(client.sendCalls).toHaveBeenCalledOnce();
+    expect(results[1]).toMatchObject({
+      reason: { message: 'Simulation preview not found' },
+    });
+  });
+
+  it('blocks another preview for the same wallet while submission is pending', async () => {
+    const client = createClient();
+    const service = createService(client);
+    const first = await service.prepareSendCalls(batch, accessToken);
+    const second = await service.prepareSendCalls(
+      { ...batch, idempotencyKey: 'second-request' },
+      accessToken,
+    );
+    if (first.status !== 'passed' || second.status !== 'passed')
+      throw new Error('Expected passed previews');
+    let release!: (value: {
+      transactionId: string;
+      caip2: string;
+      transactionHash: string;
+    }) => void;
+    vi.mocked(client.sendCalls).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          release = resolve;
+        }),
+    );
+    const pending = service.confirmSendCalls(
+      confirmRequest(first.previewId),
+      accessToken,
+    );
+    await vi.waitFor(() => expect(client.sendCalls).toHaveBeenCalledOnce());
+    await expect(
+      service.confirmSendCalls(confirmRequest(second.previewId), accessToken),
+    ).rejects.toThrow('Wallet execution already in progress');
+    expect(client.sendCalls).toHaveBeenCalledOnce();
+    release({
+      transactionId: 'one',
+      caip2: 'eip155:8453',
+      transactionHash: TX_HASH,
+    });
+    await pending;
+    await expect(
+      service.confirmSendCalls(confirmRequest(second.previewId), accessToken),
+    ).rejects.toThrow('Signature nonce does not match current wallet nonce');
+  });
+
+  it('releases the wallet lock after a failed submission', async () => {
+    const client = createClient();
+    const service = createService(client);
+    const first = await service.prepareSendCalls(batch, accessToken);
+    const second = await service.prepareSendCalls(
+      { ...batch, idempotencyKey: 'retry-request' },
+      accessToken,
+    );
+    if (first.status !== 'passed' || second.status !== 'passed')
+      throw new Error('Expected passed previews');
+    vi.mocked(client.sendCalls).mockRejectedValueOnce(
+      new Error('provider unavailable'),
+    );
+    await expect(
+      service.confirmSendCalls(confirmRequest(first.previewId), accessToken),
+    ).rejects.toThrow('provider unavailable');
+    await expect(
+      service.confirmSendCalls(confirmRequest(second.previewId), accessToken),
+    ).resolves.toMatchObject({ status: 'submitted' });
+    expect(client.sendCalls).toHaveBeenCalledTimes(2);
+  });
+
+  it('rejects a preview that expires while ownership verification is pending', async () => {
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1_800_000_000_000);
+    const client = createClient();
+    const service = createService(client);
+    const prepared = await service.prepareSendCalls(batch, accessToken);
+    if (prepared.status !== 'passed')
+      throw new Error('Expected passed preview');
+    let release!: (wallets: { id: string; address: string }[]) => void;
+    vi.mocked(client.getUserWallets).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          release = resolve;
+        }),
+    );
+    const confirmation = service.confirmSendCalls(
+      confirmRequest(prepared.previewId),
+      accessToken,
+    );
+    const assertion = expect(confirmation).rejects.toThrow(
+      'Simulation preview has expired',
+    );
+    await vi.waitFor(() => expect(release).toBeTypeOf('function'));
+    now.mockReturnValue(prepared.expiresAt + 1);
+    release([{ id: batch.walletId, address: batch.walletAddress }]);
+    await assertion;
+    expect(client.sendCalls).not.toHaveBeenCalled();
+  });
+
+  it.each(['valid', 'wrong signer', 'changed risk hash', 'changed calls hash'])(
+    'checks a real EIP-712 signature (%s)',
+    async (scenario) => {
+      const owner = privateKeyToAccount(`0x${'1'.repeat(64)}`);
+      const other = privateKeyToAccount(`0x${'2'.repeat(64)}`);
+      const client = createClient();
+      vi.mocked(client.getUserWallets).mockResolvedValue([
+        { id: batch.walletId, address: owner.address },
+      ]);
+      const service = createService(client);
+      const prepared = await service.prepareSendCalls(
+        { ...batch, walletAddress: owner.address },
+        accessToken,
+      );
+      if (prepared.status !== 'passed')
+        throw new Error('Expected passed preview');
+      const typedData = structuredClone(prepared.typedDataPayload);
+      const message = typedData['message'] as Record<string, unknown>;
+      if (scenario === 'changed risk hash')
+        message['riskHash'] = `0x${'f'.repeat(64)}`;
+      if (scenario === 'changed calls hash')
+        message['callsHash'] = `0x${'f'.repeat(64)}`;
+      const signer = scenario === 'wrong signer' ? other : owner;
+      const signature = await signer.signTypedData(
+        typedData as Parameters<typeof signer.signTypedData>[0],
+      );
+      const realViem = await vi.importActual<typeof import('viem')>('viem');
+      vi.mocked(verifyTypedData).mockImplementationOnce(
+        realViem.verifyTypedData,
+      );
+      const confirmation = service.confirmSendCalls(
+        {
+          ...confirmRequest(prepared.previewId),
+          userSignature: signature,
+        },
+        accessToken,
+      );
+      if (scenario === 'valid') {
+        await expect(confirmation).resolves.toMatchObject({
+          status: 'submitted',
+        });
+        expect(client.sendCalls).toHaveBeenCalledExactlyOnceWith(
+          batch.walletId,
+          {
+            ...batch,
+            walletAddress: owner.address,
+            authorizationSignature: 'mock-authorization-signature',
+            requestExpiry: 1_800_000_000_000,
+          },
+          { signatures: ['mock-authorization-signature'] },
+        );
+      } else {
+        await expect(confirmation).rejects.toMatchObject({
+          statusCode: 400,
+          message: 'Invalid signature or signer mismatch',
+        });
+        expect(client.sendCalls).not.toHaveBeenCalled();
+      }
+    },
+  );
 
   it('formats the exact Wallets API RPC request for client-side signing', () => {
     const authorizationPayload = createPrivySendCallsAuthorizationPayload({
@@ -411,30 +584,33 @@ describe('PrivyWalletExecutionService', () => {
     expect(client.getUserWallets).not.toHaveBeenCalled();
   });
 
-  it('falls back to nonce zero when the preview wallet has no retained nonce', async () => {
-    const otherWallet = '0x3333333333333333333333333333333333333333';
+  it('executes the reviewed snapshot even if the caller mutates its request and preview', async () => {
     const client = createClient();
-    vi.mocked(client.getUserWallets).mockResolvedValue([
-      { id: batch.walletId, address: batch.walletAddress },
-      { id: batch.walletId, address: otherWallet },
-    ]);
     const service = createService(client);
-    const request: PrivyPrepareSendCallsRequest = { ...batch };
+    const request = structuredClone(batch);
     const prepared = await service.prepareSendCalls(request, accessToken);
     if (prepared.status !== 'passed')
       throw new Error('Expected passed preview');
 
-    // The service retains the request by reference, so pointing it at another
-    // owned wallet makes confirm look up a wallet key with no retained nonce
-    // state and exercise the `?? 0` fallback.
-    request.walletAddress = otherWallet;
+    request.walletAddress = '0x3333333333333333333333333333333333333333';
+    request.chainId = 1;
+    request.calls[0]!.to = request.walletAddress;
+    request.calls[0]!.value = '0xff';
+    prepared.requestExpiry = 1;
+    prepared.typedDataPayload['message'] = {};
 
     await expect(
       service.confirmSendCalls(confirmRequest(prepared.previewId), accessToken),
-    ).resolves.toMatchObject({
-      status: 'submitted',
-      transactionId: 'privy-transaction-id',
-    });
+    ).resolves.toMatchObject({ status: 'submitted' });
+    expect(client.sendCalls).toHaveBeenCalledExactlyOnceWith(
+      batch.walletId,
+      {
+        ...batch,
+        authorizationSignature: 'mock-authorization-signature',
+        requestExpiry: 1_800_000_000_000,
+      },
+      { signatures: ['mock-authorization-signature'] },
+    );
   });
 
   it('maps a non-Error Privy JWT failure to 401', async () => {
@@ -536,7 +712,14 @@ describe('PrivyWalletExecutionService', () => {
         transactionId: 'real-privy-tx-id',
         transactionHash: TX_HASH,
       });
-      expect(sendCalls).toHaveBeenCalledTimes(1);
+      expect(sendCalls).toHaveBeenCalledExactlyOnceWith(batch.walletId, {
+        caip2: 'eip155:8453',
+        params: { calls: batch.calls },
+        sponsor: false,
+        idempotency_key: batch.idempotencyKey,
+        request_expiry: 1_800_000_000_000,
+        authorization_context: { signatures: ['mock-authorization-signature'] },
+      });
       expect(getTransaction).toHaveBeenCalledWith('real-privy-tx-id');
     });
 

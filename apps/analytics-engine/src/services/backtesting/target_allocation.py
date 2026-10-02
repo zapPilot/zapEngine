@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from math import isfinite
 
 TARGET_ASSET_KEYS = ("btc", "eth", "spy", "stable", "alt")
 TRADEABLE_TARGET_KEYS = ("btc", "eth", "spy", "stable")
@@ -11,21 +12,27 @@ _EPSILON = 1e-12
 
 
 def _coerce_non_negative(raw: Mapping[str, float], key: str) -> float:
-    return max(0.0, float(raw.get(key, 0.0)))
+    value = float(raw.get(key, 0.0))
+    if not isfinite(value):
+        raise ValueError("target allocation must contain finite weights")
+    return max(0.0, value)
 
 
 def _normalize_tradeable(values: Mapping[str, float]) -> dict[str, float]:
     cleaned = {key: _coerce_non_negative(values, key) for key in TRADEABLE_TARGET_KEYS}
-    total = sum(cleaned.values())
-    if total <= 0.0:
+    scale = max(cleaned.values())
+    if scale <= 0.0:
         return {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0, "alt": 0.0}
-    normalized = {key: cleaned[key] / total for key in TRADEABLE_TARGET_KEYS}
+    # Scale first so finite inputs cannot overflow when their weights are summed.
+    scaled = {key: cleaned[key] / scale for key in TRADEABLE_TARGET_KEYS}
+    total = sum(scaled.values())
+    normalized = {key: scaled[key] / total for key in TRADEABLE_TARGET_KEYS}
     for key, value in tuple(normalized.items()):
         if abs(value) < _EPSILON:
             normalized[key] = 0.0
+    # Four normalized weights sum to one, so at least one is >= 0.25.
+    # Removing weights below 1e-12 cannot erase every tradeable weight.
     total = sum(normalized.values())
-    if total <= 0.0:
-        return {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0, "alt": 0.0}
     return {
         "btc": normalized["btc"] / total,
         "eth": normalized["eth"] / total,
@@ -65,15 +72,16 @@ def target_from_current_allocation(
 
     if raw is None:
         return normalize_target_allocation(None)
-    stable_with_alt = _coerce_non_negative(raw, "stable") + _coerce_non_negative(
-        raw, "alt"
-    )
+    cleaned = {key: _coerce_non_negative(raw, key) for key in TARGET_ASSET_KEYS}
+    scale = max(cleaned.values())
+    if scale > 0.0:
+        cleaned = {key: value / scale for key, value in cleaned.items()}
     return _normalize_tradeable(
         {
-            "btc": _coerce_non_negative(raw, "btc"),
-            "eth": _coerce_non_negative(raw, "eth"),
-            "spy": _coerce_non_negative(raw, "spy"),
-            "stable": stable_with_alt,
+            "btc": cleaned["btc"],
+            "eth": cleaned["eth"],
+            "spy": cleaned["spy"],
+            "stable": cleaned["stable"] + cleaned["alt"],
         }
     )
 

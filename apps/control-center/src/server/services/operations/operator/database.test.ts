@@ -78,9 +78,14 @@ describe('operator PostgreSQL transactions', () => {
   it('rejects PII and denies public access', async () => {
     await expect(
       db.query(
-        `select from_fed_to_chain.ops_record_runtime('podcast','render','job','{"email":"x@y.test"}')`,
+        `select from_fed_to_chain.ops_record_runtime('@zapengine/podcast-pipeline','render','job','{"email":"x@y.test"}')`,
       ),
-    ).rejects.toThrow();
+    ).rejects.toThrow('Invalid correlation metadata');
+    await expect(
+      db.query(
+        `select from_fed_to_chain.ops_record_runtime('@zapengine/podcast-pipeline','render','job','{"episodeId":"${episode}"}')`,
+      ),
+    ).resolves.toBeDefined();
     const result = await db.query<{ allowed: boolean }>(
       `select has_function_privilege('anon','from_fed_to_chain.ops_retry_render(uuid,uuid,uuid,text)','execute') allowed`,
     );

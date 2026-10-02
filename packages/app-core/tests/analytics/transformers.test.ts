@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+
 import {
   aggregateMonthlyPnL,
   calculateKeyMetrics,
@@ -12,12 +13,15 @@ import {
 } from '../../src/lib/analytics/utils/dateUtils';
 import { getSharpePercentile } from '../../src/lib/analytics/utils/metricUtils';
 import type {
-  UnifiedDashboardResponse,
   DailyYieldReturnsResponse,
+  UnifiedDashboardResponse,
 } from '../../src/services';
 
 const dashboard = (data: unknown) => data as UnifiedDashboardResponse;
-afterEach(() => vi.useRealTimers());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllEnvs();
+});
 
 describe('analytics presentation', () => {
   it('uses dated empty states when data has not arrived', () => {
@@ -214,6 +218,25 @@ describe('analytics presentation', () => {
     ]);
     expect(aggregateMonthlyPnL(returns)[0]?.value).toBeCloseTo(0.015);
   });
+  it.each(['America/New_York', 'Asia/Tokyo', 'UTC'])(
+    'keeps source calendar months independent of host timezone (%s)',
+    (timezone) => {
+      vi.stubEnv('TZ', timezone);
+      const returns = {
+        daily_returns: [
+          { date: '2026-01-01', yield_return_usd: 10 },
+          { date: '2026-02-01T00:00:00Z', yield_return_usd: 20 },
+          { date: '2026-03-01T00:00:00+09:00', yield_return_usd: 30 },
+          { date: '2026-13-01', yield_return_usd: 999 },
+        ],
+      } as DailyYieldReturnsResponse;
+      expect(aggregateMonthlyPnL(returns)).toEqual([
+        { month: 'Jan', year: 2026, value: 0.01 },
+        { month: 'Feb', year: 2026, value: 0.02 },
+        { month: 'Mar', year: 2026, value: 0.03 },
+      ]);
+    },
+  );
   it('normalizes supported date strings and centers constant series', () => {
     expect(toDateKey(' 2026-02-03T01:00:00Z ')).toBe('2026-02-03');
     expect(toDateKey('February 3, 2026 00:00:00 UTC')).toBe('2026-02-03');

@@ -85,6 +85,20 @@ describe('GmxV2ReaderPricingAdapter', () => {
 
     expect(result).toBe(493000000000000000n);
     expect(readContract).toHaveBeenCalledOnce();
+    expect(readContract.mock.calls[0]![0].args[2]).toEqual({
+      indexTokenPrice: {
+        min: 640000000000000000000000000n,
+        max: 641000000000000000000000000n,
+      },
+      longTokenPrice: {
+        min: 640000000000000000000000000n,
+        max: 641000000000000000000000000n,
+      },
+      shortTokenPrice: {
+        min: 999900000000000000000000n,
+        max: 1000100000000000000000000n,
+      },
+    });
     expect(readContract).toHaveBeenCalledWith(
       expect.objectContaining({
         address: GMX_V2_ADDRESSES.syntheticsReader,

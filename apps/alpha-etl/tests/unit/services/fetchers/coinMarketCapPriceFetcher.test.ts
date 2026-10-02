@@ -67,9 +67,16 @@ describe('CoinMarketCapPriceFetcher', () => {
       const usd = { ...quote.quote.USD };
       delete usd[field];
       vi.spyOn(fetcher as unknown, 'fetchWithRetry').mockResolvedValue({
-        data: { '1': { quote: { USD: usd } } },
+        data: { '1': { quote: { USD: usd } }, '1027': quote },
       });
-      await expect(fetcher.fetchCurrentPrices(tokens)).rejects.toThrow();
+      await expect(fetcher.fetchCurrentPrices(tokens)).rejects.toMatchObject({
+        issues: [
+          expect.objectContaining({
+            path: ['data', '1', 'quote', 'USD', field],
+            code: 'invalid_type',
+          }),
+        ],
+      });
     },
   );
 

@@ -610,7 +610,7 @@ describe('HyperliquidFetcher', () => {
   });
 
   describe('Edge Cases', () => {
-    it('should throw "All retry attempts failed" when maxRetries is 0 (line 420)', async () => {
+    it('should throw "All retry attempts failed" when maxRetries is 0', async () => {
       const zeroRetryFetcher = new HyperliquidFetcher({ maxRetries: 0 });
       // fetchWithRetryAndBackoff is private, but called by getVaultDetails
       // If maxRetries is 0, loop doesn't run, throws immediately
@@ -619,7 +619,7 @@ describe('HyperliquidFetcher', () => {
       ).rejects.toThrow('failed after 0 attempts');
     });
 
-    it('should return null for invalid string TVL in deriveTvlFromPortfolio (line 475)', async () => {
+    it('should return null for invalid string TVL in deriveTvlFromPortfolio', async () => {
       const badPortfolio = [
         [
           'day',
@@ -640,7 +640,7 @@ describe('HyperliquidFetcher', () => {
       expect(result.tvlUsd).toBeNull();
     });
 
-    it('should handle maxWithdrawable fallbacks (line 342)', async () => {
+    it('should handle maxWithdrawable fallbacks', async () => {
       // Case 1: followerState.maxWithdrawable is undefined, vaultDetails.maxWithdrawable is defined
       const detailsFallback: unknown = {
         vaultAddress: '0x123',
@@ -676,7 +676,7 @@ describe('HyperliquidFetcher', () => {
       expect((defaultFetcher as unknown).config.rateLimitRpm).toBe(60);
     });
 
-    it('should handle non-Error exceptions in getVaultDetails (line 244)', async () => {
+    it('should handle non-Error exceptions in getVaultDetails', async () => {
       // Mock fetch to throw a string
       const fetcher = new HyperliquidFetcher({ maxRetries: 0 });
       (fetcher as unknown).fetchWithRetryAndBackoff = vi
@@ -695,7 +695,7 @@ describe('HyperliquidFetcher', () => {
       );
     });
 
-    it('should handle non-Error exceptions in getVaultDetailsForUsers (line 285)', async () => {
+    it('should handle non-Error exceptions in getVaultDetailsForUsers', async () => {
       const fetcher = new HyperliquidFetcher();
       // Mock getVaultDetails to fail with non-Error
       vi.spyOn(fetcher, 'getVaultDetails').mockRejectedValue('String Error');

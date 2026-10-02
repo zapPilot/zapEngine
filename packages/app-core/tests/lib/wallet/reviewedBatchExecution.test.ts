@@ -231,6 +231,23 @@ describe('runDeduplicatedReviewedExecution', () => {
     });
   });
 
+  it('clears a rejected execution so a later attempt can submit', async () => {
+    const tracker = new Map();
+    const executor = vi
+      .fn<() => Promise<WalletReviewedBatchResult>>()
+      .mockRejectedValueOnce(new Error('wallet rejected'))
+      .mockResolvedValueOnce({ status: 'submitted', callsId: 'retry-call' });
+    const expiresAt = Date.now() + 60_000;
+    await expect(
+      runDeduplicatedReviewedExecution(tracker, 'key', expiresAt, executor),
+    ).rejects.toThrow('wallet rejected');
+    expect(tracker.size).toBe(0);
+    await expect(
+      runDeduplicatedReviewedExecution(tracker, 'key', expiresAt, executor),
+    ).resolves.toEqual({ status: 'submitted', callsId: 'retry-call' });
+    expect(executor).toHaveBeenCalledTimes(2);
+  });
+
   it('clears a non-submitted result so a later attempt can run', async () => {
     const tracker = new Map();
     const executor = vi.fn(

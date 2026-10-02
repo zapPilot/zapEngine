@@ -377,6 +377,7 @@ export function createPrivyWalletExecutionService(config: {
     });
   const previews = new Map<string, PreviewRecord>();
   const walletNonces = new Map<string, WalletNonceState>();
+  const executingWallets = new Set<string>();
 
   function sweepExpiredPreviewsAndWalletNonces(now: number): void {
     const liveWallets = new Set<string>();
@@ -500,11 +501,13 @@ export function createPrivyWalletExecutionService(config: {
       nonce,
       expiresAt: preview.expiresAt,
     });
-    return preview;
+    return structuredClone(preview);
   }
 
   return {
     async prepareSendCalls(request, accessToken) {
+      // Retain the exact reviewed batch across every awaited boundary.
+      request = structuredClone(request);
       const authenticated = await verifyWalletOwnership(request, accessToken);
       const simulation = await tenderlySimulationService.simulateBundle({
         chainId: request.chainId,
@@ -562,7 +565,20 @@ export function createPrivyWalletExecutionService(config: {
       }
 
       const walletKey = record.request.walletAddress.toLowerCase();
-      const currentNonce = walletNonces.get(walletKey)?.nextNonce ?? 0;
+      // Ownership and signature verification can outlive the reviewed preview.
+      if (Date.now() > record.preview.expiresAt) {
+        previews.delete(request.previewId);
+        sweepExpiredPreviewsAndWalletNonces(Date.now());
+        throw new BadRequestException('Simulation preview has expired');
+      }
+      if (previews.get(request.previewId) !== record) {
+        throw new BadRequestException('Simulation preview not found');
+      }
+      if (executingWallets.has(walletKey)) {
+        throw new BadRequestException('Wallet execution already in progress');
+      }
+      // A live preview retains its wallet nonce through every sweep.
+      const currentNonce = walletNonces.get(walletKey)!.nextNonce;
       if (record.nonce !== currentNonce) {
         previews.delete(request.previewId);
         throw new BadRequestException(
@@ -570,66 +586,79 @@ export function createPrivyWalletExecutionService(config: {
         );
       }
 
-      previews.delete(request.previewId);
-      const refreshed = await tenderlySimulationService.simulateBundle({
-        chainId: record.request.chainId,
-        walletAddress: record.request.walletAddress,
-        calls: record.request.calls,
-      });
-      if (refreshed.status === 'failed' || refreshed.status === 'unavailable') {
-        return { status: 'review', preview: refreshed };
-      }
-      if (
-        refreshed.simulationFingerprint !== record.preview.simulationFingerprint
-      ) {
-        const replacement = await createSignablePreview({
-          authenticated,
-          request: record.request,
-          simulation: refreshed,
-        });
-        return { status: 'review', preview: replacement };
-      }
-
-      const authorizationContext: AuthorizationContext = {
-        signatures: [request.authorizationSignature],
-      };
-      logger.log('Executing EIP-7702 atomic batch through Privy Wallets API', {
-        userId: authenticated.userId,
-        walletId: record.request.walletId,
-        walletAddress: record.request.walletAddress,
-        caip2: `eip155:${record.request.chainId}`,
-        transactionCount: record.request.calls.length,
-        nonce: currentNonce,
-      });
-
+      executingWallets.add(walletKey);
       try {
-        const result = await authenticated.client.sendCalls(
-          record.request.walletId,
+        previews.delete(request.previewId);
+        const refreshed = await tenderlySimulationService.simulateBundle({
+          chainId: record.request.chainId,
+          walletAddress: record.request.walletAddress,
+          calls: record.request.calls,
+        });
+        if (
+          refreshed.status === 'failed' ||
+          refreshed.status === 'unavailable'
+        ) {
+          return { status: 'review', preview: refreshed };
+        }
+        if (
+          refreshed.simulationFingerprint !==
+            record.preview.simulationFingerprint ||
+          refreshed.riskHash !== record.preview.riskHash
+        ) {
+          const replacement = await createSignablePreview({
+            authenticated,
+            request: record.request,
+            simulation: refreshed,
+          });
+          return { status: 'review', preview: replacement };
+        }
+
+        const authorizationContext: AuthorizationContext = {
+          signatures: [request.authorizationSignature],
+        };
+        logger.log(
+          'Executing EIP-7702 atomic batch through Privy Wallets API',
           {
-            ...record.request,
-            authorizationSignature: request.authorizationSignature,
-            requestExpiry: record.preview.requestExpiry,
+            userId: authenticated.userId,
+            walletId: record.request.walletId,
+            walletAddress: record.request.walletAddress,
+            caip2: `eip155:${record.request.chainId}`,
+            transactionCount: record.request.calls.length,
+            nonce: currentNonce,
           },
-          authorizationContext,
         );
-        retainWalletNonce(
-          walletKey,
-          currentNonce + 1,
-          record.preview.expiresAt,
-        );
-        return { status: 'submitted', ...result };
-      } catch (error) {
-        if (isPrivyUserJwtError(error)) {
-          throw new UnauthorizedException(
-            INVALID_ACCESS_TOKEN_MESSAGE,
+
+        try {
+          const result = await authenticated.client.sendCalls(
+            record.request.walletId,
+            {
+              ...record.request,
+              authorizationSignature: request.authorizationSignature,
+              requestExpiry: record.preview.requestExpiry,
+            },
+            authorizationContext,
+          );
+          retainWalletNonce(
+            walletKey,
+            currentNonce + 1,
+            record.preview.expiresAt,
+          );
+          return { status: 'submitted', ...result };
+        } catch (error) {
+          if (isPrivyUserJwtError(error)) {
+            throw new UnauthorizedException(
+              INVALID_ACCESS_TOKEN_MESSAGE,
+              error instanceof Error ? error : undefined,
+            );
+          }
+          throw new AppError(
+            `Privy Wallets API batch failed: ${getErrorMessage(error)}`,
+            HttpStatus.BAD_GATEWAY,
             error instanceof Error ? error : undefined,
           );
         }
-        throw new AppError(
-          `Privy Wallets API batch failed: ${getErrorMessage(error)}`,
-          HttpStatus.BAD_GATEWAY,
-          error instanceof Error ? error : undefined,
-        );
+      } finally {
+        executingWallets.delete(walletKey);
       }
     },
   };

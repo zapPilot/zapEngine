@@ -8,6 +8,7 @@ for per-position risk tracking and liquidation risk analysis.
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from unittest.mock import MagicMock
 from uuid import UUID, uuid4
 
 import pytest
@@ -20,6 +21,7 @@ from src.models.borrowing import (
     TokenDetail,
 )
 from src.services.dependencies import get_borrowing_service
+from src.services.portfolio.borrowing_service import BorrowingService
 
 
 def _make_position_with_health_rate(
@@ -109,29 +111,38 @@ class StubBorrowingPositionsService:
 
 
 def _make_borrowing_response(
-    positions: list[BorrowingPosition] | None = None,
+    positions: list[BorrowingPosition],
 ) -> BorrowingPositionsResponse:
-    """Helper to create a BorrowingPositionsResponse for testing.
+    """Drive production classification, sorting and aggregates with raw query rows."""
 
-    Mirrors real BorrowingService behavior: sorts positions by health_rate ascending.
-    """
-    if positions is None:
-        positions = []
+    def raw_tokens(tokens: list[TokenDetail]) -> list[dict[str, object]]:
+        return [
+            {
+                "symbol": token.symbol,
+                "amount": token.amount,
+                "price": float(token.value_usd) / token.amount if token.amount else 0.0,
+            }
+            for token in tokens
+        ]
 
-    # Sort by health rate ascending (riskiest first) — matches BorrowingService._transform_positions
-    positions = sorted(positions, key=lambda p: p.health_rate)
-
-    total_collateral = sum(p.collateral_usd for p in positions) if positions else 0.0
-    total_debt = sum(p.debt_usd for p in positions) if positions else 0.0
-    worst_health_rate = min((p.health_rate for p in positions), default=0.0)
-    last_updated = max((p.updated_at for p in positions), default=datetime.now(UTC))
-
-    return BorrowingPositionsResponse(
-        positions=positions,
-        total_collateral_usd=total_collateral,
-        total_debt_usd=total_debt,
-        worst_health_rate=worst_health_rate,
-        last_updated=last_updated,
+    query_service = MagicMock()
+    query_service.execute_query.return_value = [
+        {
+            "protocol_id": p.protocol_id,
+            "protocol_name": p.protocol_name,
+            "chain": p.chain,
+            "protocol_health_rate": p.health_rate,
+            "total_collateral_usd": p.collateral_usd,
+            "total_debt_usd": p.debt_usd,
+            "net_value_usd": p.net_value_usd,
+            "last_updated": p.updated_at,
+            "collateral_tokens": raw_tokens(p.collateral_tokens),
+            "debt_tokens": raw_tokens(p.debt_tokens),
+        }
+        for p in positions
+    ]
+    return BorrowingService(MagicMock(), query_service).get_borrowing_positions(
+        uuid4(), snapshot_date=None
     )
 
 

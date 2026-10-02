@@ -217,7 +217,12 @@ describe('JobProcessorService', () => {
       };
       service.registerProcessor(processorWithCleanup);
 
-      await expect(service.processJob('job-1')).resolves.toBeDefined();
+      await expect(service.processJob('job-1')).resolves.toMatchObject({
+        success: true,
+      });
+      expect(jobQueueService.completeJob).toHaveBeenCalledWith('job-1');
+      expect(jobQueueService.retryJob).not.toHaveBeenCalled();
+      expect(jobQueueService.failJob).not.toHaveBeenCalled();
     });
   });
 
@@ -350,6 +355,36 @@ describe('JobProcessorService', () => {
         },
       );
     });
+
+    it.each([
+      { retryCount: 1, retries: true },
+      { retryCount: 2, retries: false },
+    ])(
+      'pins retry exhaustion at retryCount=$retryCount',
+      async ({ retryCount, retries }) => {
+        const { service, jobQueueService } = createMocks();
+        jobQueueService.getJob.mockReturnValue(
+          createPendingJob({ maxRetries: 3, retryCount }),
+        );
+        service.registerProcessor(
+          createTestProcessor({ success: false, error: 'Temporary failure' }),
+        );
+        await service.processJob('job-1');
+        if (retries) {
+          expect(jobQueueService.retryJob).toHaveBeenCalledWith(
+            'job-1',
+            'Temporary failure',
+          );
+          expect(jobQueueService.failJob).not.toHaveBeenCalled();
+        } else {
+          expect(jobQueueService.failJob).toHaveBeenCalledWith(
+            'job-1',
+            'Temporary failure',
+          );
+          expect(jobQueueService.retryJob).not.toHaveBeenCalled();
+        }
+      },
+    );
 
     it('fails permanently after max retries', async () => {
       const { service, jobQueueService } = createMocks();

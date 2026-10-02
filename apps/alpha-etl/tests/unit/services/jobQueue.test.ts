@@ -257,7 +257,7 @@ describe('ETLJobQueue', () => {
         // The error message from mockRejectedValue ends up in errors array or similar?
         // jobQueue implementation: errors: result.errors ...
         // Wait, if exception drawn, catch block sets success: false!
-        // Line 301 catch(error) -> success: false.
+        // Queue failures return an unsuccessful result.
       }
     });
 

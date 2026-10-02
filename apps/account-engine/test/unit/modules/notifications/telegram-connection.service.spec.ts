@@ -117,6 +117,13 @@ describe('TelegramConnectionService', () => {
       { onConflict: 'user_id,channel_type' },
     );
     expect(dbMock.supabase.client.from).toHaveBeenCalledWith('users');
+    expect(dbMock.supabase.queryBuilder.update).toHaveBeenCalledWith({
+      telegram_username: 'testuser',
+    });
+    expect(dbMock.supabase.queryBuilder.eq).toHaveBeenCalledWith(
+      'id',
+      'user-1',
+    );
     expect(tokenService.invalidateToken).toHaveBeenCalledWith('valid-token');
     expect(ctx.reply).toHaveBeenCalledWith(
       expect.stringContaining('Successfully connected'),
@@ -159,6 +166,11 @@ describe('TelegramConnectionService', () => {
     });
 
     await expect(service.findUserIdByChatId('12345')).resolves.toBe('user-1');
+    expect(dbMock.supabase.queryBuilder.eq.mock.calls).toEqual([
+      ['channel_type', 'telegram'],
+      ['is_enabled', true],
+      ['config->>chat_id', '12345'],
+    ]);
   });
 
   it('replies with no connection message when chat_id is not found', async () => {

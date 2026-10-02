@@ -192,9 +192,9 @@ describe('BTC Price Pipeline', () => {
         mockResponse,
       );
 
-      const result = await fetcher.fetchHistoricalPrice('01-01-2023');
+      const result = await fetcher.fetchHistoricalPrice('05-03-2023');
       expect(result.priceUsd).toBe(45000);
-      expect(result.timestamp.getFullYear()).toBe(2023);
+      expect(result.timestamp.toISOString()).toBe('2023-03-05T00:00:00.000Z');
     });
 
     it('fetchHistoricalPrice should default market_cap and volume to 0 when missing', async () => {

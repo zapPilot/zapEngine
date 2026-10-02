@@ -292,8 +292,11 @@ export function aggregateMonthlyPnL(
     if (!entry.date) {
       continue;
     }
-    const date = new Date(entry.date);
-    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    const dateKey = toDateKey(entry.date);
+    if (!dateKey) {
+      continue;
+    }
+    const monthKey = dateKey.slice(0, 7);
     monthlyMap.set(
       monthKey,
       (monthlyMap.get(monthKey) ?? 0) + (entry.yield_return_usd ?? 0),

@@ -1817,12 +1817,14 @@ describe('web sync window and ready guards', () => {
     }
     const c = document.createElement('div');
     document.body.appendChild(c);
-    const r = createRoot(c);
+    let r = createRoot(c);
     // No bridge: subscribes to nothing.
     await act(async () => {
       r.render(createElement(Probe));
     });
-    // With bridge: routes proposals and deep links.
+    await act(async () => r.unmount());
+    r = createRoot(c);
+    // A new mount observes the preload bridge and subscribes.
     const push = mocks.push;
     push.mockClear();
     const offProposal = vi.fn();
@@ -1846,10 +1848,9 @@ describe('web sync window and ready guards', () => {
     await act(async () => {
       r.render(createElement(Probe));
     });
-    // Effects are captured; invoke the latest bridge effect manually is not
-    // needed here because window exists — the real effect already ran.
-    // Simulate callbacks if subscribed.
-    if (proposalCb) {
+    expect(proposalCb).toBeTypeOf('function');
+    expect(linkCb).toBeTypeOf('function');
+    {
       await act(async () => {
         proposalCb({
           driftPercent: 5,
@@ -1860,7 +1861,7 @@ describe('web sync window and ready guards', () => {
         expect.objectContaining({ pathname: '/invest' }),
       );
     }
-    if (linkCb) {
+    {
       linkCb('https://example.com/nope');
       expect(push).not.toHaveBeenCalledWith('https://example.com/nope');
       linkCb('zappilotv2://portfolio');

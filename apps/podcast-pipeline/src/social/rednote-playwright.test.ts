@@ -76,6 +76,7 @@ const PAYLOAD = {
  */
 function fakePage(options: {
   existingTopics: string[];
+  newTopics?: string[];
   titleAcceptsOnWrite?: number;
   declarationOpens?: boolean;
   counter?: 'rendered' | 'absent' | 'stuck-at-zero';
@@ -184,16 +185,52 @@ function fakePage(options: {
     ),
   };
 
+  interface TopicCandidate {
+    name: string;
+    isNew: boolean;
+  }
+  const candidates: TopicCandidate[] = [
+    ...options.existingTopics.map((name) => ({ name, isNew: false })),
+    ...(options.newTopics ?? []).map((name) => ({ name, isNew: true })),
+  ];
+  let selectedTopic: TopicCandidate | undefined;
   const row = {
     waitFor: vi.fn(async () => {
-      if (options.existingTopics.includes(state.query)) return;
+      if (selectedTopic) return;
       throw new Error('no matching topic row');
     }),
     click: vi.fn(async () => {
-      if (options.confirmTopics ?? true) state.attached.push(state.query);
+      if (selectedTopic && (options.confirmTopics ?? true)) {
+        state.attached.push(selectedTopic.name);
+      }
     }),
   };
-  const rowChain = { filter: () => rowChain, first: () => row };
+  interface TopicFilter {
+    has?: { topicName: string | RegExp };
+    hasNot?: { excludesNewTopic: boolean };
+  }
+  function topicRows(rows: TopicCandidate[]) {
+    return {
+      filter: ({ has, hasNot }: TopicFilter) =>
+        topicRows(
+          rows.filter((candidate) => {
+            const text = `#${candidate.name}`;
+            const nameMatches =
+              !has ||
+              (typeof has.topicName === 'string'
+                ? text.includes(has.topicName)
+                : has.topicName.test(text));
+            return (
+              nameMatches && !(hasNot?.excludesNewTopic && candidate.isNew)
+            );
+          }),
+        ),
+      first: () => {
+        selectedTopic = rows[0];
+        return row;
+      },
+    };
+  }
 
   const generic = {
     waitFor: vi.fn().mockResolvedValue(undefined),
@@ -299,8 +336,16 @@ function fakePage(options: {
         };
         return { ...selectedBody, first: () => selectedBody };
       }
+      if (selector === '.name') {
+        return {
+          filter: ({ hasText }: { hasText: string | RegExp }) => ({
+            topicName: hasText,
+          }),
+        };
+      }
+      if (selector === '.num.newTopic') return { excludesNewTopic: true };
       if (selector.includes('creator-editor-topic-container')) {
-        return { ...rowChain, ...row };
+        return topicRows(candidates);
       }
       if (selector.includes('添加内容类型声明')) {
         return {
@@ -337,6 +382,25 @@ describe('createPlaywrightRednotePublisher', () => {
     ).resolves.toMatchObject({ hashtags: ['程序员'] });
     expect(keyboard.type).toHaveBeenCalledWith('#程序员', expect.any(Object));
     expect(state.attached).toEqual(['程序员']);
+  });
+
+  it.each([
+    {
+      existingTopics: ['支付产业链'],
+      newTopics: [],
+      reason: 'prefix collision',
+    },
+    { existingTopics: [], newTopics: ['支付'], reason: 'new topic suggestion' },
+  ])('does not click a $reason', async ({ existingTopics, newTopics }) => {
+    const { page, row } = fakePage({ existingTopics, newTopics });
+    mocks.page = page;
+    await expect(
+      createPlaywrightRednotePublisher().publishRednote({
+        ...PAYLOAD,
+        hashtags: ['支付'],
+      }),
+    ).rejects.toThrow(/attach_topics/);
+    expect(row.click).not.toHaveBeenCalled();
   });
 
   it('fails before upload when the persistent publisher profile is logged out', async () => {

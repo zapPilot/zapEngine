@@ -41,11 +41,11 @@ function createRequestConfig(config: HttpRequestConfig): RequestInit {
 function normalizeRequestExecutionError(error: unknown): Error {
   const normalizedError = toError(error);
   if (normalizedError instanceof APIError) {
-    throw normalizedError;
+    return normalizedError;
   }
 
   if (isAbortError(normalizedError)) {
-    throw new TimeoutError();
+    return new TimeoutError();
   }
 
   return normalizedError;
@@ -99,6 +99,7 @@ export async function httpRequest<T = unknown>(
   let lastError: Error | undefined;
 
   for (let attempt = 0; attempt <= retries; attempt++) {
+    if (signal?.aborted) throw new TimeoutError();
     const { signal: composedSignal, cleanup } = createTimeoutController(
       timeout,
       signal,
@@ -110,7 +111,7 @@ export async function httpRequest<T = unknown>(
     } catch (error) {
       lastError = normalizeRequestExecutionError(error);
 
-      if (!shouldAttemptRetry(attempt, retries, lastError)) {
+      if (signal?.aborted || !shouldAttemptRetry(attempt, retries, lastError)) {
         break;
       }
 
@@ -120,7 +121,11 @@ export async function httpRequest<T = unknown>(
     }
   }
 
-  // If we get here, all retries failed
+  // Preserve typed HTTP and timeout failures after their retry budget is exhausted.
+  if (lastError instanceof APIError || lastError instanceof TimeoutError) {
+    throw lastError;
+  }
+
   throw new NetworkError(
     lastError ? lastError.message : 'Network request failed',
   );

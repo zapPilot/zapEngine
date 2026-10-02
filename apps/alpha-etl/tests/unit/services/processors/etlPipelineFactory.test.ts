@@ -515,7 +515,7 @@ describe('ETLPipelineFactory', () => {
         'Unexpected error during result aggregation',
       );
 
-      // Mock Object.fromEntries to throw during final result processing (line 117)
+      // Mock Object.fromEntries to throw during final result processing
       // This ensures the exception occurs outside of individual source processing
       const fromEntriesSpy = vi
         .spyOn(Object, 'fromEntries')

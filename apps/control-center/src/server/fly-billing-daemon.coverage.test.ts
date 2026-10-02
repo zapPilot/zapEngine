@@ -13,11 +13,8 @@ vi.mock('./services/cost-repository.js', () => ({
   createCostRepository: () => state.repository,
 }));
 
-vi.mock('./services/fly-billing/index.js', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('./services/fly-billing/index.js')>();
+vi.mock('./services/fly-billing/index.js', () => {
   return {
-    ...actual,
     FLY_BILLING_MAX_AGE_MS: 5,
     syncFlyBilling: (input: {
       interactive?: boolean;
@@ -67,6 +64,8 @@ afterEach(() => {
   process.stdout.write = writeBackup;
   process.exit = exitBackup;
   process.on = onBackup;
+  vi.useRealTimers();
+  vi.unstubAllEnvs();
   vi.restoreAllMocks();
 });
 
@@ -79,7 +78,12 @@ describe('fly-billing daemon coverage gaps', () => {
     const daemon = await import('./fly-billing-daemon.js');
     daemon.__resetFlyBillingDaemonForTest();
 
-    await daemon.runDaemon({ maxCycles: 2 });
+    vi.useFakeTimers();
+    const running = daemon.runDaemon({ maxCycles: 2 });
+    await vi.advanceTimersByTimeAsync(4);
+    expect(state.syncCalls).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+    await running;
 
     expect(state.syncCalls).toEqual([
       { interactive: false },
@@ -100,19 +104,19 @@ describe('fly-billing daemon coverage gaps', () => {
   });
 
   it('starts itself on import outside the test environment', async () => {
-    const previousNodeEnv = process.env['NODE_ENV'];
-    process.env['NODE_ENV'] = 'production';
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.useFakeTimers();
     state.repository = null;
     try {
       await import('./fly-billing-daemon.js');
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await vi.advanceTimersByTimeAsync(0);
 
       expect(output()).toContain(
         'fly-billing: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required',
       );
       expect(exitCalls).toEqual([0]);
     } finally {
-      process.env['NODE_ENV'] = previousNodeEnv;
+      vi.unstubAllEnvs();
     }
   });
 });

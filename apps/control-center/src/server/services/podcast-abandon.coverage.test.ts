@@ -77,7 +77,8 @@ describe('podcast abandon service', () => {
       data: [{ episode_id: EPISODE_ID }],
       error: null,
     });
-    configuredClient.current = { from: vi.fn(() => update) };
+    const from = vi.fn(() => update);
+    configuredClient.current = { from };
     const svc = createPodcastAbandonService({
       config: readControlCenterConfig({
         SUPABASE_URL: 'https://x.co',
@@ -87,6 +88,12 @@ describe('podcast abandon service', () => {
     });
 
     await expect(svc.abandonVideo(EPISODE_ID)).resolves.toBeUndefined();
+    expect(from).toHaveBeenCalledExactlyOnceWith('episode_video_visuals');
+    expect(update['eq']).toHaveBeenCalledExactlyOnceWith(
+      'episode_id',
+      EPISODE_ID,
+    );
+    expect(update['is']).toHaveBeenCalledExactlyOnceWith('abandoned_at', null);
     expect(update['update']).toHaveBeenCalledWith({
       abandoned_at: NOW.toISOString(),
       abandoned_reason: CONTROL_CENTER_ABANDON_REASON,

@@ -117,6 +117,14 @@ describe('TelegramNotificationService', () => {
       expect(dbMock.supabase.queryBuilder.update).toHaveBeenCalledWith({
         is_enabled: false,
       });
+      expect(dbMock.supabase.queryBuilder.eq).toHaveBeenCalledWith(
+        'user_id',
+        'u-1',
+      );
+      expect(dbMock.supabase.queryBuilder.eq).toHaveBeenCalledWith(
+        'channel_type',
+        'telegram',
+      );
     });
 
     it('records a transport failure without aborting the rest of the broadcast', async () => {

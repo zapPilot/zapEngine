@@ -11,10 +11,9 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime
 from unittest.mock import MagicMock, patch
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import pytest
-from sqlalchemy.orm import Session
 
 from src.models.analytics_responses import PeriodInfo, SnapshotInfo
 from src.models.portfolio import BorrowingSummary, PortfolioResponse
@@ -46,11 +45,11 @@ def _create_period_info(days: int = 30) -> PeriodInfo:
     )
 
 
-class TestCrossEndpointUserIDConsistency:
-    """Test that user_id remains consistent across all endpoints."""
+class TestLandingPageUserScope:
+    """The landing page must scope its snapshot dependencies to the caller."""
 
-    def test_landing_page_preserves_user_id(self, db_session: Session) -> None:
-        """Landing page endpoint preserves user_id in response."""
+    def test_landing_page_passes_user_id_to_snapshot_services(self) -> None:
+        """A response without user_id still must query the correct user."""
         user_id = uuid4()
 
         wallet_service = MagicMock()
@@ -73,7 +72,7 @@ class TestCrossEndpointUserIDConsistency:
         pool_service.get_pool_performance.return_value = []
 
         service = LandingPageService(
-            db=db_session,
+            db=MagicMock(),
             wallet_service=wallet_service,
             query_service=query_service,
             roi_calculator=roi_calculator,
@@ -98,23 +97,11 @@ class TestCrossEndpointUserIDConsistency:
         ):
             result = service.get_landing_page_data(user_id)
 
-        # Verify user_id is preserved (converted to string)
-        assert result is not None
         assert isinstance(result, PortfolioResponse)
-        # PortfolioResponse doesn't have user_id field, so this test verifies no errors during creation
-
-    def test_user_id_type_consistency(self) -> None:
-        """User IDs should be consistently typed (UUID -> str conversion)."""
-        user_id = uuid4()
-        user_id_str = str(user_id)
-
-        # Verify UUID to string conversion is deterministic
-        assert str(user_id) == user_id_str
-        assert UUID(user_id_str) == user_id
-
-        # Verify string representation is valid UUID format
-        parsed_uuid = UUID(user_id_str)
-        assert parsed_uuid == user_id
+        canonical_snapshot_service.get_snapshot_info.assert_called_once_with(user_id)
+        snapshot_service.get_portfolio_snapshot.assert_called_once_with(
+            user_id, snapshot_date=date(2025, 1, 1)
+        )
 
 
 class TestTemporalAlignmentConsistency:

@@ -5,7 +5,8 @@ import {
 import { describe, expect, it } from 'vitest';
 
 describe('income estimate', () => {
-  it('annualizes the daily run rate to an average calendar month', () => {
-    expect(estimateMonthlyIncomeUsd(2)).toBe(2 * AVG_DAYS_PER_MONTH);
+  it('converts a daily run rate to an average calendar month', () => {
+    expect(AVG_DAYS_PER_MONTH).toBe(30.4);
+    expect(estimateMonthlyIncomeUsd(10)).toBeCloseTo(304);
   });
 });

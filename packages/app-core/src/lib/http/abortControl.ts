@@ -22,7 +22,8 @@ export function createTimeoutController(
   };
 
   if (externalSignal) {
-    externalSignal.addEventListener('abort', handleExternalAbort);
+    if (externalSignal.aborted) handleExternalAbort();
+    else externalSignal.addEventListener('abort', handleExternalAbort);
   }
 
   return { signal: controller.signal, cleanup };

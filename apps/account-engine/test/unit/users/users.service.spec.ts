@@ -152,6 +152,13 @@ describe('UsersService', () => {
         '0x1234567890abcdef1234567890abcdef12345678',
       );
 
+      expect(dbMock.mock.rpc).toHaveBeenCalledExactlyOnceWith(
+        'create_user_with_wallet_and_plan',
+        {
+          p_wallet: '0x1234567890abcdef1234567890abcdef12345678',
+          p_plan_code: 'free',
+        },
+      );
       expect(result.user_id).toBe('user-1');
       expect(result.is_new_user).toBe(true);
       expect(result.etl_job).toBeUndefined();

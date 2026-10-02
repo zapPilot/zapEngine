@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
-import { act, renderHook, waitFor } from '@testing-library/react';
 import { useDepositWizard } from '@core/hooks/useDepositWizard';
 import { PollTimeoutError } from '@core/lib/polling';
 import { initialDepositWizardState } from '@core/lib/wallet/depositWizardMachine';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import {
   type DepositPlan,
   type HlpSpotDepositPlan,
@@ -456,7 +456,7 @@ describe('useDepositWizard', () => {
   });
 
   it('lets no bridge result from a reset run reach the state', async () => {
-    let settleBridge = () => undefined as void;
+    let settleBridge: () => void = () => undefined;
     mocks.waitForBridgeCompletion.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
@@ -490,7 +490,7 @@ describe('useDepositWizard', () => {
   });
 
   it('lets no arrival from a reset run reach the state', async () => {
-    let settleArrival = () => undefined as void;
+    let settleArrival: () => void = () => undefined;
     mocks.waitForHyperCoreUsdcArrival.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
@@ -703,6 +703,96 @@ describe('useDepositWizard', () => {
     expect(mocks.waitForVaultEquityIncrease).not.toHaveBeenCalled();
   });
 
+  it('submits one vaultTransfer when two HLP confirmations arrive together', async () => {
+    let resolveSubmit!: () => void;
+    mocks.submitVaultDeposit.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        resolveSubmit = resolve;
+      }),
+    );
+    const { result } = await resumeUntilArrived();
+    let first!: Promise<void>;
+    let second!: Promise<void>;
+    act(() => {
+      first = result.current.runHlpDeposit();
+      second = result.current.runHlpDeposit();
+    });
+    await waitFor(() => expect(mocks.submitVaultDeposit).toHaveBeenCalled());
+    expect(mocks.submitVaultDeposit).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      resolveSubmit();
+      await Promise.all([first, second]);
+    });
+    expect(mocks.getSigner).toHaveBeenCalledTimes(1);
+    expect(mocks.waitForVaultEquityIncrease).toHaveBeenCalledTimes(1);
+    expect(result.current.wizard.hlp.status).toBe('deposited');
+  });
+
+  it('releases the submission lock after a rejected confirmation so retry can sign', async () => {
+    mocks.submitVaultDeposit.mockRejectedValueOnce(
+      new Error('wallet rejected'),
+    );
+    const { result } = await resumeUntilArrived();
+    await act(async () => {
+      await result.current.runHlpDeposit();
+    });
+    expect(result.current.wizard.hlp.status).toBe('arrived');
+    await act(async () => {
+      await result.current.runHlpDeposit();
+    });
+    expect(mocks.submitVaultDeposit).toHaveBeenCalledTimes(2);
+    expect(result.current.wizard.hlp.status).toBe('deposited');
+  });
+
+  it('keeps the new submission locked when an aborted old run settles after reset', async () => {
+    let resolveOld!: (signer: typeof mocks.signer) => void;
+    let resolveNew!: (signer: typeof mocks.signer) => void;
+    mocks.getSigner
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveOld = resolve;
+        }),
+      )
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveNew = resolve;
+        }),
+      );
+    const { result } = await resumeUntilArrived();
+    let oldRun!: Promise<void>;
+    act(() => {
+      oldRun = result.current.runHlpDeposit();
+    });
+    await waitFor(() => expect(mocks.getSigner).toHaveBeenCalledTimes(1));
+    act(() => {
+      result.current.reset();
+    });
+    await act(async () => {
+      await result.current.startSpotDeposit(spotPlan);
+    });
+    let newRun!: Promise<void>;
+    act(() => {
+      newRun = result.current.runHlpDeposit();
+    });
+    await waitFor(() => expect(mocks.getSigner).toHaveBeenCalledTimes(2));
+    await act(async () => {
+      resolveOld(mocks.signer);
+      await oldRun;
+    });
+    expect(mocks.submitVaultDeposit).not.toHaveBeenCalled();
+    let repeated!: Promise<void>;
+    act(() => {
+      repeated = result.current.runHlpDeposit();
+    });
+    expect(repeated).toBe(newRun);
+    await act(async () => {
+      resolveNew(mocks.signer);
+      await Promise.all([newRun, repeated]);
+    });
+    expect(mocks.submitVaultDeposit).toHaveBeenCalledTimes(1);
+    expect(result.current.wizard.hlp.status).toBe('deposited');
+  });
+
   it('signs vaultTransfer with the approved local agent', async () => {
     mocks.getVaultEquity.mockResolvedValue({ equityUsd6: 1_000_000n });
 
@@ -792,7 +882,7 @@ describe('useDepositWizard', () => {
   });
 
   it('does not submit when the run is dropped during the equity read', async () => {
-    let settleEquity = () => undefined as void;
+    let settleEquity: () => void = () => undefined;
     mocks.getVaultEquity.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
@@ -926,7 +1016,7 @@ describe('useDepositWizard', () => {
   });
 
   it('lets no HLP outcome from a reset submission reach the state', async () => {
-    let releaseSubmit = () => undefined as void;
+    let releaseSubmit: () => void = () => undefined;
     mocks.submitVaultDeposit.mockImplementationOnce(
       () =>
         new Promise<void>((resolve) => {

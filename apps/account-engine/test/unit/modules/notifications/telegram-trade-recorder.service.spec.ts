@@ -100,7 +100,19 @@ describe('TelegramTradeRecorderService', () => {
     });
     const ctx = makeCallbackCtx();
 
-    await service.handleDailySuggestionDoneCallback(ctx);
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-02T00:00:00.000Z'));
+    try {
+      await service.handleDailySuggestionDoneCallback(ctx);
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(dbMock.supabase.queryBuilder.eq.mock.calls).toEqual([
+      ['user_id', 'user-1'],
+      ['trade_date', '2026-10-02'],
+      ['strategy_id', 'dma_fgi_portfolio_rules'],
+      ['config_id', 'dma_fgi_portfolio_rules_default'],
+    ]);
 
     expect(dbMock.supabase.queryBuilder.insert).not.toHaveBeenCalled();
     expect(ctx.answerCbQuery).toHaveBeenCalledWith(

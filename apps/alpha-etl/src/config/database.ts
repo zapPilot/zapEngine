@@ -258,23 +258,6 @@ async function runMockQuery(
   }
 
   if (normalized.includes('get_user_service_states')) {
-    if (normalized.includes('count(*) as total_rows')) {
-      const totalRows = mockUserServiceStates.length;
-      const uniqueWallets = new Set(
-        mockUserServiceStates.map((row) => row.wallet),
-      ).size;
-      return {
-        rows: [
-          {
-            total_rows: String(totalRows),
-            unique_wallets: String(uniqueWallets),
-            duplicate_count: String(totalRows - uniqueWallets),
-          },
-        ],
-        rowCount: 1,
-      };
-    }
-
     return {
       rows: mockUserServiceStates.map((row) => projectMockServiceState(row)),
       rowCount: mockUserServiceStates.length,

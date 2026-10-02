@@ -69,6 +69,10 @@ export function useDepositWizard({
   );
   const { ref: abortRef, renew: renewAbort } = useAbortControllerRef();
   const resumeAddressRef = useRef<Address | null>(null);
+  const hlpExecutionRef = useRef<{
+    signal: AbortSignal | undefined;
+    promise: Promise<void>;
+  } | null>(null);
 
   const failStage = useCallback(
     (stage: DepositWizardState['stage'], error: unknown) => {
@@ -239,89 +243,108 @@ export function useDepositWizard({
     [account?.address, renewAbort],
   );
 
-  const runHlpDeposit = useCallback(async () => {
-    const step = wizard.hlp.step;
-    if (!step || wizard.hlp.status !== 'arrived') {
-      throw new Error('HLP deposit is not ready yet');
-    }
-
-    const userAddress = requireUserAddress(account?.address);
-    const resumeAddress = resumeAddressRef.current;
-    if (!resumeAddress || !equalsAddress(userAddress, resumeAddress)) {
-      throw new Error(
-        'The connected wallet changed. Reconnect the wallet that funded this deposit.',
-      );
-    }
-    if (
-      !hyperliquidAgent.isReady ||
-      !hyperliquidAgent.masterAddress ||
-      !equalsAddress(hyperliquidAgent.masterAddress, userAddress)
-    ) {
-      throw new Error('Enable Hyperliquid signing for this wallet first');
-    }
-
-    const usd6 = resolveHlpDepositUsd6(step, wizard.hlp.arrivedUsd6);
-    const signal = abortRef.current?.signal as AbortSignal;
-    const vaultAddress = step.action.vaultAddress as Address;
-    dispatch({ type: 'HL_SUBMITTED' });
-
-    let equityBeforeUsd6 = 0n;
-    try {
-      equityBeforeUsd6 =
-        (
-          await getVaultEquity({
-            user: userAddress,
-            vaultAddress,
-            apiUrl: step.signing.apiUrl,
-            signal,
-          })
-        )?.equityUsd6 ?? 0n;
-      if (signal?.aborted) return;
-
-      const signer = await hyperliquidAgent.getSigner(resumeAddress);
-      if (signal?.aborted) return;
-      await submitVaultDeposit({
-        signer,
-        vaultAddress,
-        usd6,
-        isTestnet: step.signing.hyperliquidChain === 'Testnet',
-        apiUrl: step.signing.apiUrl,
-      });
-    } catch (error) {
-      if (isAbortError(error)) return;
-      if (
-        !(error instanceof HyperliquidVaultDepositError) ||
-        !error.ambiguous
-      ) {
-        dispatch({ type: 'HL_SUBMIT_FAILED' });
-        failStage('hyperliquidDeposit', error);
-        return;
+  const runHlpDeposit = useCallback(() => {
+    const active = hlpExecutionRef.current;
+    if (active && !active.signal?.aborted) return active.promise;
+    const execution = (async () => {
+      const step = wizard.hlp.step;
+      if (!step || wizard.hlp.status !== 'arrived') {
+        throw new Error('HLP deposit is not ready yet');
       }
-      wizardLogger.error(
-        '[deposit-wizard] HLP submission outcome is ambiguous:',
-        error,
-      );
-    }
 
-    if (signal?.aborted) return;
-    try {
-      const { equityUsd6 } = await waitForVaultEquityIncrease({
-        user: userAddress,
-        vaultAddress,
-        equityBeforeUsd6,
-        apiUrl: step.signing.apiUrl,
-        signal,
-      });
+      const userAddress = requireUserAddress(account?.address);
+      const resumeAddress = resumeAddressRef.current;
+      if (!resumeAddress || !equalsAddress(userAddress, resumeAddress)) {
+        throw new Error(
+          'The connected wallet changed. Reconnect the wallet that funded this deposit.',
+        );
+      }
+      if (
+        !hyperliquidAgent.isReady ||
+        !hyperliquidAgent.masterAddress ||
+        !equalsAddress(hyperliquidAgent.masterAddress, userAddress)
+      ) {
+        throw new Error('Enable Hyperliquid signing for this wallet first');
+      }
+
+      const usd6 = resolveHlpDepositUsd6(step, wizard.hlp.arrivedUsd6);
+      const signal = abortRef.current?.signal as AbortSignal;
+      const vaultAddress = step.action.vaultAddress as Address;
+      dispatch({ type: 'HL_SUBMITTED' });
+
+      let equityBeforeUsd6 = 0n;
+      try {
+        equityBeforeUsd6 =
+          (
+            await getVaultEquity({
+              user: userAddress,
+              vaultAddress,
+              apiUrl: step.signing.apiUrl,
+              signal,
+            })
+          )?.equityUsd6 ?? 0n;
+        if (signal?.aborted) return;
+
+        const signer = await hyperliquidAgent.getSigner(resumeAddress);
+        if (signal?.aborted) return;
+        await submitVaultDeposit({
+          signer,
+          vaultAddress,
+          usd6,
+          isTestnet: step.signing.hyperliquidChain === 'Testnet',
+          apiUrl: step.signing.apiUrl,
+        });
+      } catch (error) {
+        if (isAbortError(error)) return;
+        if (
+          !(error instanceof HyperliquidVaultDepositError) ||
+          !error.ambiguous
+        ) {
+          dispatch({ type: 'HL_SUBMIT_FAILED' });
+          failStage('hyperliquidDeposit', error);
+          return;
+        }
+        wizardLogger.error(
+          '[deposit-wizard] HLP submission outcome is ambiguous:',
+          error,
+        );
+      }
+
       if (signal?.aborted) return;
-      dispatch({ type: 'HL_CONFIRMED', vaultEquityUsd6: equityUsd6 });
-    } catch (error) {
-      if (isAbortError(error) || signal?.aborted) return;
-      wizardLogger.error(
-        '[deposit-wizard] HLP equity confirmation did not settle:',
-        error,
-      );
-      dispatch({ type: 'HL_UNVERIFIED' });
-    }
+      try {
+        const { equityUsd6 } = await waitForVaultEquityIncrease({
+          user: userAddress,
+          vaultAddress,
+          equityBeforeUsd6,
+          apiUrl: step.signing.apiUrl,
+          signal,
+        });
+        if (signal?.aborted) return;
+        dispatch({ type: 'HL_CONFIRMED', vaultEquityUsd6: equityUsd6 });
+      } catch (error) {
+        if (isAbortError(error) || signal?.aborted) return;
+        wizardLogger.error(
+          '[deposit-wizard] HLP equity confirmation did not settle:',
+          error,
+        );
+        dispatch({ type: 'HL_UNVERIFIED' });
+      }
+    })();
+    const activeExecution = {
+      signal: abortRef.current?.signal,
+      promise: execution,
+    };
+    activeExecution.promise = (async () => {
+      try {
+        await execution;
+      } finally {
+        if (hlpExecutionRef.current === activeExecution) {
+          hlpExecutionRef.current = null;
+        }
+      }
+    })();
+    hlpExecutionRef.current = activeExecution;
+    return activeExecution.promise;
   }, [
     abortRef,
     account?.address,

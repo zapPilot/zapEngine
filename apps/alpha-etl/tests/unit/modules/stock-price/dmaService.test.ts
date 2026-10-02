@@ -102,14 +102,13 @@ describe('stock-price/dmaService', () => {
       const { getDbClient } =
         await import('../../../../src/config/database.js');
       const mockGetDbClient = getDbClient as ReturnType<typeof vi.fn>;
-      mockGetDbClient.mockResolvedValue({
-        query: vi
-          .fn()
-          .mockResolvedValueOnce({ rowCount: 500 }) // First batch (500 records)
-          .mockResolvedValueOnce({ rowCount: 500 }) // Second batch (500 records)
-          .mockResolvedValueOnce({ rowCount: 1 }), // Third batch (1 record)
-        release: vi.fn(),
-      });
+      const writeQuery = vi
+        .fn()
+        .mockResolvedValueOnce({ rowCount: 500 })
+        .mockResolvedValueOnce({ rowCount: 500 })
+        .mockResolvedValueOnce({ rowCount: 1 });
+      const release = vi.fn();
+      mockGetDbClient.mockResolvedValue({ query: writeQuery, release });
 
       const { StockPriceDmaService } =
         await import('../../../../src/modules/stock-price/dmaService.js');
@@ -118,6 +117,49 @@ describe('stock-price/dmaService', () => {
       const result = await service.updateDmaForSymbol();
 
       expect(result).toEqual({ recordsInserted: 1001 });
+      expect(writeQuery).toHaveBeenCalledTimes(3);
+      expect(release).toHaveBeenCalledTimes(3);
+      const firstBatch = writeQuery.mock.calls[0]![1] as unknown[];
+      const finalBatch = writeQuery.mock.calls[2]![1] as unknown[];
+      const row = (index: number) =>
+        firstBatch.slice(index * 10, (index + 1) * 10);
+      expect(row(198)).toEqual([
+        'SPY',
+        priceRows[198]!.snapshot_date,
+        298,
+        null,
+        null,
+        null,
+        199,
+        'yahoo-finance',
+        '2026-05-01T12:00:00.000Z',
+        '2026-05-01T12:00:00.000Z',
+      ]);
+      expect(row(199)).toEqual([
+        'SPY',
+        priceRows[199]!.snapshot_date,
+        299,
+        199.5,
+        299 / 199.5,
+        true,
+        200,
+        'yahoo-finance',
+        '2026-05-01T12:00:00.000Z',
+        '2026-05-01T12:00:00.000Z',
+      ]);
+      expect(row(200)[3]).toBe(200.5);
+      expect(finalBatch).toEqual([
+        'SPY',
+        priceRows[1000]!.snapshot_date,
+        1100,
+        1000.5,
+        1100 / 1000.5,
+        true,
+        200,
+        'yahoo-finance',
+        '2026-05-01T12:00:00.000Z',
+        '2026-05-01T12:00:00.000Z',
+      ]);
       expect(mockPool.query).toHaveBeenCalledWith(expect.any(String), [
         'yahoo-finance',
         'SPY',

@@ -556,7 +556,7 @@ describe('Telegram ingest queue remaining durability branches', () => {
     get.mockRestore();
   });
 
-  it('covers the stale clearWhenDone identity guard without mutating production state', async () => {
+  it('preserves a replacement inflight job when an older job finishes', async () => {
     const run = createDeferred<unknown>();
     mocks.perform.mockReturnValue(run.promise);
     const queue = createTelegramIngestQueue({ jobStore: null });
@@ -570,12 +570,25 @@ describe('Telegram ingest queue remaining durability branches', () => {
       this: Map<unknown, unknown>,
       key: unknown,
     ) {
-      if (key === `zh-Hant:${url}`) return {};
+      if (key === `zh-Hant:${url}`) {
+        const replacement = {
+          latestChatId: 'chat-new',
+          promise: createDeferred<void>().promise,
+        };
+        this.set(key, replacement);
+        return replacement;
+      }
       return originalGet.call(this, key);
     });
 
     run.resolve(success());
     await new Promise((resolve) => setTimeout(resolve, 0));
     get.mockRestore();
+
+    queue.enqueue('chat-duplicate', url, 'zh-Hant');
+    await vi.waitFor(() =>
+      expect(mocks.send).toHaveBeenCalledWith('chat-duplicate', 'inflight'),
+    );
+    expect(mocks.perform).toHaveBeenCalledOnce();
   });
 });

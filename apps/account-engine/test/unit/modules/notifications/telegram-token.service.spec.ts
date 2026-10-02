@@ -28,10 +28,25 @@ describe('TelegramTokenService', () => {
         { data: null, error: null }, // insert
       ]);
 
-      const result = await service.generateToken('user-1');
-
-      expect(result.token).toHaveLength(32); // 16 bytes hex
-      expect(result.expiresAt).toBeInstanceOf(Date);
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-10-02T00:00:00.000Z'));
+      try {
+        const result = await service.generateToken('user-1');
+        expect(result.token).toMatch(/^[0-9a-f]{32}$/);
+        expect(result.expiresAt.toISOString()).toBe('2026-10-02T00:10:00.000Z');
+        expect(qb().eq).toHaveBeenCalledExactlyOnceWith('user_id', 'user-1');
+        expect(qb().gte).toHaveBeenCalledExactlyOnceWith(
+          'created_at',
+          '2026-10-01T23:59:00.000Z',
+        );
+        expect(qb().insert).toHaveBeenCalledExactlyOnceWith({
+          token: result.token,
+          user_id: 'user-1',
+          expires_at: '2026-10-02T00:10:00.000Z',
+        });
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it('throws BadRequestException when rate limited', async () => {
@@ -122,7 +137,21 @@ describe('TelegramTokenService', () => {
     it('marks token as used', async () => {
       qb().mockResolvedThen({ data: null, error: null });
 
-      await expect(service.invalidateToken('tok')).resolves.toBeUndefined();
+      const now = new Date('2026-10-02T01:02:03.000Z');
+      vi.useFakeTimers();
+      vi.setSystemTime(now);
+      try {
+        await expect(service.invalidateToken('tok')).resolves.toBeUndefined();
+        expect(dbMock.supabase.client.from).toHaveBeenCalledExactlyOnceWith(
+          'telegram_verification_tokens',
+        );
+        expect(qb().update).toHaveBeenCalledExactlyOnceWith({
+          used_at: now.toISOString(),
+        });
+        expect(qb().eq).toHaveBeenCalledExactlyOnceWith('token', 'tok');
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it('throws ServiceLayerException on error', async () => {

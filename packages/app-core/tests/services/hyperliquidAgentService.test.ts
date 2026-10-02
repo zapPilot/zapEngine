@@ -1,5 +1,5 @@
-import type { HyperliquidAgentKeyStore } from '@core/types/domain/wallet';
 import {
+  AGENT_VALIDITY_SAFETY_MARGIN_MS,
   approveNewHyperliquidAgent,
   HYPERLIQUID_AGENT_NAME,
   hyperliquidAgentSigner,
@@ -8,6 +8,7 @@ import {
   loadApprovedHyperliquidAgent,
   parseHyperliquidAgentRecord,
 } from '@core/services/hyperliquidAgentService';
+import type { HyperliquidAgentKeyStore } from '@core/types/domain/wallet';
 import type { HyperliquidSigning } from '@zapengine/types/api';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -147,6 +148,31 @@ describe('hyperliquidAgentService', () => {
     expect(
       isAgentApproved(
         [{ address: saved.address, name: 'ZapPilot', validUntil: now }],
+        saved,
+        now,
+      ),
+    ).toBe(false);
+  });
+
+  it('isolates address identity and the exact agent-expiry safety boundary', () => {
+    const saved = record();
+    const now = 1_000_000;
+    const agent = {
+      address: saved.address,
+      name: saved.name,
+      validUntil: now + AGENT_VALIDITY_SAFETY_MARGIN_MS,
+    };
+    expect(isAgentApproved([agent], saved, now)).toBe(false);
+    expect(
+      isAgentApproved(
+        [{ ...agent, validUntil: agent.validUntil + 1 }],
+        saved,
+        now,
+      ),
+    ).toBe(true);
+    expect(
+      isAgentApproved(
+        [{ ...agent, address: MASTER, validUntil: null }],
         saved,
         now,
       ),

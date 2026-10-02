@@ -1,9 +1,8 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
-
 import {
   createTimeoutController,
   isAbortError,
 } from '@core/lib/http/abortControl';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 describe('abortControl', () => {
   afterEach(() => {
@@ -33,6 +32,17 @@ describe('abortControl', () => {
     expect(result.signal.aborted).toBe(true);
     expect(result.signal.reason).toBe('superseded');
     result.cleanup();
+  });
+
+  it('starts aborted when the external signal was already cancelled', () => {
+    vi.useFakeTimers();
+    const external = new AbortController();
+    external.abort('superseded');
+    const result = createTimeoutController(1_000, external.signal);
+    expect(result.signal.aborted).toBe(true);
+    expect(result.signal.reason).toBe('superseded');
+    result.cleanup();
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it('recognizes Error and DOMException AbortErrors only', () => {

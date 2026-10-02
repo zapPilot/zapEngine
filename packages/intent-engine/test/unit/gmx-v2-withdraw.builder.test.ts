@@ -73,6 +73,21 @@ describe('buildGmxV2WithdrawTx', () => {
         data: calls[2]!,
       });
       expect(createWithdrawal.functionName).toBe('createWithdrawal');
+      expect(createWithdrawal.args[0]).toMatchObject({
+        addresses: { receiver: USER, market: market.marketToken },
+        executionFee: BigInt(GMX_V2_EXECUTION_FEE_WEI),
+      });
+      const sendWnt = decodeFunctionData({
+        abi: GMX_V2_EXCHANGE_ROUTER_ABI,
+        data: calls[0]!,
+      });
+      expect(sendWnt).toMatchObject({
+        functionName: 'sendWnt',
+        args: [
+          GMX_V2_ADDRESSES.withdrawalVault,
+          BigInt(GMX_V2_EXECUTION_FEE_WEI),
+        ],
+      });
 
       for (const tx of [...plan.approvals, ...plan.steps]) {
         expect(PreparedTransactionSchema.parse(tx)).toEqual(tx);

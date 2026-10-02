@@ -18,6 +18,8 @@ const mocks = vi.hoisted(() => ({
   getHyperCoreSpendableUsdc: vi.fn(),
   waitForHyperCoreUsdcArrival: vi.fn(),
   sendPreparedTransaction: vi.fn(),
+  executeDepositPlanWithWallet: vi.fn(),
+  getWalletClient: vi.fn(),
   readContract: vi.fn(),
   estimateGas: vi.fn(),
   getBalance: vi.fn(),
@@ -33,6 +35,10 @@ vi.mock('@core/providers/walletContext', () => ({
 
 vi.mock('@core/lib/wallet/sendPreparedTransaction', () => ({
   sendPreparedTransaction: mocks.sendPreparedTransaction,
+}));
+
+vi.mock('@core/lib/wallet/executeDepositPlan', () => ({
+  executeDepositPlanWithWallet: mocks.executeDepositPlanWithWallet,
 }));
 
 vi.mock('@core/services/intentClient', () => ({
@@ -88,8 +94,14 @@ describe('useBridgeTest reset during chain switch', () => {
       chain: { id: 1 },
       switchChain: mocks.switchChain,
       sendTransaction: mocks.sendTransaction,
+      executionMode: 'eip7702',
+      getWalletClient: mocks.getWalletClient,
     });
     mocks.buildBridge.mockResolvedValue(quote);
+    mocks.executeDepositPlanWithWallet.mockResolvedValue({
+      kind: 'eip7702',
+      transactionHash: `0x${'1'.repeat(64)}`,
+    });
     mocks.needsApproval.mockResolvedValue(false);
     mocks.readContract.mockResolvedValue(100000000n);
     mocks.estimateGas.mockResolvedValue(100000n);
@@ -137,6 +149,7 @@ describe('useBridgeTest reset during chain switch', () => {
       await execution;
     });
 
+    expect(mocks.executeDepositPlanWithWallet).not.toHaveBeenCalled();
     expect(mocks.sendPreparedTransaction).not.toHaveBeenCalled();
     expect(mocks.waitForBridgeCompletion).not.toHaveBeenCalled();
     expect(result.current.status).toBe('idle');
@@ -174,6 +187,7 @@ describe('useBridgeTest reset during chain switch', () => {
       await execution;
     });
 
+    expect(mocks.executeDepositPlanWithWallet).not.toHaveBeenCalled();
     expect(mocks.sendPreparedTransaction).not.toHaveBeenCalled();
     expect(mocks.waitForBridgeCompletion).not.toHaveBeenCalled();
     expect(result.current.status).toBe('idle');
@@ -212,6 +226,7 @@ describe('useBridgeTest reset during chain switch', () => {
     });
 
     expect(mocks.switchChain).not.toHaveBeenCalled();
+    expect(mocks.executeDepositPlanWithWallet).not.toHaveBeenCalled();
     expect(mocks.sendPreparedTransaction).not.toHaveBeenCalled();
     expect(mocks.waitForBridgeCompletion).not.toHaveBeenCalled();
     expect(result.current.status).toBe('idle');
@@ -254,6 +269,7 @@ describe('useBridgeTest reset during chain switch', () => {
     });
 
     expect(mocks.sendTransaction).not.toHaveBeenCalled();
+    expect(mocks.executeDepositPlanWithWallet).not.toHaveBeenCalled();
     expect(mocks.sendPreparedTransaction).not.toHaveBeenCalled();
     expect(mocks.waitForBridgeCompletion).not.toHaveBeenCalled();
     expect(mocks.waitForHyperCoreUsdcArrival).not.toHaveBeenCalled();
