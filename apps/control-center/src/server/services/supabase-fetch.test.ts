@@ -65,6 +65,17 @@ describe('bounded Supabase transport', () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
+  it('derives the method from a Request when init omits it', async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response('ignored', { status: 200 }));
+    const response = await createBoundedSupabaseFetch(fetchImpl)(
+      new Request('https://db.example', { method: 'HEAD' }),
+    );
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe('');
+  });
+
   it.each([204, 205, 304])('preserves bodyless status %s', async (status) => {
     const fetchImpl = vi
       .fn<typeof fetch>()
