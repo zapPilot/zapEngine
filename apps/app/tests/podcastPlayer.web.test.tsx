@@ -9,6 +9,9 @@ import type { PodcastPlaybackSection } from '@/integration/podcastSections';
 import { usePodcastPlayer } from '@/integration/podcastPlayer.web';
 import { createPodcastEpisodeFactory } from './support/podcastEpisode';
 
+const reporting = vi.hoisted(() => ({ reportHandledError: vi.fn() }));
+vi.mock('@zapengine/app-core/lib/observability/errorReporter', () => reporting);
+
 const hls = vi.hoisted(() => {
   const instances: {
     loadSource: ReturnType<typeof vi.fn>;
@@ -296,7 +299,10 @@ describe('usePodcastPlayer web media lifecycle', () => {
     act(() => queue.args?.toggleCurrentPlayback());
     expect(element.pause).toHaveBeenCalled();
 
+    const remotePlay = mediaSession.handlers.get('play');
     await act(async () => harness.root.unmount());
+    remotePlay?.();
+    expect(element.play).toHaveBeenCalledTimes(2);
     harness.container.remove();
     active = null;
     expect(element.removeAttribute).toHaveBeenCalledWith('src');
@@ -472,5 +478,95 @@ describe('usePodcastPlayer web media-session commands', () => {
       playbackRate: 1.25,
       position: 55,
     });
+  });
+});
+
+describe('usePodcastPlayer web rejected play requests', () => {
+  it.each(['episode', 'section', 'handoff', 'toggle', 'remote'] as const)(
+    'reports a failed %s play request',
+    async (entry) => {
+      const harness = await render();
+      const element = audio();
+      const error = new DOMException('Unsupported source', 'NotSupportedError');
+      element.play.mockRejectedValueOnce(error);
+      await act(async () => {
+        if (entry === 'episode') queue.args?.playEpisode(episode);
+        if (entry === 'section') {
+          queue.args?.playEpisodeSection(
+            episode,
+            {
+              kind: 'main',
+              hlsUrl: episode.hlsUrl,
+              languageCode: null,
+            },
+            0,
+            true,
+          );
+        }
+        if (entry === 'handoff') {
+          queue.args?.playEpisodeAt(episode, 12, true);
+          element.duration = 100;
+          element.readyState = HTMLMediaElement.HAVE_METADATA;
+          element.emit('loadedmetadata');
+        }
+        if (entry === 'toggle') queue.args?.toggleCurrentPlayback();
+        if (entry === 'remote') mediaSession.handlers.get('play')?.();
+      });
+      expect(element.play).toHaveBeenCalledOnce();
+      expect(harness.current().isPlaying).toBe(false);
+      expect(reporting.reportHandledError).toHaveBeenCalledExactlyOnceWith(
+        error,
+        { scope: 'podcast-playback' },
+      );
+    },
+  );
+
+  it('reports unexpected non-DOM failures without changing playback state', async () => {
+    const harness = await render();
+    const error = new Error('Decoder failed');
+    audio().play.mockRejectedValueOnce(error);
+    await act(async () => queue.args?.playEpisode(episode));
+    expect(harness.current().isPlaying).toBe(false);
+    expect(reporting.reportHandledError).toHaveBeenCalledExactlyOnceWith(
+      error,
+      { scope: 'podcast-playback' },
+    );
+  });
+
+  it('handles a play request interrupted by pause without reporting it', async () => {
+    const harness = await render();
+    let rejectPlay!: (reason: unknown) => void;
+    audio().play.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectPlay = reject;
+        }),
+    );
+    act(() => queue.args?.playEpisode(episode));
+    act(() => harness.current().pause());
+    await act(async () =>
+      rejectPlay(new DOMException('Pause request', 'AbortError')),
+    );
+    expect(harness.current().isPlaying).toBe(false);
+    expect(reporting.reportHandledError).not.toHaveBeenCalled();
+  });
+
+  it('keeps a newer source playing when an older request is aborted', async () => {
+    const harness = await render();
+    let rejectPlay!: (reason: unknown) => void;
+    audio().play.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectPlay = reject;
+        }),
+    );
+    act(() => queue.args?.playEpisode(episode));
+    await act(async () => queue.args?.playEpisode(nextEpisode));
+    await act(async () =>
+      rejectPlay(new DOMException('New load request', 'AbortError')),
+    );
+    expect(harness.current().nowPlaying).toBe(nextEpisode);
+    expect(harness.current().isPlaying).toBe(true);
+    expect(reporting.reportHandledError).not.toHaveBeenCalled();
   });
 });

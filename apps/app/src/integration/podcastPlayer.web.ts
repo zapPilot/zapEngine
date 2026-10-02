@@ -1,3 +1,4 @@
+import { reportHandledError } from '@zapengine/app-core/lib/observability/errorReporter';
 import HLS from 'hls.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -30,9 +31,18 @@ import {
 import { usePodcastPlayerQueue } from '@/integration/usePodcastPlayerQueue';
 import { usePodcastSpeedPreferences } from '@/hooks/usePodcastSpeedPreferences';
 
+function playAudioElement(audio: HTMLAudioElement): void {
+  void audio.play().catch((error: unknown) => {
+    // Pausing or replacing the source cancels an outstanding play request.
+    // Its rejection must not change the state of a newer playback request.
+    if (error instanceof DOMException && error.name === 'AbortError') return;
+    reportHandledError(error, { scope: 'podcast-playback' });
+  });
+}
+
 function toggleAudioElement(audio: HTMLAudioElement): void {
   if (audio.paused) {
-    void audio.play();
+    playAudioElement(audio);
   } else {
     audio.pause();
   }
@@ -93,7 +103,7 @@ export function usePodcastPlayer(): PodcastPlayer {
     );
     if (handoffIdRef.current !== handoff.id) return;
     if (handoff.shouldPlay) {
-      void audio.play();
+      playAudioElement(audio);
     } else {
       audio.pause();
     }
@@ -149,7 +159,8 @@ export function usePodcastPlayer(): PodcastPlayer {
     }
     return registerPodcastMediaSessionHandlers(navigator.mediaSession, {
       play: () => {
-        void audioRef.current?.play();
+        const audio = audioRef.current;
+        if (audio !== null) playAudioElement(audio);
       },
       pause: () => {
         audioRef.current?.pause();
@@ -245,7 +256,7 @@ export function usePodcastPlayer(): PodcastPlayer {
       setNowPlaying(episode);
       setActiveSection(null);
       audio.playbackRate = speedForSection(speedPreferences, 'main');
-      void audio.play();
+      playAudioElement(audio);
     },
     [cancelPendingHandoff, replaceSource, speedPreferences],
   );
@@ -280,7 +291,7 @@ export function usePodcastPlayer(): PodcastPlayer {
       setNowPlaying(episode);
       setActiveSection(section);
       audio.playbackRate = speedForSection(speedPreferences, section.kind);
-      if (startAt === 0 && shouldPlay) void audio.play();
+      if (startAt === 0 && shouldPlay) playAudioElement(audio);
     },
     [cancelPendingHandoff, replaceSource, speedPreferences],
   );
