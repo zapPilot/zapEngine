@@ -244,7 +244,7 @@ vendor APIs / fixed pricing / recorded billed figures
 
 Only a figure we expect to pay enters a snapshot as cost. Usage evidence — request counts, unit balances, the Fly compute run-rate — travels in the same snapshot's `usage` array, where it can inform a decision without ever being read back as a bill.
 
-`GET /api/overview` and `GET /api/costs/history` read persisted cost snapshots directly on every request, so an external cost collector is visible immediately rather than waiting for an in-process cache TTL. Social aggregation alone keeps the short in-memory cache. On a local development build **Refresh** calls `POST /api/costs/sync` first and then reloads the ledger; a production build only rereads snapshots, and the remote deployment does not register the route at all.
+`GET /api/overview` and `GET /api/costs/history` share overlapping reads within one server process, including the reads composed by statements. Completed results expire immediately, so the next load reads persisted snapshots again and sees external cost collector updates without waiting for a cache TTL. Forced social refreshes use a separate overview load so an ordinary pending overview cannot swallow them. Social aggregation alone keeps the short in-memory cache. On a local development build **Refresh** calls `POST /api/costs/sync` first and then reloads the ledger; a production build only rereads snapshots, and the remote deployment does not register the route at all.
 
 The `ops` schema stays private and is not exposed through Supabase Data API. Control Center reaches it through service-role-only views and write RPCs in the already exposed `from_fed_to_chain` schema. `anon` and `authenticated` receive no access to the bridge or the underlying ledger.
 

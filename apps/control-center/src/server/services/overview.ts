@@ -39,7 +39,25 @@ export function createOverviewService(input: {
     load: () => loadSocial({ config: input.config, now: now() }),
   });
 
-  async function getOverview(forceSocial = false): Promise<OverviewResponse> {
+  // Share only overlapping reads. Completed values (including degraded results)
+  // expire immediately so external ledger updates remain visible on the next load.
+  const historyReads = createAsyncCache({
+    ttlMs: 0,
+    load: () =>
+      repository
+        ? loadCostHistory({ repository, now: now() }).catch(() => EMPTY_HISTORY)
+        : Promise.resolve(EMPTY_HISTORY),
+  });
+  const overviewReads = createAsyncCache({
+    ttlMs: 0,
+    load: () => loadOverview(false),
+  });
+  const forcedOverviewReads = createAsyncCache({
+    ttlMs: 0,
+    load: () => loadOverview(true),
+  });
+
+  async function loadOverview(forceSocial = false): Promise<OverviewResponse> {
     const fetchedAt = now();
     const [providers, history, product, social] = await Promise.all([
       repository
@@ -47,11 +65,7 @@ export function createOverviewService(input: {
             .loadLatestProviders(fetchedAt)
             .catch((error) => repositoryErrorProviders(error))
         : Promise.resolve(unconfiguredProviders()),
-      repository
-        ? loadCostHistory({ repository, now: fetchedAt }).catch(
-            () => EMPTY_HISTORY,
-          )
-        : Promise.resolve(EMPTY_HISTORY),
+      historyReads.get(),
       loadProductHealth({ config: input.config, now: fetchedAt }),
       socialCache.get(forceSocial),
     ]);
@@ -83,11 +97,9 @@ export function createOverviewService(input: {
   }
 
   return {
-    getOverview,
-    getCostHistory: () =>
-      repository
-        ? loadCostHistory({ repository, now: now() }).catch(() => EMPTY_HISTORY)
-        : Promise.resolve(EMPTY_HISTORY),
+    getOverview: (forceSocial = false) =>
+      (forceSocial ? forcedOverviewReads : overviewReads).get(),
+    getCostHistory: () => historyReads.get(),
     syncCosts: async () => {
       if (!repository) {
         throw new Error('Supabase ops repository is not configured');
