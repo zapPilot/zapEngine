@@ -1,0 +1,16 @@
+.content {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.cover {
+  width: 80px;
+  max-width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: var(--radius-control);
+}
+@media (max-width: 480px) {
+  .cover {
+    width: 48px;
+  }
+}

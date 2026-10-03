@@ -1634,64 +1634,6 @@ select:focus-visible {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--gap);
 }
-.decision-card {
-  display: grid;
-  gap: 10px;
-  padding: 16px 18px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-control);
-  background: var(--surface);
-}
-.decision-card header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--line);
-}
-.decision-card header > strong {
-  font-size: 15px;
-  font-weight: 500;
-}
-.decision-card header > span {
-  font-family: var(--font-mono);
-  font-size: 9.5px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-.confidence-high {
-  color: var(--success);
-}
-.confidence-medium {
-  color: var(--warning);
-}
-.confidence-low {
-  color: var(--ink-faint);
-}
-.decision-line {
-  display: grid;
-  grid-template-columns: 118px minmax(0, 1fr);
-  align-items: start;
-  gap: 10px;
-}
-.decision-line span {
-  color: var(--ink-faint);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-.decision-line strong {
-  font-size: 12.5px;
-  font-weight: 500;
-  line-height: 1.45;
-  overflow-wrap: anywhere;
-}
-.decision-card > small {
-  color: var(--ink-faint);
-  font-size: 10.5px;
-}
 .social-table-compact td:last-child {
   min-width: 190px;
   white-space: normal;

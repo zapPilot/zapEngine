@@ -349,63 +349,6 @@ export function ruleR4(input: StatementInputs): RuleFinding {
   return finding;
 }
 
-/** R5 — best-performing topic and slot. */
-export function ruleR5(input: StatementInputs): RuleFinding {
-  const { socialPerformance } = input;
-  const finding = empty('R5');
-  const candidate = socialPerformance.decisions
-    .filter(
-      (
-        decision,
-      ): decision is typeof decision & {
-        bestTopicLiftVsPlatformMedian: number;
-      } =>
-        Boolean(decision.bestTopic) &&
-        (decision.bestTopicLiftVsPlatformMedian ?? 0) >= 1.5 &&
-        decision.confidence !== 'low',
-    )
-    .sort(
-      (a, b) =>
-        b.bestTopicLiftVsPlatformMedian - a.bestTopicLiftVsPlatformMedian,
-    )[0];
-
-  if (candidate) {
-    finding.segments.push(
-      { text: `Posts on ${candidate.bestTopic} do ` },
-      {
-        value: `${candidate.bestTopicLiftVsPlatformMedian.toFixed(1)}×`,
-        tone: 'success',
-      },
-      { text: ` the ${candidate.platform} median` },
-      {
-        text: candidate.publishSlotsJst
-          ? ` — publish the next one at ${candidate.publishSlotsJst}.`
-          : '.',
-      },
-    );
-    finding.fact = {
-      kicker: 'Because · topic',
-      value: `${candidate.bestTopic}: ${candidate.bestTopicLiftVsPlatformMedian.toFixed(1)}× ${candidate.platform} median`,
-      note: `n=${candidate.bestTopicSamples ?? 0} · ${candidate.confidence} confidence`,
-    };
-  } else {
-    const keepComparable = socialPerformance.decisions.find(
-      (decision) => decision.bestTopic,
-    );
-    if (keepComparable) {
-      finding.segments.push({
-        text: `Not enough separation yet on ${keepComparable.platform} — keep posting a comparable mix.`,
-      });
-      finding.fact = {
-        kicker: 'Because · topic',
-        value: 'No topic clears the bar yet',
-        note: `${keepComparable.platform} · ${keepComparable.confidence} confidence`,
-      };
-    }
-  }
-  return finding;
-}
-
 /** R6 — active portfolios trend/flat-ness (the north star). */
 export function ruleR6(input: StatementInputs): RuleFinding {
   const { product } = input;

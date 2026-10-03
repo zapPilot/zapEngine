@@ -92,7 +92,6 @@ describe('loadDistributionSnapshotSource', () => {
     expect(source.posts).toHaveLength(1);
     expect(source.metrics).toHaveLength(1);
     expect(source.publishJobs).toHaveLength(1);
-    expect(source.strategyVersions).toHaveLength(1);
     expect(calls.map((call) => call.table).sort()).toEqual([
       'episode_localizations',
       'episode_videos',
@@ -100,7 +99,6 @@ describe('loadDistributionSnapshotSource', () => {
       'social_post_metrics',
       'social_posts',
       'social_publish_jobs',
-      'social_strategy_versions',
     ]);
   });
 

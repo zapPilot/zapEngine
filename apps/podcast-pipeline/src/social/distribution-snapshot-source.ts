@@ -9,7 +9,6 @@ import type {
   DistributionPostRow,
   DistributionPublishJobRow,
   DistributionSnapshotSource,
-  DistributionStrategyVersionRow,
   DistributionVideoRow,
 } from './distribution-snapshot.js';
 
@@ -37,42 +36,33 @@ const POST_COLUMNS =
 const METRIC_COLUMNS =
   'social_post_id,captured_at,collection_status,views,impressions,likes,comments,shares';
 const PUBLISH_JOB_COLUMNS = 'status';
-const STRATEGY_VERSION_COLUMNS = 'platform,language_code';
 
 export async function loadDistributionSnapshotSource(): Promise<DistributionSnapshotSource> {
-  const [
-    episodes,
-    localizations,
-    videos,
-    posts,
-    metrics,
-    publishJobs,
-    strategyVersions,
-  ] = await Promise.all([
-    readAll<DistributionEpisodeRow>('episodes', EPISODE_COLUMNS, 'id'),
-    readAll<DistributionLocalizationRow>(
-      'episode_localizations',
-      LOCALIZATION_COLUMNS,
-      'id',
-    ),
-    readAll<DistributionVideoRow>(
-      'episode_videos',
-      VIDEO_COLUMNS,
-      'episode_localization_id',
-    ),
-    readAll<DistributionPostRow>('social_posts', POST_COLUMNS, 'id'),
-    readAll<DistributionMetricRow>('social_post_metrics', METRIC_COLUMNS, 'id'),
-    readAll<DistributionPublishJobRow>(
-      'social_publish_jobs',
-      PUBLISH_JOB_COLUMNS,
-      'id',
-    ),
-    readAll<DistributionStrategyVersionRow>(
-      'social_strategy_versions',
-      STRATEGY_VERSION_COLUMNS,
-      'id',
-    ),
-  ]);
+  const [episodes, localizations, videos, posts, metrics, publishJobs] =
+    await Promise.all([
+      readAll<DistributionEpisodeRow>('episodes', EPISODE_COLUMNS, 'id'),
+      readAll<DistributionLocalizationRow>(
+        'episode_localizations',
+        LOCALIZATION_COLUMNS,
+        'id',
+      ),
+      readAll<DistributionVideoRow>(
+        'episode_videos',
+        VIDEO_COLUMNS,
+        'episode_localization_id',
+      ),
+      readAll<DistributionPostRow>('social_posts', POST_COLUMNS, 'id'),
+      readAll<DistributionMetricRow>(
+        'social_post_metrics',
+        METRIC_COLUMNS,
+        'id',
+      ),
+      readAll<DistributionPublishJobRow>(
+        'social_publish_jobs',
+        PUBLISH_JOB_COLUMNS,
+        'id',
+      ),
+    ]);
 
   return {
     episodes,
@@ -81,7 +71,6 @@ export async function loadDistributionSnapshotSource(): Promise<DistributionSnap
     posts,
     metrics,
     publishJobs,
-    strategyVersions,
   };
 }
 

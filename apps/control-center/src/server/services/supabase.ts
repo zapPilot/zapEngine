@@ -38,14 +38,28 @@ export function createServiceRoleClient(
  * an `unconfigured` read model instead of throwing at construction. */
 export function createConfiguredServiceRoleClient(
   config: ControlCenterConfig,
+  factory?: typeof createClient,
 ): ServiceRoleQueries | null {
   return config.SUPABASE_URL && config.SUPABASE_SERVICE_ROLE_KEY
     ? createServiceRoleClient(
         config.SUPABASE_URL,
         config.SUPABASE_SERVICE_ROLE_KEY,
         config.SUPABASE_DB_SCHEMA,
+        factory,
       )
     : null;
+}
+
+/** Required evidence reads fail before constructing a client when configuration is absent. */
+export function requireServiceRoleClient(
+  config: ControlCenterConfig,
+  factory?: typeof createClient,
+): ServiceRoleQueries {
+  const client = createConfiguredServiceRoleClient(config, factory);
+  if (!client) {
+    throw new Error('Supabase is not connected');
+  }
+  return client;
 }
 
 export function postgrestErrorCode(error: unknown): string | null {

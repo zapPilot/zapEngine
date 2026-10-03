@@ -1,3 +1,6 @@
+import { unavailableContentPackaging } from '../../../shared/content-packaging.js';
+import { readContentPackagingEvidence } from './content-packaging-source.js';
+import { buildContentPackagingInsight } from './content-packaging.js';
 import type { createClient } from '@supabase/supabase-js';
 import {
   unavailableGrowthLaneSources,
@@ -28,13 +31,15 @@ export function createOperationsGrowth(input: {
     ttlMs: 15 * 60_000,
     load: async (force) => {
       const now = input.now?.() ?? new Date();
-      const [journey, posthog, posts, social, community] = await Promise.all([
-        loadGrowthJourney(input),
-        settle(readPosthogGrowthLanes(input)),
-        settle(readRecentSocialPosts({ ...input, now })),
-        input.socialGrowth.getSocialGrowth(force),
-        input.community(force),
-      ]);
+      const [journey, posthog, posts, social, community, packaging] =
+        await Promise.all([
+          loadGrowthJourney(input),
+          settle(readPosthogGrowthLanes(input)),
+          settle(readRecentSocialPosts({ ...input, now })),
+          input.socialGrowth.getSocialGrowth(force),
+          input.community(force),
+          settle(readContentPackagingEvidence({ ...input, now })),
+        ]);
       const laneSources = unavailableGrowthLaneSources('Source unavailable');
       laneSources.posthog = posthog.source;
       laneSources.socialPosts = posts.source;
@@ -43,6 +48,9 @@ export function createOperationsGrowth(input: {
         message: social.waitlist.message,
       };
       return {
+        packaging: packaging.data
+          ? buildContentPackagingInsight(packaging.data)
+          : unavailableContentPackaging(packaging.source.message!),
         observedAt: now.toISOString(),
         status: journey.status === 'ok' ? 'available' : 'unknown',
         windowDays: 30,

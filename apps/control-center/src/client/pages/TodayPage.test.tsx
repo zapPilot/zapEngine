@@ -65,13 +65,10 @@ const overview = {
     window: 'latest',
     generatedAt: new Date().toISOString(),
     accounts: [],
-    decisions: [],
     episodes: [
       {
         episodeId: 'episode-1',
         title: 'The latest release',
-        totalViews: 120,
-        totalImpressions: null,
         platforms: [
           {
             platform: 'threads',

@@ -42,7 +42,6 @@ function socialPerformance(): SocialPerformanceResponse {
     window: 'latest',
     message: null,
     accounts: [],
-    decisions: [],
     episodes: [],
   };
 }
@@ -146,7 +145,6 @@ function inputs(overrides: Partial<StatementInputs> = {}): StatementInputs {
       waitlist: unavailableWaitlist('Not collected'),
       attribution: [],
     } satisfies SocialGrowthResponse,
-    socialPerformance: socialPerformance(),
     customers: {
       generatedAt: NOW.toISOString(),
       status: 'ok',

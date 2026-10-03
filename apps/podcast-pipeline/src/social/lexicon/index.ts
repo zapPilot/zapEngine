@@ -13,9 +13,8 @@ import { POLITICAL_TERMS } from './political.js';
  * Precision discipline for anyone extending these lists:
  *
  * - Never add a term this feed is *about*. 穩定幣、比特幣、以太坊、美聯儲、
- *   流動性、GPU are the subject matter; suppressing a topic that underperforms is
- *   the learner's job (`review_status` de-pollution in ./../strategy.ts), not
- *   this gate's.
+ *   流動性、GPU are the subject matter. Owner interest decides topics; neither
+ *   this gate nor a learner may suppress a topic.
  * - Prefer terms of three characters or more. Matching is a substring scan, so a
  *   two-character fragment collides with ordinary sentences (保本 inside
  *   「確保本次」). ./asset-allocation.ts and ./market-timing.ts each carry a

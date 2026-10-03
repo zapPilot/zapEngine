@@ -49,8 +49,6 @@ rotation, v3 D/E swap) that was concluded on **2026-09-14**. Its allocators were
 deleted rather than kept as dead recovery paths; jobs queued before that date
 keep their own languages through the durable-lane rule above, and published
 experiment posts, metrics, and assignments remain in the database for analysis.
-`daemon.ts` still recognises the historical experiment keys for one purpose
-only: freezing learned copy guidance on those not-yet-published lanes.
 
 Reintroducing a language experiment is a product decision, not a refactor. It
 needs a new design in this file first — do not resurrect the deleted profiles.
@@ -125,9 +123,7 @@ insert against a legacy cohort.
 
 ## Experiment isolation and evaluation
 
-- Language is no longer an experiment arm, so current lanes must not suppress
-  learned copy guidance. Only the historical keys in `daemon.ts` do that, and
-  only for jobs queued before the decision.
+- No lane receives learned guidance.
 - Historical language results are still evaluated **within the same platform**
   using standardized metric windows (especially 24h). Do not compare raw X vs
   Threads vs YouTube view counts as though their distributions were
@@ -144,11 +140,10 @@ insert against a legacy cohort.
 - `social_publish_jobs.legacy_title_override` is migration-only for the finite
   queue that predated the 20-character canonical-title contract. New enqueue
   paths must never populate it.
-- Strategy learning may adapt body-copy guidance for a platform-language lane
-  but cannot alter title, lane allocation, readiness, or release timing.
+- No lane receives learned guidance.
 
 Any change to the fixed mapping, the coverage rule, the back-catalogue fence,
-the durable-lane rule, or the one-article/one-timestamp transaction boundary
+the durable-lane rule, the social optimization contract, or the one-article/one-timestamp transaction boundary
 requires an explicit product decision plus updates to this file,
 `src/social/README.md`, and the executable contract tests.
 
@@ -157,3 +152,18 @@ attempts, leases, and visual versions. Consumers must not interpret every
 nonempty result as media merely catching up: terminal or unclaimable producers
 need operator intervention. The view supplies facts; shared TypeScript retry
 eligibility owns the version policy.
+
+## Social optimization contract
+
+**NON-NEGOTIABLE PRODUCT CONTRACT: one universal packaging strategy, never a strategy per platform.**
+
+- Topics and article selection are decided solely by the owner's interest. Platform audiences cannot change which articles publish. Every platform expresses the same episode thesis and topic. Only transport constraints (language, length, native fields, moderation, API format) may vary; these are not content strategies.
+- Improve the same packaging across all lanes to direct attention to Kokode AI and Zap Pilot. Kokode AI has no canonical destination yet: never invent a URL.
+- Prioritize cover image → title → video opening. Platform hashtag/hook details cannot outrank those priorities or become learned platform preferences.
+- Never infer which topic suits a platform, choose different articles per platform, or create platform-specific best topic, headline, hook, or publishing-slot strategies. Never inject learned per-platform copy guidance. `social_posts.topic` and `social_posts.hook_type` are descriptive labels, never inputs to platform preference learning. Neither global nor platform best/worst lists may guide topic selection.
+- Normalize within each platform × language lane before using views as optimization evidence. Never compare or aggregate raw views across platforms into optimization evidence or strategy scores. Operational volume totals such as public reach remain permitted.
+- Rednote is the primary signal for one global packaging insight, never a Rednote strategy. Exclude under_review, rejected and self_only notes. Report the ≤20 views distribution gate separately as an account/platform issue; calculate packaging lift only among distributed notes. See [distribution diagnosis](../../../../docs/operations/rednote-distribution-diagnosis.md).
+- Every presentation must say observed association / 相關, never causation. Two or three high-view samples cannot automatically change prompts. Feeding evidence back into title/cover generation requires sufficient evidence and a deliberate prompt change. Titles always obey factual fidelity.
+- The only implementation location is Control Center's shared growth read model (`/api/growth` + `ops_growth`, 15-minute cache). `ops_social` owns daemon/queue only. Packaging never becomes an `ops_status` signal or priority.
+- Future packaging experiments randomize by article, with the same variant across every lane, and require a design recorded here first. `packaging-experiments.ts` remains disabled.
+- History: the per-platform learner was removed on 2026-10-03. Preserve `social_strategy_versions`, historical rows and nullable `social_publish_jobs.strategy_version_id` (ON DELETE SET NULL). New jobs leave the field null. Never drop the table or resurrect the learner under another name.

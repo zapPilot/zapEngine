@@ -82,7 +82,6 @@ function source(
     posts: [],
     metrics: [],
     publishJobs: [],
-    strategyVersions: [],
     ...overrides,
   };
 }
@@ -376,10 +375,6 @@ describe('buildDistributionSnapshot', () => {
           metric({ social_post_id: 'p1' }),
           metric({ social_post_id: 'p2', collection_status: 'unavailable' }),
         ],
-        strategyVersions: [
-          { platform: 'x', language_code: 'zh-Hant' },
-          { platform: 'threads', language_code: 'ja' },
-        ],
       }),
     );
 
@@ -389,7 +384,6 @@ describe('buildDistributionSnapshot', () => {
       publishJobsFailed: 1,
       metricSnapshots: 2,
       metricSnapshotsCollected: 1,
-      strategyVersions: 2,
     });
   });
 

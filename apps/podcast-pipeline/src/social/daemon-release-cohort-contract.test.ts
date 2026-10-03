@@ -11,7 +11,6 @@ const mocks = vi.hoisted(() => ({
   enqueueSocialPublishJob: vi.fn().mockResolvedValue(true),
   ensureSocialDaemonStart: vi.fn(),
   failSocialPublishJob: vi.fn(),
-  getActiveSocialStrategies: vi.fn().mockResolvedValue([]),
   getSocialQueueSnapshot: vi.fn().mockResolvedValue({
     pendingCount: 0,
     episodeQueue: [],
@@ -47,7 +46,6 @@ const mocks = vi.hoisted(() => ({
   }),
   captureDueAccountSnapshots: vi.fn().mockResolvedValue([]),
   capturePrePublishAccountSnapshots: vi.fn().mockResolvedValue([]),
-  refreshSocialStrategies: vi.fn(),
 }));
 
 vi.mock('./release-cohort-store.js', () => ({
@@ -61,7 +59,6 @@ vi.mock('./daemon-store.js', () => ({
   enqueueSocialPublishJob: mocks.enqueueSocialPublishJob,
   ensureSocialDaemonStart: mocks.ensureSocialDaemonStart,
   failSocialPublishJob: mocks.failSocialPublishJob,
-  getActiveSocialStrategies: mocks.getActiveSocialStrategies,
   getSocialQueueSnapshot: mocks.getSocialQueueSnapshot,
   listPendingSocialPublishSchedules: mocks.listPendingSocialPublishSchedules,
   listDueSocialPublishPlatforms: mocks.listDueSocialPublishPlatforms,
@@ -97,10 +94,6 @@ vi.mock('./publish-batch.js', () => ({
 vi.mock('./metric-collectors.js', () => ({
   createMetricCollectors: mocks.createMetricCollectors,
   createMetricsBrowserSession: mocks.createMetricsBrowserSession,
-}));
-vi.mock('./strategy.js', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('./strategy.js')>()),
-  refreshSocialStrategies: mocks.refreshSocialStrategies,
 }));
 
 import { runSocialCatchUpOnce, runSocialDaemonTick } from './daemon.js';

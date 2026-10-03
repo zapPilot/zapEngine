@@ -40,7 +40,7 @@ describe('social post review status schema', () => {
   );
 
   // A backfill would invent history: NULL has to keep meaning "never observed",
-  // which is exactly what the learner's view floor covers.
+  // and packaging must exclude observations suppressed by moderation.
   it('adds the column without backfilling existing rows', () => {
     expect(migration).not.toMatch(/update from_fed_to_chain\.social_posts/i);
     expect(migration).not.toMatch(/default 'visible'/i);

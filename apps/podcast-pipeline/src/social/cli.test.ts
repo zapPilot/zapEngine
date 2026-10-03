@@ -324,7 +324,7 @@ describe('parseCliOptions', () => {
 });
 
 describe('runSocialCli media preparation', () => {
-  it('forwards both global and platform strategy guidance to copy generation', async () => {
+  it('generates copy without learned guidance', async () => {
     await runSocialCli(
       [
         EPISODE_ID,
@@ -334,16 +334,13 @@ describe('runSocialCli media preparation', () => {
         '--platform',
         'threads',
       ],
-      {
-        strategyGuidance: 'Prefer concise hooks',
-        strategyGuidanceByPlatform: { threads: 'Ask one question' },
-      },
+      {},
     );
 
     expect(mocks.generateSocialCopy).toHaveBeenCalledWith(
       expect.objectContaining({
-        strategyGuidance: 'Prefer concise hooks',
-        strategyGuidanceByPlatform: { threads: 'Ask one question' },
+        languageCode: 'zh-Hant',
+        platforms: ['threads'],
       }),
     );
   });

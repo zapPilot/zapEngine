@@ -12,9 +12,7 @@ const mocks = vi.hoisted(() => ({
     .fn()
     .mockResolvedValue('2026-08-16T08:00:00.000Z'),
   failSocialPublishJob: vi.fn(),
-  getActiveSocialStrategies: vi.fn().mockResolvedValue([]),
   getSocialQueueSnapshot: vi.fn(),
-  getSocialStrategyById: vi.fn().mockResolvedValue(null),
   insertSocialAccountSnapshot: vi.fn().mockResolvedValue(undefined),
   latestSocialAccountSnapshots: vi.fn().mockResolvedValue({}),
   listPendingSocialPublishSchedules: vi.fn().mockResolvedValue([]),
@@ -44,7 +42,6 @@ const mocks = vi.hoisted(() => ({
     rednote: vi.fn(),
     youtube: vi.fn(),
   }),
-  refreshSocialStrategies: vi.fn().mockResolvedValue(undefined),
   buildSocialExperimentReports: vi.fn().mockReturnValue([]),
   getAllowedTelegramUserIds: vi.fn().mockReturnValue([]),
   sendTelegramNotification: vi.fn().mockResolvedValue(undefined),
@@ -59,9 +56,7 @@ vi.mock('./daemon-store.js', () => ({
   enqueueSocialPublishJob: mocks.enqueueSocialPublishJob,
   ensureSocialDaemonStart: mocks.ensureSocialDaemonStart,
   failSocialPublishJob: mocks.failSocialPublishJob,
-  getActiveSocialStrategies: mocks.getActiveSocialStrategies,
   getSocialQueueSnapshot: mocks.getSocialQueueSnapshot,
-  getSocialStrategyById: mocks.getSocialStrategyById,
   insertSocialAccountSnapshot: mocks.insertSocialAccountSnapshot,
   latestSocialAccountSnapshots: mocks.latestSocialAccountSnapshots,
   listPendingSocialPublishSchedules: mocks.listPendingSocialPublishSchedules,
@@ -109,10 +104,6 @@ vi.mock('./publish-batch.js', () => ({
 }));
 vi.mock('./metric-collectors.js', () => ({
   createMetricCollectors: mocks.createMetricCollectors,
-}));
-vi.mock('./strategy.js', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('./strategy.js')>()),
-  refreshSocialStrategies: mocks.refreshSocialStrategies,
 }));
 vi.mock('./experiment-report.js', () => ({
   buildSocialExperimentReports: mocks.buildSocialExperimentReports,
@@ -187,7 +178,6 @@ function resetReleaseMocks(): void {
     .mockReset()
     .mockResolvedValue('2026-08-16T08:00:00.000Z');
   mocks.failSocialPublishJob.mockReset().mockResolvedValue(undefined);
-  mocks.getActiveSocialStrategies.mockReset().mockResolvedValue([]);
   mocks.getSocialQueueSnapshot.mockReset().mockResolvedValue({
     pendingCount: 0,
     episodeQueue: [],
@@ -216,7 +206,6 @@ function resetReleaseMocks(): void {
   mocks.listSocialPostsByEpisode.mockReset().mockResolvedValue([]);
   mocks.publishSocialBatch.mockReset().mockResolvedValue([]);
   mocks.prepareSocialBatchCopy.mockReset().mockResolvedValue({});
-  mocks.refreshSocialStrategies.mockReset().mockResolvedValue(undefined);
   mocks.buildSocialExperimentReports.mockReset().mockReturnValue([]);
   mocks.getAllowedTelegramUserIds.mockReset().mockReturnValue([]);
   mocks.sendTelegramNotification.mockReset().mockResolvedValue(undefined);
@@ -591,7 +580,7 @@ describe('social daemon queue summary coverage', () => {
       now: NOW,
       firstStartedAt: '2026-08-16T08:00:00.000Z',
       log,
-      refreshStrategy: true,
+      reportExperiments: true,
       verbose: true,
     });
 
