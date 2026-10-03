@@ -96,9 +96,10 @@ gh run download "$run_id" --repo zapPilot/zapEngine \
 ```
 
 Once all supported floors are green, the recurring test-quality worker is
-defined by `.agents/skills/test-qa-audit/SKILL.md`. It uses the separate
-`test-qa-state` artifact rather than treating 100% coverage as proof of test
-quality.
+defined by `.agents/skills/test-qa-audit/SKILL.md`. Coverage evidence remains
+an Actions artifact, while audit progress is stored separately at
+`automation/test-qa-state:.test-qa/state.json`; 100% coverage is not treated as
+proof of test quality.
 
 ## CI behavior
 
