@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-03T06:02:00.000Z",
+  "generatedAt": "2026-10-03T06:07:00.000Z",
   "github": {
     "runId": 0,
     "runAttempt": 1,
@@ -68,17 +68,24 @@
       "findings": []
     },
     "apps/app/tests/app-100-small-gaps.test.ts": {
-      "status": "clean",
-      "auditedAt": "2026-10-03T05:10:00.000Z",
-      "auditedCommit": "558aaba118d1a962fc2f21b32d8151566b3d5c11",
+      "status": "pending",
+      "auditedAt": "2026-10-03T06:07:00.000Z",
+      "auditedCommit": "2a7e48852ef2fe5312a3d5d5bd3ec1d5a3ae3578",
       "pathShas": {
-        "apps/app/tests/app-100-small-gaps.test.ts": "c21d4cc2f1a72d21c5aed838b69e0c2ca4e09c24"
+        "apps/app/tests/app-100-small-gaps.test.ts": "9eb8b9b0e4d4ef9d69330a4b7abdbb83c02ac7f7"
       },
       "files": [
         "apps/app/tests/app-100-small-gaps.test.ts"
       ],
       "relatedPaths": [],
-      "findings": []
+      "findings": [
+        {
+          "id": "format-main-debt-20261003",
+          "kind": "test",
+          "summary": "Merged #699 left this test file outside canonical Prettier formatting; the worker PR repairs that test-only CI regression."
+        }
+      ],
+      "pr": 702
     },
     "apps/control-center/src/client/components/VisualEvidence.tsx": {
       "status": "clean",
@@ -119,9 +126,9 @@
     "apps/app/tests/app-100-final-branches.test.tsx": {
       "status": "pending",
       "auditedAt": "2026-10-03T06:02:00.000Z",
-      "auditedCommit": "e8677c9ad8b49eca664f97e6eaf3ba482b5fd20a",
+      "auditedCommit": "2a7e48852ef2fe5312a3d5d5bd3ec1d5a3ae3578",
       "pathShas": {
-        "apps/app/tests/app-100-final-branches.test.tsx": "defe0c96a473d04438b37f90475ee82b12c109c0"
+        "apps/app/tests/app-100-final-branches.test.tsx": "d7c8ee3913a42c269333c375fcbf424f031bfc26"
       },
       "files": [
         "apps/app/tests/app-100-final-branches.test.tsx"
