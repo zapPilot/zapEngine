@@ -223,6 +223,48 @@ describe('createRetryingSupabaseFetch', () => {
     expect(sleep.mock.calls).toEqual([[250], [500], [1000], [2000]]);
   });
 
+  it('falls back to the generic read budget when the error body cannot be read', async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce({
+        status: 503,
+        body: { cancel: vi.fn().mockResolvedValue(undefined) },
+        clone: () => ({
+          text: async () => {
+            throw new Error('body already gone');
+          },
+        }),
+      })
+      .mockResolvedValueOnce(new Response('{}', { status: 200 }));
+    const sleep = vi.fn().mockResolvedValue(undefined);
+    const retryingFetch = createRetryingSupabaseFetch(fetcher, sleep);
+
+    const response = await retryingFetch(
+      'https://example.test/rest/v1/episodes',
+    );
+
+    expect(response.status).toBe(200);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it('falls back to the generic read budget for a non-JSON error body', async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response('<html>bad gateway</html>', { status: 502 }),
+      )
+      .mockResolvedValueOnce(new Response('{}', { status: 200 }));
+    const sleep = vi.fn().mockResolvedValue(undefined);
+    const retryingFetch = createRetryingSupabaseFetch(fetcher, sleep);
+
+    const response = await retryingFetch(
+      'https://example.test/rest/v1/episodes',
+    );
+
+    expect(response.status).toBe(200);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
   it('never retries mutations after a transport failure', async () => {
     const failure = new TypeError('fetch failed');
     const fetcher = vi.fn().mockRejectedValue(failure);
