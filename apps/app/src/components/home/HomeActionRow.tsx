@@ -15,7 +15,7 @@ export function HomeActionRow({
   const router = useRouter();
   const { t } = useContentLanguage();
   return (
-    <View className="mt-5 flex-row gap-3 px-5">
+    <View className="mt-5 flex-row gap-3">
       <Button
         disabled={disabled}
         className="flex-1"

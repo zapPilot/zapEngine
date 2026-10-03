@@ -2,11 +2,42 @@ import type { ShotSet } from '../../captures/types';
 import { facts, shortHex } from './facts';
 
 const ANSWER = 'aside.calc-answer';
+const IDENTITY = '.calc-identity';
+const PROOF = '.calc-proof';
 const CALL = '.calc-call';
 const BTC_PRICE = 'input[aria-label="BTC price on decision day"]';
 const BTC_ROW = '.calc-asset[aria-label="BTC"]';
 const ABOVE = `role=button[name="${facts.hold.scenario}"]`;
-const SCENARIOS = { kind: 'viewport', scrollTo: '.calc-scenarios', offset: 48 } as const;
+const SCENARIOS = {
+  kind: 'viewport',
+  scrollTo: '.calc-scenarios',
+  offset: 48,
+} as const;
+/** The answer panel after a call outgrows the viewport, so it is shot alone. */
+const ANSWER_PANEL = {
+  kind: 'element',
+  selector: ANSWER,
+  padding: 32,
+} as const;
+const ANSWER_TARGETS = {
+  answer: ANSWER,
+  proof: PROOF,
+  verdict: '.calc-verdict',
+  outcomes: '.calc-outcomes',
+} as const;
+const RETURNED = {
+  selector: PROOF,
+  contains: 'Answer returned by the contract',
+} as const;
+/** Shots framed on the scenario picker share targets, so scenes can cut between them. */
+const SCENARIO_TARGETS = {
+  scenarios: '.calc-scenarios',
+  above: ABOVE,
+  market: '.calc-market',
+  btcRow: BTC_ROW,
+  btcPrice: BTC_PRICE,
+  btcChart: `${BTC_ROW} .calc-chart`,
+} as const;
 
 /**
  * What `pnpm capture calculator-pitch` photographs on the live calculator.
@@ -23,29 +54,29 @@ export const shots = {
       frame: { kind: 'viewport', scrollTo: '.calc-hero', offset: 72 },
       targets: {
         hero: '.calc-hero',
-        identity: '.calc-identity',
-        address: '.calc-identity > div:nth-child(2)',
-        codehash: '.calc-identity > div:nth-child(3)',
-        source: '.calc-identity > div:nth-child(4)',
-        bytecodeCheck: '.calc-identity [role="status"]',
+        identity: IDENTITY,
+        address: `${IDENTITY} > div:nth-child(2)`,
+        codehash: `${IDENTITY} > div:nth-child(3)`,
+        source: `${IDENTITY} > div:nth-child(4)`,
+        bytecodeCheck: `${IDENTITY} [role="status"]`,
       },
       checks: [
-        { selector: '.calc-identity', contains: facts.network },
+        { selector: IDENTITY, contains: facts.network },
         {
-          selector: '.calc-identity',
+          selector: IDENTITY,
           contains: shortHex(facts.address, 10, 6),
         },
         {
-          selector: '.calc-identity',
+          selector: IDENTITY,
           contains: shortHex(facts.runtimeCodehash, 10, 6),
         },
-        { selector: '.calc-identity', contains: `Vyper ${facts.compiler}` },
+        { selector: IDENTITY, contains: `Vyper ${facts.compiler}` },
         {
-          selector: '.calc-identity',
+          selector: IDENTITY,
           contains: `Sourcify (${facts.sourcify})`,
         },
         {
-          selector: '.calc-identity [role="status"]',
+          selector: `${IDENTITY} [role="status"]`,
           record: {
             name: 'checkedAtBlock',
             pattern: 'Codehash matches at block (\\d+)',
@@ -56,13 +87,8 @@ export const shots = {
     inputs: {
       frame: SCENARIOS,
       targets: {
-        scenarios: '.calc-scenarios',
+        ...SCENARIO_TARGETS,
         real: '.calc-segments button[aria-pressed="true"]',
-        above: ABOVE,
-        market: '.calc-market',
-        btcRow: BTC_ROW,
-        btcPrice: BTC_PRICE,
-        btcChart: `${BTC_ROW} .calc-chart`,
       },
       checks: [
         {
@@ -76,7 +102,7 @@ export const shots = {
     cell: {
       steps: [{ focus: BTC_PRICE }],
       frame: SCENARIOS,
-      targets: { btcRow: BTC_ROW, btcPrice: BTC_PRICE },
+      targets: SCENARIO_TARGETS,
       checks: [{ selector: BTC_PRICE, value: facts.example.btc.price }],
     },
     ready: {
@@ -97,19 +123,16 @@ export const shots = {
     },
     receipt: {
       steps: [{ click: CALL }, { waitFor: '.calc-match' }],
-      frame: { kind: 'element', selector: ANSWER, padding: 32 },
+      frame: ANSWER_PANEL,
       targets: {
-        answer: ANSWER,
-        proof: '.calc-proof',
-        verdict: '.calc-verdict',
+        ...ANSWER_TARGETS,
         compare: '.calc-compare',
-        outcomes: '.calc-outcomes',
         match: '.calc-match',
       },
       checks: [
-        { selector: '.calc-proof', contains: 'Answer returned by the contract' },
+        RETURNED,
         {
-          selector: '.calc-proof',
+          selector: PROOF,
           record: { name: 'calledAtBlock', pattern: 'Block (\\d+)' },
         },
         { selector: '.calc-verdict', contains: facts.example.verdict },
@@ -121,11 +144,7 @@ export const shots = {
     above: {
       steps: [{ click: ABOVE }],
       frame: SCENARIOS,
-      targets: {
-        scenarios: '.calc-scenarios',
-        above: ABOVE,
-        btcRow: BTC_ROW,
-      },
+      targets: SCENARIO_TARGETS,
       checks: [{ selector: ABOVE, pressed: true }],
     },
     hold: {
@@ -134,19 +153,11 @@ export const shots = {
         { click: CALL },
         { waitFor: `text=${facts.hold.verdict}` },
       ],
-      frame: { kind: 'element', selector: ANSWER, padding: 32 },
-      targets: {
-        answer: ANSWER,
-        proof: '.calc-proof',
-        verdict: '.calc-verdict',
-        outcomes: '.calc-outcomes',
-      },
+      frame: ANSWER_PANEL,
+      targets: ANSWER_TARGETS,
       checks: [
         { selector: '.calc-verdict', contains: facts.hold.verdict },
-        {
-          selector: '.calc-proof',
-          contains: 'Answer returned by the contract',
-        },
+        RETURNED,
       ],
     },
     limits: {

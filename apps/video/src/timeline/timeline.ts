@@ -8,37 +8,37 @@ export const ESTIMATED_CHARS_PER_SECOND = 15;
 /** Pauses up to this long keep the previous caption on screen. */
 const CAPTION_HOLD_FRAMES = 15;
 
-export type Beat = {
+export interface Beat {
   readonly line: VoLine;
   /** Narration file below `public/`, or null while the line is estimated. */
   readonly file: string | null;
   /** Frame relative to the scene start. */
   readonly from: number;
   readonly durationInFrames: number;
-};
+}
 
-export type TimedScene<Scene extends SceneSpec = SceneSpec> = {
+export interface TimedScene<Scene extends SceneSpec = SceneSpec> {
   readonly spec: Scene;
   /** Absolute start frame; consecutive scenes overlap by the transition. */
   readonly from: number;
   readonly durationInFrames: number;
   readonly beats: readonly Beat[];
-};
+}
 
-export type VoicePlacement = {
+export interface VoicePlacement {
   readonly lineId: string;
   readonly file: string;
   readonly from: number;
   readonly durationInFrames: number;
-};
+}
 
-export type CaptionCue = {
+export interface CaptionCue {
   readonly text: string;
   readonly from: number;
   readonly to: number;
-};
+}
 
-export type Timeline<Scene extends SceneSpec = SceneSpec> = {
+export interface Timeline<Scene extends SceneSpec = SceneSpec> {
   readonly durationInFrames: number;
   readonly scenes: readonly TimedScene<Scene>[];
   /** Narration on the composition's absolute clock, unaffected by transitions. */
@@ -46,7 +46,7 @@ export type Timeline<Scene extends SceneSpec = SceneSpec> = {
   readonly captions: readonly CaptionCue[];
   /** Lines sized by estimate because `pnpm voiceover` has not produced them. */
   readonly estimatedLines: readonly string[];
-};
+}
 
 function assertUniqueLineIds(scenes: readonly SceneSpec[]): void {
   const seen = new Set<string>();
@@ -59,14 +59,14 @@ function assertUniqueLineIds(scenes: readonly SceneSpec[]): void {
 }
 
 function assertNoOverlap(voice: readonly VoicePlacement[]): void {
-  voice.slice(1).forEach((clip, index) => {
+  for (const [index, clip] of voice.slice(1).entries()) {
     const previous = voice[index] as VoicePlacement;
     if (clip.from < previous.from + previous.durationInFrames) {
       throw new Error(
         `Narration "${clip.lineId}" starts before "${previous.lineId}" ends; raise leadIn/tail above the transition.`,
       );
     }
-  });
+  }
 }
 
 /**
@@ -86,10 +86,10 @@ export function buildTimeline<Scene extends SceneSpec>(
   const estimatedLines: string[] = [];
   let sceneStart = 0;
 
-  storyboard.scenes.forEach((spec, index) => {
+  for (const [index, spec] of storyboard.scenes.entries()) {
     const beats: Beat[] = [];
     let cursor = spec.leadIn ?? storyboard.leadIn;
-    spec.vo.forEach((line, lineIndex) => {
+    for (const [lineIndex, line] of spec.vo.entries()) {
       const clip = manifest.lines[line.id];
       const seconds =
         clip?.durationSeconds ??
@@ -104,7 +104,7 @@ export function buildTimeline<Scene extends SceneSpec>(
       });
       cursor += durationInFrames;
       if (lineIndex < spec.vo.length - 1) cursor += storyboard.gap;
-    });
+    }
 
     const durationInFrames = Math.max(
       cursor + (spec.tail ?? storyboard.tail),
@@ -124,14 +124,15 @@ export function buildTimeline<Scene extends SceneSpec>(
         });
       }
       const phrases = splitCaptionPhrases(beat.line.text);
-      spanPhrases(phrases, from, beat.durationInFrames).forEach((span, i) =>
-        captions.push({ text: phrases[i] as string, ...span }),
-      );
+      const spans = spanPhrases(phrases, from, beat.durationInFrames);
+      for (const [i, span] of spans.entries()) {
+        captions.push({ text: phrases[i] as string, ...span });
+      }
     }
 
     const isLast = index === storyboard.scenes.length - 1;
     sceneStart += durationInFrames - (isLast ? 0 : transitionFrames);
-  });
+  }
 
   assertNoOverlap(voice);
   return {

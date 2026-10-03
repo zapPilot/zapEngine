@@ -35,7 +35,9 @@ export const assetColor = {
 export type Asset = keyof typeof assetColor;
 
 /** The site's signature ease-out, used for every entrance. */
-export const easeOut = Easing.bezier(...parseCubicBezier(tokens.easing.primary));
+export const easeOut = Easing.bezier(
+  ...parseCubicBezier(tokens.easing.primary),
+);
 
 /** Hairline used for rules and card borders. */
 export const hairline = `1px solid ${color.line}`;

@@ -23,7 +23,7 @@ export function FinancialFeatureRoute({
   return (
     <ScreenScrollView width="narrow">
       <PageHeader title={title} />
-      <View className="px-5 pt-8">
+      <View className="pt-8">
         <Card className="items-center p-6">
           <View className="h-12 w-12 items-center justify-center rounded-full border border-line bg-[rgba(212,197,163,.08)]">
             <LockKeyhole size={20} strokeWidth={1.8} color="#d4c5a3" />

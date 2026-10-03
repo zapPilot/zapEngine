@@ -3535,7 +3535,7 @@
   background: var(--bg);
 }
 .shell-root .track-record-calculator [aria-invalid='true'] {
-  border-color: var(--error);
+  border-color: var(--danger);
 }
 .shell-root .calc-inputs fieldset:disabled .calc-input {
   opacity: 0.6;
@@ -3551,7 +3551,7 @@
   color-scheme: dark;
 }
 .shell-root .calc-error {
-  color: var(--error);
+  color: var(--danger);
   font-size: 0.8125rem;
   line-height: 1.5;
 }
@@ -3825,8 +3825,8 @@
   color: var(--accent);
 }
 .shell-root .calc-status[data-tone='error'] {
-  border-color: rgba(255, 111, 97, 0.4);
-  color: var(--error);
+  border-color: var(--danger-line);
+  color: var(--danger);
 }
 .shell-root .calc-answer-body {
   display: grid;
@@ -3939,7 +3939,7 @@
 }
 .shell-root .calc-answer > .calc-error {
   padding: 12px 14px;
-  border-left: 2px solid var(--error);
+  border-left: 2px solid var(--danger);
   background: rgba(255, 111, 97, 0.06);
 }
 .shell-root .calc-call {

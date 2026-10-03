@@ -265,6 +265,10 @@ describe('EpisodeDownloadButton', () => {
   ])('is disabled and inert for %s', async (_name, context, episode, label) => {
     setDownloads(context);
     await render(<EpisodeDownloadButton episode={episode} />);
+    if ('isSupported' in context && context.isSupported === false) {
+      expect(container.innerHTML).toBe('');
+      return;
+    }
     expect(button().getAttribute('aria-label')).toBe(label);
     expect(button().disabled).toBe(true);
     await click(button());
@@ -328,6 +332,10 @@ describe('EpisodeDownloadStatus', () => {
   ])('says why a download is impossible', async (context, episode, text) => {
     setDownloads(context);
     await render(<EpisodeDownloadStatus episode={episode} />);
+    if ('isSupported' in context && context.isSupported === false) {
+      expect(container.innerHTML).toBe('');
+      return;
+    }
     expect(container.textContent).toContain(text);
     expect(icon()).toBe('Info');
   });

@@ -24,10 +24,11 @@
     "social:distribution-snapshot": "node scripts/env/run.mjs -- pnpm --filter @zapengine/podcast-pipeline social:distribution-snapshot",
     "social:daemon": "node scripts/env/run.mjs -- pnpm --filter @zapengine/podcast-pipeline social:daemon",
     "social:daemon:watch": "node scripts/env/run.mjs -- pnpm --filter @zapengine/podcast-pipeline social:daemon:watch",
-    "ops": "node scripts/env/run.mjs -- node scripts/ops.mjs",
+    "ops": "node scripts/env/run.mjs --environment prod -- node scripts/ops.mjs",
     "ops:dashboard": "node scripts/env/run.mjs -- pnpm run ops:dashboard:raw",
     "ops:dashboard:raw": "turbo run dev --filter=@zapengine/control-center --env-mode=loose",
     "ops:cost": "pnpm --filter @zapengine/control-center ops:cost",
+    "db:evidence": "node scripts/env/run.mjs --environment prod -- pnpm --filter @zapengine/podcast-pipeline db:evidence",
     "ops:sync": "turbo run ops:sync --filter=@zapengine/control-center",
     "track-record:generate": "tsx --tsconfig apps/landing-page/tsconfig.json scripts/track-record/generate-daily-snapshot.ts",
     "track-record:publish": "tsx --tsconfig apps/landing-page/tsconfig.json scripts/track-record/publish-daily-snapshot.ts",
@@ -95,6 +96,13 @@
     ],
     "apps/podcast-pipeline/{*.json,*.config.*,examples/**/*.json}": [
       "pnpm --filter @zapengine/podcast-pipeline exec prettier --write"
+    ],
+    "apps/video/**/*.{ts,tsx}": [
+      "pnpm --filter @zapengine/video exec eslint --fix",
+      "pnpm --filter @zapengine/video exec prettier --write"
+    ],
+    "apps/video/**/*.{json,md,mjs}": [
+      "pnpm --filter @zapengine/video exec prettier --write --ignore-unknown"
     ],
     "packages/**/*.{js,mjs,cjs,ts,tsx,json,md}": [
       "pnpm --filter @zapengine/eslint-config exec prettier --write"

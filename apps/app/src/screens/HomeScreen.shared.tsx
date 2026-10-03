@@ -193,7 +193,7 @@ export function HomeScreen() {
       />
 
       <View className="relative">
-        <View className="px-5 pt-6">
+        <View className="pt-6">
           <View className="flex-row items-center justify-between">
             <SectionHeader title={t('home.netWorth')} />
             <Tap
@@ -265,7 +265,7 @@ export function HomeScreen() {
           )}
         </View>
 
-        <View className="mt-5 px-5">
+        <View className="mt-5">
           <View className="flex-row items-center justify-between">
             <SectionHeader title={t('home.balanceTrend')} />
             <SegmentedControl
@@ -313,7 +313,7 @@ export function HomeScreen() {
         />
       ) : null}
 
-      <View className="mt-6 px-5">
+      <View className="mt-6">
         <StrategyStatusCard
           status={strategyStatus}
           loading={!isDemo && strategy.isLoading}
@@ -326,7 +326,7 @@ export function HomeScreen() {
       </View>
 
       {account.isOwnBundle || account.viewingUserId ? (
-        <View className="mt-6 px-5">
+        <View className="mt-6">
           <View className="mb-2 flex-row items-center justify-between">
             <SectionHeader title={t('home.walletAssets')} />
             <Text
@@ -408,7 +408,7 @@ export function HomeScreen() {
       ) : null}
 
       {!account.isDemo && !homeIncome.isError ? (
-        <View className="mt-6 px-5">
+        <View className="mt-6">
           <HomeIncomeCard {...homeIncome} />
         </View>
       ) : null}

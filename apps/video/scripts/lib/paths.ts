@@ -14,6 +14,9 @@ export function videoPaths(videoId: string) {
     /** Relative to `public/`, i.e. what `staticFile()` receives. */
     voPublic: `vo/${videoId}`,
     capturePublic: `captures/${videoId}`,
-    out: path.join(workspaceRoot, 'out', videoId),
+    /** Stills, contact sheet and intermediate renders. */
+    work: path.join(workspaceRoot, 'out', videoId),
+    /** The deliverable. */
+    video: path.join(workspaceRoot, 'out', `${videoId}.mp4`),
   };
 }

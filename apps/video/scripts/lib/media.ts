@@ -5,7 +5,12 @@ import { ALL_FORMATS, FilePathSource, Input } from 'mediabunny';
 
 import { workspaceRoot } from './paths';
 
-const REMOTION_BIN = path.join(workspaceRoot, 'node_modules', '.bin', 'remotion');
+const REMOTION_BIN = path.join(
+  workspaceRoot,
+  'node_modules',
+  '.bin',
+  'remotion',
+);
 
 /**
  * Runs the ffmpeg Remotion ships with (the renderer's own build), so audio
@@ -20,7 +25,8 @@ export function ffmpeg(args: readonly string[]): Promise<string> {
       { maxBuffer: 64 * 1024 * 1024 },
       (error, _stdout, stderr) => {
         if (error === null) resolve(stderr);
-        else reject(new Error(`ffmpeg ${args.join(' ')}\n${stderr.slice(-1200)}`));
+        else
+          reject(new Error(`ffmpeg ${args.join(' ')}\n${stderr.slice(-1200)}`));
       },
     );
   });

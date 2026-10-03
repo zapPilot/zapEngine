@@ -3,8 +3,8 @@
 Background music mixed under narration. The composition ducks it under every
 line (`src/primitives/mix.ts`) and fades it at both ends.
 
-| File         | Source                                                                                                                 | License                               | Added      |
-| ------------ | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------- | ---------- |
+| File         | Source                                                                                                                | License                               | Added      |
+| ------------ | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------- | ---------- |
 | `bgm-03.mp3` | Copy of `apps/podcast-pipeline/assets/video/music/bgm-03.mp3`, synthesized in-repo with ffmpeg `aevalsrc` (low pulse) | Original work — no third-party rights | 2026-10-03 |
 
 The bed is a placeholder with unambiguous licensing. To use production music,

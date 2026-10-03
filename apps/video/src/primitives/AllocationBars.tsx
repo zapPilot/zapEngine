@@ -58,15 +58,32 @@ export const AllocationBars: React.FC<{
   const frame = useCurrentFrame();
   const t = glide(frame, morphAt, 30);
   const current = Object.fromEntries(
-    ASSETS.map((asset) => [asset, before[asset] + (after[asset] - before[asset]) * t]),
+    ASSETS.map((asset) => [
+      asset,
+      before[asset] + (after[asset] - before[asset]) * t,
+    ]),
   ) as Shares;
   const label = (text: string) => (
-    <span style={{ width: 120, fontFamily: font.sans, fontSize: 26, color: color.inkDim }}>
+    <span
+      style={{
+        width: 120,
+        fontFamily: font.sans,
+        fontSize: 26,
+        color: color.inkDim,
+      }}
+    >
       {text}
     </span>
   );
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 26, ...enter(frame, from) }}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 26,
+        ...enter(frame, from),
+      }}
+    >
       <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
         {label('Before')}
         <Bar shares={before} width={width} />
@@ -92,15 +109,38 @@ export const AllocationBars: React.FC<{
           return [
             <span
               key={`${asset}-name`}
-              style={{ display: 'flex', alignItems: 'center', gap: 14, fontFamily: font.sans, color: color.ink }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 14,
+                fontFamily: font.sans,
+                color: color.ink,
+              }}
             >
-              <span style={{ width: 14, height: 14, borderRadius: 4, background: assetColor[asset] }} />
+              <span
+                style={{
+                  width: 14,
+                  height: 14,
+                  borderRadius: 4,
+                  background: assetColor[asset],
+                }}
+              />
               {asset}
             </span>,
-            <span key={`${asset}-before`} style={{ fontFamily: font.mono, color: color.inkDim, textAlign: 'right' }}>
+            <span
+              key={`${asset}-before`}
+              style={{
+                fontFamily: font.mono,
+                color: color.inkDim,
+                textAlign: 'right',
+              }}
+            >
               {percent(before[asset])}
             </span>,
-            <span key={`${asset}-arrow`} style={{ fontFamily: font.mono, color: color.inkMuted }}>
+            <span
+              key={`${asset}-arrow`}
+              style={{ fontFamily: font.mono, color: color.inkMuted }}
+            >
               →
             </span>,
             <span

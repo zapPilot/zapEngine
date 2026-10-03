@@ -7,8 +7,10 @@ import { formatDownloadSize } from '@/components/podcast/episodeFormatters';
 import { Badge } from '@/components/ui/Badge';
 import { Icon } from '@/components/ui/Icon';
 import { Text } from '@/components/ui/Text';
-import { useEpisodeDownload } from '@/hooks/useEpisodeDownload';
-import type { PodcastEpisode } from '@/integration/podcastFeed';
+import {
+  useEpisodeDownload,
+  type EpisodeDownloadControlProps,
+} from '@/hooks/useEpisodeDownload';
 import type { EpisodeDownloadView } from '@/integration/podcastVideoDownloads';
 import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 
@@ -24,18 +26,14 @@ interface StatusLook {
 const ANNOUNCE = { accessibilityLiveRegion: 'polite' } as const;
 
 function statusLook(
-  view: EpisodeDownloadView,
+  view: Omit<EpisodeDownloadView, 'phase'> & {
+    phase: Exclude<EpisodeDownloadView['phase'], 'unsupported'>;
+  },
   t: Translate,
 ): StatusLook | null {
   switch (view.phase) {
     case 'idle':
       return null;
-    case 'unsupported':
-      return {
-        text: t('podcast.downloadUnsupported'),
-        icon: Info,
-        tone: 'neutral',
-      };
     case 'unavailable':
       return {
         text: t('podcast.downloadNoVideo'),
@@ -72,12 +70,11 @@ function statusLook(
  */
 export function EpisodeDownloadStatus({
   episode,
-}: {
-  episode: PodcastEpisode;
-}): ReactElement | null {
+}: EpisodeDownloadControlProps): ReactElement | null {
   const { t } = useContentLanguage();
   const { view } = useEpisodeDownload(episode);
-  const look = statusLook(view, t);
+  if (view.phase === 'unsupported') return null;
+  const look = statusLook({ ...view, phase: view.phase }, t);
   if (look === null) return null;
   const announced = view.phase === 'downloaded' || view.phase === 'failed';
 

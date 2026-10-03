@@ -25,6 +25,7 @@ import { attachDailyAttribution } from '@/integration/portfolioMetrics';
 import { strategyStatusFromSuggestion } from '@/integration/useHomeData';
 import { useAccount as useIosAccount } from '@/integration/useAccount.ios';
 import type { HyperCoreFundingDraft } from '@/integration/useInvest';
+import type { ChainTokenBalanceRow } from '@/integration/walletTokens';
 import {
   InvestExecutionProvider,
   useInvestExecution,
@@ -161,7 +162,10 @@ const ALLOCATIONS = [
   { positionId: 'hlp', weightBps: 2400 },
 ] as const;
 
-function planInput(rows: ReturnType<typeof row>[], totalUsd6: string) {
+function planInput(
+  rows: ReturnType<typeof row>[],
+  totalUsd6: string,
+): Parameters<typeof planFunding>[0] {
   return {
     demand: { totalUsd6, allocations: [...ALLOCATIONS] },
     supply: {
@@ -170,7 +174,7 @@ function planInput(rows: ReturnType<typeof row>[], totalUsd6: string) {
       hyperCoreSpendableUsd6: 0n,
     },
     constraints: { preferences: {}, gasReserveUsd: 5 },
-  } as never;
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -209,7 +213,7 @@ describe('app-100 final: funding planner edges', () => {
       usdValue: 2000,
       usdPrice: Number.NaN,
       token: { symbol: eth.symbol, name: eth.name },
-    } as never;
+    } satisfies ChainTokenBalanceRow;
     const result = planFunding(planInput([unreadablePrice], '10000000'));
     expect(
       result.options['gmx-arbitrum']?.some(

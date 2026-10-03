@@ -77,7 +77,10 @@ export function spokenLength(text: string): number {
   return total;
 }
 
-export type FrameSpan = { readonly from: number; readonly to: number };
+export interface FrameSpan {
+  readonly from: number;
+  readonly to: number;
+}
 
 /**
  * Shares `durationInFrames` between phrases by spoken length. Spans are

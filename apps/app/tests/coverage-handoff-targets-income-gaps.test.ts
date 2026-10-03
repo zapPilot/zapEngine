@@ -1,3 +1,4 @@
+import type { YieldReturnsSummaryResponse } from '@zapengine/app-core/services';
 import { describe, expect, it } from 'vitest';
 import {
   buildHomeIncomeView,
@@ -21,7 +22,9 @@ import {
   targetUsd6Shares,
   weightBpsFor,
   type ChainBatchDraft,
+  type StageDraft,
 } from '../src/integration/investTargetsModel';
+import type { DesktopDepositToken } from '../src/integration/depositTokens';
 
 const allocations = [
   { positionId: 'morpho-base', weightBps: 1000 },
@@ -29,29 +32,40 @@ const allocations = [
   { positionId: 'hlp', weightBps: 6000 },
 ] as const;
 
-const token = (overrides: Record<string, unknown> = {}) =>
-  ({
-    chainId: 42161,
-    chainKey: 'arbitrum',
-    symbol: 'USDC',
-    decimals: 6,
-    depositAddress: '0x0000000000000000000000000000000000000001',
-    ...overrides,
-  }) as never;
+const token = (
+  overrides: Partial<DesktopDepositToken> = {},
+): DesktopDepositToken => ({
+  chainId: 42161,
+  chainKey: 'arbitrum',
+  symbol: 'USDC',
+  name: 'USD Coin',
+  decimals: 6,
+  category: 'stable',
+  depositAddress: '0x0000000000000000000000000000000000000001',
+  balanceAddress: '0x0000000000000000000000000000000000000001',
+  ...overrides,
+});
 
 const draft = (
-  positionId: 'morpho-base' | 'gmx-arbitrum' | 'hlp',
-  overrides: Record<string, unknown> = {},
-) =>
-  ({
-    positionId,
+  positionId: StageDraft['positionId'],
+  overrides: Partial<StageDraft> = {},
+): StageDraft => {
+  const base = {
     weightBps: 1000,
     usd6: '1000000',
     fromAmount: '1000000',
     sourceToken: token(),
-    ...(positionId === 'hlp' ? { ingress: 'bridge2' } : {}),
-    ...overrides,
-  }) as never;
+  };
+  if (positionId === 'hlp') {
+    return {
+      ...base,
+      positionId,
+      ingress: 'bridge2',
+      ...overrides,
+    } as StageDraft;
+  }
+  return { ...base, positionId, ...overrides } as StageDraft;
+};
 
 describe('coverage handoff: target allocation validation', () => {
   it('rejects wrong length, duplicate positions, fractions, and bounds', () => {
@@ -131,10 +145,10 @@ describe('coverage handoff: chain-batch construction', () => {
 
   it('builds reviewed requests and stable cache keys', () => {
     const positions = [draft('gmx-arbitrum'), draft('hlp')];
-    const batch = {
+    const batch: ChainBatchDraft = {
       chainId: 42161,
       positions,
-    } as unknown as ChainBatchDraft;
+    };
     expect(
       chainBatchRequest(batch, '0x0000000000000000000000000000000000000002'),
     ).toMatchObject({
@@ -179,16 +193,34 @@ describe('coverage handoff: chain-batch construction', () => {
 });
 
 describe('coverage handoff: home income sorting and rollup', () => {
-  const summary = (breakdown: unknown[], observedDays = 10) =>
-    ({
-      windows: {
-        '30d': {
-          statistics: { total_days: observedDays },
-          median_daily_yield_usd: 1,
-          protocol_breakdown: breakdown,
+  const summary = (
+    breakdown: YieldReturnsSummaryResponse['windows'][string]['protocol_breakdown'],
+    observedDays = 10,
+  ): YieldReturnsSummaryResponse => ({
+    user_id: 'user',
+    windows: {
+      '30d': {
+        user_id: 'user',
+        period: { start_date: '2026-09-01', end_date: '2026-09-30', days: 30 },
+        average_daily_yield_usd: 0,
+        median_daily_yield_usd: 1,
+        total_yield_usd: 0,
+        statistics: {
+          mean: 0,
+          median: 1,
+          std_dev: 0,
+          min_value: 0,
+          max_value: 0,
+          total_days: observedDays,
+          filtered_days: observedDays,
+          outliers_removed: 0,
         },
+        outlier_strategy: 'iqr',
+        outliers_detected: [],
+        protocol_breakdown: breakdown,
       },
-    }) as never;
+    },
+  });
 
   it('returns an empty result without a usable window', () => {
     expect(buildHomeIncomeView(undefined)).toMatchObject({
@@ -202,10 +234,19 @@ describe('coverage handoff: home income sorting and rollup', () => {
   });
 
   it('sorts gains before costs and defaults optional row arrays', () => {
-    const row = (protocol: string, average: number) => ({
+    const row = (
+      protocol: string,
+      average: number,
+    ): YieldReturnsSummaryResponse['windows'][string]['protocol_breakdown'][number] => ({
       protocol,
       chain: '',
-      window: { average_daily_yield_usd: average },
+      window: {
+        total_yield_usd: average * 10,
+        average_daily_yield_usd: average,
+        data_points: 10,
+        positive_days: average > 0 ? 10 : 0,
+        negative_days: average < 0 ? 10 : 0,
+      },
     });
     const result = buildHomeIncomeView(
       summary([row('Aave', -1), row('Moonwell', 1), row('Morpho', 2)]),

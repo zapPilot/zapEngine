@@ -13,7 +13,9 @@ export const Captions: React.FC<{ readonly cues: readonly CaptionCue[] }> = ({
   cues,
 }) => {
   const frame = useCurrentFrame();
-  const cue = cues.find((candidate) => frame >= candidate.from && frame < candidate.to);
+  const cue = cues.find(
+    (candidate) => frame >= candidate.from && frame < candidate.to,
+  );
   if (cue === undefined) return null;
   return (
     <AbsoluteFill

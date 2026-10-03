@@ -20,7 +20,12 @@ export const Glyph: React.FC<{
   const ring = rise(frame, from, 14);
   const mark = rise(frame, from + 6, 14);
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" style={{ flex: 'none' }}>
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      style={{ flex: 'none' }}
+    >
       <circle
         cx={12}
         cy={12}

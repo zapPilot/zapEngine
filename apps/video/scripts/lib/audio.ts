@@ -1,33 +1,35 @@
 /** EBU R128 targets: −16 LUFS is the usual web/social delivery level. */
 export const LOUDNESS_TARGET = { i: -16, tp: -1.5, lra: 11 } as const;
 
-export type LoudnessReport = {
+export interface LoudnessReport {
   readonly i: number;
   readonly tp: number;
   readonly lra: number;
   readonly thresh: number;
   readonly offset: number;
-};
-
-const FIELDS = {
-  i: 'input_i',
-  tp: 'input_tp',
-  lra: 'input_lra',
-  thresh: 'input_thresh',
-  offset: 'target_offset',
-} as const;
+}
 
 /** Reads the JSON block `loudnorm=print_format=json` writes to stderr. */
 export function parseLoudnorm(stderr: string): LoudnessReport {
   const start = stderr.lastIndexOf('{');
   const end = stderr.lastIndexOf('}');
   if (start < 0 || end < start) throw new Error('No loudnorm report in output');
-  const raw = JSON.parse(stderr.slice(start, end + 1)) as Record<string, string>;
-  const report = Object.fromEntries(
-    Object.entries(FIELDS).map(([key, field]) => [key, Number(raw[field])]),
-  ) as LoudnessReport;
+  const raw = JSON.parse(stderr.slice(start, end + 1)) as Record<
+    string,
+    string
+  >;
+  const field = (name: string) => Number(raw[name]);
+  const report: LoudnessReport = {
+    i: field('input_i'),
+    tp: field('input_tp'),
+    lra: field('input_lra'),
+    thresh: field('input_thresh'),
+    offset: field('target_offset'),
+  };
   if (Object.values(report).some((value) => !Number.isFinite(value))) {
-    throw new Error(`Unmeasurable loudness (silent input?): ${JSON.stringify(raw)}`);
+    throw new Error(
+      `Unmeasurable loudness (silent input?): ${JSON.stringify(raw)}`,
+    );
   }
   return report;
 }
@@ -51,7 +53,10 @@ export function loudnormFilter(measured?: LoudnessReport): string {
   ].join(':');
 }
 
-export type SpeechBounds = { readonly start: number; readonly end: number };
+export interface SpeechBounds {
+  readonly start: number;
+  readonly end: number;
+}
 
 /**
  * Where speech begins and ends, from `silencedetect` output, keeping `keep`
@@ -63,7 +68,7 @@ export function speechBounds(
   durationSeconds: number,
   keep = 0.06,
 ): SpeechBounds {
-  const silences: Array<{ start: number; end: number }> = [];
+  const silences: { start: number; end: number }[] = [];
   for (const [, kind, value] of stderr.matchAll(
     /silence_(start|end): (-?[\d.]+)/g,
   )) {
@@ -75,7 +80,8 @@ export function speechBounds(
   }
   const first = silences[0];
   const last = silences.at(-1);
-  const speechStart = first !== undefined && first.start <= 0.01 ? first.end : 0;
+  const speechStart =
+    first !== undefined && first.start <= 0.01 ? first.end : 0;
   const speechEnd =
     last !== undefined && last.end >= durationSeconds - 0.02
       ? last.start

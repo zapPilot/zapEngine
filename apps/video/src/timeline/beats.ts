@@ -17,7 +17,5 @@ export function cueFrame(
   marker: string,
 ): number {
   const beat = beatOf(scene, lineId);
-  return (
-    beat.from + cueOffset(beat.line.text, marker, beat.durationInFrames)
-  );
+  return beat.from + cueOffset(beat.line.text, marker, beat.durationInFrames);
 }

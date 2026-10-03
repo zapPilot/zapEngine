@@ -1,9 +1,9 @@
-export type Span = {
+export interface Span {
   readonly from: number;
   readonly durationInFrames: number;
-};
+}
 
-export type DuckOptions = {
+export interface DuckOptions {
   /** Music level with nobody speaking (0–1). */
   readonly base: number;
   /** Music level under narration (0–1). */
@@ -13,7 +13,7 @@ export type DuckOptions = {
   readonly fadeIn: number;
   readonly fadeOut: number;
   readonly durationInFrames: number;
-};
+}
 
 /** 0 away from the span, 1 inside it, linear ramps either side. */
 function envelope(frame: number, span: Span, ramp: number): number {

@@ -9,7 +9,7 @@ export type CaptureStep =
   | { readonly waitFor: string };
 
 /** A claim the screenshot must show; a failed check aborts the capture. */
-export type CaptureCheck = {
+export interface CaptureCheck {
   readonly selector: string;
   /** Visible text includes this (whitespace-normalised). */
   readonly contains?: string;
@@ -19,7 +19,7 @@ export type CaptureCheck = {
   readonly pressed?: boolean;
   /** Records the first group of `pattern` (matched against the text) as a value. */
   readonly record?: { readonly name: string; readonly pattern: string };
-};
+}
 
 export type ShotFrame =
   /** Scroll so `scrollTo` sits `offset` CSS px below the top, then shoot the viewport. */
@@ -35,15 +35,15 @@ export type ShotFrame =
       readonly padding: number;
     };
 
-export type ShotSpec = {
+export interface ShotSpec {
   readonly steps?: readonly CaptureStep[];
   readonly frame: ShotFrame;
   /** Named elements whose boxes the scenes focus on. */
   readonly targets: Readonly<Record<string, string>>;
   readonly checks: readonly CaptureCheck[];
-};
+}
 
-export type ShotSet = {
+export interface ShotSet {
   /** Page path appended to the capture base URL. */
   readonly path: string;
   readonly viewport: { readonly width: number; readonly height: number };
@@ -52,4 +52,4 @@ export type ShotSet = {
   /** Ready condition for every shot, before its own steps. */
   readonly ready: string;
   readonly shots: Readonly<Record<string, ShotSpec>>;
-};
+}

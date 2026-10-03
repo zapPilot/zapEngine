@@ -1,17 +1,17 @@
 import type { CaptureCheck } from '../../src/captures/types';
 
 /** What the browser reported for a check's selector. */
-export type Observation = {
+export interface Observation {
   readonly text: string;
   readonly value: string | null;
   readonly pressed: string | null;
-};
+}
 
-export type CheckOutcome = {
+export interface CheckOutcome {
   readonly passed: readonly string[];
   readonly failures: readonly string[];
   readonly values: Readonly<Record<string, string>>;
-};
+}
 
 const normalise = (text: string) => text.replace(/\s+/g, ' ').trim();
 

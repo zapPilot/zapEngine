@@ -1,13 +1,13 @@
 /** One narrated sentence. Its id keys the voiceover manifest. */
-export type VoLine = {
+export interface VoLine {
   readonly id: string;
   /** What the viewer reads in the captions. */
   readonly text: string;
   /** What the TTS engine is asked to say, when it differs from `text`. */
   readonly say?: string;
-};
+}
 
-export type SceneSpec<Id extends string = string, Props = unknown> = {
+export interface SceneSpec<Id extends string = string, Props = unknown> {
   readonly id: Id;
   readonly vo: readonly VoLine[];
   readonly props: Props;
@@ -17,14 +17,14 @@ export type SceneSpec<Id extends string = string, Props = unknown> = {
   readonly tail?: number;
   /** Lower bound for scenes that need time beyond their narration. */
   readonly minFrames?: number;
-};
+}
 
-export type VoiceSettings = {
+export interface VoiceSettings {
   /** Fish Audio prosody speed; part of every line's cache fingerprint. */
   readonly speed: number;
-};
+}
 
-export type Storyboard<Scene extends SceneSpec = SceneSpec> = {
+export interface Storyboard<Scene extends SceneSpec = SceneSpec> {
   /** Composition id, output file stem and voiceover folder name. */
   readonly id: string;
   readonly fps: number;
@@ -39,4 +39,4 @@ export type Storyboard<Scene extends SceneSpec = SceneSpec> = {
   readonly gap: number;
   readonly voice: VoiceSettings;
   readonly scenes: readonly Scene[];
-};
+}

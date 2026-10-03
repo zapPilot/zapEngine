@@ -6,10 +6,7 @@ export function parseCubicBezier(
     .exec(value.trim())?.[1]
     ?.split(',')
     .map((part) => (part.trim() === '' ? Number.NaN : Number(part)));
-  if (
-    points?.length !== 4 ||
-    points.some((point) => !Number.isFinite(point))
-  ) {
+  if (points?.length !== 4 || points.some((point) => !Number.isFinite(point))) {
     throw new Error(`Not a cubic-bezier() token: "${value}"`);
   }
   return points as [number, number, number, number];

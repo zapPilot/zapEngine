@@ -13,7 +13,11 @@ export const Arrow: React.FC<{
   const frame = useCurrentFrame();
   const t = rise(frame, from, 16);
   return (
-    <svg width={width} height={24} style={{ flex: 'none', overflow: 'visible' }}>
+    <svg
+      width={width}
+      height={24}
+      style={{ flex: 'none', overflow: 'visible' }}
+    >
       <line
         x1={0}
         y1={12}

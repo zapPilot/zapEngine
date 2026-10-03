@@ -3,10 +3,10 @@ import type { Storyboard } from '../timeline/types';
 import { shots as calculatorShots } from './calculator-pitch/shots';
 import { storyboard as calculatorStoryboard } from './calculator-pitch/storyboard';
 
-type VideoEntry = {
+interface VideoEntry {
   readonly storyboard: Storyboard;
   readonly shots: ShotSet;
-};
+}
 
 /**
  * Data-only registry the scripts use (no React here, so Node can import it).

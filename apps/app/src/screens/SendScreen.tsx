@@ -62,7 +62,7 @@ export function SendScreen() {
   return (
     <ScreenScrollView width="narrow">
       <PageHeader title="Send" />
-      <View className="px-5 pt-5">
+      <View className="pt-5">
         <Card className="p-4">
           {selectedAsset ? (
             <View className="flex-row items-center gap-3">

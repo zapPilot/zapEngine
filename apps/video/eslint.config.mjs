@@ -9,12 +9,5 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 export default createReactViteConfig({
   tsconfigPath: join(__dirname, 'tsconfig.json'),
   tsconfigRootDir: __dirname,
-  ignores: [
-    '.jscpd/**/*',
-    '**/*.md',
-    'build',
-    'coverage',
-    'out',
-    'public',
-  ],
+  ignores: ['.jscpd/**/*', '**/*.md', 'build', 'coverage', 'out', 'public'],
 });

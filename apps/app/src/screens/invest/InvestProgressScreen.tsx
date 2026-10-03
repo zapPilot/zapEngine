@@ -443,7 +443,7 @@ export function InvestProgressScreen() {
     return (
       <ScreenScrollView width="narrow">
         <InvestStepHeader title="Invest" step="Done" />
-        <View className="px-5 pt-6">
+        <View className="pt-6">
           <Text className="font-serif text-[28px] leading-[32px] text-ink">
             Investment complete
           </Text>
@@ -489,7 +489,7 @@ export function InvestProgressScreen() {
               : 'In progress'
         }
       />
-      <View className="px-5 pt-6">
+      <View className="pt-6">
         <Text className="font-serif text-[28px] leading-[32px] text-ink">
           One checkpoint at a time
         </Text>
