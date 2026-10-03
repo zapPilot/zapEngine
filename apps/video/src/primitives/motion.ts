@@ -21,13 +21,13 @@ export function glide(frame: number, from: number, duration: number): number {
   });
 }
 
-export type EnterOptions = {
+export interface EnterOptions {
   readonly duration?: number;
   /** Lift in px; negative drops in from above. */
   readonly distance?: number;
   /** Starting blur in px. */
   readonly blur?: number;
-};
+}
 
 /** Fade, lift and de-blur into place: every entrance in the video. */
 export function enter(

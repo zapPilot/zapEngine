@@ -52,6 +52,7 @@
     "sharp": "^0.35.3",
     "tsx": "catalog:",
     "typescript": "catalog:",
+    "viem": "catalog:",
     "vitest": "catalog:"
   },
   "engines": {

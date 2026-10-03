@@ -27,12 +27,21 @@ export const EndCard: React.FC<{
     >
       <Img
         src={staticFile('brand/zap-pilot-logo.svg')}
-        style={{ height: 84, marginBottom: 56, ...enter(frame, from, { distance: 12 }) }}
+        style={{
+          height: 84,
+          marginBottom: 56,
+          ...enter(frame, from, { distance: 12 }),
+        }}
       />
       <RevealText
         text={claim}
         from={from + 6}
-        style={{ fontFamily: font.serif, fontSize: 112, lineHeight: 1.04, color: color.ink }}
+        style={{
+          fontFamily: font.serif,
+          fontSize: 112,
+          lineHeight: 1.04,
+          color: color.ink,
+        }}
       />
       <RevealText
         text={punch}
@@ -56,7 +65,9 @@ export const EndCard: React.FC<{
           ...enter(frame, punchFrom + 14, { distance: 14 }),
         }}
       >
-        <span style={{ fontFamily: font.mono, fontSize: 42, color: color.ink }}>{url}</span>
+        <span style={{ fontFamily: font.mono, fontSize: 42, color: color.ink }}>
+          {url}
+        </span>
         <span
           style={{
             height: 2,
@@ -64,7 +75,11 @@ export const EndCard: React.FC<{
             background: color.accent,
           }}
         />
-        <span style={{ fontFamily: font.mono, fontSize: 24, color: color.inkDim }}>{meta}</span>
+        <span
+          style={{ fontFamily: font.mono, fontSize: 24, color: color.inkDim }}
+        >
+          {meta}
+        </span>
       </div>
     </AbsoluteFill>
   );

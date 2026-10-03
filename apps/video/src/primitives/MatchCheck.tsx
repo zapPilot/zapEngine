@@ -39,7 +39,9 @@ export const MatchBanner: React.FC<{
           {text}
         </span>
         {detail === undefined ? null : (
-          <span style={{ fontFamily: font.mono, fontSize: 24, color: color.inkDim }}>
+          <span
+            style={{ fontFamily: font.mono, fontSize: 24, color: color.inkDim }}
+          >
             {detail}
           </span>
         )}
@@ -48,7 +50,10 @@ export const MatchBanner: React.FC<{
   );
 };
 
-type Row = { readonly label: string; readonly value: string };
+interface Row {
+  readonly label: string;
+  readonly value: string;
+}
 
 /**
  * Two values from independent sources, the second resolving onto the first,
@@ -70,7 +75,14 @@ export const MatchCheck: React.FC<{
     color: matched > 0 ? color.accent : color.ink,
   };
   const row = (label: string, start: number, value: React.ReactNode) => (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, ...enter(frame, start) }}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+        ...enter(frame, start),
+      }}
+    >
       <span
         style={{
           fontFamily: font.sans,
@@ -111,7 +123,9 @@ export const MatchCheck: React.FC<{
       {row(
         expected.label,
         from + 4,
-        <span style={{ fontFamily: font.mono, ...valueStyle }}>{expected.value}</span>,
+        <span style={{ fontFamily: font.mono, ...valueStyle }}>
+          {expected.value}
+        </span>,
       )}
       {row(
         observed.label,

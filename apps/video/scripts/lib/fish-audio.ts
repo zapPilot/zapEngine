@@ -6,20 +6,20 @@ const FISH_AUDIO_TTS_URL = 'https://api.fish.audio/v1/tts';
 const RETRYABLE = new Set([408, 409, 425, 429, 500, 502, 503, 504]);
 const REQUEST_TIMEOUT_MS = 120_000;
 
-export type FishRequest = {
+export interface FishRequest {
   readonly apiKey: string;
   readonly referenceId: string;
   readonly engine: string;
   readonly text: string;
   readonly speed: number;
-};
+}
 
-export type FishOptions = {
+export interface FishOptions {
   readonly attempts?: number;
   readonly retryDelayMs?: number;
   readonly fetchImpl?: typeof fetch;
   readonly sleep?: (ms: number) => Promise<void>;
-};
+}
 
 /** Same voice parameters as the podcast narration, so the two sound alike. */
 export function fishRequestInit(request: FishRequest): RequestInit {

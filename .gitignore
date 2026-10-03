@@ -11,6 +11,8 @@ build/
 # the packaging gate reads icon.icns from it, so it must survive a clean clone.
 !apps/desktop/build/
 apps/desktop/release/
+# Remotion renders, stills and contact sheets (apps/video)
+apps/video/out/
 *.tsbuildinfo
 !packages/design-tokens/dist/
 !packages/design-tokens/dist/**

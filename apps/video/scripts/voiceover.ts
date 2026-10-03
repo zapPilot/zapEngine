@@ -15,7 +15,11 @@ import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { parseVoManifest, type VoClip, type VoManifest } from '../src/timeline/manifest';
+import {
+  parseVoManifest,
+  type VoClip,
+  type VoManifest,
+} from '../src/timeline/manifest';
 import { buildTimeline } from '../src/timeline/timeline';
 import type { VoLine } from '../src/timeline/types';
 import { getVideo, videoIds } from '../src/videos/catalog';
@@ -54,17 +58,41 @@ async function readManifest(): Promise<VoManifest> {
 async function master(raw: string, target: string): Promise<void> {
   const seconds = await mediaDuration(raw);
   const silence = await ffmpeg([
-    '-i', raw, '-af', 'silencedetect=noise=-45dB:d=0.08', '-f', 'null', '-',
+    '-i',
+    raw,
+    '-af',
+    'silencedetect=noise=-45dB:d=0.08',
+    '-f',
+    'null',
+    '-',
   ]);
   const { start, end } = speechBounds(silence, seconds);
   const trim = `atrim=start=${start.toFixed(3)}:end=${end.toFixed(3)},asetpts=PTS-STARTPTS`;
   const measured = parseLoudnorm(
-    await ffmpeg(['-i', raw, '-af', `${trim},${loudnormFilter()}`, '-f', 'null', '-']),
+    await ffmpeg([
+      '-i',
+      raw,
+      '-af',
+      `${trim},${loudnormFilter()}`,
+      '-f',
+      'null',
+      '-',
+    ]),
   );
   await ffmpeg([
-    '-y', '-i', raw,
-    '-af', `${trim},${loudnormFilter(measured)}`,
-    '-ar', '48000', '-ac', '1', '-c:a', 'libmp3lame', '-b:a', '192k',
+    '-y',
+    '-i',
+    raw,
+    '-af',
+    `${trim},${loudnormFilter(measured)}`,
+    '-ar',
+    '48000',
+    '-ac',
+    '1',
+    '-c:a',
+    'libmp3lame',
+    '-b:a',
+    '192k',
     target,
   ]);
 }
@@ -92,7 +120,9 @@ async function main() {
   const lines: Record<string, VoClip> = {};
   const scratch = await mkdtemp(path.join(tmpdir(), 'zap-vo-'));
   try {
-    for (const line of storyboard.scenes.flatMap((scene) => scene.vo) as VoLine[]) {
+    for (const line of storyboard.scenes.flatMap(
+      (scene) => scene.vo,
+    ) as VoLine[]) {
       const fingerprint = lineFingerprint(line, storyboard.voice);
       const file = `${paths.voPublic}/${clipFileName(fingerprint, key)}`;
       const target = path.join(publicDir, file);
@@ -123,7 +153,11 @@ async function main() {
 
   if (values.prune) {
     const folder = path.join(publicDir, paths.voPublic);
-    for (const orphan of orphanFiles(await readdir(folder), manifest, paths.voPublic)) {
+    for (const orphan of orphanFiles(
+      await readdir(folder),
+      manifest,
+      paths.voPublic,
+    )) {
       await rm(path.join(folder, orphan));
       console.log(`  pruned ${orphan}`);
     }
@@ -140,7 +174,9 @@ async function main() {
     );
   }
   if (seconds > storyboard.maxSeconds) {
-    throw new Error(`Over the ${storyboard.maxSeconds}s limit; shorten the script.`);
+    throw new Error(
+      `Over the ${storyboard.maxSeconds}s limit; shorten the script.`,
+    );
   }
 }
 

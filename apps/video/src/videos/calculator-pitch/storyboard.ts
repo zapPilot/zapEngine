@@ -3,54 +3,85 @@ import type { SceneSpec, Storyboard } from '../../timeline/types';
 // Cue fields name a phrase from the scene's narration; the visual keyed to it
 // starts when that phrase is spoken (see timeline/captions.ts `cueOffset`).
 
-type HookProps = {
+interface HookProps {
   readonly kicker: string;
   readonly claim: string;
   readonly punch: string;
   readonly punchCue: string;
-};
+}
 
-type RuleProps = {
+/** Serif headline; `accent` closes it in gold italic. */
+interface Title {
+  readonly lead: string;
+  readonly accent: string;
+}
+
+interface RuleProps {
   readonly kicker: string;
+  readonly title: Title;
   readonly inputs: readonly string[];
   readonly output: string;
   readonly contractCue: string;
-};
+}
 
-type InputsProps = {
+interface InputsProps {
   readonly kicker: string;
   readonly encodeCue: string;
-};
+  /** Labels for the three encoding steps of the BTC price. */
+  readonly encoding: {
+    readonly heading: string;
+    readonly cell: string;
+    readonly digits: string;
+    readonly wad: string;
+  };
+}
 
-type ProofProps = {
+interface ProofProps {
   readonly kicker: string;
+  /** The bytecode check: pinned artifact vs what the chain serves. */
+  readonly codehash: {
+    readonly cue: string;
+    readonly expected: string;
+    readonly observed: string;
+    readonly verdict: string;
+  };
+  /** What "Call contract" runs, shown while it runs. */
+  readonly calls: { readonly label: string; readonly path: string };
   readonly callCue: string;
   readonly barsCue: string;
   readonly matchCue: string;
-};
+}
 
-type ScenarioProps = {
+interface ScenarioProps {
   readonly kicker: string;
+  /** The edited input, as the calculator describes the scenario. */
+  readonly change: string;
   readonly holdCue: string;
-};
+}
 
-type DeployProps = {
+interface DeployProps {
   readonly kicker: string;
+  readonly title: Title;
   readonly wallet: string;
   readonly note: string;
-};
+  readonly create2Cue: string;
+  readonly noteCue: string;
+}
 
-type ScopeProps = {
+interface ScopeProps {
   readonly kicker: string;
+  /** Caption under the "1 of 6" count. */
+  readonly countLabel: string;
   readonly proves: string;
   readonly doesNotProve: string;
   readonly limitCue: string;
-};
+}
 
-type CtaProps = {
+interface CtaProps {
   readonly claim: string;
   readonly punch: string;
-};
+  readonly punchCue: string;
+}
 
 export type CalculatorScene =
   | SceneSpec<'hook', HookProps>
@@ -100,6 +131,7 @@ export const storyboard = {
       id: 'rule',
       props: {
         kicker: 'One production rule, on-chain',
+        title: { lead: 'The 200-day exit,', accent: 'as public bytecode.' },
         inputs: ['Prices', '200-day averages', 'Allocation', 'Rule state'],
         output: 'Decision',
         contractCue: 'in a public Vyper contract',
@@ -116,6 +148,12 @@ export const storyboard = {
       props: {
         kicker: 'Real inputs · 2025-10-18',
         encodeCue: 'Every value',
+        encoding: {
+          heading: 'BTC close · Oct 18 · decision day',
+          cell: 'The cell shows',
+          digits: 'Selected, every digit',
+          wad: 'The contract receives × 10¹⁸ as uint256',
+        },
       },
       vo: [
         {
@@ -128,6 +166,16 @@ export const storyboard = {
       id: 'proof',
       props: {
         kicker: 'Read-only proof',
+        codehash: {
+          cue: 'against a pinned codehash',
+          expected: 'Pinned artifact · runtime codehash',
+          observed: 'Deployed bytecode · keccak256(eth_getCode)',
+          verdict: 'Codehash matches',
+        },
+        calls: {
+          label: 'Three calls · one block',
+          path: 'warmup → observe → cross_down_exit',
+        },
         callCue: 'Then',
         barsCue: 'move BTC',
         matchCue: 'the same result',
@@ -149,6 +197,7 @@ export const storyboard = {
       id: 'scenario',
       props: {
         kicker: 'Change one input',
+        change: 'BTC closes 1% above its 200-day average',
         holdCue: 'holds',
       },
       vo: [
@@ -162,8 +211,11 @@ export const storyboard = {
       id: 'deploy',
       props: {
         kicker: 'Deterministic deployment',
-        wallet: 'Rabby wallet · EIP-6963',
+        title: { lead: 'Same bytecode, same salt,', accent: 'same address.' },
+        wallet: 'Signed in Rabby · EIP-6963',
         note: 'Test ETH only · no keys in the app',
+        create2Cue: 'CREATE2',
+        noteCue: 'test ETH only',
       },
       vo: [
         {
@@ -177,6 +229,7 @@ export const storyboard = {
       id: 'scope',
       props: {
         kicker: 'Scope',
+        countLabel: 'production rules on-chain',
         proves: 'What this bytecode returns for these inputs',
         doesNotProve: 'Market data, prior state or production execution',
         limitCue: 'not the market data',
@@ -194,6 +247,7 @@ export const storyboard = {
       props: {
         claim: 'Don’t trust the backtest.',
         punch: 'Recompute it.',
+        punchCue: 'Recompute',
       },
       vo: [{ id: 'cta', text: 'Don’t trust the backtest. Recompute it.' }],
     },

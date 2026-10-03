@@ -1,4 +1,7 @@
-import { type CapturedShot, parseCaptureManifest } from '../../captures/manifest';
+import {
+  type CapturedShot,
+  parseCaptureManifest,
+} from '../../captures/manifest';
 import { parseVoManifest } from '../../timeline/manifest';
 import { buildTimeline, type TimedScene } from '../../timeline/timeline';
 import capturesJson from './captures.json';
@@ -17,7 +20,9 @@ export const timeline = buildTimeline<CalculatorScene>(
 export function shot(id: ShotId): CapturedShot {
   const captured = captures.shots[id];
   if (captured === undefined) {
-    throw new Error(`Missing capture "${id}"; run pnpm capture calculator-pitch.`);
+    throw new Error(
+      `Missing capture "${id}"; run pnpm capture calculator-pitch.`,
+    );
   }
   return captured;
 }

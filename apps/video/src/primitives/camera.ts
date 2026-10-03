@@ -1,22 +1,25 @@
-export type Size = { readonly width: number; readonly height: number };
-export type Box = {
+export interface Size {
+  readonly width: number;
+  readonly height: number;
+}
+export interface Box {
   readonly x: number;
   readonly y: number;
   readonly width: number;
   readonly height: number;
-};
+}
 
 /**
  * Maps image CSS pixels to frame pixels: a point (px, py) on the capture
  * lands at (x + px * scale, y + py * scale).
  */
-export type Camera = {
+export interface Camera {
   readonly scale: number;
   readonly x: number;
   readonly y: number;
-};
+}
 
-export type FocusOptions = {
+export interface FocusOptions {
   /** Share of the frame the box should fill along its tighter axis. */
   readonly fill?: number;
   /** Where the box centre lands, as fractions of the frame. */
@@ -28,7 +31,7 @@ export type FocusOptions = {
    * captures float as cards, so their edges may show.
    */
   readonly cover?: boolean;
-};
+}
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
@@ -77,7 +80,10 @@ export function fullCamera(image: Size, frame: Size): Camera {
 
 /** The whole capture fitted inside `region`, centred: a floating card. */
 export function containCamera(image: Size, region: Box): Camera {
-  const scale = Math.min(region.width / image.width, region.height / image.height);
+  const scale = Math.min(
+    region.width / image.width,
+    region.height / image.height,
+  );
   return {
     scale,
     x: region.x + (region.width - image.width * scale) / 2,
@@ -109,7 +115,10 @@ export function mixCamera(
   };
 }
 
-export type CameraStop = { readonly at: number; readonly camera: Camera };
+export interface CameraStop {
+  readonly at: number;
+  readonly camera: Camera;
+}
 
 /**
  * The camera at `time` for a list of stops: it holds each framing and spends

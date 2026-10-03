@@ -1,6 +1,12 @@
 import type React from 'react';
 import type { CSSProperties } from 'react';
-import { AbsoluteFill, Easing, Img, staticFile, useCurrentFrame } from 'remotion';
+import {
+  AbsoluteFill,
+  Easing,
+  Img,
+  staticFile,
+  useCurrentFrame,
+} from 'remotion';
 
 import { color, hairline } from '../brand/tokens';
 import type { CapturedShot } from '../captures/manifest';
@@ -17,7 +23,7 @@ import {
 import { frame as FRAME } from './layout';
 import { glide, rise } from './motion';
 
-export type CameraKey = {
+export interface CameraKey {
   /** Scene frame at which the camera has arrived at this framing. */
   readonly at: number;
   /** A target named in the shot list; omit to frame the whole capture. */
@@ -26,20 +32,20 @@ export type CameraKey = {
   readonly fill?: number;
   /** Where the target centre sits, as fractions of the view. */
   readonly anchor?: { readonly x: number; readonly y: number };
-};
+}
 
-export type ShotHighlight = {
+export interface ShotHighlight {
   readonly target: string;
   readonly from: number;
   readonly to?: number;
-};
+}
 
 /** A synthetic pointer gliding to `target` and clicking at `at`. */
-export type ShotClick = {
+export interface ShotClick {
   readonly target: string;
   readonly from: number;
   readonly at: number;
-};
+}
 
 const easeInOut = Easing.inOut(Easing.cubic);
 
@@ -51,20 +57,33 @@ function targetBox(shot: CapturedShot, name: string): Box {
   return box;
 }
 
-function keyCamera(shot: CapturedShot, key: CameraKey, view: Size, page: boolean): Camera {
+function keyCamera(
+  shot: CapturedShot,
+  key: CameraKey,
+  view: Size,
+  page: boolean,
+): Camera {
   const image = { width: shot.width, height: shot.height };
   if (key.target === undefined) {
     return page
       ? fullCamera(image, view)
       : containCamera(image, { x: 0, y: 0, ...view });
   }
+  // Focused framings may leave the capture's edge inside the frame; the
+  // feathered edge dissolves it into the backdrop (the page background is the
+  // same near-black), so a target can sit wherever the layout needs it.
   return focusCamera(targetBox(shot, key.target), image, view, {
     fill: key.fill,
     anchor: key.anchor,
     maxScale: shot.deviceScaleFactor,
-    cover: page,
+    cover: false,
   });
 }
+
+const FEATHER = [
+  'linear-gradient(to right, transparent, #000 4%, #000 96%, transparent)',
+  'linear-gradient(to bottom, transparent, #000 5%, #000 95%, transparent)',
+].join(', ');
 
 const HighlightBox: React.FC<{
   readonly box: Box;
@@ -178,12 +197,25 @@ export const UiShot: React.FC<{
   readonly highlights?: readonly ShotHighlight[];
   readonly click?: ShotClick;
   readonly style?: CSSProperties;
-}> = ({ shot, mode = 'page', region, keys, move = 26, highlights = [], click, style }) => {
+}> = ({
+  shot,
+  mode = 'page',
+  region,
+  keys,
+  move = 26,
+  highlights = [],
+  click,
+  style,
+}) => {
   const frame = useCurrentFrame();
   const page = mode === 'page';
-  const view: Box = page || region === undefined ? { x: 0, y: 0, ...FRAME } : region;
+  const view: Box =
+    page || region === undefined ? { x: 0, y: 0, ...FRAME } : region;
   const size = { width: view.width, height: view.height };
-  const stops = keys.map((key) => ({ at: key.at, camera: keyCamera(shot, key, size, page) }));
+  const stops = keys.map((key) => ({
+    at: key.at,
+    camera: keyCamera(shot, key, size, page),
+  }));
   const camera = cameraAt(stops, frame, move, size, easeInOut);
   const boxOf = (name: string) => projectBox(targetBox(shot, name), camera);
   const clickBox = click === undefined ? null : boxOf(click.target);
@@ -216,20 +248,34 @@ export const UiShot: React.FC<{
             height: shot.height,
             transformOrigin: '0 0',
             transform: `translate(${camera.x}px, ${camera.y}px) scale(${camera.scale})`,
+            ...(page ? { maskImage: FEATHER, maskComposite: 'intersect' } : {}),
           }}
         >
-          <Img src={staticFile(shot.file)} style={{ width: '100%', height: '100%', display: 'block' }} />
+          <Img
+            src={staticFile(shot.file)}
+            style={{ width: '100%', height: '100%', display: 'block' }}
+          />
         </div>
         {page ? (
           <AbsoluteFill
             style={{
               background: [
-                'linear-gradient(to bottom, rgba(10, 10, 10, 0.85), transparent 12%, transparent 74%, rgba(10, 10, 10, 0.92))',
+                // Solid under the kicker, so page content scrolled above the
+                // framing never collides with the scene label.
+                'linear-gradient(to bottom, #0a0a0a, #0a0a0a 14%, transparent 24%, transparent 74%, rgba(10, 10, 10, 0.92))',
                 'radial-gradient(ellipse 85% 75% at 50% 45%, transparent 60%, rgba(10, 10, 10, 0.55))',
               ].join(', '),
             }}
           />
-        ) : null}
+        ) : (
+          <AbsoluteFill
+            style={{
+              // Text the window cuts through dissolves instead of slicing.
+              background:
+                'linear-gradient(to bottom, #0a0a0a, transparent 9%, transparent 91%, #0a0a0a)',
+            }}
+          />
+        )}
         {highlights.map((highlight) => (
           <HighlightBox
             key={`${highlight.target}-${highlight.from}`}
@@ -240,7 +286,10 @@ export const UiShot: React.FC<{
         ))}
         {click !== undefined && clickBox !== null ? (
           <Pointer
-            point={{ x: clickBox.x + clickBox.width / 2, y: clickBox.y + clickBox.height / 2 }}
+            point={{
+              x: clickBox.x + clickBox.width / 2,
+              y: clickBox.y + clickBox.height / 2,
+            }}
             from={click.from}
             at={click.at}
           />

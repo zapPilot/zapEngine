@@ -23,7 +23,12 @@ import { cliArgs, requireVideoId } from './lib/args';
 import { evaluateCheck } from './lib/capture-checks';
 import { publicDir, videoPaths } from './lib/paths';
 
-type Box = { x: number; y: number; width: number; height: number };
+interface Box {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
 
 const TIMEOUT_MS = 60_000;
 
@@ -51,8 +56,7 @@ async function runChecks(page: Page, spec: ShotSpec) {
     const locator = page.locator(check.selector).first();
     const outcome = evaluateCheck(check, {
       text: await locator.innerText(),
-      value:
-        check.value === undefined ? null : await locator.inputValue(),
+      value: check.value === undefined ? null : await locator.inputValue(),
       pressed: await locator.getAttribute('aria-pressed'),
     });
     passed.push(...outcome.passed);
@@ -91,7 +95,9 @@ async function shoot(
 
     // Scroll first so every box below is measured in the final layout.
     const anchor =
-      spec.frame.kind === 'viewport' ? spec.frame.scrollTo : spec.frame.selector;
+      spec.frame.kind === 'viewport'
+        ? spec.frame.scrollTo
+        : spec.frame.selector;
     const anchorBox = await measure(page, anchor);
     const scrollY = Number(await page.evaluate('window.scrollY'));
     const offset = spec.frame.kind === 'viewport' ? spec.frame.offset : 0;
@@ -161,10 +167,11 @@ async function main() {
   const wanted = Object.entries(set.shots).filter(
     ([id]) => only === undefined || only.includes(id),
   );
-  if (wanted.length === 0) throw new Error(`No shots match --only ${values.only}`);
+  if (wanted.length === 0)
+    throw new Error(`No shots match --only ${values.only}`);
 
   const browser = await chromium.launch();
-  const results: Array<[string, { shot: CapturedShot; image: Buffer }]> = [];
+  const results: [string, { shot: CapturedShot; image: Buffer }][] = [];
   try {
     for (const [id, spec] of wanted) {
       console.log(`capture ${videoId}/${id} …`);
@@ -195,7 +202,9 @@ async function main() {
     `${JSON.stringify(manifest, null, 2)}\n`,
   );
   for (const [id, { shot }] of results) {
-    console.log(`✓ ${id}: ${shot.checks.length} checks, ${JSON.stringify(shot.values)}`);
+    console.log(
+      `✓ ${id}: ${shot.checks.length} checks, ${JSON.stringify(shot.values)}`,
+    );
   }
 }
 

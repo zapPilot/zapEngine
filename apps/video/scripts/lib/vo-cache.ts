@@ -1,7 +1,11 @@
 import { createHash } from 'node:crypto';
 
 import type { VoManifest } from '../../src/timeline/manifest';
-import type { Storyboard, VoiceSettings, VoLine } from '../../src/timeline/types';
+import type {
+  Storyboard,
+  VoiceSettings,
+  VoLine,
+} from '../../src/timeline/types';
 
 const sha256 = (value: string) =>
   createHash('sha256').update(value).digest('hex');
