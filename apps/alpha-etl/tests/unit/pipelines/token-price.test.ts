@@ -194,6 +194,8 @@ describe('BTC Price Pipeline', () => {
 
       const result = await fetcher.fetchHistoricalPrice('05-03-2023');
       expect(result.priceUsd).toBe(45000);
+      // dd-mm-yyyy is parsed as UTC midnight; assert the full date so the
+      // day/month order is pinned and no local timezone can shift it.
       expect(result.timestamp.toISOString()).toBe('2023-03-05T00:00:00.000Z');
     });
 

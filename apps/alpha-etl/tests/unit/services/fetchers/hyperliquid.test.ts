@@ -669,7 +669,7 @@ describe('HyperliquidFetcher', () => {
       const res2 = fetcher.extractPositionData(detailsNull, '0xuser');
       expect(res2?.maxWithdrawable).toBeNull();
     });
-    it('should use default values when config is missing (lines 166, 177)', async () => {
+    it('should use default values when config is missing', async () => {
       const defaultFetcher = new HyperliquidFetcher();
       // We can't easily check private config, but we can check behavior or use any cast
       expect((defaultFetcher as unknown).config.maxRetries).toBe(3);

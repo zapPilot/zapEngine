@@ -48,6 +48,9 @@ describe('Retry Utilities', () => {
     });
 
     it('applies exponential backoff', async () => {
+      // withRetry skips the delay in NODE_ENV=test, so opt back into the real
+      // backoff path and drive it step by step to pin the 100ms/200ms growth.
+      vi.stubEnv('NODE_ENV', 'development');
       const fn = vi
         .fn()
         .mockRejectedValueOnce(new Error('fail 1'))
@@ -55,6 +58,10 @@ describe('Retry Utilities', () => {
         .mockResolvedValueOnce('success');
 
       const promise = withRetry(fn, { maxAttempts: 3, baseDelayMs: 100 });
+      const settled = promise.then(
+        () => 'resolved',
+        () => 'rejected',
+      );
 
       await vi.advanceTimersByTimeAsync(0);
       expect(fn).toHaveBeenCalledTimes(1);
@@ -62,35 +69,49 @@ describe('Retry Utilities', () => {
       expect(fn).toHaveBeenCalledTimes(1);
       await vi.advanceTimersByTimeAsync(1);
       expect(fn).toHaveBeenCalledTimes(2);
+
       await vi.advanceTimersByTimeAsync(199);
       expect(fn).toHaveBeenCalledTimes(2);
       await vi.advanceTimersByTimeAsync(1);
       expect(fn).toHaveBeenCalledTimes(3);
 
-      const result = await promise;
-      expect(result).toBe('success');
-      expect(fn).toHaveBeenCalledTimes(3);
+      await expect(settled).resolves.toBe('resolved');
     });
 
     it('respects maxDelayMs cap', async () => {
+      vi.stubEnv('NODE_ENV', 'development');
       const fn = vi
         .fn()
-        .mockRejectedValueOnce(new Error('fail'))
+        .mockRejectedValueOnce(new Error('fail 1'))
+        .mockRejectedValueOnce(new Error('fail 2'))
         .mockResolvedValueOnce('success');
 
       const promise = withRetry(fn, {
-        maxAttempts: 2,
+        maxAttempts: 3,
         baseDelayMs: 1000,
         maxDelayMs: 500,
       });
+      const settled = promise.then(
+        () => 'resolved',
+        () => 'rejected',
+      );
 
+      await vi.advanceTimersByTimeAsync(0);
+      expect(fn).toHaveBeenCalledTimes(1);
+
+      // Capped at 500ms instead of the 1000ms the raw exponential would give.
       await vi.advanceTimersByTimeAsync(499);
       expect(fn).toHaveBeenCalledTimes(1);
       await vi.advanceTimersByTimeAsync(1);
       expect(fn).toHaveBeenCalledTimes(2);
-      const result = await promise;
 
-      expect(result).toBe('success');
+      // Second delay would be 2000ms uncapped; the cap keeps it at 500ms.
+      await vi.advanceTimersByTimeAsync(499);
+      expect(fn).toHaveBeenCalledTimes(2);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(fn).toHaveBeenCalledTimes(3);
+
+      await expect(settled).resolves.toBe('resolved');
     });
 
     it('handles non-Error failures', async () => {
