@@ -66,11 +66,13 @@ export function DeployStrategy({
     }
   }
   async function deploy() {
-    if (!provider) return;
+    // The deploy button only renders once an account connects, which implies
+    // a Rabby provider was announced and never clears.
+    const activeProvider = provider!;
     setBusy(true);
     setStatus('Confirm the Arbitrum Sepolia network and deployment in Rabby.');
     try {
-      const deployment = await deployStrategy(provider, (hash) => {
+      const deployment = await deployStrategy(activeProvider, (hash) => {
         setTransaction(hash);
         setStatus('Transaction sent. Waiting for confirmation…');
       });

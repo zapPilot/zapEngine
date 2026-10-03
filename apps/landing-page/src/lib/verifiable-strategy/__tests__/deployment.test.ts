@@ -46,6 +46,56 @@ beforeEach(() => {
   });
 });
 describe('Rabby deterministic deployment', () => {
+  it('requires a selected Rabby account', async () => {
+    mocks.wallet.requestAddresses.mockResolvedValueOnce([]);
+    await expect(deployStrategy(provider, vi.fn())).rejects.toThrow(
+      'Select an account in Rabby',
+    );
+    expect(mocks.wallet.sendTransaction).not.toHaveBeenCalled();
+  });
+  it('adds an unknown Arbitrum Sepolia chain when the wallet reports 4902', async () => {
+    mocks.wallet.switchChain
+      .mockRejectedValueOnce({ code: 4902 })
+      .mockResolvedValueOnce(undefined);
+    mocks.client.getBytecode
+      .mockResolvedValueOnce(factoryCode)
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(
+        (
+          await import(
+            '../../../../../analytics-engine/tests/fixtures/pinned_strategy/dma_cross_down_slice.json'
+          )
+        ).runtime_code,
+      );
+    const deployment = await deployStrategy(provider, vi.fn());
+    expect(mocks.wallet.addChain).toHaveBeenCalled();
+    expect(deployment.address).toBe(DEPLOYMENT_ADDRESS);
+  });
+  it('adds the chain when the 4902 code arrives on the error cause', async () => {
+    mocks.wallet.switchChain
+      .mockRejectedValueOnce({ code: 4001, cause: { code: 4902 } })
+      .mockResolvedValueOnce(undefined);
+    mocks.client.getBytecode
+      .mockResolvedValueOnce(factoryCode)
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(
+        (
+          await import(
+            '../../../../../analytics-engine/tests/fixtures/pinned_strategy/dma_cross_down_slice.json'
+          )
+        ).runtime_code,
+      );
+    const deployment = await deployStrategy(provider, vi.fn());
+    expect(mocks.wallet.addChain).toHaveBeenCalled();
+    expect(deployment.address).toBe(DEPLOYMENT_ADDRESS);
+  });
+  it('rethrows wallet chain errors without the missing-chain code', async () => {
+    mocks.wallet.switchChain.mockRejectedValueOnce({ code: 4001 });
+    await expect(deployStrategy(provider, vi.fn())).rejects.toMatchObject({
+      code: 4001,
+    });
+    expect(mocks.wallet.sendTransaction).not.toHaveBeenCalled();
+  });
   it('never broadcasts on the wrong wallet network', async () => {
     mocks.wallet.getChainId.mockResolvedValue(1);
     await expect(deployStrategy(provider, vi.fn())).rejects.toThrow(
@@ -60,6 +110,20 @@ describe('Rabby deterministic deployment', () => {
     );
     expect(mocks.wallet.sendTransaction).not.toHaveBeenCalled();
   });
+  it('rejects a missing factory without broadcasting', async () => {
+    mocks.client.getBytecode.mockResolvedValueOnce(undefined);
+    await expect(deployStrategy(provider, vi.fn())).rejects.toThrow(
+      'deployer bytecode mismatch',
+    );
+    expect(mocks.wallet.sendTransaction).not.toHaveBeenCalled();
+  });
+  it('rejects the wrong RPC network without broadcasting', async () => {
+    mocks.client.getChainId.mockResolvedValueOnce(1);
+    await expect(deployStrategy(provider, vi.fn())).rejects.toThrow(
+      'Wrong RPC network',
+    );
+    expect(mocks.wallet.sendTransaction).not.toHaveBeenCalled();
+  });
   it('does not redeploy an occupied address', async () => {
     mocks.client.getBytecode
       .mockResolvedValueOnce(factoryCode)
@@ -68,6 +132,20 @@ describe('Rabby deterministic deployment', () => {
       'Already deployed',
     );
     expect(mocks.wallet.sendTransaction).not.toHaveBeenCalled();
+  });
+  it('treats 0x as empty and continues to broadcast', async () => {
+    const runtime = (
+      await import(
+        '../../../../../analytics-engine/tests/fixtures/pinned_strategy/dma_cross_down_slice.json'
+      )
+    ).runtime_code;
+    mocks.client.getBytecode
+      .mockResolvedValueOnce(factoryCode)
+      .mockResolvedValueOnce('0x')
+      .mockResolvedValueOnce(runtime);
+    const deployment = await deployStrategy(provider, vi.fn());
+    expect(mocks.wallet.sendTransaction).toHaveBeenCalled();
+    expect(deployment.address).toBe(DEPLOYMENT_ADDRESS);
   });
   it('retains the transaction hash when deployment reverts', async () => {
     mocks.client.getBytecode

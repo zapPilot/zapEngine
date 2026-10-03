@@ -9,12 +9,12 @@ const LEFT = 8;
 const RIGHT = WIDTH - 8;
 
 // Float conversion is confined to SVG geometry; encoding uses the exact strings.
+// distancePercent already guarantees finite positive inputs when before/after
+// are non-null, so plot always succeeds for the rendered path.
 function plot(previous: Row, current: Row) {
   const values = [previous.price, previous.dma, current.price, current.dma].map(
     Number,
   );
-  if (values.some((value) => !Number.isFinite(value) || value <= 0))
-    return null;
   const low = Math.min(...values);
   const high = Math.max(...values);
   const pad = (high - low) * 0.2 || high * 0.01;

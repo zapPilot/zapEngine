@@ -251,7 +251,7 @@ export function CalculatorForm({
                       describedBy={
                         [errorId(id), 'allocation-total']
                           .filter(Boolean)
-                          .join(' ') || undefined
+                          .join(' ')
                       }
                       onChange={(value) =>
                         onChange({
