@@ -1,0 +1,147 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-03T05:10:00.000Z",
+  "github": {
+    "runId": 0,
+    "runAttempt": 1,
+    "sha": "76ab9df7c82fcaa089e32743f7f6e30ba2e2b7a0"
+  },
+  "scopes": {
+    "apps/control-center/src/client/pages/ReliabilityPage.tsx": {
+      "status": "pending",
+      "auditedAt": "2026-10-03T04:55:00.000Z",
+      "auditedCommit": "787533002b3f7e7aa65ff4ea69226990bed61426",
+      "pathShas": {
+        "apps/control-center/src/client/pages/ReliabilityPage.tsx": "1a82ebeb7dbf9741279869f1ea23012e1844c9f3",
+        "apps/control-center/src/client/pages/ReliabilityPage.test.tsx": "bda9dc59a94287b00c4e072f9599184b39560463",
+        "apps/control-center/src/client/pages/ReliabilityPage.coverage2.test.tsx": "5c631bc6576a155921ea84db1aac20ab8a8ed1ad",
+        "apps/control-center/src/client/pages/ReliabilityPage.coverage3.test.tsx": "de25fc9fe2d31bcad1b805789ac86605200a6696"
+      },
+      "files": [
+        "apps/control-center/src/client/pages/ReliabilityPage.coverage2.test.tsx",
+        "apps/control-center/src/client/pages/ReliabilityPage.coverage3.test.tsx",
+        "apps/control-center/src/client/pages/ReliabilityPage.test.tsx"
+      ],
+      "relatedPaths": [
+        "apps/control-center/src/client/pages/ReliabilityPage.tsx"
+      ],
+      "pr": 699,
+      "findings": []
+    },
+    "apps/control-center/src/client/App.tsx": {
+      "status": "pending",
+      "auditedAt": "2026-10-03T04:55:00.000Z",
+      "auditedCommit": "787533002b3f7e7aa65ff4ea69226990bed61426",
+      "pathShas": {
+        "apps/control-center/src/client/App.tsx": "0f0be6d969a29456874e1cd65a17c23bce4a792c",
+        "apps/control-center/src/client/App.test.tsx": "aec3729bf39b66776f462a4aca3f4ab3c4d58269",
+        "apps/control-center/src/client/App.coverage2.test.tsx": "1049f99043be1334a4d5db37d681ee2bbf9dae3d",
+        "apps/control-center/src/client/App.coverage3.test.tsx": "8ec17c65562fd5b790fafca50e5e5201a5a108cc"
+      },
+      "files": [
+        "apps/control-center/src/client/App.coverage2.test.tsx",
+        "apps/control-center/src/client/App.coverage3.test.tsx",
+        "apps/control-center/src/client/App.test.tsx"
+      ],
+      "relatedPaths": [
+        "apps/control-center/src/client/App.tsx"
+      ],
+      "pr": 699,
+      "findings": []
+    },
+    "apps/control-center/src/client/components/QueueDrawer.tsx": {
+      "status": "clean",
+      "auditedAt": "2026-10-03T04:55:00.000Z",
+      "auditedCommit": "b17486d5e4a3dad8a0f5173263bbaa2439a1d788",
+      "pathShas": {
+        "apps/control-center/src/client/components/QueueDrawer.tsx": "802578cedda2edee6348822311a781cfc0131985",
+        "apps/control-center/src/client/components/QueueDrawer.test.tsx": "1dcdfb5f3c9478200aed381afaf7919ce7ed5fc5",
+        "apps/control-center/src/client/components/QueueDrawer.coverage2.test.tsx": "02d51854628bc893a35d81807a1245b786215356",
+        "apps/control-center/src/client/components/QueueDrawer.coverage3.test.tsx": "153386446958fe5689b95ad53a1bc380c5fbb8c4"
+      },
+      "files": [
+        "apps/control-center/src/client/components/QueueDrawer.coverage2.test.tsx",
+        "apps/control-center/src/client/components/QueueDrawer.coverage3.test.tsx",
+        "apps/control-center/src/client/components/QueueDrawer.test.tsx"
+      ],
+      "relatedPaths": [
+        "apps/control-center/src/client/components/QueueDrawer.tsx"
+      ],
+      "findings": []
+    },
+    "apps/app/tests/app-100-small-gaps.test.ts": {
+      "status": "pending",
+      "auditedAt": "2026-10-03T05:10:00.000Z",
+      "auditedCommit": "787533002b3f7e7aa65ff4ea69226990bed61426",
+      "pathShas": {
+        "apps/app/tests/app-100-small-gaps.test.ts": "c21d4cc2f1a72d21c5aed838b69e0c2ca4e09c24"
+      },
+      "files": [
+        "apps/app/tests/app-100-small-gaps.test.ts"
+      ],
+      "relatedPaths": [],
+      "pr": 699,
+      "findings": []
+    },
+    "apps/control-center/src/client/components/VisualEvidence.tsx": {
+      "status": "pending",
+      "auditedAt": "2026-10-03T05:10:00.000Z",
+      "auditedCommit": "787533002b3f7e7aa65ff4ea69226990bed61426",
+      "pathShas": {
+        "apps/control-center/src/client/components/VisualEvidence.tsx": "9ee2310aa76aeae8ca969d1553e5c62acc402166",
+        "apps/control-center/src/client/components/VisualEvidence.test.tsx": "6e3a564c6129bae8a36d710e859c06ded20866e7",
+        "apps/control-center/src/client/components/VisualEvidence.coverage2.test.tsx": "707790121db243e927e54851d18dcdccf4b6399d",
+        "apps/control-center/src/client/components/VisualEvidence.decision-trace.test.ts": "6958a3400c1f593a1f0d13d3a3ec66609a8648ff"
+      },
+      "files": [
+        "apps/control-center/src/client/components/VisualEvidence.coverage2.test.tsx",
+        "apps/control-center/src/client/components/VisualEvidence.decision-trace.test.ts",
+        "apps/control-center/src/client/components/VisualEvidence.test.tsx"
+      ],
+      "relatedPaths": [
+        "apps/control-center/src/client/components/VisualEvidence.tsx"
+      ],
+      "pr": 699,
+      "findings": []
+    },
+    "apps/app/src/integration/podcastSections.ts": {
+      "status": "pending",
+      "auditedAt": "2026-10-03T05:10:00.000Z",
+      "auditedCommit": "787533002b3f7e7aa65ff4ea69226990bed61426",
+      "pathShas": {
+        "apps/app/src/integration/podcastSections.ts": "afd5eb225ca02315404812f53cb07ab0e2e7eb9c",
+        "apps/app/tests/podcastSections.test.ts": "27ae1f1ccacfe71b5bc49b17625882d556c79ff1"
+      },
+      "files": [
+        "apps/app/tests/podcastSections.test.ts"
+      ],
+      "relatedPaths": [
+        "apps/app/src/integration/podcastSections.ts"
+      ],
+      "pr": 699,
+      "findings": []
+    }
+  },
+  "runs": [
+    {
+      "workerRunId": "20261003T051000Z",
+      "at": "2026-10-03T05:10:00.000Z",
+      "outcome": "changed",
+      "scopes": [
+        "apps/app/src/integration/podcastSections.ts",
+        "apps/app/tests/app-100-small-gaps.test.ts",
+        "apps/control-center/src/client/components/VisualEvidence.tsx"
+      ]
+    },
+    {
+      "workerRunId": "20261003T045500Z",
+      "at": "2026-10-03T04:55:00.000Z",
+      "outcome": "changed",
+      "scopes": [
+        "apps/control-center/src/client/App.tsx",
+        "apps/control-center/src/client/components/QueueDrawer.tsx",
+        "apps/control-center/src/client/pages/ReliabilityPage.tsx"
+      ]
+    }
+  ]
+}
