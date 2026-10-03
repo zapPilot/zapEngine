@@ -1,6 +1,8 @@
 // Socket / DNS layer failures are worth another tick; anything that says the
-// request itself was wrong (PostgREST/Postgres error codes) is not.
-//
+// request itself was wrong (PostgREST/Postgres error codes) is not. The
+// exception is PostgREST's own pre-execution failures — the schema cache still
+// loading (PGRST002) or an exhausted connection pool (PGRST003) — which are
+// transient and self-healing, so a caller should retry rather than report them.
 // postgrest-js wraps the network failure as a PostgREST error object
 // `{ message, details, hint, code: '' }` and `throwSupabaseError` rethrows it
 // as `new Error(formatted, { cause: plainObject })`. The underlying token may
@@ -26,6 +28,12 @@ const TRANSIENT_CODE_SET = new Set([
 const TRANSIENT_TOKEN_RE =
   /(?:ETIMEDOUT|ECONNRESET|ECONNREFUSED|EPIPE|EAI_AGAIN|ENOTFOUND|EHOSTUNREACH|ENETUNREACH|ENETDOWN|UND_ERR_CONNECT_TIMEOUT|UND_ERR_HEADERS_TIMEOUT|UND_ERR_BODY_TIMEOUT|UND_ERR_SOCKET|fetch failed|socket hang up)/i;
 
+/**
+ * PostgREST codes raised before the statement executes: nothing ran, so the
+ * caller can safely retry the same request.
+ */
+const TRANSIENT_POSTGREST_CODE_SET = new Set(['PGRST002', 'PGRST003']);
+
 interface ErrorShape {
   cause?: unknown;
   supabaseError?: unknown;
@@ -43,7 +51,8 @@ function errorShapeFromValue(value: unknown): ErrorShape | null {
 function hasTransientToken(candidate: ErrorShape): boolean {
   if (
     typeof candidate.code === 'string' &&
-    TRANSIENT_CODE_SET.has(candidate.code)
+    (TRANSIENT_CODE_SET.has(candidate.code) ||
+      TRANSIENT_POSTGREST_CODE_SET.has(candidate.code))
   ) {
     return true;
   }

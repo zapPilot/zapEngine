@@ -129,6 +129,37 @@ class TestGetBorrowingPositions:
                 user_id, snapshot_date=SNAPSHOT_DATE
             )
 
+    def test_dust_debt_position_is_dropped_after_rounding(
+        self, borrowing_service, mock_query_service, user_id
+    ):
+        """A raw debt that rounds to $0.00 must not reach the gt=0 model."""
+        mock_query_service.execute_query.return_value = [
+            _raw_position(debt=0.004),
+            _raw_position(debt=500.0),
+        ]
+
+        result = borrowing_service.get_borrowing_positions(
+            user_id, snapshot_date=SNAPSHOT_DATE
+        )
+
+        assert len(result.positions) == 1
+        assert result.positions[0].debt_usd == 500.0
+        assert result.total_debt_usd == 500.0
+
+    def test_all_dust_positions_raise_no_positions(
+        self, borrowing_service, mock_query_service, user_id
+    ):
+        """A portfolio that is only dust is the same empty state as no rows."""
+        mock_query_service.execute_query.return_value = [
+            _raw_position(debt=0.004),
+            _raw_position(debt=0.001),
+        ]
+
+        with pytest.raises(ValueError, match="no borrowing positions"):
+            borrowing_service.get_borrowing_positions(
+                user_id, snapshot_date=SNAPSHOT_DATE
+            )
+
     def test_token_transformation(self, borrowing_service, mock_query_service, user_id):
         """Verify token lists are transformed correctly."""
         mock_query_service.execute_query.return_value = [

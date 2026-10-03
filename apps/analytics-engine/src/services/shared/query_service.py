@@ -15,7 +15,12 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from src.core.db_retry import is_transient_disconnect
 from src.core.utils import coerce_date_to_datetime, row_to_dict
+
+# A read is cheap to repeat once; the second attempt runs on a fresh pooled
+# connection after SQLAlchemy invalidates the dropped one.
+QUERY_MAX_ATTEMPTS = 2
 
 
 class QueryService:
@@ -287,28 +292,47 @@ class QueryService:
 
         Preserves logging and error messages expected by tests.
         """
+        attempt = 1
+        while True:
+            try:
+                query_string = self.get_query(query_name)
+                self._log_query_start(query_name, params, single=single)
+                result = db.execute(text(query_string), params)
+
+                if single:
+                    return self._execute_single_result(result, query_name)
+
+                return self._execute_many_results(result, query_name)
+
+            except SQLAlchemyError as e:
+                if attempt < QUERY_MAX_ATTEMPTS and is_transient_disconnect(e):
+                    self.logger.warning(
+                        "Retrying query '%s' after a transient disconnect",
+                        query_name,
+                    )
+                    self._discard_dropped_connection(db)
+                    attempt += 1
+                    continue
+                msg = self._build_execute_error_message(
+                    query_name, e, single=single, unexpected=False
+                )
+                self.logger.error(msg)
+                raise SQLAlchemyError(msg) from e
+            except Exception as e:
+                msg = self._build_execute_error_message(
+                    query_name, e, single=single, unexpected=True
+                )
+                self.logger.error(msg)
+                raise RuntimeError(msg) from e
+
+    @staticmethod
+    def _discard_dropped_connection(db: Session) -> None:
+        """End the failed transaction so the retry checks out a fresh session."""
         try:
-            query_string = self.get_query(query_name)
-            self._log_query_start(query_name, params, single=single)
-            result = db.execute(text(query_string), params)
-
-            if single:
-                return self._execute_single_result(result, query_name)
-
-            return self._execute_many_results(result, query_name)
-
-        except SQLAlchemyError as e:
-            msg = self._build_execute_error_message(
-                query_name, e, single=single, unexpected=False
-            )
-            self.logger.error(msg)
-            raise SQLAlchemyError(msg) from e
-        except Exception as e:
-            msg = self._build_execute_error_message(
-                query_name, e, single=single, unexpected=True
-            )
-            self.logger.error(msg)
-            raise RuntimeError(msg) from e
+            db.rollback()
+        except SQLAlchemyError:
+            # The invalidated connection is discarded either way.
+            pass
 
     def _log_query_start(
         self, query_name: str, params: dict[str, Any], *, single: bool
