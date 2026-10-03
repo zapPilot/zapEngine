@@ -205,3 +205,12 @@ describe('AppError branch sweep', () => {
     }
   });
 });
+
+it('exposes typed reclaim metadata only', () => {
+  expect(
+    toErrorResponse('/auth', { message: 'watch', canReclaim: true }),
+  ).toMatchObject({ canReclaim: true });
+  expect(
+    toErrorResponse('/auth', { message: 'bad', canReclaim: 'yes' }),
+  ).not.toHaveProperty('canReclaim');
+});

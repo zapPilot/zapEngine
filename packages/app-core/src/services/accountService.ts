@@ -1,5 +1,6 @@
 import { AccountServiceError } from '@core/lib/errors';
 import { httpUtils } from '@core/lib/http';
+import { withOwnerAuth } from '@core/lib/http/accountOwnerSession';
 import { createServiceCaller } from '@core/lib/http/createServiceCaller';
 import { createServiceError } from '@core/lib/http/serviceErrorFactory';
 import {
@@ -15,7 +16,6 @@ import {
   type UserProfileResponse,
   validateAddWalletResponse,
   validateMessageResponse,
-  validateOwnershipChallenge,
   validateUpdateEmailResponse,
   validateUserProfileResponse,
   validateUserWallets,
@@ -26,6 +26,8 @@ import {
 } from '@core/schemas/api/accountSchemas';
 import { logger } from '@core/utils/logger';
 import type { EtlJobStatus } from '@zapengine/types/etl';
+
+import { requestAccountAuthChallenge } from './accountAuthService';
 
 export { AccountServiceError };
 export type { EtlJobStatus };
@@ -129,55 +131,54 @@ async function getAccountResource<T>(path: string): Promise<T> {
   return callAccountApi(() => accountApiClient.get<T>(path));
 }
 
-async function postAccountResource<T>(
+function ownerRequest<T>(
+  path: string,
+  request: (headers?: Record<string, string>) => Promise<T>,
+): Promise<T> {
+  const match = path.match(/^\/users\/([^/]+)\/(wallets|email)/);
+  if (!match) return request();
+  return withOwnerAuth(
+    {
+      userId: match[1] as string,
+      interactive: true,
+      recent: path.endsWith('/email') || path.endsWith('/verify'),
+    },
+    request,
+  );
+}
+
+async function mutateAccountResource<T>(
+  method: 'post' | 'delete',
   path: string,
   body?: Record<string, unknown>,
 ): Promise<T> {
   return callAccountApi(() =>
-    body
-      ? accountApiClient.post<T>(path, body)
-      : accountApiClient.post<T>(path),
+    ownerRequest(path, (headers) =>
+      accountApiClient[method]<T>(path, body, headers ? { headers } : {}),
+    ),
   );
 }
-
 async function putAccountResource<T>(
+  userId: string,
   path: string,
   body: Record<string, unknown>,
 ): Promise<T> {
-  return callAccountApi(() => accountApiClient.put<T>(path, body));
-}
-
-async function deleteAccountResource<T>(
-  path: string,
-  body?: Record<string, unknown>,
-): Promise<T> {
-  const request = body
-    ? () => accountApiClient.delete<T>(path, body)
-    : () => accountApiClient.delete<T>(path);
-  return callAccountApi(request);
-}
-
-function requestOwnershipChallenge(
-  path: string,
-  walletAddress: string,
-): Promise<OwnershipChallenge> {
-  return requestAndValidate(
-    () =>
-      postAccountResource<OwnershipChallenge>(path, {
-        wallet: walletAddress,
-      }),
-    validateOwnershipChallenge,
+  return callAccountApi(() =>
+    withOwnerAuth(
+      { userId, interactive: true, recent: path.endsWith('/email') },
+      (headers) => accountApiClient.put<T>(path, body, { headers }),
+    ),
   );
 }
-
 /** Pure wallet-to-user lookup. Never creates account state. */
 export async function getUserByWallet(
   walletAddress: string,
+  options: { verifiedOnly?: boolean } = {},
 ): Promise<WalletUserLookupResponse> {
   return requestAndValidate(
     () =>
       getAccountResource<WalletUserLookupResponse>(
-        `/users/by-wallet/${walletAddress}`,
+        `/users/by-wallet/${walletAddress}${options.verifiedOnly ? '?verifiedOnly=true' : ''}`,
       ),
     (response) => walletUserLookupResponseSchema.parse(response),
   );
@@ -189,7 +190,8 @@ export async function getUserByWallet(
 export async function connectWallet(
   walletAddress: string,
 ): Promise<ConnectWalletResponse> {
-  const response = await postAccountResource<ConnectWalletResponse>(
+  const response = await mutateAccountResource<ConnectWalletResponse>(
+    'post',
     '/users/connect-wallet',
     {
       wallet: walletAddress,
@@ -220,9 +222,13 @@ export async function updateUserEmail(
 ): Promise<UpdateEmailResponse> {
   return requestAndValidate(
     () =>
-      putAccountResource<UpdateEmailResponse>(`/users/${userId}/email`, {
-        email,
-      }),
+      putAccountResource<UpdateEmailResponse>(
+        userId,
+        `/users/${userId}/email`,
+        {
+          email,
+        },
+      ),
     validateUpdateEmailResponse,
   );
 }
@@ -232,7 +238,7 @@ async function deleteUserResource(
   body?: Record<string, unknown>,
 ): Promise<UpdateEmailResponse> {
   return requestAndValidate(
-    () => deleteAccountResource<UpdateEmailResponse>(path, body),
+    () => mutateAccountResource<UpdateEmailResponse>('delete', path, body),
     validateUpdateEmailResponse,
   );
 }
@@ -254,9 +260,13 @@ export async function unsubscribeFromReportsWithToken(
 ): Promise<UpdateEmailResponse> {
   return requestAndValidate(
     () =>
-      postAccountResource<UpdateEmailResponse>('/users/reports/unsubscribe', {
-        token,
-      }),
+      mutateAccountResource<UpdateEmailResponse>(
+        'post',
+        '/users/reports/unsubscribe',
+        {
+          token,
+        },
+      ),
     validateUpdateEmailResponse,
   );
 }
@@ -266,21 +276,20 @@ export async function requestAccountDeletionChallenge(
   userId: string,
   walletAddress: string,
 ): Promise<OwnershipChallenge> {
-  return requestOwnershipChallenge(
-    `/users/${userId}/deletion-challenge`,
-    walletAddress,
-  );
+  return requestAccountAuthChallenge({
+    purpose: 'deletion',
+    userId,
+    wallet: walletAddress,
+    domain: 'v2.zap-pilot.org',
+  });
 }
 
 export async function deleteUser(
   userId: string,
-  walletAddress: string,
+  challengeId: string,
   signature: string,
 ): Promise<UpdateEmailResponse> {
-  return deleteUserResource(`/users/${userId}`, {
-    wallet: walletAddress,
-    signature,
-  });
+  return deleteUserResource(`/users/${userId}`, { challengeId, signature });
 }
 
 /**
@@ -301,17 +310,19 @@ export async function getUserWallets(
 export async function addWalletToBundle(
   userId: string,
   walletAddress: string,
-  signature: string | undefined,
   label?: string,
 ): Promise<AddWalletResponse> {
   const body = {
     wallet: walletAddress,
     label,
-    ...(signature ? { signature } : {}),
   };
   return requestAndValidate(
     () =>
-      postAccountResource<AddWalletResponse>(`/users/${userId}/wallets`, body),
+      mutateAccountResource<AddWalletResponse>(
+        'post',
+        `/users/${userId}/wallets`,
+        body,
+      ),
     validateAddWalletResponse,
   );
 }
@@ -320,22 +331,26 @@ export async function requestWalletBindingChallenge(
   userId: string,
   walletAddress: string,
 ): Promise<OwnershipChallenge> {
-  return requestOwnershipChallenge(
-    `/users/${userId}/wallets/challenge`,
-    walletAddress,
-  );
+  return requestAccountAuthChallenge({
+    purpose: 'binding',
+    userId,
+    wallet: walletAddress,
+    domain: 'v2.zap-pilot.org',
+  });
 }
 
 export async function verifyWalletOwnership(
   userId: string,
   walletAddress: string,
   signature: string,
+  challengeId: string,
 ): Promise<VerifyWalletResponse> {
   return requestAndValidate(
     () =>
-      postAccountResource<VerifyWalletResponse>(
+      mutateAccountResource<VerifyWalletResponse>(
+        'post',
         `/users/${userId}/wallets/${walletAddress}/verify`,
-        { signature },
+        { signature, challengeId },
       ),
     validateVerifyWalletResponse,
   );
@@ -350,7 +365,8 @@ export async function removeWalletFromBundle(
 ): Promise<{ message: string }> {
   return requestAndValidate(
     () =>
-      deleteAccountResource<{ message: string }>(
+      mutateAccountResource<{ message: string }>(
+        'delete',
         `/users/${userId}/wallets/${walletId}`,
       ),
     validateMessageResponse,
@@ -368,6 +384,7 @@ export async function updateWalletLabel(
   return requestAndValidate(
     () =>
       putAccountResource<{ message: string }>(
+        userId,
         `/users/${userId}/wallets/${walletAddress}/label`,
         { label },
       ),
@@ -384,7 +401,8 @@ export async function triggerWalletDataFetch(
 ): Promise<EtlJobResponse> {
   return requestAndValidate(
     () =>
-      postAccountResource<EtlJobResponse>(
+      mutateAccountResource<EtlJobResponse>(
+        'post',
         `/users/${userId}/wallets/${walletAddress}/fetch-data`,
       ),
     validateTriggerWalletDataFetchResponse,

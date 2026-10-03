@@ -27,7 +27,7 @@ vi.mock('@core/providers/walletContext', () => ({
 
 import {
   useCurrentUser,
-  useUserById,
+  useUserByWallet,
 } from '@core/hooks/queries/wallet/useUserQuery';
 
 function createWrapper() {
@@ -90,12 +90,12 @@ it('normalizes a non-Error bootstrap rejection for the current session', async (
 });
 
 it('rejects a forced refetch when the bundle owner user id is absent', async () => {
-  const { result } = renderHook(() => useUserById(null), {
+  const { result } = renderHook(() => useUserByWallet(null), {
     wrapper: createWrapper(),
   });
 
   const refetchResult = await act(async () => result.current.refetch());
 
-  expect(refetchResult.error).toEqual(new Error('No user ID provided'));
+  expect(refetchResult.error).toEqual(new Error('No wallet address provided'));
   expect(mocks.getUserProfile).not.toHaveBeenCalled();
 });

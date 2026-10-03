@@ -223,11 +223,15 @@ describe('account bootstrap single-flight (production topology)', () => {
     });
 
     await settleUntil(() => {
-      if (!container.textContent?.includes('user@example.com')) {
-        throw new Error('user email not rendered');
+      if (
+        !container.textContent?.includes(
+          mocks.wallet.account?.address ?? 'missing-address',
+        )
+      ) {
+        throw new Error('connected address not rendered');
       }
     });
-    expect(container.textContent).toContain('user@example.com');
+    expect(container.textContent).not.toContain('user@example.com');
     expect(container.textContent).toContain('0xaaa');
 
     await act(async () => {
@@ -236,3 +240,13 @@ describe('account bootstrap single-flight (production topology)', () => {
     container.remove();
   });
 });
+
+vi.mock('@/storage/accountSessions', () => ({
+  accountSessions: {
+    get: vi.fn().mockResolvedValue(null),
+    clear: vi.fn().mockResolvedValue(undefined),
+  },
+}));
+vi.mock('@zapengine/app-core/services/accountAuthService', () => ({
+  revokeAccountOwnerSession: vi.fn(),
+}));

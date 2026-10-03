@@ -17,6 +17,13 @@ const VALID_WALLET_ID = '223e4567-e89b-12d3-a456-426614174001';
 
 function createServices(): AppServices {
   return {
+    accountAuthService: {
+      authenticate: vi.fn().mockResolvedValue({
+        user_id: VALID_UUID,
+        created_at: new Date().toISOString(),
+      }),
+      verifyBinding: vi.fn().mockResolvedValue({ success: true }),
+    },
     activityTracker: {
       trackUserId: vi.fn(),
       cleanupCache: vi.fn(),
@@ -70,7 +77,14 @@ function createApp(services: AppServices) {
   app.onError((error, c) =>
     c.json(toErrorResponse(c.req.path, error), getErrorStatus(error) as never),
   );
-  return app;
+  return {
+    rawRequest: app.request.bind(app),
+    request: (url: string, init?: RequestInit) =>
+      app.request(url, {
+        ...init,
+        headers: { Authorization: 'Bearer owner-token', ...init?.headers },
+      }),
+  };
 }
 
 describe('POST /users/connect-wallet', () => {
@@ -131,40 +145,6 @@ describe('POST /users/reports/unsubscribe', () => {
   });
 });
 
-describe('POST /users/:userId/wallets/challenge', () => {
-  it('returns 200 with the issued challenge', async () => {
-    const services = createServices();
-    const response = await createApp(services).request(
-      `http://localhost/users/${VALID_UUID}/wallets/challenge`,
-      {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ wallet: VALID_WALLET }),
-      },
-    );
-    expect(response.status).toBe(200);
-    const body = (await response.json()) as { nonce: string; message: string };
-    expect(body.nonce).toHaveLength(64);
-    expect(body.message).toContain('ZapPilot');
-    expect(
-      (services.usersService.requestWalletBindingChallenge as Mock).mock
-        .calls[0],
-    ).toEqual([VALID_UUID, VALID_WALLET]);
-  });
-
-  it('returns 400 for an invalid wallet address', async () => {
-    const response = await createApp(createServices()).request(
-      `http://localhost/users/${VALID_UUID}/wallets/challenge`,
-      {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ wallet: 'invalid' }),
-      },
-    );
-    expect(response.status).toBe(400);
-  });
-});
-
 describe('POST /users/:userId/wallets', () => {
   it('forwards the ownership signature to the service', async () => {
     const services = createServices();
@@ -174,7 +154,11 @@ describe('POST /users/:userId/wallets', () => {
       {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ wallet: VALID_WALLET, signature }),
+        body: JSON.stringify({
+          wallet: VALID_WALLET,
+          signature,
+          challengeId: VALID_WALLET_ID,
+        }),
       },
     );
     expect(response.status).toBe(201);
@@ -182,20 +166,7 @@ describe('POST /users/:userId/wallets', () => {
       VALID_UUID,
       VALID_WALLET,
       undefined,
-      signature,
     ]);
-  });
-
-  it('returns 400 for a malformed signature', async () => {
-    const response = await createApp(createServices()).request(
-      `http://localhost/users/${VALID_UUID}/wallets`,
-      {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ wallet: VALID_WALLET, signature: '0x1234' }),
-      },
-    );
-    expect(response.status).toBe(400);
   });
 
   it('forwards undefined when the ownership signature is omitted', async () => {
@@ -212,7 +183,6 @@ describe('POST /users/:userId/wallets', () => {
     expect((services.usersService.addWallet as Mock).mock.calls[0]).toEqual([
       VALID_UUID,
       VALID_WALLET,
-      undefined,
       undefined,
     ]);
   });
@@ -251,14 +221,15 @@ describe('POST /users/:userId/wallets/:walletAddress/verify', () => {
       {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ signature }),
+        body: JSON.stringify({ signature, challengeId: VALID_WALLET_ID }),
       },
     );
 
     expect(response.status).toBe(200);
-    expect(services.usersService.verifyWalletOwnership).toHaveBeenCalledWith(
+    expect(services.accountAuthService.verifyBinding).toHaveBeenCalledWith(
       VALID_UUID,
       VALID_WALLET,
+      VALID_WALLET_ID,
       signature,
     );
   });
@@ -269,7 +240,10 @@ describe('POST /users/:userId/wallets/:walletAddress/verify', () => {
       {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ signature: '0x1234' }),
+        body: JSON.stringify({
+          challengeId: VALID_WALLET_ID,
+          signature: '0x1234',
+        }),
       },
     );
 
@@ -282,7 +256,10 @@ describe('POST /users/:userId/wallets/:walletAddress/verify', () => {
       {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ signature: `0x${'ab'.repeat(65)}` }),
+        body: JSON.stringify({
+          challengeId: VALID_WALLET_ID,
+          signature: `0x${'ab'.repeat(65)}`,
+        }),
       },
     );
 
@@ -416,26 +393,6 @@ describe('GET /users/:userId', () => {
   });
 });
 
-describe('POST /users/:userId/deletion-challenge', () => {
-  it('issues a purpose-separated challenge for a bundle wallet', async () => {
-    const services = createServices();
-    const response = await createApp(services).request(
-      `http://localhost/users/${VALID_UUID}/deletion-challenge`,
-      {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ wallet: VALID_WALLET }),
-      },
-    );
-
-    expect(response.status).toBe(200);
-    expect(services.usersService.requestDeletionChallenge).toHaveBeenCalledWith(
-      VALID_UUID,
-      VALID_WALLET,
-    );
-  });
-});
-
 describe('DELETE /users/:userId', () => {
   it('forwards a deletion ownership proof', async () => {
     const services = createServices();
@@ -445,13 +402,17 @@ describe('DELETE /users/:userId', () => {
       {
         method: 'DELETE',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ wallet: VALID_WALLET, signature }),
+        body: JSON.stringify({
+          wallet: VALID_WALLET,
+          signature,
+          challengeId: VALID_WALLET_ID,
+        }),
       },
     );
     expect(response.status).toBe(200);
     expect(services.usersService.deleteUser).toHaveBeenCalledWith(
       VALID_UUID,
-      VALID_WALLET,
+      VALID_WALLET_ID,
       signature,
     );
   });
@@ -554,7 +515,7 @@ describe('GET /users/by-wallet/:walletAddress', () => {
     expect(response.status).toBe(200);
     expect(
       (services.usersService.getUserByWallet as Mock).mock.calls[0],
-    ).toEqual([VALID_WALLET]);
+    ).toEqual([VALID_WALLET, { verifiedOnly: false }]);
   });
 
   it('returns 400 for an invalid wallet address', async () => {
@@ -563,5 +524,51 @@ describe('GET /users/by-wallet/:walletAddress', () => {
     );
 
     expect(response.status).toBe(400);
+  });
+});
+
+describe('owner route enforcement', () => {
+  it.each([
+    ['POST', '/wallets'],
+    ['PUT', '/email'],
+    ['DELETE', '/email'],
+    ['PUT', `/wallets/${VALID_WALLET}/label`],
+    ['POST', `/wallets/${VALID_WALLET}/verify`],
+    ['DELETE', `/wallets/${VALID_WALLET_ID}`],
+    ['POST', `/wallets/${VALID_WALLET}/fetch-data`],
+    ['POST', '/telegram/request-token'],
+    ['GET', '/telegram/status'],
+    ['DELETE', '/telegram/disconnect'],
+  ])('requires a bearer for %s %s', async (method, path) => {
+    const services = createServices();
+    const response = await createApp(services).rawRequest(
+      `/users/${VALID_UUID}${path}`,
+      { method },
+    );
+    expect(response.status).toBe(401);
+    expect(services.activityTracker.trackUserId).not.toHaveBeenCalled();
+  });
+  it('rejects another bundle token', async () => {
+    const services = createServices();
+    (services.accountAuthService.authenticate as Mock).mockResolvedValue({
+      user_id: VALID_WALLET_ID,
+      created_at: new Date().toISOString(),
+    });
+    expect(
+      (
+        await createApp(services).request(`/users/${VALID_UUID}/email`, {
+          method: 'DELETE',
+        })
+      ).status,
+    ).toBe(403);
+  });
+  it('allows public profile and wallet reads without tracking owner activity', async () => {
+    const services = createServices();
+    const app = createApp(services);
+    expect((await app.rawRequest(`/users/${VALID_UUID}`)).status).toBe(200);
+    expect((await app.rawRequest(`/users/${VALID_UUID}/wallets`)).status).toBe(
+      200,
+    );
+    expect(services.activityTracker.trackUserId).not.toHaveBeenCalled();
   });
 });

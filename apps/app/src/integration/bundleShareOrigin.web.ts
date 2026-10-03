@@ -1,3 +1,4 @@
+import { APP_RUNTIME } from '@/config/appRuntime';
 import { resolveShareOrigin } from '@/integration/bundleShareModel';
 
 /**
@@ -8,5 +9,6 @@ import { resolveShareOrigin } from '@/integration/bundleShareModel';
 export function getBundleShareOrigin(): string {
   return resolveShareOrigin(
     typeof window === 'undefined' ? null : window.location.origin,
+    APP_RUNTIME,
   );
 }

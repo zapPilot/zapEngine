@@ -19,5 +19,4 @@ export type {
   UserCryptoWallet,
   UserProfileResponse,
   UserSubscription,
-  VerifyWalletResponse,
 } from './user.interface';

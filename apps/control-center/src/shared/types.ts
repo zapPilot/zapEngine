@@ -496,9 +496,8 @@ export interface CustomerRecord {
   effectiveTier: ServiceTier;
   refreshIntervalHours: number | null;
   /**
-   * Last request to an account-engine `/users/:userId*` route, debounced to an
-   * hour. It is "opened the dashboard", not "used the product" — nothing else
-   * writes it.
+   * Last wallet connection or authenticated bundle management request,
+   * debounced to an hour. Public read-only portfolio views do not update it.
    */
   lastActivityAt: string | null;
   inactiveDays: number | null;

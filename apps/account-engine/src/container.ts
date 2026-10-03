@@ -30,16 +30,19 @@ import {
   planSimulationConfigFromEnv,
   resolveProtocolContractName,
 } from './modules/plan-orchestration';
-import { createAccountDeletionChallengeService } from './services/account-deletion-challenge.service';
+import {
+  type AccountAuthService,
+  createAccountAuthService,
+} from './services/account-auth.service';
 import {
   createPrivyWalletExecutionService,
   type PrivyWalletExecutionService,
 } from './services/privy-wallet-execution.service';
 import { createTenderlySimulationService } from './services/tenderly-simulation.service';
-import { createWalletBindingChallengeService } from './services/wallet-binding-challenge.service';
 import { UsersService } from './users/users.service';
 
 export interface AppServices {
+  accountAuthService: AccountAuthService;
   env: AppEnv;
   configService: ConfigService;
   databaseService: DatabaseService;
@@ -84,17 +87,14 @@ export function createContainer(
     databaseService,
     telegramTokenService,
   );
-  const walletBindingChallengeService = createWalletBindingChallengeService();
-  const accountDeletionChallengeService =
-    createAccountDeletionChallengeService();
+  const accountAuthService = createAccountAuthService(databaseService);
   const usersService = new UsersService(
     databaseService,
     userValidationService,
     alphaEtlHttpService,
     telegramService,
     telegramTokenService,
-    walletBindingChallengeService,
-    accountDeletionChallengeService,
+    accountAuthService,
     reportUnsubscribeTokenService,
   );
   const analyticsClientService = new AnalyticsClientService(configService);
@@ -212,6 +212,7 @@ export function createContainer(
   jobProcessorService.registerProcessor(dailySuggestionProcessor);
 
   return {
+    accountAuthService,
     env,
     configService,
     databaseService,

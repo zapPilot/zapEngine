@@ -116,6 +116,7 @@ export interface HomeScreenOverrides {
 
 function baseAccount(): DesktopAccount {
   return {
+    bundleView: null,
     isConnected: false,
     isConnecting: false,
     address: null,
@@ -655,9 +656,12 @@ function ImageStub(props: { accessibilityLabel?: string }) {
  * `Tap` hands `Pressable` a *function* style, which a naive spread would put
  * into a DOM `style` attribute, so the real component is replaced outright.
  */
-function TapStub(props: StubProps & { onPress?: () => void }) {
+function TapStub(
+  props: StubProps & { onPress?: () => void; disabled?: boolean },
+) {
   return (
     <button
+      disabled={props.disabled}
       aria-label={props.accessibilityLabel}
       aria-selected={props.accessibilityState?.selected}
       aria-expanded={props.accessibilityState?.expanded}

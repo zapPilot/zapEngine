@@ -7,9 +7,9 @@
  * - Check Telegram connection status
  * - Disconnect Telegram account
  */
-
 import { AccountServiceError } from '@core/lib/errors';
 import { httpUtils } from '@core/lib/http';
+import { withOwnerAuth } from '@core/lib/http/accountOwnerSession';
 import { createServiceCaller } from '@core/lib/http/createServiceCaller';
 import { createServiceError } from '@core/lib/http/serviceErrorFactory';
 
@@ -110,8 +110,12 @@ export async function requestTelegramToken(
   userId: string,
 ): Promise<TelegramTokenResponse> {
   return callTelegramApi(() =>
-    accountApiClient.post<TelegramTokenResponse>(
-      `/users/${userId}/telegram/request-token`,
+    withOwnerAuth({ userId, interactive: true }, (headers) =>
+      accountApiClient.post<TelegramTokenResponse>(
+        `/users/${userId}/telegram/request-token`,
+        undefined,
+        { headers },
+      ),
     ),
   );
 }
@@ -131,7 +135,11 @@ export async function getTelegramStatus(
   userId: string,
 ): Promise<TelegramStatus> {
   return callTelegramApi(() =>
-    accountApiClient.get<TelegramStatus>(`/users/${userId}/telegram/status`),
+    withOwnerAuth({ userId, interactive: false }, (headers) =>
+      accountApiClient.get<TelegramStatus>(`/users/${userId}/telegram/status`, {
+        headers,
+      }),
+    ),
   );
 }
 
@@ -152,8 +160,12 @@ export async function disconnectTelegram(
   userId: string,
 ): Promise<TelegramDisconnectResponse> {
   return callTelegramApi(() =>
-    accountApiClient.delete<TelegramDisconnectResponse>(
-      `/users/${userId}/telegram/disconnect`,
+    withOwnerAuth({ userId, interactive: true }, (headers) =>
+      accountApiClient.delete<TelegramDisconnectResponse>(
+        `/users/${userId}/telegram/disconnect`,
+        undefined,
+        { headers },
+      ),
     ),
   );
 }

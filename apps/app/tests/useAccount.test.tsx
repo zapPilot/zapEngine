@@ -3,6 +3,8 @@ import { act, createElement, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { accountSessions } from '@/storage/accountSessions';
+import { revokeAccountOwnerSession } from '@zapengine/app-core/services/accountAuthService';
 import { useAccount } from '../src/integration/useAccount';
 
 const mocks = vi.hoisted(() => ({
@@ -240,4 +242,55 @@ describe('useAccount', () => {
     expect(second?.viewingUserId).toBe('user-1');
     await rendered.unmount();
   });
+});
+
+vi.mock('@/storage/accountSessions', () => ({
+  accountSessions: {
+    get: vi.fn().mockResolvedValue(null),
+    clear: vi.fn().mockResolvedValue(undefined),
+  },
+}));
+vi.mock('@zapengine/app-core/services/accountAuthService', () => ({
+  revokeAccountOwnerSession: vi.fn(),
+}));
+
+it.each([
+  null,
+  { token: 'owner', expiresAt: '2026-12-01', createdAt: '2026-10-04' },
+])(
+  'clears and revokes the local session on explicit disconnect (%s)',
+  async (session) => {
+    mocks.user.userInfo = { userId: 'own', bundleWallets: [] };
+    vi.mocked(accountSessions.get).mockResolvedValueOnce(session);
+    const rendered = await renderAccount();
+    await rendered.account.disconnect();
+    expect(accountSessions.clear).toHaveBeenCalledWith('own');
+    expect(mocks.wallet.disconnect).toHaveBeenCalledTimes(1);
+    if (session)
+      expect(revokeAccountOwnerSession).toHaveBeenCalledWith('owner');
+    await rendered.unmount();
+  },
+);
+it('disconnects the wallet even when server revocation fails', async () => {
+  mocks.user.userInfo = { userId: 'own', bundleWallets: [] };
+  vi.mocked(accountSessions.get).mockResolvedValueOnce({
+    token: 'owner',
+    expiresAt: '2026-12-01',
+    createdAt: '2026-10-04',
+  });
+  vi.mocked(revokeAccountOwnerSession).mockRejectedValueOnce(
+    new Error('offline'),
+  );
+  const rendered = await renderAccount();
+  await expect(rendered.account.disconnect()).rejects.toThrow('offline');
+  expect(accountSessions.clear).toHaveBeenCalledWith('own');
+  expect(mocks.wallet.disconnect).toHaveBeenCalledTimes(1);
+  await rendered.unmount();
+});
+it('disconnects an unresolved account without a session', async () => {
+  const rendered = await renderAccount();
+  await rendered.account.disconnect();
+  expect(accountSessions.get).not.toHaveBeenCalled();
+  expect(mocks.wallet.disconnect).toHaveBeenCalledTimes(1);
+  await rendered.unmount();
 });

@@ -1,3 +1,4 @@
+import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 import { tokens } from '@zapengine/design-tokens/tokens';
 import { useToast } from '@zapengine/app-core/providers/ToastContext';
 import * as Clipboard from 'expo-clipboard';
@@ -10,41 +11,43 @@ import { buildBundleShareUrl } from '@/integration/bundleShareModel';
 import { getBundleShareOrigin } from '@/integration/bundleShareOrigin';
 import { useAccount } from '@/integration/useAccount';
 
-/**
- * Shares a link to the signed-in user's own portfolio bundle
- * (`<origin>/home?userId=<uuid>`). Hidden while viewing someone else's bundle
- * or in demo mode — only the owner can share their own link. Web copies to the
- * clipboard (RN-web `Share` is unreliable); native opens the system share
- * sheet, mirroring the podcast episode share in `EpisodeDetailScreen`.
- */
+/** Share the displayed public bundle through the clipboard or native share sheet. */
 export function SharePortfolioButton(): ReactElement | null {
   const account = useAccount();
+  const { t } = useContentLanguage();
   const { showToast } = useToast();
 
-  if (!account.isOwnBundle || account.userId === null) {
+  if (account.isDemo || account.viewingUserId === null) {
     return null;
   }
 
-  const userId = account.userId;
+  const userId = account.viewingUserId;
   const share = () => {
     const url = buildBundleShareUrl(getBundleShareOrigin(), userId);
     if (Platform.OS === 'web') {
-      void Clipboard.setStringAsync(url).then(() =>
-        showToast({ type: 'success', title: 'Link copied' }),
-      );
+      void Clipboard.setStringAsync(url)
+        .then((copied) => {
+          if (!copied) throw new Error('Clipboard write failed');
+          showToast({
+            type: 'success',
+            title: t('home.shareCopied'),
+            message: t('home.sharePublic'),
+          });
+        })
+        .catch(() => showToast({ type: 'error', title: t('home.shareError') }));
       return;
     }
     void Share.share({
-      title: 'My Zap Pilot portfolio',
-      message: `My Zap Pilot portfolio\n${url}`,
+      title: t('home.shareTitle'),
+      message: `${t('home.shareTitle')}\n${url}`,
       url,
-    });
+    }).catch(() => showToast({ type: 'error', title: t('home.shareError') }));
   };
 
   return (
     <Tap
       accessibilityRole="button"
-      accessibilityLabel="Share portfolio"
+      accessibilityLabel={t('home.sharePortfolio')}
       className="h-[34px] w-[34px] items-center justify-center rounded-full border border-line bg-[rgba(255,255,255,.05)]"
       onPress={share}
     >

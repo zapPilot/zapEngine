@@ -1,4 +1,1 @@
-export {
-  ActivityTracker,
-  createActivityTrackingMiddleware,
-} from './activity-tracker.interceptor';
+export { ActivityTracker } from './activity-tracker.interceptor';

@@ -4,7 +4,7 @@ import {
   buildBundleShareUrl,
   DEFAULT_APP_WEB_ORIGIN,
   isBundleSharePath,
-  resolveOwnBundleUrlSearch,
+  resolveBundleUrlSearch,
   resolveShareOrigin,
 } from '../src/integration/bundleShareModel';
 
@@ -59,114 +59,76 @@ describe('isBundleSharePath', () => {
   });
 });
 
-describe('resolveOwnBundleUrlSearch', () => {
-  it('never touches a non-portfolio route', () => {
+describe('resolveBundleUrlSearch', () => {
+  it('leaves unrelated routes alone', () => {
     expect(
-      resolveOwnBundleUrlSearch({
+      resolveBundleUrlSearch({
         pathname: '/podcast',
-        search: '',
-        latchedUrlUserId: null,
-        ownUserId: OWN_ID,
+        search: '?userId=old',
+        viewingUserId: OWN_ID,
       }),
     ).toBeNull();
   });
-
-  it('never overwrites a visited bundle param, even when logged in', () => {
+  it('sets the viewed bundle after search or login', () => {
     expect(
-      resolveOwnBundleUrlSearch({
+      resolveBundleUrlSearch({
         pathname: '/home',
-        search: `?userId=${VISITED_ID}`,
-        latchedUrlUserId: VISITED_ID,
-        ownUserId: OWN_ID,
+        search: '?x=1',
+        viewingUserId: OWN_ID,
       }),
-    ).toBeNull();
-  });
-
-  it('keeps a visited view after a tab roundtrip drops the param', () => {
+    ).toBe(`x=1&userId=${OWN_ID}`);
     expect(
-      resolveOwnBundleUrlSearch({
-        pathname: '/home',
-        search: '',
-        latchedUrlUserId: VISITED_ID,
-        ownUserId: OWN_ID,
-      }),
-    ).toBeNull();
-  });
-
-  it('writes the own userId onto an empty query', () => {
-    expect(
-      resolveOwnBundleUrlSearch({
-        pathname: '/home',
-        search: '',
-        latchedUrlUserId: null,
-        ownUserId: OWN_ID,
-      }),
-    ).toBe(`userId=${OWN_ID}`);
-  });
-
-  it('is idempotent when the own userId is already present', () => {
-    expect(
-      resolveOwnBundleUrlSearch({
+      resolveBundleUrlSearch({
         pathname: '/portfolio',
         search: `?userId=${OWN_ID}`,
-        latchedUrlUserId: OWN_ID,
-        ownUserId: OWN_ID,
+        viewingUserId: VISITED_ID,
       }),
-    ).toBeNull();
+    ).toBe(`userId=${VISITED_ID}`);
   });
-
-  it('preserves unrelated params when adding the own userId', () => {
+  it('restores the visited param after a tab roundtrip', () => {
     expect(
-      resolveOwnBundleUrlSearch({
-        pathname: '/home',
-        search: '?tab=invest',
-        latchedUrlUserId: null,
-        ownUserId: OWN_ID,
-      }),
-    ).toBe(`tab=invest&userId=${OWN_ID}`);
-  });
-
-  it('re-applies the own userId after a tab roundtrip (latch matches own id)', () => {
-    expect(
-      resolveOwnBundleUrlSearch({
+      resolveBundleUrlSearch({
         pathname: '/home',
         search: '',
-        latchedUrlUserId: OWN_ID,
-        ownUserId: OWN_ID,
+        viewingUserId: VISITED_ID,
       }),
-    ).toBe(`userId=${OWN_ID}`);
+    ).toBe(`userId=${VISITED_ID}`);
   });
-
-  it('rewrites the param after an account switch', () => {
+  it('does not write an already canonical query', () => {
     expect(
-      resolveOwnBundleUrlSearch({
-        pathname: '/home',
-        search: `?userId=${VISITED_ID}`,
-        latchedUrlUserId: null,
-        ownUserId: OWN_ID,
-      }),
-    ).toBe(`userId=${OWN_ID}`);
-  });
-
-  it('strips a self-written param on logout', () => {
-    expect(
-      resolveOwnBundleUrlSearch({
+      resolveBundleUrlSearch({
         pathname: '/home',
         search: `?userId=${OWN_ID}`,
-        latchedUrlUserId: null,
-        ownUserId: null,
-      }),
-    ).toBe('');
-  });
-
-  it('does nothing for a logged-out demo visitor with no param', () => {
-    expect(
-      resolveOwnBundleUrlSearch({
-        pathname: '/home',
-        search: '',
-        latchedUrlUserId: null,
-        ownUserId: null,
+        viewingUserId: OWN_ID,
       }),
     ).toBeNull();
+  });
+  it('clears the bundle on logout while preserving other params', () => {
+    expect(
+      resolveBundleUrlSearch({
+        pathname: '/home',
+        search: '?userId=old&x=1',
+        viewingUserId: null,
+      }),
+    ).toBe('x=1');
+    expect(
+      resolveBundleUrlSearch({
+        pathname: '/home',
+        search: '?userId=old',
+        viewingUserId: null,
+      }),
+    ).toBe('');
+    expect(
+      resolveBundleUrlSearch({
+        pathname: '/home',
+        search: '',
+        viewingUserId: null,
+      }),
+    ).toBeNull();
+  });
+  it('shares the production origin from the desktop loopback runtime', () => {
+    expect(resolveShareOrigin('http://127.0.0.1:3105', 'desktop')).toBe(
+      DEFAULT_APP_WEB_ORIGIN,
+    );
   });
 });

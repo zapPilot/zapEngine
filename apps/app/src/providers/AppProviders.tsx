@@ -1,3 +1,4 @@
+import { AccountSessionBridge } from '@/providers/AccountSessionBridge';
 import type { PrivyProviderProps } from '@privy-io/expo';
 import { PrivyElements } from '@privy-io/expo/ui';
 import * as SplashScreen from 'expo-splash-screen';
@@ -14,6 +15,7 @@ const PRIVY_SUPPORTED_CHAINS = NATIVE_WALLET_SUPPORTED_CHAINS as NonNullable<
 >;
 
 export const AppProviders = createAppProviders({
+  renderAccountSessionBridge: () => <AccountSessionBridge />,
   requiresMobilePrivy: true,
   missingConfigTarget: 'native wallet flow',
   onReady: () => {

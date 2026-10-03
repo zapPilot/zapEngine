@@ -49,6 +49,7 @@ type WalletProvidersConfig =
     };
 
 type AppProvidersConfig = {
+  renderAccountSessionBridge?: () => ReactElement;
   onReady?: () => void;
 } & WalletProvidersConfig;
 
@@ -127,6 +128,7 @@ export function AppProviderShell(
               <PodcastPlayerProvider>
                 <PodcastProgressTracker />
                 <ToastProvider>
+                  {props.renderAccountSessionBridge?.()}
                   <View
                     className="flex-1 bg-bg"
                     nativeID={runtimeConfig.runtime}

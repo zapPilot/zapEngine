@@ -1,9 +1,4 @@
-import { Hono } from 'hono';
-
-import {
-  ActivityTracker,
-  createActivityTrackingMiddleware,
-} from '../../../../src/common/interceptors/activity-tracker.interceptor';
+import { ActivityTracker } from '../../../../src/common/interceptors/activity-tracker.interceptor';
 
 function createDatabaseService() {
   const eq = vi.fn().mockResolvedValue({ error: null });
@@ -129,74 +124,3 @@ describe('ActivityTracker', () => {
  * request. The original unit tests injected fake `params` objects
  * directly, bypassing Hono entirely, so this was not caught.
  */
-describe('createActivityTrackingMiddleware (Hono integration)', () => {
-  const UUID_A = '123e4567-e89b-12d3-a456-426614174000';
-  const UUID_B = '00000000-0000-0000-0000-000000000001';
-  const UUID_PATTERN = '[0-9a-fA-F-]{36}';
-
-  function buildApp() {
-    const database = createDatabaseService();
-    const tracker = new ActivityTracker(database.service as never);
-    const users = new Hono();
-    const mw = createActivityTrackingMiddleware(tracker);
-    users.use(`/:userId{${UUID_PATTERN}}`, mw);
-    users.use(`/:userId{${UUID_PATTERN}}/*`, mw);
-    users.post('/connect-wallet', (c) => c.json({ ok: 'connect' }));
-    users.get('/:userId', (c) => c.json({ ok: 'profile' }));
-    users.get('/:userId/wallets', (c) => c.json({ ok: 'wallets' }));
-    const app = new Hono();
-    app.route('/users', users);
-    return { app, database };
-  }
-
-  it('extracts userId from path params and tracks activity', async () => {
-    const { app, database } = buildApp();
-
-    const response = await app.request(`http://localhost/users/${UUID_A}`);
-    await flushSetImmediate();
-
-    expect(response.status).toBe(200);
-    expect(database.eq).toHaveBeenCalledWith('id', UUID_A);
-  });
-
-  it('tracks activity on nested routes like /:userId/wallets', async () => {
-    const { app, database } = buildApp();
-
-    const response = await app.request(
-      `http://localhost/users/${UUID_B}/wallets`,
-    );
-    await flushSetImmediate();
-
-    expect(response.status).toBe(200);
-    expect(database.eq).toHaveBeenCalledWith('id', UUID_B);
-  });
-
-  it('falls back to query.userId when param is absent', async () => {
-    const database = createDatabaseService();
-    const tracker = new ActivityTracker(database.service as never);
-    const app = new Hono();
-    app.use('*', createActivityTrackingMiddleware(tracker));
-    app.get('/fallback', (c) => c.json({ ok: true }));
-
-    const response = await app.request(
-      `http://localhost/fallback?userId=${UUID_A}`,
-    );
-    await flushSetImmediate();
-
-    expect(response.status).toBe(200);
-    expect(database.eq).toHaveBeenCalledWith('id', UUID_A);
-  });
-
-  it('does not track /connect-wallet — UUID regex excludes non-UUID segments', async () => {
-    const { app, database } = buildApp();
-
-    const response = await app.request(
-      'http://localhost/users/connect-wallet',
-      { method: 'POST' },
-    );
-    await flushSetImmediate();
-
-    expect(response.status).toBe(200);
-    expect(database.from).not.toHaveBeenCalled();
-  });
-});

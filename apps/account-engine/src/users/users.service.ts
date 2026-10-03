@@ -1,10 +1,9 @@
-import { equalsAddress } from '@zapengine/types/shared';
-
 import { CHANNEL_TYPE_TELEGRAM } from '../common/constants';
 import {
   BadRequestException,
   ConflictException,
   NotFoundException,
+  UnauthorizedException,
 } from '../common/http';
 import { AlphaEtlHttpService } from '../common/services';
 import {
@@ -19,14 +18,8 @@ import { ReportUnsubscribeTokenService } from '../modules/notifications/report-u
 // EtlJobStatus type from @zapengine/types/etl is used by AlphaEtlHttpService
 import { TelegramService } from '../modules/notifications/telegram.service';
 import { TelegramTokenService } from '../modules/notifications/telegram-token.service';
-import type {
-  AccountDeletionChallenge,
-  AccountDeletionChallengeService,
-} from '../services/account-deletion-challenge.service';
-import type {
-  WalletBindingChallenge,
-  WalletBindingChallengeService,
-} from '../services/wallet-binding-challenge.service';
+import type { AccountAuthService } from '../services/account-auth.service';
+import { classifyBundleWallet } from '../services/bundle-owner.model';
 import {
   AddWalletResponse,
   ConnectWalletResponse,
@@ -38,7 +31,6 @@ import {
   UpdateWalletLabelResponse,
   UserCryptoWallet,
   UserProfileResponse,
-  VerifyWalletResponse,
 } from './interfaces';
 
 /**
@@ -69,24 +61,61 @@ export class UsersService extends BaseService {
     private readonly alphaEtlHttpService: AlphaEtlHttpService,
     private readonly telegramService: TelegramService,
     private readonly telegramTokenService: TelegramTokenService,
-    private readonly walletBindingChallengeService: WalletBindingChallengeService,
-    private readonly accountDeletionChallengeService: AccountDeletionChallengeService,
+    private readonly accountAuthService: AccountAuthService,
     private readonly reportUnsubscribeTokenService: ReportUnsubscribeTokenService,
   ) {
     super(databaseService);
   }
 
-  async getUserByWallet(wallet: string): Promise<{ user_id: string }> {
+  async getUserByWallet(
+    wallet: string,
+    options: { verifiedOnly?: boolean } = {},
+  ): Promise<{ user_id: string }> {
     return this.withErrorHandling(async () => {
-      const binding = await this.findOne<{ user_id: string }>(
-        'user_crypto_wallets',
-        { wallet },
-        {
-          select: 'user_id',
-          entityName: 'Wallet',
-        },
+      const exact = await this.supabase
+        .from('user_crypto_wallets')
+        .select('*, users(created_at)')
+        .eq('wallet', wallet);
+      if (exact.error) throw new Error(exact.error.message);
+      const matches = await this.supabase
+        .from('user_crypto_wallets')
+        .select('*, users(created_at)')
+        .ilike('wallet', wallet);
+      if (matches.error) throw new Error(matches.error.message);
+      const candidates = matches.data ?? [];
+      const ranked = await Promise.all(
+        candidates.map(async (candidate) => {
+          const wallets = await this.getUserWallets(candidate.user_id);
+          const role = classifyBundleWallet(
+            candidate,
+            wallets,
+            candidate.users.created_at,
+          );
+          const verified =
+            role !== 'watch' || candidate.ownership_verified_at !== null;
+          let rank = 0;
+          if (verified) rank = 1;
+          if (role === 'founder') rank = 2;
+          if (role === 'owner') rank = 3;
+          return {
+            candidate,
+            verified,
+            rank,
+          };
+        }),
       );
-      return { user_id: binding!.user_id };
+      const eligible = ranked.filter(
+        (item) => !options.verifiedOnly || item.verified,
+      );
+      eligible.sort(
+        (a, b) =>
+          b.rank - a.rank ||
+          Date.parse(a.candidate.created_at) -
+            Date.parse(b.candidate.created_at) ||
+          a.candidate.id.localeCompare(b.candidate.id),
+      );
+      if (!eligible[0]) throw new NotFoundException('Portfolio not found');
+      return { user_id: eligible[0].candidate.user_id };
     }, 'fetch user by wallet');
   }
 
@@ -117,26 +146,9 @@ export class UsersService extends BaseService {
     userId: string,
     wallet: string,
     label: string | undefined,
-    signature?: string,
   ): Promise<AddWalletResponse> {
     return this.withErrorHandling(async () => {
       await this.userValidationService.validateUserExists(userId);
-
-      let ownershipVerifiedAt: string | null = null;
-      if (signature) {
-        const verified =
-          await this.walletBindingChallengeService.verifyChallenge(
-            userId,
-            wallet,
-            signature,
-          );
-        if (!verified) {
-          throw new BadRequestException(
-            'Wallet ownership signature is invalid, expired, or missing a challenge',
-          );
-        }
-        ownershipVerifiedAt = new Date().toISOString();
-      }
 
       // Let the unique constraint on (wallet) be the source of truth. We skip
       // the pre-check entirely so the happy path is one round-trip — and we
@@ -149,17 +161,16 @@ export class UsersService extends BaseService {
             user_id: userId,
             wallet,
             label: label ?? generateDefaultWalletLabel(wallet),
-            ownership_verified_at: ownershipVerifiedAt,
+            ownership_verified_at: null,
           },
           { entityName: 'Wallet' },
         );
 
         return {
           wallet_id: newWallet.id,
-          ownership_verified: ownershipVerifiedAt !== null,
-          message: ownershipVerifiedAt
-            ? 'Wallet added successfully to user bundle'
-            : 'Wallet added to user bundle; verify ownership to enable portfolio tracking',
+          ownership_verified: false,
+          message:
+            'Wallet added to user bundle; verify ownership to enable portfolio tracking',
         };
       } catch (error) {
         // SupabaseErrorHandler translates Postgres unique_violation (23505) to
@@ -180,89 +191,6 @@ export class UsersService extends BaseService {
         throw error;
       }
     }, 'add wallet');
-  }
-
-  async verifyWalletOwnership(
-    userId: string,
-    walletAddress: string,
-    signature: string,
-  ): Promise<VerifyWalletResponse> {
-    return this.withErrorHandling(async () => {
-      await this.userValidationService.validateUserExists(userId);
-      const wallets = await this.findMany<
-        Pick<UserCryptoWallet, 'wallet' | 'ownership_verified_at'>
-      >(
-        'user_crypto_wallets',
-        { user_id: userId },
-        {
-          select: 'wallet, ownership_verified_at',
-          entityName: 'Wallets',
-        },
-      );
-      const wallet = wallets.find((candidate) =>
-        equalsAddress(candidate.wallet, walletAddress),
-      );
-
-      if (!wallet) {
-        throw new NotFoundException('Wallet not found');
-      }
-
-      if (wallet.ownership_verified_at) {
-        return {
-          success: true,
-          message: 'Wallet ownership already verified',
-          ownership_verified_at: wallet.ownership_verified_at,
-        };
-      }
-
-      const verified = await this.walletBindingChallengeService.verifyChallenge(
-        userId,
-        walletAddress,
-        signature,
-      );
-      if (!verified) {
-        throw new BadRequestException(
-          'Wallet ownership signature is invalid, expired, or missing a challenge',
-        );
-      }
-
-      const ownershipVerifiedAt = new Date().toISOString();
-      await this.updateWhere(
-        'user_crypto_wallets',
-        { ownership_verified_at: ownershipVerifiedAt },
-        { user_id: userId, wallet: wallet.wallet },
-        { entityName: 'Wallet', requireSingleResult: true },
-      );
-
-      return {
-        success: true,
-        message: 'Wallet ownership verified successfully',
-        ownership_verified_at: ownershipVerifiedAt,
-      };
-    }, 'verify wallet ownership');
-  }
-
-  async requestWalletBindingChallenge(
-    userId: string,
-    wallet: string,
-  ): Promise<WalletBindingChallenge> {
-    return this.withErrorHandling(async () => {
-      await this.userValidationService.validateUserExists(userId);
-      return this.walletBindingChallengeService.issueChallenge(userId, wallet);
-    }, 'request wallet binding challenge');
-  }
-
-  async requestDeletionChallenge(
-    userId: string,
-    wallet: string,
-  ): Promise<AccountDeletionChallenge> {
-    return this.withErrorHandling(async () => {
-      await this.validateUserWithVerifiedWallet(userId, wallet);
-      return this.accountDeletionChallengeService.issueChallenge(
-        userId,
-        wallet,
-      );
-    }, 'request account deletion challenge');
   }
 
   async updateEmail(
@@ -397,32 +325,29 @@ export class UsersService extends BaseService {
   async removeWallet(
     userId: string,
     walletId: string,
+    token: string,
   ): Promise<{ message: string }> {
-    return this.withErrorHandling(async () => {
-      const wallet = await this.findOne<{ user_id: string }>(
-        'user_crypto_wallets',
-        { id: walletId },
-        {
-          select: 'user_id',
-          entityName: 'Wallet',
-        },
-      );
-
-      if (wallet?.user_id !== userId) {
-        throw new BadRequestException('Wallet does not belong to this user');
-      }
-
-      await this.deleteWhere(
-        'user_crypto_wallets',
-        { id: walletId },
-        {
-          entityName: 'Wallet',
-          requireSingleResult: true,
-        },
-      );
-
-      return { message: 'Wallet removed successfully' };
-    }, 'remove wallet');
+    const session = await this.accountAuthService.authenticate(token);
+    const result = await this.supabase.rpc('remove_bundle_wallet', {
+      p_user_id: userId,
+      p_wallet_id: walletId,
+      p_recent: Date.now() - Date.parse(session.created_at) <= 10 * 60 * 1000,
+    });
+    if (result.error) {
+      if (result.error.message.includes('RECENT_SIGN_IN_REQUIRED'))
+        throw Object.assign(
+          new UnauthorizedException(
+            '請重新簽名，若使用舊版 Zap Pilot 請先更新',
+          ),
+          { code: 'RECENT_SIGN_IN_REQUIRED' },
+        );
+      if (result.error.message.includes('LAST_OWNER_WALLET'))
+        throw new ConflictException(
+          'Cannot remove the last owner-bound wallet',
+        );
+      throw new BadRequestException('Wallet does not belong to this user');
+    }
+    return { message: 'Wallet removed successfully' };
   }
 
   async getUserProfile(userId: string): Promise<UserProfileResponse> {
@@ -438,14 +363,18 @@ export class UsersService extends BaseService {
           'users',
           { id: userId },
           'User',
-          '*',
+          'id, created_at, is_subscribed_to_reports',
         ),
         this.getUserWallets(userId),
         this.userValidationService.getActiveSubscriptionWithPlan(userId),
       ]);
 
       const result: UserProfileResponse = {
-        user,
+        user: {
+          id: user.id,
+          created_at: user.created_at,
+          is_subscribed_to_reports: user.is_subscribed_to_reports,
+        },
         wallets,
       };
 
@@ -463,23 +392,15 @@ export class UsersService extends BaseService {
 
   async deleteUser(
     userId: string,
-    wallet: string,
+    challengeId: string,
     signature: string,
   ): Promise<SuccessResponse> {
     return this.withErrorHandling(async () => {
-      await this.validateUserWithVerifiedWallet(userId, wallet);
-
-      const verified =
-        await this.accountDeletionChallengeService.verifyChallenge(
-          userId,
-          wallet,
-          signature,
-        );
-      if (!verified) {
-        throw new BadRequestException(
-          'Account deletion signature is invalid, expired, or missing a challenge',
-        );
-      }
+      await this.accountAuthService.verifyDeletion(
+        userId,
+        challengeId,
+        signature,
+      );
 
       // Database cascades release wallets and remove subscriptions,
       // notification settings, tokens, and queued ETL jobs atomically.
@@ -497,17 +418,6 @@ export class UsersService extends BaseService {
         message: 'User deleted successfully',
       };
     }, 'delete user');
-  }
-
-  private async validateUserWithVerifiedWallet(
-    userId: string,
-    wallet: string,
-  ): Promise<void> {
-    await this.userValidationService.validateUserExists(userId);
-    await this.userValidationService.validateVerifiedWalletOwnership(
-      wallet,
-      userId,
-    );
   }
 
   async triggerWalletDataFetch(

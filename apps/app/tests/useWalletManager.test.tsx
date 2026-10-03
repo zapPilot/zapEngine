@@ -9,6 +9,7 @@ import {
 } from '@/integration/useWalletManager';
 
 const mocks = vi.hoisted(() => ({
+  ownerAuth: vi.fn(),
   connect: vi.fn(),
   equalsAddress: vi.fn(),
   labelsArgs: null as null | Record<string, unknown>,
@@ -128,6 +129,9 @@ async function render(
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.ownerAuth.mockImplementation(
+    async (_options: unknown, request: () => Promise<void>) => request(),
+  );
   mocks.provider = { connect: mocks.connect, signMessage: vi.fn() };
   mocks.loadWallets.mockResolvedValue(undefined);
   mocks.handleVerifyWallet.mockResolvedValue({ success: true });
@@ -253,3 +257,28 @@ describe('useWalletManager', () => {
     });
   });
 });
+
+vi.mock('@zapengine/app-core/lib/http/accountOwnerSession', () => ({
+  withOwnerAuth: mocks.ownerAuth,
+}));
+
+it('requires an account before prompting for owner proof', async () => {
+  const hook = await render(null, null);
+  expect(await hook.current().verifyWallet('0xabc')).toEqual({
+    success: false,
+    error: 'User ID is required',
+  });
+  expect(mocks.ownerAuth).not.toHaveBeenCalled();
+});
+it.each([new Error('signature declined'), 'signature unavailable'])(
+  'does not switch signers when recent proof fails (%s)',
+  async (error) => {
+    mocks.ownerAuth.mockRejectedValueOnce(error);
+    const hook = await render('u', '0xabc');
+    expect(await hook.current().verifyWallet('0xdef')).toEqual({
+      success: false,
+      error: error instanceof Error ? error.message : error,
+    });
+    expect(mocks.connect).not.toHaveBeenCalled();
+  },
+);
