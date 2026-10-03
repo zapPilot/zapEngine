@@ -73,7 +73,7 @@ export function MarketSignalsCard({
 
   if (loading && !signals) {
     return (
-      <Card className="mx-5 mt-4 p-4">
+      <Card className="mt-4 p-4">
         <SkeletonBlock className="h-5 w-24 rounded-lg" />
         <SkeletonBlock className="mt-4 h-40 w-full rounded-xl" />
       </Card>
@@ -81,7 +81,7 @@ export function MarketSignalsCard({
   }
 
   return (
-    <Card className="mx-5 mt-4 p-4">
+    <Card className="mt-4 p-4">
       <Text className="font-sans-semibold text-[15px] text-ink">
         {t('strategy.signals.title')}
       </Text>

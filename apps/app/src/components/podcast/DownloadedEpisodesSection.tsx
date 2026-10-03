@@ -191,16 +191,11 @@ function EmptyDownloads(): ReactElement {
   const { t } = useContentLanguage();
 
   return (
-    <View className="flex-row items-center gap-3 rounded-card border border-dashed border-line-hi p-4">
-      <View className="h-10 w-10 items-center justify-center rounded-pill border border-accent-line bg-accent-subtle">
-        <Icon icon={Download} tone="accent" />
-      </View>
-      <View className="min-w-0 flex-1">
-        <Text variant="subheading">{t('podcast.downloadsEmptyTitle')}</Text>
-        <Text variant="body-sm" tone="secondary" className="mt-0.5">
-          {t('podcast.downloadsEmptyMessage')}
-        </Text>
-      </View>
+    <View className="flex-row items-center gap-2 py-2">
+      <Icon icon={Download} size="sm" tone="muted" />
+      <Text variant="body-sm" tone="secondary" className="min-w-0 flex-1">
+        {t('podcast.downloadsEmptyMessage')}
+      </Text>
     </View>
   );
 }

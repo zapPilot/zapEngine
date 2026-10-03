@@ -39,7 +39,7 @@ export function PageHeader({
   return (
     <View
       className={cn(
-        'flex-row items-center justify-between gap-3 px-5 py-3',
+        'flex-row items-center justify-between gap-3 py-3',
         className,
       )}
     >

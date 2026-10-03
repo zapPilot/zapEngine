@@ -7,8 +7,10 @@ import { PodcastIconButton } from '@/components/podcast/EpisodeMediaPlayer';
 import { RemoveDownloadSheet } from '@/components/podcast/RemoveDownloadSheet';
 import { Icon } from '@/components/ui/Icon';
 import { ProgressRing } from '@/components/ui/ProgressRing';
-import { useEpisodeDownload } from '@/hooks/useEpisodeDownload';
-import type { PodcastEpisode } from '@/integration/podcastFeed';
+import {
+  useEpisodeDownload,
+  type EpisodeDownloadControlProps,
+} from '@/hooks/useEpisodeDownload';
 import type { EpisodeDownloadView } from '@/integration/podcastVideoDownloads';
 import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 
@@ -25,14 +27,13 @@ interface ButtonLook {
 // only decorates, so presses go straight through to the button.
 const RING_OVERLAY = { top: -1, left: -1, pointerEvents: 'none' } as const;
 
-function buttonLook(view: EpisodeDownloadView, t: Translate): ButtonLook {
+function buttonLook(
+  view: Omit<EpisodeDownloadView, 'phase'> & {
+    phase: Exclude<EpisodeDownloadView['phase'], 'unsupported'>;
+  },
+  t: Translate,
+): ButtonLook {
   switch (view.phase) {
-    case 'unsupported':
-      return {
-        label: t('podcast.downloadUnsupported'),
-        icon: Download,
-        tone: 'accent',
-      };
     case 'unavailable':
       return {
         label: t('podcast.downloadNoVideo'),
@@ -75,21 +76,20 @@ function buttonLook(view: EpisodeDownloadView, t: Translate): ButtonLook {
  */
 export function EpisodeDownloadButton({
   episode,
-}: {
-  episode: PodcastEpisode;
-}): ReactElement {
+}: EpisodeDownloadControlProps): ReactElement | null {
   const { t } = useContentLanguage();
   const { downloads, view } = useEpisodeDownload(episode);
   // The sheet keeps the episode it was opened for: the screen can move on to
   // another episode while it is up, and the confirm must still hit this one.
   const [removal, setRemoval] = useState({ open: false, id: '', size: 0 });
   const id = episode.localizationId;
+  if (view.phase === 'unsupported') return null;
   const downloading = view.phase === 'downloading';
-  const disabled =
-    !downloads.isHydrated ||
-    view.phase === 'unsupported' ||
-    view.phase === 'unavailable';
-  const { label, hint, icon, tone } = buttonLook(view, t);
+  const disabled = !downloads.isHydrated || view.phase === 'unavailable';
+  const { label, hint, icon, tone } = buttonLook(
+    { ...view, phase: view.phase },
+    t,
+  );
 
   const press = () => {
     if (downloading) downloads.cancel(id);

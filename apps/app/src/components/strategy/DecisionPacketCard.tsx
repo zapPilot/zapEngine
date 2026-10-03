@@ -42,7 +42,7 @@ export function DecisionPacketCard({
   const { t } = useContentLanguage();
   if (loading && !packet) {
     return (
-      <Card className="mx-5 mt-4 p-4">
+      <Card className="mt-4 p-4">
         <SkeletonBlock className="h-5 w-40 rounded-lg" />
         <SkeletonBlock className="mt-4 h-24 w-full rounded-xl" />
       </Card>
@@ -58,7 +58,7 @@ export function DecisionPacketCard({
   const quota = packet.guards.quota;
   const cooldown = packet.guards.cooldown;
   return (
-    <Card className="mx-5 mt-4 p-4">
+    <Card className="mt-4 p-4">
       <View className="flex-row items-center justify-between">
         <Text className="font-sans-semibold text-[15px] text-ink">
           {t('strategy.todaysDecision')}
