@@ -1,4 +1,8 @@
 {
   "title": "Track Record",
-  "pages": ["dma-fgi-portfolio-rules-v1", "dca-classic-v1"]
+  "pages": [
+    "dma-fgi-portfolio-rules-v1",
+    "dca-classic-v1",
+    "verifiable-strategy"
+  ]
 }
