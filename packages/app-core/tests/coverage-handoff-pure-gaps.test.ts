@@ -84,7 +84,7 @@ describe('coverage handoff: pure app-core boundary behavior', () => {
     );
     expect(
       sampleTimelineData(timeline, 'primary', 5).map(
-        (point: any) => point.date,
+        (point) => point.market.date,
       ),
     ).toEqual([
       '2026-01-01',
