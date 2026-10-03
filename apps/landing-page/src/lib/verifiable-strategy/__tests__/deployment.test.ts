@@ -53,6 +53,48 @@ describe('Rabby deterministic deployment', () => {
     );
     expect(mocks.wallet.sendTransaction).not.toHaveBeenCalled();
   });
+  it('adds an unknown Sepolia chain before deploying', async () => {
+    mocks.wallet.switchChain
+      .mockRejectedValueOnce({ code: 4902 })
+      .mockResolvedValueOnce(undefined);
+    const runtime =
+      await import('../../../../../analytics-engine/tests/fixtures/pinned_strategy/dma_cross_down_slice.json');
+    mocks.client.getBytecode
+      .mockResolvedValueOnce(factoryCode)
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(runtime.runtime_code);
+    const deployment = await deployStrategy(provider, vi.fn());
+    expect(mocks.wallet.addChain).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chain: expect.objectContaining({ id: 421614 }),
+      }),
+    );
+    expect(deployment.address).toBe(DEPLOYMENT_ADDRESS);
+  });
+  it('rethows a chain switch failure that is not a missing chain', async () => {
+    const failure = new Error('switch rejected');
+    (failure as { code?: number }).code = 1234;
+    mocks.wallet.switchChain.mockRejectedValueOnce(failure);
+    await expect(deployStrategy(provider, vi.fn())).rejects.toThrow(
+      'switch rejected',
+    );
+    expect(mocks.wallet.addChain).not.toHaveBeenCalled();
+    expect(mocks.wallet.sendTransaction).not.toHaveBeenCalled();
+  });
+  it('refuses to deploy against the wrong RPC network', async () => {
+    mocks.client.getChainId.mockResolvedValueOnce(1);
+    await expect(deployStrategy(provider, vi.fn())).rejects.toThrow(
+      'Wrong RPC network',
+    );
+    expect(mocks.wallet.sendTransaction).not.toHaveBeenCalled();
+  });
+  it('requires a selected Rabby account', async () => {
+    mocks.wallet.requestAddresses.mockResolvedValueOnce([]);
+    await expect(deployStrategy(provider, vi.fn())).rejects.toThrow(
+      'Select an account in Rabby',
+    );
+    expect(mocks.wallet.sendTransaction).not.toHaveBeenCalled();
+  });
   it('rejects an unexpected factory without broadcasting', async () => {
     mocks.client.getBytecode.mockResolvedValue('0x1234');
     await expect(deployStrategy(provider, vi.fn())).rejects.toThrow(
