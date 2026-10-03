@@ -11,8 +11,17 @@ import { inputFromExample } from '@/lib/verifiable-strategy/encoding';
 import { runCalculator } from '@/lib/verifiable-strategy/onchain';
 import { ContractAnswer } from '../ContractAnswer';
 import { CalculatorForm } from '../CalculatorForm';
+import { AssetCrossTrack } from '../AssetCrossTrack';
+import { AllocationCompare } from '../AllocationPreview';
+import { VerifyYourself } from '../VerifyYourself';
+import { WAD } from '@/lib/verifiable-strategy/encoding';
 
-const state = vi.hoisted(() => ({ query: new URLSearchParams(), fail: false }));
+const state = vi.hoisted(() => ({
+  query: new URLSearchParams(),
+  fail: false,
+  verifyFail: '' as '' | 'error' | 'string',
+  runFail: '' as '' | 'codehash' | 'network' | 'string',
+}));
 vi.mock('next/navigation', () => ({ useSearchParams: () => state.query }));
 vi.mock('@/lib/verifiable-strategy/onchain', async (importOriginal) => {
   const actual =
@@ -20,20 +29,38 @@ vi.mock('@/lib/verifiable-strategy/onchain', async (importOriginal) => {
   return {
     ...actual,
     calculatorClient: () => mockClient().client,
+    verifyDeployment: async (
+      client: Parameters<typeof actual.verifyDeployment>[0],
+      data: Parameters<typeof actual.verifyDeployment>[1],
+      block?: Parameters<typeof actual.verifyDeployment>[2],
+    ) => {
+      if (state.verifyFail === 'error')
+        throw new Error('Bytecode check failed');
+      if (state.verifyFail === 'string') throw 'string failure';
+      return actual.verifyDeployment(client, data, block);
+    },
     runCalculator: (
       input: Parameters<typeof actual.runCalculator>[0],
       data: Parameters<typeof actual.runCalculator>[1],
-    ) =>
-      actual.runCalculator(
+    ) => {
+      if (state.runFail === 'codehash')
+        return Promise.reject(new Error('Runtime codehash mismatch'));
+      if (state.runFail === 'network')
+        return Promise.reject(new Error('Network unreachable'));
+      if (state.runFail === 'string') return Promise.reject('string failure');
+      return actual.runCalculator(
         input,
         data,
         mockClient({ fail: state.fail }).client,
-      ),
+      );
+    },
   };
 });
 beforeEach(() => {
   state.query = new URLSearchParams();
   state.fail = false;
+  state.verifyFail = '';
+  state.runFail = '';
 });
 afterEach(cleanup);
 
@@ -243,4 +270,150 @@ it('copies the full codehash with an accessible failure fallback', async () => {
   expect(navigator.clipboard.writeText).toHaveBeenLastCalledWith(
     dataset.runtimeCodehash,
   );
+});
+
+it('shows missing data when an asset has no usable numbers', () => {
+  render(
+    <AssetCrossTrack
+      asset="BTC"
+      previous={{ price: '0', dma: '100' }}
+      current={{ price: '90', dma: '100' }}
+    />,
+  );
+  expect(screen.getByText('Missing data')).toBeInTheDocument();
+  cleanup();
+  render(
+    <AssetCrossTrack
+      asset="BTC"
+      previous={{ price: 'invalid', dma: '100' }}
+      current={{ price: '90', dma: '100' }}
+    />,
+  );
+  expect(screen.getByText('Missing data')).toBeInTheDocument();
+});
+
+it('marks the last exit invalid when the date cannot be parsed', () => {
+  const onChange = vi.fn();
+  const input = inputFromExample(example);
+  render(
+    <CalculatorForm
+      input={input}
+      onChange={onChange}
+      running={false}
+      onRun={vi.fn()}
+    />,
+  );
+  fireEvent.change(screen.getByLabelText('Last exit executed'), {
+    target: { value: '1969-12-31' },
+  });
+  expect(onChange).toHaveBeenCalledWith(
+    expect.objectContaining({ lastExecutedDay: -1 }),
+  );
+});
+
+it('does not submit while inputs are invalid', () => {
+  const onRun = vi.fn();
+  const input = { ...inputFromExample(example), date: '' };
+  render(
+    <CalculatorForm
+      input={input}
+      onChange={vi.fn()}
+      running={false}
+      onRun={onRun}
+    />,
+  );
+  fireEvent.submit(document.getElementById('strategy-calculator')!);
+  expect(onRun).not.toHaveBeenCalled();
+});
+
+it('copies verification commands and reports clipboard failure', async () => {
+  const result = await runCalculator(inputFromExample(example), dataset);
+  Object.defineProperty(navigator, 'clipboard', {
+    configurable: true,
+    value: { writeText: vi.fn().mockRejectedValue(new Error('Denied')) },
+  });
+  render(<VerifyYourself result={result} deployment={dataset.deployment!} />);
+  fireEvent.click(
+    screen.getAllByRole('button', { name: /Copy .* cast command/ })[0]!,
+  );
+  await screen.findByText(/Copy unavailable/);
+});
+
+it('highlights changed allocations and tolerates a short comparison', () => {
+  const before = [
+    WAD / 4n,
+    WAD / 4n,
+    WAD / 4n,
+    WAD / 4n,
+  ] as unknown as readonly bigint[];
+  render(<AllocationCompare before={before} after={before} />);
+  expect(document.querySelector('.calc-changed')).toBeNull();
+  cleanup();
+  render(
+    <AllocationCompare
+      before={before}
+      after={before.slice(0, 2) as unknown as readonly bigint[]}
+    />,
+  );
+  expect(screen.getAllByText('Before').length).toBeGreaterThan(0);
+});
+
+it('keeps the entered allocation when the contract does not match', async () => {
+  const result = await runCalculator(inputFromExample(example), dataset);
+  const unmatched = {
+    ...result,
+    exit: { ...result.exit, matched: false },
+  };
+  render(
+    <ContractAnswer
+      result={unmatched}
+      submitted={inputFromExample(example)}
+      example={example}
+      data={dataset}
+      stale={false}
+      historical={true}
+      running={false}
+      disabled={false}
+      error=""
+    />,
+  );
+  expect(
+    screen.getByText('The allocation stays as entered.'),
+  ).toBeInTheDocument();
+});
+
+it('reports a failed bytecode check', async () => {
+  state.verifyFail = 'error';
+  render(<StrategyCalculator data={dataset} />);
+  await screen.findByText('Bytecode check failed');
+});
+
+it('reports a non-Error bytecode failure', async () => {
+  state.verifyFail = 'string';
+  render(<StrategyCalculator data={dataset} />);
+  await screen.findByText('Bytecode check failed');
+});
+
+it('explains codehash failures when calling', async () => {
+  state.runFail = 'codehash';
+  render(<StrategyCalculator data={dataset} />);
+  await screen.findByText(/Codehash matches/);
+  fireEvent.click(screen.getByRole('button', { name: 'Call contract' }));
+  await screen.findByText(/pinned artifact/);
+});
+
+it('explains network failures when calling', async () => {
+  state.runFail = 'network';
+  render(<StrategyCalculator data={dataset} />);
+  await screen.findByText(/Codehash matches/);
+  fireEvent.click(screen.getByRole('button', { name: 'Call contract' }));
+  await screen.findByText(/Arbitrum Sepolia RPC/);
+});
+
+it('reports non-Error calculation failures', async () => {
+  state.runFail = 'string';
+  render(<StrategyCalculator data={dataset} />);
+  await screen.findByText(/Codehash matches/);
+  fireEvent.click(screen.getByRole('button', { name: 'Call contract' }));
+  await screen.findByText(/RPC calculation failed/);
 });
