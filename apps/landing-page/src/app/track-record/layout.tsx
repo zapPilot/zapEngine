@@ -30,7 +30,6 @@ export default function TrackRecordLayout({
         <header className="track-record-header">
           <Link className="brand" href="/" aria-label="Zap Pilot home">
             <BrandMark />
-            <span className="brand-name">Zap Pilot</span>
           </Link>
 
           <nav className="track-record-breadcrumb" aria-label="Breadcrumb">
