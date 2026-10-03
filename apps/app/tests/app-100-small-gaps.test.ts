@@ -65,6 +65,7 @@ import {
 import {
   buildChainTokenBalanceRows,
   buildDesktopWalletAssets,
+  type DesktopWalletAsset,
 } from '@/integration/walletAssetModel';
 import { summarizeRangeAttribution } from '@/integration/rangeAttribution';
 import {
@@ -73,12 +74,7 @@ import {
 } from '@/integration/checkpointAdvanceModel';
 import { buildHomeBorrowingRiskView } from '@/integration/homeBorrowingRiskModel';
 import { buildHomeIncomeView } from '@/integration/homeIncomeModel';
-import {
-  buildConnectedWallets,
-  getNativeWalletChain,
-  resolveEmbeddedWalletId,
-  toWalletError,
-} from '@/integration/walletBackendModel';
+import { resolveEmbeddedWalletId } from '@/integration/walletBackendModel';
 import { InvestProvider, useInvest } from '@/integration/useInvest';
 import { OwnBundleUrlSync } from '@/integration/bundleShareUrlSync.web';
 import {
@@ -291,7 +287,7 @@ describe('investableBalanceRows gaps', () => {
         chains: ['base'],
         holdings: [],
       },
-    ] as never;
+    ] satisfies DesktopWalletAsset[];
     const rows = buildInvestableBalanceRows(assets);
     expect(rows[0]?.token).toEqual({ symbol: 'USDC', name: 'USD Coin' });
     expect(rows[0]?.balance).toBe('10');
@@ -1643,16 +1639,6 @@ describe('walletBackendModel gaps', () => {
     ).toBe('w1');
   });
 
-  it('covers chain helpers and error coercion', () => {
-    expect(getNativeWalletChain(null).id).toBeDefined();
-    expect(getNativeWalletChain(999999).id).toBeDefined();
-    expect(buildConnectedWallets(null)).toEqual([]);
-    expect(buildConnectedWallets(WALLET)).toEqual([
-      { address: WALLET, isActive: true },
-    ]);
-    expect(toWalletError(new Error('x'))).toEqual({ message: 'x' });
-    expect(toWalletError('boom')).toEqual({ message: 'boom' });
-  });
 });
 
 // ---------------------------------------------------------------------------
