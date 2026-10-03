@@ -1,5 +1,7 @@
 """Target normalization protects tradeable weights and rejects display buckets."""
 
+from __future__ import annotations
+
 import pytest
 
 from src.services.backtesting.target_allocation import (
@@ -8,6 +10,14 @@ from src.services.backtesting.target_allocation import (
 )
 
 CASH = {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0, "alt": 0.0}
+
+STABLE_FALLBACK = {
+    "btc": 0.0,
+    "eth": 0.0,
+    "spy": 0.0,
+    "stable": 1.0,
+    "alt": 0.0,
+}
 
 
 @pytest.mark.parametrize("raw", [None, {}, {"btc": -1, "stable": -2}])
@@ -63,3 +73,35 @@ def test_large_finite_weights_do_not_overflow_during_normalization():
 def test_non_finite_weights_cannot_become_trade_targets(normalize, value):
     with pytest.raises(ValueError, match="finite"):
         normalize({"btc": value})
+
+
+def test_normalize_target_allocation_defaults_missing_target_to_stable() -> None:
+    assert normalize_target_allocation(None) == STABLE_FALLBACK
+
+
+def test_target_from_current_allocation_defaults_missing_allocation_to_stable() -> None:
+    assert target_from_current_allocation(None) == STABLE_FALLBACK
+
+
+def test_normalize_target_allocation_rejects_unknown_buckets() -> None:
+    with pytest.raises(ValueError, match="unsupported buckets: spot"):
+        normalize_target_allocation({"spot": 1.0, "stable": 0.0})
+
+
+def test_normalize_target_allocation_rejects_nonzero_alt() -> None:
+    with pytest.raises(ValueError, match="target allocation cannot allocate to alt"):
+        normalize_target_allocation(
+            {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 0.9, "alt": 0.1}
+        )
+
+
+def test_normalize_target_allocation_splits_tradeable_buckets() -> None:
+    assert normalize_target_allocation(
+        {"btc": 0.3, "eth": 0.1, "spy": 0.1, "stable": 0.5, "alt": 0.0}
+    ) == pytest.approx({"btc": 0.3, "eth": 0.1, "spy": 0.1, "stable": 0.5, "alt": 0.0})
+
+
+def test_target_from_current_allocation_folds_alt_into_stable() -> None:
+    assert target_from_current_allocation(
+        {"btc": 0.2, "eth": 0.1, "spy": 0.1, "stable": 0.5, "alt": 0.1}
+    ) == pytest.approx({"btc": 0.2, "eth": 0.1, "spy": 0.1, "stable": 0.6, "alt": 0.0})

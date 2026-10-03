@@ -289,9 +289,6 @@ export function aggregateMonthlyPnL(
   const monthlyMap = new Map<string, number>();
 
   for (const entry of dailyReturns.daily_returns) {
-    if (!entry.date) {
-      continue;
-    }
     const dateKey = toDateKey(entry.date);
     if (!dateKey) {
       continue;

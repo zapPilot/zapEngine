@@ -205,6 +205,7 @@ describe('analytics presentation', () => {
         { date: '2026-01-03' },
         { yield_return_usd: 999 },
         { date: 'invalid', yield_return_usd: 999 },
+        { date: '2026-13-01', yield_return_usd: 999 },
       ],
     } as DailyYieldReturnsResponse;
     expect(

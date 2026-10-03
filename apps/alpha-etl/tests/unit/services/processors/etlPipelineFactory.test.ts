@@ -508,8 +508,8 @@ describe('ETLPipelineFactory', () => {
     });
 
     it('should handle unexpected exception during final result processing and trigger main catch block', async () => {
-      // Arrange: This test targets the main catch block (lines 132-140) by simulating
-      // an error during the final result aggregation, outside the per-source catch block.
+      // Arrange: simulate an error during the final result aggregation,
+      // outside the per-source catch block.
       const job = createMockJob();
       const processingError = new Error(
         'Unexpected error during result aggregation',

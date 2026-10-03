@@ -261,7 +261,8 @@ async def _replace_daily_snapshots_from_test_raw_data(
                   AND token_address IS NOT NULL
                   AND btrim(token_address) <> ''
                 ORDER BY lower(user_wallet_address), token_address, chain,
-                  (inserted_at AT TIME ZONE 'UTC')::date, inserted_at DESC, id DESC
+                  (inserted_at AT TIME ZONE 'UTC')::date, inserted_at DESC,
+                  time_at DESC, id DESC
                 ON CONFLICT (
                   user_wallet_address, token_address, chain, snapshot_date
                 ) DO UPDATE SET

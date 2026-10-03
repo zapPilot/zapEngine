@@ -177,6 +177,13 @@ describe('UsersService', () => {
         '0x1234567890abcdef1234567890abcdef12345678',
       );
 
+      expect(dbMock.mock.rpc).toHaveBeenCalledWith(
+        'create_user_with_wallet_and_plan',
+        {
+          p_wallet: '0x1234567890abcdef1234567890abcdef12345678',
+          p_plan_code: 'free',
+        },
+      );
       expect(result.is_new_user).toBe(false);
       expect(result.etl_job).toBeUndefined();
       expect(alphaEtlHttpService.triggerWalletFetch).not.toHaveBeenCalled();
