@@ -6,7 +6,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type {
   CostHistoryPoint,
-  CostHistoryResponse,
   OperationalSignal,
   OperationsResponse,
   PodcastCostResponse,
