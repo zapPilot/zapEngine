@@ -1,5 +1,6 @@
 import { podcastEpisodeHref } from '@/integration/podcastRoutes';
 import { EpisodeDownloadButton } from '@/components/podcast/EpisodeDownloadButton';
+import { EpisodeDownloadStatus } from '@/components/podcast/EpisodeDownloadStatus';
 import { downloadedEpisodeRows } from '@/integration/podcastVideoDownloads';
 import { usePodcastDownloads } from '@/providers/PodcastDownloadsProvider';
 import { useRouter } from 'expo-router';
@@ -70,10 +71,12 @@ function EpisodeDetailHeader({
       <Text className="min-w-0 flex-1 px-3 text-center font-sans-semibold text-[14px] text-ink">
         Podcast
       </Text>
-      <EpisodeDownloadButton episode={episode} />
-      <PodcastIconButton label="Share episode" onPress={shareEpisode}>
-        <Share2 size={18} strokeWidth={2} color="#d4c5a3" />
-      </PodcastIconButton>
+      <View className="flex-row items-center gap-2">
+        <EpisodeDownloadButton episode={episode} />
+        <PodcastIconButton label="Share episode" onPress={shareEpisode}>
+          <Share2 size={18} strokeWidth={2} color="#d4c5a3" />
+        </PodcastIconButton>
+      </View>
     </View>
   );
 }
@@ -104,6 +107,7 @@ function EpisodeHeroCard({ episode }: { episode: PodcastEpisode }) {
             </Text>
           ) : null}
         </View>
+        <EpisodeDownloadStatus episode={episode} />
       </Card>
     </View>
   );

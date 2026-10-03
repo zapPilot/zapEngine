@@ -1,0 +1,9 @@
+{
+  "extends": "@zapengine/tsconfig/react.json",
+  "compilerOptions": {
+    "types": ["node", "vitest/globals"],
+    "resolveJsonModule": true
+  },
+  "include": ["src/**/*", "scripts/**/*", "*.ts"],
+  "exclude": ["node_modules", "build", "out", "coverage"]
+}

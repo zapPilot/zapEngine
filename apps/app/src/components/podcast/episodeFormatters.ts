@@ -26,6 +26,27 @@ export function formatPodcastClock(totalSeconds: number): string {
   return `${minutes}:${String(rest).padStart(2, '0')}`;
 }
 
+const DOWNLOAD_SIZE_UNITS = ['KB', 'MB', 'GB'] as const;
+
+/** One decimal under 10, whole numbers above: "7.4 MB", "69 MB". */
+function roundDownloadSize(value: number): number {
+  return value < 10 ? Math.round(value * 10) / 10 : Math.round(value);
+}
+
+/** Binary-scaled size label for saved files, stepping up once it would read "1024". */
+export function formatDownloadSize(bytes: number): string {
+  let value = Math.max(0, bytes) / 1024;
+  let unit = 0;
+  while (
+    unit < DOWNLOAD_SIZE_UNITS.length - 1 &&
+    roundDownloadSize(value) >= 1024
+  ) {
+    value /= 1024;
+    unit += 1;
+  }
+  return `${roundDownloadSize(value)} ${DOWNLOAD_SIZE_UNITS[unit]}`;
+}
+
 /** Human-readable label for a classroom section's target language (e.g. a chip or pill). */
 export function classroomLanguageLabel(
   languageCode: string,

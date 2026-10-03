@@ -41,23 +41,15 @@ vi.mock('react-native', () => ({
   AccessibilityInfo: { announceForAccessibility: vi.fn() },
   Share: { share: vi.fn() },
 }));
-vi.mock('lucide-react-native', () => ({
-  ChevronLeft: () => null,
-  Share2: () => null,
-  Download: () => null,
-  Trash2: () => null,
-  X: () => null,
-  Gauge: () => null,
-  Pause: () => null,
-  Play: () => null,
-  RotateCcw: () => null,
-  RotateCw: () => null,
-  SkipBack: () => null,
-  SkipForward: () => null,
-  Search: () => null,
-  ChevronDown: () => null,
-  Headphones: () => null,
+vi.mock(
+  'lucide-react-native',
+  async () => (await import('./support/lucideStub')).lucideStub,
+);
+vi.mock('react-native-svg', () => ({
+  default: ({ children }: { children?: ReactNode }) => <svg>{children}</svg>,
+  Circle: () => <circle />,
 }));
+vi.mock('@/components/ui/ConfirmSheet', () => ({ ConfirmSheet: () => null }));
 vi.mock('@react-native-community/slider', () => ({ default: () => null }));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0 }),

@@ -53,6 +53,29 @@ export const en = {
   'podcast.videoUnavailable': 'Video isn’t available yet',
   'podcast.noTranscript': 'No transcript is available for this episode.',
   'podcast.noClassroom': 'No language classroom is available for this episode.',
+  'podcast.downloads': 'Downloads',
+  'podcast.downloadsScope':
+    'Main video only. Language classrooms need a connection.',
+  'podcast.downloadsEmptyTitle': 'No downloads yet',
+  'podcast.downloadsEmptyMessage':
+    'Open an episode and tap the download button to watch its video offline.',
+  'podcast.downloadVideo': 'Download video',
+  'podcast.downloadHint':
+    'Saves the main video only. Language classrooms need a connection.',
+  'podcast.downloadCancel': 'Cancel download ({percent}%)',
+  'podcast.downloadRemove': 'Remove downloaded video',
+  'podcast.downloadRetry': 'Retry video download',
+  'podcast.downloadUnsupported': 'Downloads require iOS or Android',
+  'podcast.downloadNoVideo': 'No video to download',
+  'podcast.downloadStatusDownloading': 'Downloading… {percent}%',
+  'podcast.downloadStatusSaved': 'Saved offline · {size}',
+  'podcast.downloadStatusFailed': 'Download failed',
+  'podcast.downloadRemoveTitle': 'Remove download?',
+  'podcast.downloadRemoveMessage':
+    'This frees {size} on this device. You can download the video again any time.',
+  'podcast.downloadRemoveConfirm': 'Remove',
+  'podcast.removeDownloadFor': 'Remove download of {title}',
+  'podcast.cancelDownloadFor': 'Cancel download of {title}',
 } as const;
 
 export const zhHant = {
@@ -108,6 +131,26 @@ export const zhHant = {
   'podcast.videoUnavailable': '這一集目前沒有影片。',
   'podcast.noTranscript': '這一集目前沒有逐字稿。',
   'podcast.noClassroom': '這一集目前沒有外語小教室。',
+  'podcast.downloads': '下載',
+  'podcast.downloadsScope': '僅含主影片，外語小教室需要連線。',
+  'podcast.downloadsEmptyTitle': '尚無下載內容',
+  'podcast.downloadsEmptyMessage': '開啟任一集，點下載按鈕即可離線觀看影片。',
+  'podcast.downloadVideo': '下載影片',
+  'podcast.downloadHint': '只會儲存主影片，外語小教室仍需要連線。',
+  'podcast.downloadCancel': '取消下載（{percent}%）',
+  'podcast.downloadRemove': '移除已下載的影片',
+  'podcast.downloadRetry': '重新下載影片',
+  'podcast.downloadUnsupported': '下載功能僅支援 iOS 與 Android',
+  'podcast.downloadNoVideo': '這一集沒有可下載的影片',
+  'podcast.downloadStatusDownloading': '下載中… {percent}%',
+  'podcast.downloadStatusSaved': '已下載，可離線觀看 · {size}',
+  'podcast.downloadStatusFailed': '下載失敗',
+  'podcast.downloadRemoveTitle': '移除下載？',
+  'podcast.downloadRemoveMessage':
+    '這會釋出裝置上 {size} 的空間，之後隨時都能重新下載。',
+  'podcast.downloadRemoveConfirm': '移除',
+  'podcast.removeDownloadFor': '移除「{title}」的下載',
+  'podcast.cancelDownloadFor': '取消下載「{title}」',
 } satisfies Record<keyof typeof en, string>;
 
 export const ja = {
@@ -164,4 +207,27 @@ export const ja = {
   'podcast.videoUnavailable': 'このエピソードには動画がありません。',
   'podcast.noTranscript': 'このエピソードには文字起こしがありません。',
   'podcast.noClassroom': 'このエピソードには語学教室がありません。',
+  'podcast.downloads': 'ダウンロード',
+  'podcast.downloadsScope':
+    'メイン動画のみ。語学教室にはオンライン接続が必要です。',
+  'podcast.downloadsEmptyTitle': 'ダウンロードはまだありません',
+  'podcast.downloadsEmptyMessage':
+    'エピソードを開いてダウンロードボタンをタップすると、動画をオフラインで視聴できます。',
+  'podcast.downloadVideo': '動画をダウンロード',
+  'podcast.downloadHint':
+    'メイン動画のみ保存されます。語学教室にはオンライン接続が必要です。',
+  'podcast.downloadCancel': 'ダウンロードをキャンセル（{percent}%）',
+  'podcast.downloadRemove': 'ダウンロード済みの動画を削除',
+  'podcast.downloadRetry': '動画のダウンロードを再試行',
+  'podcast.downloadUnsupported': 'ダウンロードは iOS と Android で利用できます',
+  'podcast.downloadNoVideo': 'ダウンロードできる動画がありません',
+  'podcast.downloadStatusDownloading': 'ダウンロード中… {percent}%',
+  'podcast.downloadStatusSaved': 'オフライン保存済み · {size}',
+  'podcast.downloadStatusFailed': 'ダウンロードに失敗しました',
+  'podcast.downloadRemoveTitle': 'ダウンロードを削除しますか？',
+  'podcast.downloadRemoveMessage':
+    'この端末の {size} を解放します。動画はいつでも再ダウンロードできます。',
+  'podcast.downloadRemoveConfirm': '削除',
+  'podcast.removeDownloadFor': '「{title}」のダウンロードを削除',
+  'podcast.cancelDownloadFor': '「{title}」のダウンロードをキャンセル',
 } satisfies Record<keyof typeof en, string>;

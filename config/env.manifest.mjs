@@ -346,12 +346,14 @@ export const ENV_MANIFEST = {
   YOUTUBE_CLIENT_SECRET: server(['podcast-pipeline'], { sensitive: true }),
   YOUTUBE_CHANNEL_ID: server(['podcast-pipeline'], { sensitive: true }),
   YOUTUBE_API_KEY: server(['podcast-pipeline'], { sensitive: true }),
-  FISH_AUDIO_API_KEY: server(['podcast-pipeline'], {
+  // `video` is the local narration tool (apps/video scripts/voiceover.ts);
+  // it reuses the podcast voice and has no deployment store.
+  FISH_AUDIO_API_KEY: server(['podcast-pipeline', 'video'], {
     requiredFor: ['podcast-pipeline:fish-audio'],
     sensitive: true,
   }),
-  FISH_AUDIO_ENGINE: server(['podcast-pipeline']),
-  FISH_AUDIO_REFERENCE_ID: server(['podcast-pipeline'], {
+  FISH_AUDIO_ENGINE: server(['podcast-pipeline', 'video']),
+  FISH_AUDIO_REFERENCE_ID: server(['podcast-pipeline', 'video'], {
     requiredFor: ['podcast-pipeline:fish-audio'],
     sensitive: true,
   }),

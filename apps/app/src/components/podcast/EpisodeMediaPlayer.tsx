@@ -83,13 +83,25 @@ interface VideoClockState {
   failureHandled: boolean;
 }
 
+const ICON_BUTTON_TONES = {
+  accent: 'border-[rgba(212,197,163,.28)] bg-[rgba(212,197,163,.12)]',
+  success: 'border-success-line bg-success-soft',
+  danger: 'border-danger-line bg-danger-soft',
+} as const;
+
 export function PodcastIconButton({
   label,
+  hint,
+  tone = 'accent',
+  busy = false,
   disabled = false,
   onPress,
   children,
 }: {
   label: string;
+  hint?: string | undefined;
+  tone?: keyof typeof ICON_BUTTON_TONES;
+  busy?: boolean;
   disabled?: boolean;
   onPress: () => void;
   children: ReactNode;
@@ -98,13 +110,15 @@ export function PodcastIconButton({
     <Tap
       accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityHint={hint}
+      accessibilityState={{ busy }}
       disabled={disabled}
       onPress={onPress}
       className={cn(
         'h-11 w-11 items-center justify-center rounded-full border',
         disabled
           ? 'border-line bg-[rgba(255,255,255,.03)] opacity-40'
-          : 'border-[rgba(212,197,163,.28)] bg-[rgba(212,197,163,.12)]',
+          : ICON_BUTTON_TONES[tone],
       )}
     >
       {children}

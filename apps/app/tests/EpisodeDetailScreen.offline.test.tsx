@@ -46,23 +46,15 @@ vi.mock('react-native', () => ({
   AccessibilityInfo: { announceForAccessibility: vi.fn() },
   Share: { share: vi.fn() },
 }));
-vi.mock('lucide-react-native', () => ({
-  ChevronLeft: () => null,
-  Share2: () => null,
-  Download: () => null,
-  Trash2: () => null,
-  X: () => null,
-  Gauge: () => null,
-  Pause: () => null,
-  Play: () => null,
-  RotateCcw: () => null,
-  RotateCw: () => null,
-  SkipBack: () => null,
-  SkipForward: () => null,
-  Search: () => null,
-  ChevronDown: () => null,
-  Headphones: () => null,
+vi.mock(
+  'lucide-react-native',
+  async () => (await import('./support/lucideStub')).lucideStub,
+);
+vi.mock('react-native-svg', () => ({
+  default: ({ children }: { children?: ReactNode }) => <svg>{children}</svg>,
+  Circle: () => <circle />,
 }));
+vi.mock('@/components/ui/ConfirmSheet', () => ({ ConfirmSheet: () => null }));
 vi.mock('@react-native-community/slider', () => ({ default: () => null }));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0 }),
@@ -231,8 +223,8 @@ describe('offline podcast UI', () => {
   });
   it('shows downloads and opens a local episode even when the feed is unavailable', async () => {
     await render(<PodcastScreen />);
-    expect(container.textContent).toContain('Downloaded');
-    expect(container.textContent).toContain('Main narration video only');
+    expect(container.textContent).toContain('podcast.downloads');
+    expect(container.textContent).toContain('podcast.downloadsScope');
     const open = container.querySelector<HTMLButtonElement>(
       'button[aria-label="podcast.openEpisode"]',
     );
@@ -242,6 +234,23 @@ describe('offline podcast UI', () => {
       `/podcast/${downloadableEpisode.localizationId}?lang=zh-Hant`,
     );
   });
+  const shelfHeaders = () =>
+    [...container.querySelectorAll('button')].filter((button) =>
+      button.getAttribute('aria-label')?.startsWith('podcast.downloads ('),
+    );
+  it('shows the downloads shelf exactly once beside a loaded feed', async () => {
+    state.data = [{ ...downloadableEpisode, localizationId: 'feed-only' }];
+    await render(<PodcastScreen />);
+    expect(shelfHeaders()).toHaveLength(1);
+    // The feed's own list is there too, below the shelf.
+    expect(container.textContent).toContain('podcast.unheard');
+  });
+  it('shows the downloads shelf exactly once while the feed is still loading', async () => {
+    state.pending = true;
+    await render(<PodcastScreen />);
+    expect(shelfHeaders()).toHaveLength(1);
+    expect(container.textContent).toContain('Skeleton');
+  });
   it('visibly disables downloads for episodes with no video', async () => {
     state.records = [];
     await render(
@@ -249,8 +258,8 @@ describe('offline podcast UI', () => {
         episode={{ ...downloadableEpisode, video: null }}
       />,
     );
-    expect(container.textContent).toContain('No video to download');
     const button = container.querySelector('button');
+    expect(button?.getAttribute('aria-label')).toBe('podcast.downloadNoVideo');
     expect(button?.disabled).toBe(true);
     await act(async () => button!.click());
     expect(state.download).not.toHaveBeenCalled();

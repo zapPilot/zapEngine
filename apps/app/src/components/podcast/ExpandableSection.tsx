@@ -11,11 +11,14 @@ import { Tap } from '@/components/ui/Tap';
 export function ExpandableSection({
   title,
   count,
+  trailing,
   defaultExpanded = false,
   children,
 }: {
   title: string;
   count?: number;
+  /** Sits at the far end of the header rule, e.g. a total. */
+  trailing?: ReactNode;
   defaultExpanded?: boolean;
   children: ReactNode;
 }) {
@@ -42,6 +45,9 @@ export function ExpandableSection({
           </Text>
         ) : null}
         <View className="ml-2 h-[1px] flex-1 bg-line" />
+        {trailing === undefined ? null : (
+          <View className="ml-2">{trailing}</View>
+        )}
       </Tap>
       {expanded ? children : null}
     </View>

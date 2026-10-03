@@ -7,15 +7,35 @@ missing videos. Downloads contain main narration only, without language classroo
 
 The manifest stores episode metadata and relative filenames, so cold starts do not
 need a feed response or an authenticated session. File URIs are reconstructed from
-the current document directory. The Downloaded section reads only this manifest.
+the current document directory. The Downloads shelf needs no feed: saved videos come
+from this manifest, and a running download carries its own title, cover and length in
+the provider's state, so it shows even for an episode no loaded feed page contains.
 
 Downloads are serialized, check both Content-Length headers against available disk
 space (plus a 10 MiB reserve), and publish metadata only after both files and the
 manifest write succeed. Failures and cancellation remove partial files. Cancellation
-is available while downloading; retries start over. A force-kill during an unfinished
+is available while downloading and returns the episode to idle (it is not reported
+as a failure); retries start over. A force-kill during an unfinished
 transfer does not publish a record; the next cold start removes its abandoned files before accepting new downloads.
 Deleting a download removes its manifest entry before deleting the files, so a crash
 cannot advertise a file that has already been removed.
+
+## Interface
+
+`describeEpisodeDownload` (`src/integration/podcastVideoDownloads.ts`) collapses the
+provider's facts into one phase per episode, which every download control reads:
+`unsupported`, `unavailable` (no video), `idle`, `downloading`, `downloaded`, `failed`.
+
+- **Episode page.** The header button is a 44px circle that lines up with Back and
+  Share and carries the phase in its look: download arrow, a progress ring around a
+  cancel mark while downloading, a green check once saved, a red retry mark after a
+  failure, and a dimmed arrow where a download is impossible. A status badge in the
+  hero card says the same in words (saved size, percent, failure reason, or why the
+  download is impossible). Tapping the check asks before removing the video.
+- **Podcast screen.** The Downloads shelf shows running downloads first (progress
+  bar plus cancel), then saved videos with thumbnail, duration, date and size, a
+  total in the header and a remove action that asks first. An empty shelf invites the
+  first download. The shelf is hidden on platforms that cannot download.
 
 ## Accepted limitations and follow-up
 

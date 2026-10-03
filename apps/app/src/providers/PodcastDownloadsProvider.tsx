@@ -15,15 +15,12 @@ import {
   mergeDownloadRecord,
   removeDownloadRecord,
   videoDownloadFileNames,
+  type PodcastDownloadState,
   type PodcastVideoDownloadRecord,
 } from '@/integration/podcastVideoDownloads';
 import downloadStorage from '@/storage/podcastDownloadStorage';
 
-export type PodcastDownloadState =
-  | { status: 'idle' | 'downloaded' }
-  | { status: 'downloading'; progress: number }
-  | { status: 'failed'; message: string };
-interface DownloadsContextValue {
+export interface DownloadsContextValue {
   records: readonly PodcastVideoDownloadRecord[];
   isHydrated: boolean;
   isSupported: boolean;
@@ -157,9 +154,16 @@ export function PodcastDownloadsProvider({
         return;
       }
       const video = episode.video;
+      // The shelf names a running download from its own state: the episode may
+      // not be on any feed page the screen has loaded.
+      const running = {
+        title: episode.title,
+        thumbnailUrl: video.thumbnailUrl,
+        durationSeconds: video.durationSeconds,
+      };
       const controller = new AbortController();
       controllers.current.set(id, controller);
-      setState(id, { status: 'downloading', progress: 0 });
+      setState(id, { status: 'downloading', progress: 0, ...running });
       try {
         await enqueue(async () => {
           if (recordsRef.current.some((record) => record.localizationId === id))
@@ -187,6 +191,7 @@ export function PodcastDownloadsProvider({
                 setState(id, {
                   status: 'downloading',
                   progress: Math.min(0.99, Math.max(0, progress * 0.99)),
+                  ...running,
                 }),
             });
             if (signal.aborted) throw new Error('Download cancelled.');
@@ -219,14 +224,20 @@ export function PodcastDownloadsProvider({
         });
         setState(id, { status: 'downloaded' });
       } catch (error) {
-        setState(id, {
-          status: 'failed',
-          message: controller.signal.aborted
-            ? 'Download cancelled. Tap to retry.'
-            : error instanceof Error
-              ? error.message
-              : 'Download failed. Please retry.',
-        });
+        // Cancelling is the user's own choice, so it returns to idle rather
+        // than being reported as a failure.
+        setState(
+          id,
+          controller.signal.aborted
+            ? { status: 'idle' }
+            : {
+                status: 'failed',
+                message:
+                  error instanceof Error
+                    ? error.message
+                    : 'Download failed. Please retry.',
+              },
+        );
       } finally {
         controllers.current.delete(id);
       }

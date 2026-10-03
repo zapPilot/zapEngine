@@ -1,62 +1,132 @@
-import { Download, Trash2, X } from 'lucide-react-native';
-import { Text, View } from 'react-native';
-import type { PodcastEpisode } from '@/integration/podcastFeed';
-import { usePodcastDownloads } from '@/providers/PodcastDownloadsProvider';
-import { PodcastIconButton } from './EpisodeMediaPlayer';
+import { Check, Download, RefreshCw, X } from 'lucide-react-native';
+import type { LucideIcon } from 'lucide-react-native';
+import { useState, type ReactElement } from 'react';
+import { View } from 'react-native';
 
+import { PodcastIconButton } from '@/components/podcast/EpisodeMediaPlayer';
+import { RemoveDownloadSheet } from '@/components/podcast/RemoveDownloadSheet';
+import { Icon } from '@/components/ui/Icon';
+import { ProgressRing } from '@/components/ui/ProgressRing';
+import { useEpisodeDownload } from '@/hooks/useEpisodeDownload';
+import type { PodcastEpisode } from '@/integration/podcastFeed';
+import type { EpisodeDownloadView } from '@/integration/podcastVideoDownloads';
+import { useContentLanguage } from '@/providers/ContentLanguageProvider';
+
+type Translate = ReturnType<typeof useContentLanguage>['t'];
+
+interface ButtonLook {
+  label: string;
+  hint?: string;
+  icon: LucideIcon;
+  tone: 'accent' | 'success' | 'danger';
+}
+
+// The ring is drawn over the button's own 1px border, so it replaces it. It
+// only decorates, so presses go straight through to the button.
+const RING_OVERLAY = { top: -1, left: -1, pointerEvents: 'none' } as const;
+
+function buttonLook(view: EpisodeDownloadView, t: Translate): ButtonLook {
+  switch (view.phase) {
+    case 'unsupported':
+      return {
+        label: t('podcast.downloadUnsupported'),
+        icon: Download,
+        tone: 'accent',
+      };
+    case 'unavailable':
+      return {
+        label: t('podcast.downloadNoVideo'),
+        icon: Download,
+        tone: 'accent',
+      };
+    case 'idle':
+      return {
+        label: t('podcast.downloadVideo'),
+        hint: t('podcast.downloadHint'),
+        icon: Download,
+        tone: 'accent',
+      };
+    case 'downloading':
+      return {
+        label: t('podcast.downloadCancel', { percent: view.percent }),
+        icon: X,
+        tone: 'accent',
+      };
+    case 'downloaded':
+      return {
+        label: t('podcast.downloadRemove'),
+        icon: Check,
+        tone: 'success',
+      };
+    case 'failed':
+      return {
+        label: t('podcast.downloadRetry'),
+        icon: RefreshCw,
+        tone: 'danger',
+      };
+  }
+}
+
+/**
+ * Header action for one episode's offline video. Its look carries the state
+ * (download / progress ring / saved / retry); `EpisodeDownloadStatus` spells
+ * the same state out in words, so this stays a plain 44px circle that lines up
+ * with its siblings.
+ */
 export function EpisodeDownloadButton({
   episode,
 }: {
   episode: PodcastEpisode;
-}) {
-  const downloads = usePodcastDownloads();
-  const record = downloads.records.find(
-    (item) => item.localizationId === episode.localizationId,
-  );
-  const state = downloads.states[episode.localizationId];
-  const downloading = state?.status === 'downloading';
-  const unavailable =
-    !downloads.isSupported || (episode.video === null && record === undefined);
-  const label = !downloads.isSupported
-    ? 'Downloads require iOS or Android'
-    : unavailable
-      ? 'No video to download'
-      : downloading
-        ? `Cancel download (${Math.floor(state.progress * 100)}%)`
-        : record !== undefined
-          ? 'Delete downloaded video'
-          : state?.status === 'failed'
-            ? 'Retry video download'
-            : 'Download video';
-  const Icon = downloading ? X : record !== undefined ? Trash2 : Download;
+}): ReactElement {
+  const { t } = useContentLanguage();
+  const { downloads, view } = useEpisodeDownload(episode);
+  // The sheet keeps the episode it was opened for: the screen can move on to
+  // another episode while it is up, and the confirm must still hit this one.
+  const [removal, setRemoval] = useState({ open: false, id: '', size: 0 });
+  const id = episode.localizationId;
+  const downloading = view.phase === 'downloading';
+  const disabled =
+    !downloads.isHydrated ||
+    view.phase === 'unsupported' ||
+    view.phase === 'unavailable';
+  const { label, hint, icon, tone } = buttonLook(view, t);
+
+  const press = () => {
+    if (downloading) downloads.cancel(id);
+    else if (view.phase === 'downloaded')
+      setRemoval({ open: true, id, size: view.byteSize ?? 0 });
+    else void downloads.download(episode);
+  };
+
   return (
-    <View className="items-center">
+    <>
       <PodcastIconButton
         label={label}
-        disabled={unavailable || !downloads.isHydrated}
-        onPress={() => {
-          if (downloading) downloads.cancel(episode.localizationId);
-          else if (record !== undefined)
-            void downloads.remove(episode.localizationId);
-          else void downloads.download(episode);
-        }}
+        hint={hint}
+        tone={tone}
+        busy={downloading}
+        disabled={disabled}
+        onPress={press}
       >
-        <Icon size={18} strokeWidth={2} color="#d4c5a3" />
+        {downloading ? (
+          <View className="absolute" style={RING_OVERLAY}>
+            <ProgressRing value={view.percent} size={44} strokeWidth={2.5}>
+              <Icon icon={icon} size="xs" tone={tone} />
+            </ProgressRing>
+          </View>
+        ) : (
+          <Icon icon={icon} size="md" tone={tone} />
+        )}
       </PodcastIconButton>
-      <Text
-        accessibilityLiveRegion="polite"
-        className="max-w-[120px] text-center text-[10px] text-ink-dim"
-      >
-        {unavailable
-          ? label
-          : downloading
-            ? `${Math.floor(state.progress * 100)}%`
-            : state?.status === 'failed'
-              ? state.message
-              : record !== undefined
-                ? 'Downloaded'
-                : 'Main video only'}
-      </Text>
-    </View>
+      <RemoveDownloadSheet
+        visible={removal.open}
+        byteSize={removal.size}
+        onClose={() => setRemoval((current) => ({ ...current, open: false }))}
+        onConfirm={() => {
+          setRemoval((current) => ({ ...current, open: false }));
+          void downloads.remove(removal.id);
+        }}
+      />
+    </>
   );
 }
