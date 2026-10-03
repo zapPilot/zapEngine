@@ -177,7 +177,7 @@ describe('Intent Validators', () => {
         protocol: 'morpho',
       };
       const baseVault = '0x7bfa7c4f149e7415b73bdefe609237e29cbf34a';
-      if (kind === 'withdraw')
+      if (kind === 'withdraw') {
         expect(() =>
           validateWithdrawIntent({
             ...base,
@@ -185,7 +185,7 @@ describe('Intent Validators', () => {
             vaultAddress: baseVault,
           }),
         ).toThrow(ValidationError);
-      else
+      } else {
         expect(() =>
           validateRotateIntent({
             ...base,
@@ -200,6 +200,7 @@ describe('Intent Validators', () => {
                 : '0x2222222222222222222222222222222222222222',
           }),
         ).toThrow(ValidationError);
+      }
     },
   );
 
