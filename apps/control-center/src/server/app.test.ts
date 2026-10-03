@@ -44,7 +44,6 @@ const overview: OverviewResponse = {
     window: 'latest',
     generatedAt: '2026-08-16T12:00:00.000Z',
     accounts: [],
-    decisions: [],
     episodes: [],
   },
 };

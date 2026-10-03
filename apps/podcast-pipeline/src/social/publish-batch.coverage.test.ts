@@ -68,8 +68,8 @@ const copy: any = {
 };
 
 describe('publish batch coverage gaps', () => {
-  it('forwards logLlm and strategy guidance when preparing copy', async () => {
-    // WHY: the logLlm and strategy spreads only run when those options exist.
+  it('forwards logLlm when preparing copy', async () => {
+    // Provider logging follows the explicit request.
     mocks.getSocialEpisode.mockResolvedValue(episode);
     mocks.resolvePackagingAssignments.mockResolvedValue({});
     mocks.generateSocialCopy.mockResolvedValue({ copy, model: 'm' });
@@ -78,14 +78,12 @@ describe('publish batch coverage gaps', () => {
       episodeId: episode.id,
       languageCode: 'zh-Hant',
       platforms: ['rednote'],
-      strategyGuidanceByPlatform: { rednote: 'prefer short hooks' },
       logLlm: false,
     });
 
     expect(mocks.generateSocialCopy).toHaveBeenCalledWith(
       expect.objectContaining({
         logLlm: false,
-        strategyGuidanceByPlatform: { rednote: 'prefer short hooks' },
       }),
     );
     expect(prepared.snapshot.model).toBe('m');
@@ -105,7 +103,6 @@ describe('publish batch coverage gaps', () => {
     expect(mocks.generateSocialCopy).toHaveBeenCalledWith(
       expect.not.objectContaining({
         logLlm: expect.anything(),
-        strategyGuidanceByPlatform: expect.anything(),
       }),
     );
   });

@@ -217,7 +217,7 @@ describe('generateSocialCopy', () => {
     expect(prompt).not.toContain('Publisher headline');
   });
 
-  it('includes learned strategy guidance in the generation prompt when provided', async () => {
+  it('never injects learned performance guidance', async () => {
     llmMocks.createOpenRouterChatCompletion.mockResolvedValue(
       socialCompletion(socialCopyJson('策略文案')),
     );
@@ -235,39 +235,35 @@ describe('generateSocialCopy', () => {
         videoUrl: 'https://example.com/video.mp4',
         videoThumbnailUrl: 'https://example.com/thumbnail.jpg',
       },
-      strategyGuidance: '  Prefer a contrarian hook and #AI.  ',
     });
 
     expect(
       llmMocks.createOpenRouterChatCompletion.mock.calls[0]?.[1]?.messages.at(
         -1,
       )?.content,
-    ).toContain('Prefer a contrarian hook and #AI.');
+    ).not.toContain('Performance guidance');
   });
 
-  it('includes only non-empty platform guidance and can disable provider request logging', async () => {
+  it('preserves the shared thesis and can disable provider logging', async () => {
     llmMocks.createOpenRouterChatCompletion.mockResolvedValue(
       socialCompletion(socialCopyJson('平台策略文案')),
     );
 
     await generateSocialCopy({
       episode: ZH_EPISODE,
-      strategyGuidanceByPlatform: {
-        x: '  Prefer a question hook on X.  ',
-        threads: '   ',
-      },
       logLlm: false,
     });
 
     const call = llmMocks.createOpenRouterChatCompletion.mock.calls[0];
     const prompt = String(call?.[1]?.messages.at(-1)?.content);
-    expect(prompt).toContain('Performance guidance by platform:');
-    expect(prompt).toContain('### x\nPrefer a question hook on X.');
-    expect(prompt).not.toContain('### threads');
+    expect(prompt).not.toContain('Performance guidance');
+    expect(call?.[1]?.messages[0]?.content).toContain(
+      'same underlying episode thesis',
+    );
     expect(call?.[3]).toEqual({});
   });
 
-  it('places persisted packaging instructions after strategy without weakening hard rules', async () => {
+  it('places persisted packaging instructions without weakening hard rules', async () => {
     llmMocks.createOpenRouterChatCompletion.mockResolvedValue(
       socialCompletion(socialCopyJson('策略文案')),
     );
@@ -285,7 +281,6 @@ describe('generateSocialCopy', () => {
         videoUrl: 'https://example.com/video.mp4',
         videoThumbnailUrl: 'https://example.com/thumbnail.jpg',
       },
-      strategyGuidance: 'Keep the grounded avoid guidance.',
       packagingByPlatform: {
         rednote: {
           key: 'rednote-packaging-v1-zh-Hant',
@@ -300,9 +295,7 @@ describe('generateSocialCopy', () => {
         -1,
       )?.content,
     );
-    expect(
-      prompt.indexOf('Performance guidance from prior posts'),
-    ).toBeLessThan(prompt.indexOf('Packaging experiment assignments'));
+    expect(prompt).not.toContain('Performance guidance');
     expect(prompt).toContain(
       '[rednote-packaging-v1-zh-Hant · hook_first] Lead the Rednote body with a grounded hook.',
     );

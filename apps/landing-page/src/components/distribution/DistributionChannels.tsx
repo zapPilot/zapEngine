@@ -25,11 +25,10 @@ export function DistributionChannels({
         <p className="zp-kicker">Channels</p>
         <h2 className="zp-h2">Nine channels, each measured separately.</h2>
         <p className="zp-lede">
-          A channel is one platform in one language, because that is the level
-          the publishing strategy is tuned at. Reach is views where a platform
-          reports them and impressions where it does not; a post whose metrics
-          could not be read is counted as a post and left out of reach rather
-          than recorded as a zero.
+          A channel is one platform in one language. Reach is views where a
+          platform reports them and impressions where it does not; a post whose
+          metrics could not be read is counted as a post and left out of reach
+          rather than recorded as a zero.
         </p>
         <div className="dist-scroll">
           <table className="dist-table">

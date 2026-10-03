@@ -124,3 +124,5 @@ No bot, membership identity join, or presence snapshot is introduced.
 Deploy landing first, then Control Center with the public invite configured through
 the env manifest/destination rail. Verify live invite availability and expiry;
 do not assume that a particular member count or invite lifetime remains constant.
+
+`ops_growth.packaging` shares the Growth read model and cache: universal title/cover associations, Rednote 24h primary, lane-normalized confirmations. Never use ranks or features to infer topics or choose articles for platform audiences. Distribution gates are separate from packaging and reliability.

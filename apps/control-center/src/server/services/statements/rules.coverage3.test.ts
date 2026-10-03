@@ -1,13 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  ruleR1,
-  ruleR10,
-  ruleR11,
-  ruleR2,
-  ruleR4,
-  ruleR5,
-  ruleR6,
-} from './rules.js';
+import { ruleR1, ruleR10, ruleR11, ruleR2, ruleR4, ruleR6 } from './rules.js';
 import type { StatementInputs } from './types.js';
 const NOW = new Date('2026-09-17T07:42:00.000Z');
 
@@ -139,27 +131,6 @@ describe('rules coverage3', () => {
       metricSeries: new Map(),
     } as unknown as StatementInputs);
     expect(zero.delta).toContain('±0');
-  });
-
-  it('R5 winner without slot uses dot', () => {
-    const f = ruleR5({
-      socialPerformance: {
-        decisions: [
-          {
-            platform: 'x',
-            bestTopic: 'solo',
-            bestTopicLiftVsPlatformMedian: 2.5,
-            confidence: 'high',
-            publishSlotsJst: null,
-            bestTopicSamples: null,
-          },
-        ],
-      },
-    } as unknown as StatementInputs);
-    expect(
-      f.segments.map((s) => ('text' in s ? s.text : s.value)).join(''),
-    ).toContain('.');
-    expect(f.fact?.note).toContain('n=0');
   });
 
   it('R6 plural weeks and collecting', () => {

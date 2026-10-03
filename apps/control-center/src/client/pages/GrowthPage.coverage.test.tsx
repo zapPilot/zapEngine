@@ -53,7 +53,6 @@ const growth = {
 
 const social = {
   accounts: [],
-  decisions: [],
   episodes: [],
   generatedAt: '2026-09-10T01:00:00Z',
   message: null,
@@ -118,7 +117,7 @@ describe('GrowthPage coverage', () => {
   it('says the waitlist is still loading when growth has not arrived', () => {
     renderGrowth({ growth: null });
 
-    expect(screen.getByText('Loading')).toBeVisible();
+    expect(screen.getAllByText('Loading').length).toBeGreaterThan(0);
   });
 
   it('attributes direct signups alongside platform conversions', () => {
@@ -173,8 +172,6 @@ describe('GrowthPage coverage', () => {
               },
             ],
             title: 'Sparse episode',
-            totalImpressions: null,
-            totalViews: 0,
           },
         ],
       } as unknown as SocialPerformanceResponse,
@@ -194,42 +191,10 @@ describe('GrowthPage coverage', () => {
     renderGrowth({
       data: {
         ...social,
-        decisions: [
-          {
-            avoidHashtags: [],
-            bestTopic: null,
-            bestTopicLiftVsPlatformMedian: null,
-            bestTopicMedian24hViews: null,
-            bestTopicSamples: 0,
-            confidence: 'mystery',
-            evidenceSamples: 0,
-            platform: 'x',
-            platformMedian24hViews: null,
-            preferredHashtags: [],
-            preferredHookTypes: [],
-            publishSlotsJst: null,
-            topExample: null,
-          },
-          {
-            avoidHashtags: [],
-            bestTopic: null,
-            bestTopicLiftVsPlatformMedian: null,
-            bestTopicMedian24hViews: null,
-            bestTopicSamples: 0,
-            confidence: 'low',
-            evidenceSamples: 4,
-            platform: 'threads',
-            platformMedian24hViews: null,
-            preferredHashtags: [],
-            preferredHookTypes: [],
-            publishSlotsJst: null,
-            topExample: null,
-          },
-        ],
       } as unknown as SocialPerformanceResponse,
     });
 
-    expect(screen.getByText('4 samples')).toBeVisible();
+    expect(screen.getByText('內容包裝洞察')).toBeVisible();
     expect(screen.queryByText('0 samples')).toBeNull();
   });
 });

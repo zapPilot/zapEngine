@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildDecisions, buildEpisodes } from './social.js';
+import { buildEpisodes } from './social.js';
 
 function post(id: string, overrides: Record<string, unknown> = {}) {
   return {
@@ -53,32 +53,6 @@ describe('social coverage round 2', () => {
     expect(episodes).toHaveLength(1);
     // newest date wins; episodes sorted desc puts it first trivially with one row
     expect(episodes[0]?.platforms).toHaveLength(2);
-  });
-
-  it('grades medium and high confidence by sample count', () => {
-    const posts: unknown[] = [];
-    const metrics: unknown[] = [];
-    for (let i = 0; i < 12; i++) {
-      const id = `m-${i}`;
-      posts.push(post(id, { platform: 'threads', topic: 't' }));
-      metrics.push(metric(id, 10 + i));
-    }
-    for (let i = 0; i < 30; i++) {
-      const id = `h-${i}`;
-      posts.push(post(id, { platform: 'youtube', topic: 't' }));
-      metrics.push(metric(id, 20 + i));
-    }
-    const decisions = buildDecisions(
-      posts as never,
-      metrics as never,
-      [] as never,
-    );
-    expect(decisions.find((d) => d.platform === 'threads')?.confidence).toBe(
-      'medium',
-    );
-    expect(decisions.find((d) => d.platform === 'youtube')?.confidence).toBe(
-      'high',
-    );
   });
 
   it('selects the latest captured metric within the window', () => {

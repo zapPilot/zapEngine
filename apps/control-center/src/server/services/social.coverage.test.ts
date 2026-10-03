@@ -1,11 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { readControlCenterConfig } from '../config/env.js';
-import {
-  buildDecisions,
-  buildEpisodes,
-  loadSocialPerformance,
-} from './social.js';
+import { buildEpisodes, loadSocialPerformance } from './social.js';
 
 const serviceRole = vi.hoisted(() => ({ client: null as unknown }));
 
@@ -195,9 +191,6 @@ describe('social coverage', () => {
     const episodes = buildEpisodes(posts as never, metrics as never, 'latest');
     expect(episodes.find((e) => e.episodeId === 'ep')?.title).toBe('繁中');
     expect(episodes[0]?.episodeId).toBe('ep2');
-    expect(episodes.find((e) => e.episodeId === 'ep')?.totalImpressions).toBe(
-      120,
-    );
   });
 
   it('falls back to body first line and Untitled episode for titles', () => {
@@ -212,60 +205,6 @@ describe('social coverage', () => {
     expect(episodes.find((e) => e.episodeId === 'episode-t2')?.title).toBe(
       'Untitled episode',
     );
-  });
-
-  it('emits strategy-only decisions with low confidence and formatted slots', () => {
-    const decisions = buildDecisions([], [], [
-      {
-        platform: 'youtube',
-        config: {
-          publishSlotsJst: [
-            { hour: 9, minute: 5 },
-            { hour: 8, minute: 30 },
-          ],
-        },
-      },
-    ] as never);
-    const yt = decisions.find((d) => d.platform === 'youtube');
-    expect(yt).toMatchObject({
-      evidenceSamples: 0,
-      confidence: 'low',
-      publishSlotsJst: '08:30 / 09:05',
-      bestTopic: null,
-    });
-  });
-
-  it('grades confidence and picks the best qualified topic', () => {
-    const posts: unknown[] = [];
-    const metrics: unknown[] = [];
-    const add = (topic: string, views: number[]) => {
-      views.forEach((v, i) => {
-        const id = `x-${topic}-${i}-${v}`;
-        posts.push(post(id, { platform: 'x', topic }));
-        metrics.push(metric(id, v));
-      });
-    };
-    add('alpha', [100, 110, 120]);
-    add('beta', [10, 12, 11]);
-    const [decision] = buildDecisions(
-      posts as never,
-      metrics as never,
-      [] as never,
-    );
-    expect(decision?.evidenceSamples).toBe(6);
-    expect(decision?.bestTopic).toBe('alpha');
-    expect(decision?.bestTopicLiftVsPlatformMedian).toBeGreaterThan(1);
-    expect(decision?.topExample).toContain('120');
-  });
-
-  it('returns null topics with fewer than two qualified buckets', () => {
-    const posts = [post('s1', { platform: 'x', topic: 'solo' })];
-    const decisions = buildDecisions(
-      posts as never,
-      [metric('s1', 10)] as never,
-      [] as never,
-    );
-    expect(decisions.find((d) => d.platform === 'x')?.bestTopic).toBeNull();
   });
 
   it('reports null engagement when impressions and views are missing', () => {

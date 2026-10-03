@@ -65,7 +65,6 @@ const baseOverview = {
     window: 'latest',
     generatedAt: new Date().toISOString(),
     accounts: [],
-    decisions: [],
     episodes: [],
   },
 } as unknown as OverviewResponse;
@@ -193,8 +192,6 @@ describe('TodayPage coverage2', () => {
           {
             episodeId: 'episode-9',
             title: 'Telemetry only',
-            totalViews: null,
-            totalImpressions: null,
             platforms: [
               {
                 platform: 'x',
@@ -229,8 +226,6 @@ describe('TodayPage coverage2', () => {
           {
             episodeId: 'episode-10',
             title: null,
-            totalViews: null,
-            totalImpressions: null,
             platforms: undefined,
           },
         ],
@@ -250,8 +245,6 @@ describe('TodayPage coverage2', () => {
           {
             episodeId: 'episode-11',
             title: null,
-            totalViews: null,
-            totalImpressions: null,
             platforms: [
               {
                 platform: 'threads',

@@ -186,28 +186,9 @@ export interface SocialPlatformPerformance {
   averageViewPercentage: number | null;
 }
 
-export interface SocialDecision {
-  platform: string;
-  evidenceSamples: number;
-  /** Sample-count coverage only; this is not statistical significance. */
-  confidence: 'low' | 'medium' | 'high';
-  preferredHookTypes: string[];
-  preferredHashtags: string[];
-  avoidHashtags: string[];
-  bestTopic: string | null;
-  bestTopicSamples: number | null;
-  bestTopicMedian24hViews: number | null;
-  platformMedian24hViews: number | null;
-  bestTopicLiftVsPlatformMedian: number | null;
-  publishSlotsJst: string | null;
-  topExample: string | null;
-}
-
 export interface SocialEpisodeSummary {
   episodeId: string;
   title: string;
-  totalViews: number | null;
-  totalImpressions: number | null;
   platforms: SocialPlatformPerformance[];
 }
 
@@ -217,7 +198,6 @@ export interface SocialPerformanceResponse {
   window: 'latest' | '24h' | '72h' | '7d';
   generatedAt: string;
   accounts: SocialAccountSummary[];
-  decisions: SocialDecision[];
   episodes: SocialEpisodeSummary[];
 }
 

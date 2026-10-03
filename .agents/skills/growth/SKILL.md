@@ -52,3 +52,7 @@ deploy, spend, or automatically run experiments. This skill proposes operator
 decisions; implementation and experiments require their own scope. Do not
 schedule coverage-review or provider exploration. Agree a growth review cadence
 with the operator; no schedule is created by invoking this skill.
+
+## Packaging interpretation
+
+`ops_growth.packaging` describes one cross-platform title/cover insight. Rednote 24h is primary; other lanes confirm only after within-lane normalization. These are observed associations, not causal effects. Never convert ranks or title features into platform topic, slot or hook recommendations; never suggest choosing articles based on audiences. Owner interest determines topic selection. Packaging is not an `ops_status` reliability signal.
