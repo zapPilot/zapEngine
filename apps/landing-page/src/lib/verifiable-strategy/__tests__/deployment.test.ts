@@ -53,9 +53,15 @@ describe('Rabby deterministic deployment', () => {
     );
     expect(mocks.wallet.sendTransaction).not.toHaveBeenCalled();
   });
-  it('adds an unknown Sepolia chain before deploying', async () => {
+  it.each([
+    { code: 4902 },
+    { cause: { cause: { code: 4902 } } },
+    new Error(
+      'An internal error was received. Details: Unrecognized chain ID "0x66eee". Try adding the chain using wallet_switchEthereumChain first.',
+    ),
+  ])('adds an unknown Sepolia chain before deploying: %s', async (failure) => {
     mocks.wallet.switchChain
-      .mockRejectedValueOnce({ code: 4902 })
+      .mockRejectedValueOnce(failure)
       .mockResolvedValueOnce(undefined);
     const runtime =
       await import('../../../../../analytics-engine/tests/fixtures/pinned_strategy/dma_cross_down_slice.json');
@@ -78,6 +84,14 @@ describe('Rabby deterministic deployment', () => {
     await expect(deployStrategy(provider, vi.fn())).rejects.toThrow(
       'switch rejected',
     );
+    expect(mocks.wallet.addChain).not.toHaveBeenCalled();
+    expect(mocks.wallet.sendTransaction).not.toHaveBeenCalled();
+  });
+  it('does not add a chain or broadcast when the user rejects switching', async () => {
+    mocks.wallet.switchChain.mockRejectedValueOnce({
+      cause: { code: 4001, message: 'User rejected the request' },
+    });
+    await expect(deployStrategy(provider, vi.fn())).rejects.toBeDefined();
     expect(mocks.wallet.addChain).not.toHaveBeenCalled();
     expect(mocks.wallet.sendTransaction).not.toHaveBeenCalled();
   });

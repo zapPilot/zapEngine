@@ -25,6 +25,30 @@ export const DEPLOYMENT_ADDRESS = getContractAddress({
   bytecode: artifact.initcode as Hex,
 });
 
+// Wallets may wrap a missing-chain error in an internal RPC error.
+function isUnknownChain(error: unknown): boolean {
+  const seen = new Set<unknown>();
+  let current = error;
+  while (current && typeof current === 'object' && !seen.has(current)) {
+    seen.add(current);
+    const detail = current as {
+      code?: number;
+      message?: string;
+      cause?: unknown;
+    };
+    if (detail.code === 4001) return false;
+    if (
+      detail.code === 4902 ||
+      detail.message
+        ?.toLowerCase()
+        .includes(`unrecognized chain id "${toHex(STRATEGY_CHAIN.id)}"`)
+    )
+      return true;
+    current = detail.cause;
+  }
+  return false;
+}
+
 export async function deployStrategy(
   provider: EIP1193Provider,
   onTransaction: (hash: Hex) => void,
@@ -38,11 +62,7 @@ export async function deployStrategy(
   try {
     await wallet.switchChain({ id: STRATEGY_CHAIN.id });
   } catch (error) {
-    if (
-      (error as { code?: number }).code !== 4902 &&
-      (error as { cause?: { code?: number } }).cause?.code !== 4902
-    )
-      throw error;
+    if (!isUnknownChain(error)) throw error;
     await wallet.addChain({ chain: STRATEGY_CHAIN });
     await wallet.switchChain({ id: STRATEGY_CHAIN.id });
   }

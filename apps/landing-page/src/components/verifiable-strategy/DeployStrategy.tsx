@@ -87,16 +87,22 @@ export function DeployStrategy({
     }
   }
   return (
-    <section className="calc-provenance" aria-label="Deploy research contract">
+    <section className="calc-deploy" aria-label="Deploy research contract">
+      <span className="calc-deploy-network">Arbitrum Sepolia · Testnet</span>
       <h2>Deploy with Rabby</h2>
       <p>
         Deploy this public Vyper research contract on Arbitrum Sepolia. No token
         approvals or deposits; only test ETH gas.
       </p>
-      <p>
+      <p className="calc-deploy-address">
         Deterministic address: <code>{DEPLOYMENT_ADDRESS}</code>
       </p>
-      <button type="button" disabled={busy} onClick={() => void connect()}>
+      <button
+        className="calc-call"
+        type="button"
+        disabled={busy}
+        onClick={() => void connect()}
+      >
         Connect Rabby wallet
       </button>
       {account && (
@@ -104,14 +110,24 @@ export function DeployStrategy({
           <p>
             Connected: <code>{account}</code>
           </p>
-          <button type="button" disabled={busy} onClick={() => void deploy()}>
+          <button
+            className="calc-call"
+            type="button"
+            disabled={busy}
+            onClick={() => void deploy()}
+          >
             Deploy to Arbitrum Sepolia
           </button>
         </>
       )}
-      <p role="status">{status}</p>
+      {status && (
+        <p className="calc-deploy-status" role="status">
+          {status}
+        </p>
+      )}
       {transaction && (
-        <>
+        <details className="calc-deploy-receipt">
+          <summary>Deployment receipt & publishing</summary>
           <a
             href={`https://sepolia.arbiscan.io/tx/${transaction}`}
             target="_blank"
@@ -123,7 +139,7 @@ export function DeployStrategy({
           <pre>{`cd apps/analytics-engine
 uv run python -m scripts.pinned_strategy.deploy --transaction ${transaction}
 uv run python -m scripts.pinned_strategy.export_landing_examples --refresh-deployment`}</pre>
-        </>
+        </details>
       )}
     </section>
   );

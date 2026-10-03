@@ -4080,3 +4080,64 @@
     transition: none !important;
   }
 }
+
+/* Wallet deployment */
+.shell-root .calc-deploy {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  margin: 28px 0;
+  padding: clamp(20px, 4vw, 32px);
+  border: 1px solid var(--line-hi);
+  border-radius: 16px;
+  background: var(--bg);
+}
+.shell-root .calc-deploy h2 {
+  margin: 0;
+  font-size: 1.375rem;
+  font-weight: 500;
+}
+.shell-root .calc-deploy p {
+  margin: 0;
+  color: var(--ink-dim);
+  font-size: 0.875rem;
+  line-height: 1.65;
+}
+.shell-root .calc-deploy-network {
+  color: var(--accent);
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.shell-root .calc-deploy code,
+.shell-root .calc-deploy a {
+  overflow-wrap: anywhere;
+}
+.shell-root .calc-deploy-address {
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.shell-root .calc-deploy-address code {
+  display: block;
+  margin-top: 6px;
+  color: var(--ink);
+  font-size: 0.75rem;
+}
+.shell-root .calc-deploy .calc-call {
+  width: 100%;
+  padding: 0 16px;
+  cursor: pointer;
+}
+.shell-root .calc-deploy .calc-call:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+.shell-root .calc-deploy-status {
+  border-left: 2px solid var(--accent);
+  padding-left: 12px;
+}
+.shell-root .calc-deploy-receipt {
+  min-width: 0;
+  font-size: 0.8125rem;
+}
