@@ -1,6 +1,15 @@
 import type { Hono } from 'hono';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+const evidenceFactory = vi.hoisted(() => ({
+  createDbEvidenceMonitor: vi.fn<
+    () => { start(): void; stop(): Promise<void> }
+  >(() => {
+    throw new Error('Unconfigured evidence monitor');
+  }),
+}));
+vi.mock('./observability/db-evidence.js', () => evidenceFactory);
+
 vi.mock('@hono/node-server', () => ({
   serve: vi.fn(
     (
@@ -75,6 +84,37 @@ vi.mock('./lib/env.js', async (importOriginal) => {
 });
 
 describe('bootstrap', () => {
+  it('starts the configured evidence monitor by default', async () => {
+    const { bootstrap } = await import('./index.js');
+    const dbEvidence = {
+      start: vi.fn(),
+      stop: vi.fn().mockResolvedValue(undefined),
+    };
+    evidenceFactory.createDbEvidenceMonitor.mockReturnValueOnce(dbEvidence);
+    const handle = bootstrap({
+      app: { fetch: vi.fn() } as unknown as Hono,
+      renderCapacity: null,
+    });
+    expect(dbEvidence.start).toHaveBeenCalledOnce();
+    await handle.shutdown('SIGTERM');
+    expect(dbEvidence.stop).toHaveBeenCalledOnce();
+  });
+  it('starts independent DB evidence and drains it on shutdown', async () => {
+    const { bootstrap } = await import('./index.js');
+    const dbEvidence = {
+      start: vi.fn(),
+      stop: vi.fn().mockResolvedValue(undefined),
+    };
+    const handle = bootstrap({
+      app: { fetch: vi.fn() } as unknown as Hono,
+      renderCapacity: null,
+      dbEvidence,
+    });
+    expect(dbEvidence.start).toHaveBeenCalledOnce();
+    expect(handle.dbEvidence).toBe(dbEvidence);
+    await handle.shutdown('SIGTERM');
+    expect(dbEvidence.stop).toHaveBeenCalledOnce();
+  });
   afterEach(() => {
     vi.clearAllMocks();
     vi.unstubAllEnvs();

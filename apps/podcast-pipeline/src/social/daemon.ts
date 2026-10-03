@@ -63,6 +63,7 @@ import {
   type SocialPublishJobRow,
   type SocialQueueLaneItem,
 } from './daemon-store.js';
+import { withSocialDaemonTickTelemetry } from './daemon-tick-telemetry.js';
 import { buildSocialExperimentReports } from './experiment-report.js';
 import { JST_OFFSET_MS } from './jst.js';
 import { reportLocalPublicationHistory } from './local-publish-history.js';
@@ -280,6 +281,18 @@ export async function runSocialCatchUpOnce(
   dependencies: Pick<SocialDaemonDependencies, 'now' | 'log' | 'verbose'> = {},
 ): Promise<SocialCatchUpResult> {
   const now = (dependencies.now ?? (() => new Date()))();
+  return withSocialDaemonTickTelemetry(
+    { now, owner: OWNER, log: dependencies.log },
+    () => runSocialCatchUpOnceWork({ ...dependencies, now: () => now }),
+  );
+}
+
+async function runSocialCatchUpOnceWork(
+  dependencies: Pick<SocialDaemonDependencies, 'log' | 'verbose'> & {
+    now: () => Date;
+  },
+): Promise<SocialCatchUpResult> {
+  const now = dependencies.now();
   const log = dependencies.log ?? console.log;
   const verbose = dependencies.verbose ?? true;
   const firstStartedAt = await ensureSocialDaemonStart(now);
@@ -364,7 +377,16 @@ function finishSocialCatchUp(
  * and all other errors remain fatal so an ambiguous publish transport result
  * can never be retried blindly and create duplicate posts.
  */
-export async function runSocialDaemonTick(input: {
+export async function runSocialDaemonTick(
+  input: Parameters<typeof runSocialDaemonTickWork>[0],
+): Promise<void> {
+  return withSocialDaemonTickTelemetry(
+    { now: input.now, owner: OWNER, log: input.log },
+    () => runSocialDaemonTickWork(input),
+  );
+}
+
+async function runSocialDaemonTickWork(input: {
   now: Date;
   firstStartedAt: string;
   log?: (message: string) => void;
@@ -678,12 +700,15 @@ async function enqueueExistingCohort(input: {
     intendedLanes.map((lane) => `${lane.platform}|${lane.language}`),
   );
   const isSubset = [...existingKeys].every((key) => intendedKeys.has(key));
-  const isEqual = isSubset && existingKeys.size === intendedKeys.size;
-
-  const lanes =
-    isEqual || (isSubset && existingKeys.size < intendedKeys.size)
-      ? intendedLanes
-      : existingLanes;
+  // Only a strict subset of the current policy can be an interrupted enqueue.
+  // A complete or historical cohort already owns its durable lanes: avoid even
+  // conflict-ignored inserts, whose BEFORE INSERT triggers still run in Postgres.
+  const lanes = isSubset
+    ? intendedLanes.filter(
+        (lane) => !existingKeys.has(`${lane.platform}|${lane.language}`),
+      )
+    : [];
+  if (lanes.length === 0) return;
 
   const finalMissing = missingLanguages(
     new Set(lanes.map((lane) => lane.language)),

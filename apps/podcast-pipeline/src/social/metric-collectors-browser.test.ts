@@ -313,6 +313,36 @@ beforeEach(() => {
 });
 
 describe('X browser metrics and reconciliation', () => {
+  it('bounds absent optional X counters and keeps their null fallback', async () => {
+    const missing = {
+      getAttribute: vi.fn(async () => {
+        throw new Error('optional counter timed out');
+      }),
+      innerText: vi.fn(async () => {
+        throw new Error('optional counter timed out');
+      }),
+    };
+    const article = xArticle();
+    article.locator.mockImplementation(() => ({ first: () => missing }));
+    const page = xPage([article]);
+    const context = installPage(page);
+
+    await expect(collectXMetrics(post('x'))).resolves.toMatchObject({
+      views: null,
+      likes: null,
+      comments: null,
+      shares: null,
+    });
+    expect(missing.getAttribute).toHaveBeenCalledTimes(3);
+    expect(missing.innerText).toHaveBeenCalledTimes(4);
+    expect(missing.getAttribute).toHaveBeenCalledWith('aria-label', {
+      timeout: 30_000,
+    });
+    expect(missing.innerText).toHaveBeenCalledWith({ timeout: 30_000 });
+    expect(page.close).toHaveBeenCalledOnce();
+    expect(context.close).toHaveBeenCalledOnce();
+  });
+
   it('reads X counts from aria labels and text fallbacks', async () => {
     const page = xPage([
       xArticle({

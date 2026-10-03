@@ -220,6 +220,51 @@ describe('social daemon store', () => {
     expect(mocks.from).not.toHaveBeenCalledWith('episode_localizations');
   });
 
+  it('reads every durable schedule page with a unique ordering across shared release timestamps', async () => {
+    const row = {
+      episode_id: 'episode-1',
+      platform: 'x',
+      language_code: 'ja',
+      scheduled_at: '2026-09-15T03:00:00.000Z',
+      completed_at: null,
+      status: 'queued',
+    } as const;
+    const firstPage = Array.from({ length: 1000 }, (_, index) => ({
+      ...row,
+      episode_id: `episode-${index}`,
+    }));
+    const lastRow = { ...row, episode_id: 'newest-episode' };
+    queue({ data: firstPage, error: null }, { data: [lastRow], error: null });
+
+    await expect(listPendingSocialPublishSchedules()).resolves.toEqual([
+      ...firstPage,
+      lastRow,
+    ]);
+    expect(mocks.calls.filter((call) => call.method === 'range')).toEqual([
+      { method: 'range', args: [0, 999] },
+      { method: 'range', args: [1000, 1999] },
+    ]);
+    expect(mocks.calls.filter((call) => call.method === 'order')).toEqual([
+      { method: 'order', args: ['scheduled_at', { ascending: true }] },
+      { method: 'order', args: ['id', { ascending: true }] },
+      { method: 'order', args: ['scheduled_at', { ascending: true }] },
+      { method: 'order', args: ['id', { ascending: true }] },
+    ]);
+  });
+
+  it('rejects a truncated durable schedule snapshot when a later page fails', async () => {
+    queue(
+      {
+        data: Array.from({ length: 1000 }, () => ({ episode_id: 'episode-1' })),
+        error: null,
+      },
+      { data: null, error: new Error('schedule page unavailable') },
+    );
+    await expect(listPendingSocialPublishSchedules()).rejects.toThrow(
+      'schedule page unavailable',
+    );
+  });
+
   it('lists pending publish schedules with the full durable lane state', async () => {
     const row = {
       episode_id: 'episode-1',

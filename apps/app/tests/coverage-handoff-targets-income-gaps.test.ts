@@ -57,7 +57,12 @@ const draft = (
     sourceToken: token(),
   };
   if (positionId === 'hlp') {
-    return { ...base, positionId, ingress: 'bridge2', ...overrides } as StageDraft;
+    return {
+      ...base,
+      positionId,
+      ingress: 'bridge2',
+      ...overrides,
+    } as StageDraft;
   }
   return { ...base, positionId, ...overrides } as StageDraft;
 };
