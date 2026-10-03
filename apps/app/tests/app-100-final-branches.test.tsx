@@ -259,9 +259,7 @@ describe('app-100 final: attribution edges', () => {
         },
       ],
       wallet_returns: [],
-    } satisfies NonNullable<
-      Parameters<typeof attachDailyAttribution>[1]
-    >;
+    } satisfies NonNullable<Parameters<typeof attachDailyAttribution>[1]>;
     const points = attachDailyAttribution(
       [{ total_value_usd: 100 }],
       yieldData,
