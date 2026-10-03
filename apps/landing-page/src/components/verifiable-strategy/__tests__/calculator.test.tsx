@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, cleanup } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  cleanup,
+} from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { StrategyCalculator } from '../StrategyCalculator';
 import CalculatorPage from '@/app/track-record/calculator/page';
@@ -15,6 +21,7 @@ import { AssetCrossTrack } from '../AssetCrossTrack';
 import { AllocationCompare } from '../AllocationPreview';
 import { VerifyYourself } from '../VerifyYourself';
 import { WAD } from '@/lib/verifiable-strategy/encoding';
+import { deployStrategy } from '@/lib/verifiable-strategy/deployment';
 
 const state = vi.hoisted(() => ({
   query: new URLSearchParams(),
@@ -23,6 +30,12 @@ const state = vi.hoisted(() => ({
   runFail: '' as '' | 'codehash' | 'network' | 'string',
 }));
 vi.mock('next/navigation', () => ({ useSearchParams: () => state.query }));
+vi.mock('@/lib/verifiable-strategy/deployment', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('@/lib/verifiable-strategy/deployment')
+  >()),
+  deployStrategy: vi.fn(),
+}));
 vi.mock('@/lib/verifiable-strategy/onchain', async (importOriginal) => {
   const actual =
     await importOriginal<typeof import('@/lib/verifiable-strategy/onchain')>();
@@ -292,6 +305,20 @@ it('shows missing data when an asset has no usable numbers', () => {
   expect(screen.getByText('Missing data')).toBeInTheDocument();
 });
 
+it('draws a flat line when price equals its average', () => {
+  render(
+    <AssetCrossTrack
+      asset="BTC"
+      previous={{ price: '100', dma: '100' }}
+      current={{ price: '100', dma: '100' }}
+    />,
+  );
+  expect(
+    screen.getByRole('img', { name: /BTC: yesterday/ }),
+  ).toBeInTheDocument();
+  expect(screen.getByText('+0.00% → +0.00%')).toBeInTheDocument();
+});
+
 it('marks the last exit invalid when the date cannot be parsed', () => {
   const onChange = vi.fn();
   const input = inputFromExample(example);
@@ -324,6 +351,20 @@ it('does not submit while inputs are invalid', () => {
   );
   fireEvent.submit(document.getElementById('strategy-calculator')!);
   expect(onRun).not.toHaveBeenCalled();
+  cleanup();
+  const badAllocation = {
+    ...inputFromExample(example),
+    allocation: ['101', '0', '0', '0', '0'],
+  };
+  render(
+    <CalculatorForm
+      input={badAllocation}
+      onChange={vi.fn()}
+      running={false}
+      onRun={vi.fn()}
+    />,
+  );
+  expect(screen.getAllByText(/between 0 and 100%/)).toHaveLength(2);
 });
 
 it('copies verification commands and reports clipboard failure', async () => {
@@ -416,4 +457,42 @@ it('reports non-Error calculation failures', async () => {
   await screen.findByText(/Codehash matches/);
   fireEvent.click(screen.getByRole('button', { name: 'Call contract' }));
   await screen.findByText(/RPC calculation failed/);
+});
+
+it('drops bytecode verification that settles after unmount', async () => {
+  state.verifyFail = 'error';
+  const { unmount } = render(<StrategyCalculator data={dataset} />);
+  unmount();
+  await act(async () => {});
+  expect(screen.queryByText('Bytecode check failed')).not.toBeInTheDocument();
+});
+
+it('adopts a fresh Rabby deployment', async () => {
+  const deployment = {
+    ...dataset.deployment!,
+    transactionHash: `0x${'44'.repeat(32)}` as `0x${string}`,
+    blockNumber: '7',
+  };
+  vi.mocked(deployStrategy).mockResolvedValue(deployment);
+  render(<StrategyCalculator data={{ ...dataset, deployment: null }} />);
+  expect(screen.getByText(/Deploy with Rabby/)).toBeInTheDocument();
+  const rabby = {
+    request: vi.fn().mockResolvedValue(['0xabc']),
+    on: vi.fn(),
+    removeListener: vi.fn(),
+  };
+  act(() => {
+    window.dispatchEvent(
+      new CustomEvent('eip6963:announceProvider', {
+        detail: { info: { rdns: 'io.rabby' }, provider: rabby },
+      }),
+    );
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Connect Rabby wallet' }));
+  await screen.findByText(/Connected:/);
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Deploy to Arbitrum Sepolia' }),
+  );
+  await screen.findByText(/Codehash matches/);
+  expect(screen.queryByText(/Deploy with Rabby/)).not.toBeInTheDocument();
 });

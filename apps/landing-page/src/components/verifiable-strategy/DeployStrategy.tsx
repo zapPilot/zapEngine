@@ -66,11 +66,13 @@ export function DeployStrategy({
     }
   }
   async function deploy() {
-    if (!provider) return;
+    // Deploy is only offered after Connect sets an account, which requires
+    // the announced Rabby provider, so provider is always defined here.
+    const active = provider as EIP1193Provider;
     setBusy(true);
     setStatus('Confirm the Arbitrum Sepolia network and deployment in Rabby.');
     try {
-      const deployment = await deployStrategy(provider, (hash) => {
+      const deployment = await deployStrategy(active, (hash) => {
         setTransaction(hash);
         setStatus('Transaction sent. Waiting for confirmation…');
       });

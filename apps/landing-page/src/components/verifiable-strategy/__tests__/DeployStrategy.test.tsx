@@ -156,3 +156,42 @@ it('surfaces deployment failures without notifying the parent', async () => {
   expect(await screen.findByText('Deployment reverted')).toBeInTheDocument();
   expect(onDeployed).not.toHaveBeenCalled();
 });
+
+it('ignores providers that are not Rabby', async () => {
+  const onDeployed = vi.fn();
+  const p = provider();
+  render(<DeployStrategy onDeployed={onDeployed} />);
+  act(() => {
+    window.dispatchEvent(
+      new CustomEvent('eip6963:announceProvider', {
+        detail: { info: { rdns: 'io.other' }, provider: p },
+      }),
+    );
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Connect Rabby wallet' }));
+  expect(await screen.findByText(/Rabby not detected/)).toBeInTheDocument();
+});
+
+it('reports non-Error connection and deployment rejections', async () => {
+  const onDeployed = vi.fn();
+  const p = provider({ request: vi.fn().mockRejectedValue('nope') });
+  render(<DeployStrategy onDeployed={onDeployed} />);
+  act(() => {
+    announce(p);
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Connect Rabby wallet' }));
+  expect(await screen.findByText('Connection rejected')).toBeInTheDocument();
+  cleanup();
+  const q = provider();
+  deployMock.mockRejectedValue('nope');
+  render(<DeployStrategy onDeployed={onDeployed} />);
+  act(() => {
+    announce(q);
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Connect Rabby wallet' }));
+  await screen.findByText(/Connected:/);
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Deploy to Arbitrum Sepolia' }),
+  );
+  expect(await screen.findByText('Deployment failed')).toBeInTheDocument();
+});
