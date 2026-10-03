@@ -182,6 +182,7 @@ function createTestApp(
           gaps: [],
         }),
       resolveSentryIssue: operationsOverrides.resolveSentryIssue ?? vi.fn(),
+      reconcileSentryIssue: operationsOverrides.reconcileSentryIssue ?? vi.fn(),
       investigate: operationsOverrides.investigate ?? vi.fn(),
     },
     service: {

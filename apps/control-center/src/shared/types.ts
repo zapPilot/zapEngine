@@ -1,4 +1,5 @@
 import type { SocialWaitlistSummary } from './waitlist-growth.js';
+import type { OpsFollowUp } from '@zapengine/types/shared';
 import type {
   CostProvider,
   CostSnapshot,
@@ -389,6 +390,8 @@ export interface OperationalPriority {
   signal: OperationalSignal;
   score: number;
   reasons: string[];
+  /** Assessment only; never changes signal health or grants mutation authority. */
+  followUp?: OpsFollowUp;
 }
 
 export interface OperationsDomainSummary {

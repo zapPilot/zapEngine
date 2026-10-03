@@ -47,6 +47,7 @@ export const opsLifecycleSchema = z.enum([
   'failed',
   'blocked',
   'needs_human',
+  'closed_by_operator',
 ]);
 export const opsVerificationSchema = z.object({
   policyVersion: z.literal('ops-verification-v1'),
@@ -88,3 +89,79 @@ export const opsAuditSchema = z.object({
   verification: z.record(z.string(), z.unknown()).nullable().optional(),
 });
 export type OpsAudit = z.infer<typeof opsAuditSchema>;
+
+/** Triage is an engineering assessment, never proof of production recovery. */
+export const opsTriageSchema = z
+  .object({
+    target: z.string().min(1).max(200),
+    classification: z.enum([
+      'engineering',
+      'owner',
+      'external',
+      'insufficient_evidence',
+    ]),
+    stage: z.enum([
+      'investigating',
+      'repair_pending',
+      'pr_open',
+      'awaiting_deploy',
+      'observing',
+      'closure_pending',
+      'blocked',
+    ]),
+    reason: z.string().min(8).max(2000),
+    evidence: z.array(z.string().min(1).max(500)).min(1).max(20),
+    nextAction: z.string().min(8).max(1000),
+    prNumber: z.number().int().positive().nullable(),
+    fixSha: z
+      .string()
+      .regex(/^[a-f0-9]{40}$/)
+      .nullable(),
+    lastSeen: z.iso.datetime({ offset: true }).nullable(),
+    reviewAfter: z.iso.datetime({ offset: true }),
+  })
+  .superRefine((value, context) => {
+    if (
+      ['pr_open', 'awaiting_deploy', 'observing', 'closure_pending'].includes(
+        value.stage,
+      ) &&
+      value.prNumber === null
+    ) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Repair progress requires a linked PR.',
+        path: ['prNumber'],
+      });
+    }
+    if (
+      ['awaiting_deploy', 'observing', 'closure_pending'].includes(
+        value.stage,
+      ) &&
+      value.fixSha === null
+    ) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Deployment tracking requires the exact fix commit.',
+        path: ['fixSha'],
+      });
+    }
+  });
+export type OpsTriage = z.infer<typeof opsTriageSchema>;
+export const opsTriageRecordSchema = z.object({
+  fingerprint: z.string().min(1).max(200),
+  actor: z.string().min(1).max(120),
+  assessment: opsTriageSchema,
+});
+export const opsTriageHistorySchema = opsTriageRecordSchema.extend({
+  recordedAt: z.iso.datetime({ offset: true }),
+});
+export type OpsTriageHistory = z.infer<typeof opsTriageHistorySchema>;
+export const opsFollowUpSchema = z.object({
+  status: z.enum(['available', 'unavailable']),
+  targetCoverage: z.enum(['complete', 'partial']),
+  unassessedTargets: z.array(z.string()),
+  items: z.array(
+    opsTriageHistorySchema.extend({ reviewRequired: z.boolean() }),
+  ),
+});
+export type OpsFollowUp = z.infer<typeof opsFollowUpSchema>;

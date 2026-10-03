@@ -45,6 +45,7 @@ function store() {
       failureStreak: 0,
     }),
     history: vi.fn().mockResolvedValue([]),
+    triage: vi.fn().mockResolvedValue([]),
     runtime: vi.fn().mockResolvedValue([
       {
         service: '@zapengine/podcast-pipeline',

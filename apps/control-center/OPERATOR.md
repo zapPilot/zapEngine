@@ -111,6 +111,34 @@ trigger in `.github/schedules.json`. Options considered:
 
 ## Fix registration and observation
 
+### Reliability triage across sweeps
+
+`ops:triage /absolute/path/assessment.json` records an engineering assessment in
+the existing incident/cycle ledger. It never runs an operator cycle or modifies
+provider state. Use the canonical production environment prefix for production
+metadata. Deploy `20261003000000_ops_triage.sql` before using the writer.
+
+The assessment contract is `opsTriageRecordSchema` in `@zapengine/types/shared`.
+Sentry targets are exact numeric issue IDs, not project-level fingerprints.
+REST `/api/operations`, MCP `ops_status` and `ops_investigate` expose the same
+follow-up records, review deadlines and recurrence notices. The snapshot keeps
+every health priority regardless of its assessment. Missing tracking reads as
+unavailable; no assessment is equivalent to a verified repair.
+
+Track PR creation, merge, actual deployment, functional recovery and issue
+closure separately. A stage is an attributed assessment, not authorization or
+server-verified recovery. Generic services still require a human to verify and
+authorize closure; the render-specific verification rail below stays bounded
+to its machine/queue identity. The dashboard has no triage write endpoint.
+
+For a requested/unknown Sentry resolution result, use
+`ops:reconcile-sentry <numeric-issue-id>` on the canonical production rail. It
+only reads Sentry and reconciles the existing audit attempt when the provider
+reports that exact issue resolved. It never sends a resolution mutation, grants
+another repair attempt, or marks production recovery verified. An unresolved
+provider response leaves the existing attempt unchanged. Operator-delegated
+closure is recorded only after success or this provider-confirmed reconciliation.
+
 Use `ops:operator --record-fix /absolute/path/fix.json` to register an operator's
 diagnosis. The JSON has `incidentId`, `rootCause`, 40-character `fixSha`, nullable
 `prNumber`, numeric-string `issueId`, `machineId`, `localizationId`,

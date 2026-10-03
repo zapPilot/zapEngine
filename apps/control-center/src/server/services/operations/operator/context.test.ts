@@ -11,6 +11,7 @@ const packet = {
 
 function store(unavailable: boolean): OperatorStore {
   return {
+    triage: vi.fn().mockResolvedValue([]),
     rpc: vi.fn(),
     recordHeartbeat: vi.fn().mockResolvedValue(undefined),
     heartbeat: vi.fn().mockResolvedValue(null),

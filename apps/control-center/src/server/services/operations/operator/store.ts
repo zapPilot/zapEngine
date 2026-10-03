@@ -1,5 +1,8 @@
 import { z } from 'zod';
-import { opsRuntimeRecordSchema } from '@zapengine/types/shared';
+import {
+  opsRuntimeRecordSchema,
+  opsTriageHistorySchema,
+} from '@zapengine/types/shared';
 import type { ControlCenterConfig } from '../../../config/env.js';
 import { OPS_OPERATOR_CADENCE_MS } from '../schedule-interval.js';
 import { createConfiguredServiceRoleClient } from '../../supabase.js';
@@ -53,6 +56,13 @@ export function createOperatorStore(config: ControlCenterConfig) {
   }
   return {
     rpc,
+    async triage(fingerprints: string[]) {
+      return opsTriageHistorySchema.array().parse(
+        await rpc('ops_triage_history', {
+          p_fingerprints: fingerprints,
+        }),
+      );
+    },
     async recordHeartbeat(actor: string, state: OperatorHeartbeatState) {
       const provenance = {
         p_actor: actor,

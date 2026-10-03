@@ -40,7 +40,9 @@ gh run download "$run_id" --repo zapPilot/zapEngine --name coverage-handoff \
   `pnpm ops --status` reads the dev environment and misleads.
 - `ops:operator` (including `--allow-render-retry` and `--record-fix`), `ops:sync`
   and `ops:cost`.
-- Control Center POST/PUT routes and `ops_resolve_sentry_issue`.
+- Control Center POST/PUT routes and delegated/unverified Sentry resolution.
+  Exact-issue closure on the existing persisted verified-fix rail is the narrow
+  exception; never manufacture verification or explicit authorization.
 - A service started locally with `--environment prod`: account-engine in polling
   mode deletes the production Telegram webhook.
 - `supabase db push`, `fly deploy`, `vercel deploy`, `gh workflow run`,
@@ -48,12 +50,59 @@ gh run download "$run_id" --repo zapPilot/zapEngine --name coverage-handoff \
 
 ## Signals no code change clears
 
-List these for the owner once instead of reworking them:
+Persist these as per-target triage with evidence, an exact next action and a
+review deadline. Revisit when the deadline passes or provider evidence changes;
+PR prose alone does not define what already reported means across sessions:
 
 - a render on a superseded `EPISODE_VIDEO_VISUAL_VERSION`, or an abandoned
   episode: reviving one forces a new visual plan and search spend;
 - inactive priority accounts: a pricing decision;
 - a Sentry issue whose fix is on main but not yet deployed: the deploy clears it.
+
+## Durable Reliability follow-up
+
+Use the shared incident ledger, not a second issue database. The narrowly bounded
+metadata writer does not grant provider mutation authority:
+
+```bash
+node scripts/env/run.mjs --environment prod -- \
+  pnpm --filter @zapengine/control-center ops:triage /absolute/path/assessment.json
+```
+
+The JSON has `fingerprint`, `actor` and `assessment`. Assessment contains:
+`target` (exact numeric Sentry issue ID, otherwise signal fingerprint),
+`classification` (engineering/owner/external/insufficient_evidence),
+`stage` (investigating/repair_pending/pr_open/awaiting_deploy/observing/closure_pending/blocked),
+`reason`, nonempty `evidence` references, `nextAction`, nullable `prNumber` and
+40-character `fixSha`, nullable ISO `lastSeen`, and ISO `reviewAfter`.
+Use a review deadline no later than the next daily sweep for engineering or
+evidence gaps; use seven days for a documented owner/external dependency.
+`pr_open` requires a PR; deployment stages require a PR and exact fix commit.
+Never label missing reproduction as a product decision. Try repository-backed
+reproduction before recording an evidence gap, and record the missing fact.
+The command only records metadata; it does not run an operator cycle, register
+a verified fix, deploy, retry jobs or authorize Sentry resolution.
+
+Do not resolve stale issues merely because 24 hours are quiet. The existing
+render verified-fix rail retains its deployed identity and recovery gates;
+when its persisted exact-issue authorization and fresh verification pass,
+use `ops_resolve_sentry_issue` without delegatedBy, then take a forced snapshot
+and confirm that exact issue is absent. This is the bounded closure exception
+in SKILL.md; the server remains the gate.
+For other services, record closure_pending only with deployment and functional
+recovery evidence, and assign the exact owner verification/closure action; the
+operator-delegated MCP rail still requires explicit human authorization and
+provider quiet-time proof. Do not pass delegatedBy from a standing sweep prompt.
+Resolution failures or unknown outcomes require persisted-action reconciliation,
+never repeating the mutation. Use the audit-only writer
+`node scripts/env/run.mjs --environment prod -- pnpm --filter @zapengine/control-center ops:reconcile-sentry <issueId>`
+to read the exact provider status and reconcile a requested/unknown attempt;
+this never sends another provider mutation or grants another repair attempt. A new event or overdue review reopens assessment
+work, including an item previously left for the owner.
+
+If metadata persistence is unavailable or the migration has not deployed, list
+each assessment in the PR and mark persistence unverified; keep diagnosing and
+repairing engineering issues rather than treating missing tracking as healthy.
 
 ## What merging does
 

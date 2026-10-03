@@ -31,6 +31,7 @@ export interface OpsIncidentCorrelation {
 
 export interface OpsIncidentContext extends IncidentPacket {
   correlation: OpsIncidentCorrelation;
+  followUp?: OperationsResponse['priorities'][number]['followUp'];
 }
 
 /**
@@ -53,6 +54,10 @@ export function buildOpsIncidentContext(input: {
 
   return {
     ...input.packet,
+    followUp: input.snapshot.priorities.find(
+      (priority) =>
+        priority.signal.fingerprint === input.packet.incident.fingerprint,
+    )?.followUp,
     correlation: {
       basis: topology.service ? 'repository-topology' : 'unmapped',
       service: topology.service

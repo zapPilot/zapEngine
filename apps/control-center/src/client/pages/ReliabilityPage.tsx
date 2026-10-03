@@ -58,7 +58,7 @@ export function ReliabilityPage(props: {
           />
           <Stat
             caption="Signals over the action threshold"
-            label="Open interventions"
+            label="Operational priorities"
             tone={
               (operations?.priorities.length ?? 0) > 0 ? 'danger' : 'success'
             }
