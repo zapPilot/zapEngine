@@ -26,6 +26,7 @@ import type {
   Dataset,
   Example,
 } from '@/lib/verifiable-strategy/types';
+import { DeployStrategy } from './DeployStrategy';
 import { ContractAnswer } from './ContractAnswer';
 import { ScenarioPicker } from './ScenarioPicker';
 import { CalculatorForm } from './CalculatorForm';
@@ -135,10 +136,11 @@ function ExampleCalculator({
 }
 
 export function StrategyCalculator({
-  data = strategyData,
+  data: initialData = strategyData,
 }: {
   data?: Dataset;
 }) {
+  const [data, setData] = useState(initialData);
   const requested = useSearchParams().get('date') ?? DEFAULT_EXAMPLE_DATE;
   const example = data.examples.find((value) => value.date === requested);
   const [verification, setVerification] = useState(
@@ -174,6 +176,11 @@ export function StrategyCalculator({
         </p>
       </header>
       <ContractIdentityCard data={data} verification={verification} />
+      {!data.deployment && (
+        <DeployStrategy
+          onDeployed={(deployment) => setData({ ...data, deployment })}
+        />
+      )}
       {example ? (
         <ExampleCalculator key={example.date} example={example} data={data} />
       ) : (
