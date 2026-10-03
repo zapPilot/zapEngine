@@ -14,6 +14,7 @@ const runtime = vi.hoisted(() => ({
   remove: vi.fn(),
   listener: undefined as ((enabled: boolean) => void) | undefined,
   resolve: undefined as ((enabled: boolean) => void) | undefined,
+  platform: 'ios',
 }));
 vi.mock('lucide-react-native', () => ({
   ArrowLeft: (props: unknown) => {
@@ -25,6 +26,11 @@ vi.mock('react-native', async () => {
   const { reactNativeStub } = await import('./support/reactNativeStub');
   return {
     ...reactNativeStub,
+    Platform: {
+      get OS() {
+        return runtime.platform;
+      },
+    },
     Text: (props: Record<string, unknown> & { children?: ReactNode }) => {
       runtime.text(props);
       return <span>{props.children}</span>;
@@ -50,6 +56,7 @@ afterEach(async () => {
   await act(async () => root?.unmount());
   host?.remove();
   vi.clearAllMocks();
+  runtime.platform = 'ios';
 });
 async function mount(node: ReactNode) {
   host = document.createElement('div');
@@ -91,6 +98,32 @@ it('hides decorative icons and exposes named icons to accessibility', async () =
     accessibilityLabel: 'Back',
     accessibilityElementsHidden: false,
   });
+});
+it('uses ARIA for web SVGs without leaking native accessibility props', async () => {
+  runtime.platform = 'web';
+  await mount(
+    <>
+      <Icon icon={ArrowLeft} />
+      <Icon icon={ArrowLeft} accessibilityLabel="Back" />
+    </>,
+  );
+  const [decorative, named] = runtime.glyph.mock.calls.map(([props]) => props);
+  expect(decorative).toMatchObject({ 'aria-hidden': true });
+  expect(named).toMatchObject({
+    'aria-hidden': false,
+    'aria-label': 'Back',
+    role: 'img',
+  });
+  for (const props of [decorative, named]) {
+    for (const key of [
+      'accessible',
+      'accessibilityLabel',
+      'accessibilityElementsHidden',
+      'importantForAccessibility',
+    ]) {
+      expect(props).not.toHaveProperty(key);
+    }
+  }
 });
 it('keeps a preference change newer than its initial asynchronous read and removes the listener', async () => {
   function Probe() {
