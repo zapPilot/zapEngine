@@ -208,9 +208,15 @@ of pretending these commands ran locally.
 ```text
 Use @GitHub on `zapPilot/zapEngine` and run exactly one hourly test-QA iteration from latest `main`, following `.agents/skills/test-qa-audit/SKILL.md` and `REFERENCE.md` as the complete current rules.
 
-Use the GitHub connector only; never use DevSpace, local worktrees, or shell tools. Maintain exactly one long-lived open `test-qa/*` worker PR: append to it if present, create one from latest `main` only when a permitted change exists, and never merge it.
+Use the GitHub connector only; never use DevSpace, local worktrees, shell, or another coding environment. Maintain exactly one long-lived open `test-qa/*` worker PR: append to it if present, create one from latest `main` only when a permitted Phase 1 test/test-helper improvement exists, never create a second worker PR, and never merge it.
 
-Use `automation/test-qa-state:.test-qa/state.json` as the durable checkpoint. Read it before selection and update/re-read it after every run, including clean runs. Use GitHub blob SHAs for connector-side scope change detection. The worker PR body is only the human-readable fallback ledger.
+Use `automation/test-qa-state:.test-qa/state.json` as the durable cross-session checkpoint. Read it before selection and update/re-read it after every run, including clean runs. It is connector-owned storage, not an Actions artifact: never merge it and never create a PR for it. Use GitHub blob SHAs for connector-side scope change detection. The worker PR body is the human-readable fallback ledger.
 
-Use the newest main `coverage-handoff` artifact for coverage regressions. If selector/tests/guard cannot run through the connector, continue with equivalent GitHub inspection, let Actions verify pushed Phase 1 test/test-helper changes, and record unavailable operations honestly. After any push, inspect the newest GitHub Actions checks before finishing.
+Continuously improve test quality and coverage integrity: audit up to 3 eligible scopes per run, prioritizing deferred findings, never-audited high-risk coverage/smell scopes, changed scopes, then stale scopes. Read each test with its production subject and related paths. Fix test findings now using test/test-helper files only. Record production findings without editing production; open a `bug` + `test-qa` issue for real product bugs when repository rules require it. Do not change production code, coverage thresholds, ignores, global test setup, or quality gates.
+
+Use the newest trusted main `coverage-handoff` artifact only for coverage-regression evidence. If its contents, selector, tests, coverage, lint, type-check, guard, or other local commands cannot run through the connector, continue with equivalent GitHub inspection; transport/tool limitations must never cause a no-op iteration. Push permitted test changes and let GitHub Actions perform executable verification.
+
+Before selecting new scopes, handle worker-caused CI failures/reviews. After every GitHub write, immediately re-read canonical GitHub state rather than trusting one success/error response. After pushes inspect the newest Actions checks, especially Test QA Guard, tests, quick-gates, code-quality, and coverage, and determine responsibility for failures.
+
+Always record the iteration in `automation/test-qa-state:.test-qa/state.json`, then re-read it and verify the run is present. If the checkpoint write conflicts, fetch the newest state, merge only this run's records, and retry. Never use repository dispatch or a `test-qa-state` Actions artifact; those transports are obsolete. A clean audit is allowed, but missing artifact access or unavailable connector operations are not valid reasons to skip real repository inspection.
 ```
