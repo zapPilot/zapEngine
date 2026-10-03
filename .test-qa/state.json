@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-03T06:07:00.000Z",
+  "generatedAt": "2026-10-03T06:15:00.000Z",
   "github": {
     "runId": 0,
     "runAttempt": 1,
@@ -185,9 +185,85 @@
         "apps/alpha-etl/src/routes/webhooks.responses.ts"
       ],
       "findings": []
+    },
+    "packages/app-core/tests/coverage-handoff-pure-gaps.test.ts": {
+      "status": "finding",
+      "auditedAt": "2026-10-03T06:15:00.000Z",
+      "auditedCommit": "558aaba118d1a962fc2f21b32d8151566b3d5c11",
+      "pathShas": {
+        "packages/app-core/tests/coverage-handoff-pure-gaps.test.ts": "69f7830b38ef1e90f9b8dc2eebd7115de37c5556"
+      },
+      "files": [
+        "packages/app-core/tests/coverage-handoff-pure-gaps.test.ts"
+      ],
+      "relatedPaths": [
+        "packages/app-core/src/services/backtestingTimelineService.ts",
+        "packages/app-core/src/lib/portfolio/portfolioUtils.ts",
+        "packages/app-core/src/adapters/walletPortfolioDataAdapter.ts",
+        "packages/app-core/src/lib/portfolio/portfolioTransformers.ts",
+        "packages/app-core/src/lib/wallet/depositWizardMachine.ts",
+        "packages/app-core/src/lib/wallet/hyperliquidAgentMachine.ts",
+        "packages/app-core/src/lib/domain/regime.ts"
+      ],
+      "findings": [
+        {
+          "id": "contract-fixtures-app-core-20261003",
+          "kind": "test",
+          "summary": "Coverage-handoff fixtures use broad as-never helpers for typed landing/timeline inputs; retain deliberate casts only for explicit unknown-event/runtime-boundary cases and make valid fixtures contract-shaped."
+        }
+      ]
+    },
+    "apps/app/tests/coverage-handoff-targets-income-gaps.test.ts": {
+      "status": "finding",
+      "auditedAt": "2026-10-03T06:15:00.000Z",
+      "auditedCommit": "558aaba118d1a962fc2f21b32d8151566b3d5c11",
+      "pathShas": {
+        "apps/app/tests/coverage-handoff-targets-income-gaps.test.ts": "04ec4d64ee06b17e97f2e896e7444e7080932750"
+      },
+      "files": [
+        "apps/app/tests/coverage-handoff-targets-income-gaps.test.ts"
+      ],
+      "relatedPaths": [
+        "apps/app/src/integration/investTargetsModel.ts",
+        "apps/app/src/integration/homeIncomeModel.ts",
+        "apps/app/src/integration/depositTokens.ts"
+      ],
+      "findings": [
+        {
+          "id": "contract-fixtures-target-income-20261003",
+          "kind": "test",
+          "summary": "Coverage-only token/draft/summary fixtures bypass production contracts with as never/as unknown as; replace valid fixtures with typed DesktopDepositToken, StageDraft, ChainBatchDraft and YieldReturnsSummaryResponse shapes."
+        }
+      ]
+    },
+    "apps/app/src/integration/bridgeTestModel.ts": {
+      "status": "clean",
+      "auditedAt": "2026-10-03T06:15:00.000Z",
+      "auditedCommit": "558aaba118d1a962fc2f21b32d8151566b3d5c11",
+      "pathShas": {
+        "apps/app/src/integration/bridgeTestModel.ts": "88b99f083adb23f8c71759ee0d32420be6f71230",
+        "apps/app/tests/bridgeTestModel.coverage.test.ts": "151d52cb21d155159e3b2568d7a1ee865096b56b"
+      },
+      "files": [
+        "apps/app/tests/bridgeTestModel.coverage.test.ts"
+      ],
+      "relatedPaths": [
+        "apps/app/src/integration/bridgeTestModel.ts"
+      ],
+      "findings": []
     }
   },
   "runs": [
+    {
+      "workerRunId": "20261003T061500Z",
+      "at": "2026-10-03T06:15:00.000Z",
+      "outcome": "finding",
+      "scopes": [
+        "packages/app-core/tests/coverage-handoff-pure-gaps.test.ts",
+        "apps/app/tests/coverage-handoff-targets-income-gaps.test.ts",
+        "apps/app/src/integration/bridgeTestModel.ts"
+      ]
+    },
     {
       "workerRunId": "20261003T060000Z",
       "at": "2026-10-03T06:02:00.000Z",
