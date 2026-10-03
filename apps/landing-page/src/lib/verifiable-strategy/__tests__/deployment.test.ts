@@ -62,9 +62,7 @@ describe('Rabby deterministic deployment', () => {
       .mockResolvedValueOnce(undefined)
       .mockResolvedValueOnce(
         (
-          await import(
-            '../../../../../analytics-engine/tests/fixtures/pinned_strategy/dma_cross_down_slice.json'
-          )
+          await import('../../../../../analytics-engine/tests/fixtures/pinned_strategy/dma_cross_down_slice.json')
         ).runtime_code,
       );
     const deployment = await deployStrategy(provider, vi.fn());
@@ -80,9 +78,7 @@ describe('Rabby deterministic deployment', () => {
       .mockResolvedValueOnce(undefined)
       .mockResolvedValueOnce(
         (
-          await import(
-            '../../../../../analytics-engine/tests/fixtures/pinned_strategy/dma_cross_down_slice.json'
-          )
+          await import('../../../../../analytics-engine/tests/fixtures/pinned_strategy/dma_cross_down_slice.json')
         ).runtime_code,
       );
     const deployment = await deployStrategy(provider, vi.fn());
@@ -135,9 +131,7 @@ describe('Rabby deterministic deployment', () => {
   });
   it('treats 0x as empty and continues to broadcast', async () => {
     const runtime = (
-      await import(
-        '../../../../../analytics-engine/tests/fixtures/pinned_strategy/dma_cross_down_slice.json'
-      )
+      await import('../../../../../analytics-engine/tests/fixtures/pinned_strategy/dma_cross_down_slice.json')
     ).runtime_code;
     mocks.client.getBytecode
       .mockResolvedValueOnce(factoryCode)

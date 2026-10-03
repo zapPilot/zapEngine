@@ -248,11 +248,9 @@ export function CalculatorForm({
                       label={`${asset} allocation percent`}
                       value={input.allocation[index]!}
                       error={errors[id]}
-                      describedBy={
-                        [errorId(id), 'allocation-total']
-                          .filter(Boolean)
-                          .join(' ')
-                      }
+                      describedBy={[errorId(id), 'allocation-total']
+                        .filter(Boolean)
+                        .join(' ')}
                       onChange={(value) =>
                         onChange({
                           ...input,

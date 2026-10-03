@@ -19,9 +19,7 @@ afterEach(cleanup);
 describe('verifiable-strategy coverage gaps', () => {
   it('compares allocations when the after side is shorter', () => {
     const before = [10000000000000000n, 0n, 0n, 0n];
-    render(
-      <AllocationCompare before={before} after={[]} afterLabel="After" />,
-    );
+    render(<AllocationCompare before={before} after={[]} afterLabel="After" />);
     expect(screen.getAllByText('Before').length).toBeGreaterThan(0);
     expect(screen.getAllByText('0.00%').length).toBeGreaterThan(0);
   });
@@ -45,9 +43,8 @@ describe('verifiable-strategy coverage gaps', () => {
   });
 
   it('copies verify commands and falls back when clipboard is unavailable', async () => {
-    const { mockClient } = await import(
-      '@/lib/verifiable-strategy/__tests__/fixtures'
-    );
+    const { mockClient } =
+      await import('@/lib/verifiable-strategy/__tests__/fixtures');
     const input = inputFromExample(example);
     const result = await runCalculator(input, dataset, mockClient().client);
     Object.defineProperty(navigator, 'clipboard', {
@@ -56,9 +53,7 @@ describe('verifiable-strategy coverage gaps', () => {
     });
     render(<VerifyYourself result={result} deployment={dataset.deployment!} />);
     fireEvent.click(screen.getAllByRole('button')[0]!);
-    expect(
-      await screen.findByText(/Copy unavailable/),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/Copy unavailable/)).toBeInTheDocument();
   });
 
   it('rejects safe-slice overflow in encodeInputs', () => {
@@ -74,12 +69,7 @@ describe('verifiable-strategy coverage gaps', () => {
 
   it('folds short allocation lists with zero defaults', () => {
     expect(foldAllocation([])).toEqual([0n, 0n, 0n, 0n]);
-    expect(foldAllocation(['10'])).toEqual([
-      100000000000000000n,
-      0n,
-      0n,
-      0n,
-    ]);
+    expect(foldAllocation(['10'])).toEqual([100000000000000000n, 0n, 0n, 0n]);
   });
 
   it('records Invalid input when a field getter throws non-Error', () => {
@@ -102,7 +92,9 @@ describe('verifiable-strategy coverage gaps', () => {
 
   it('flags a warmup that is not the previous calendar day', () => {
     const input = { ...inputFromExample(example), previousDate: '2025-10-10' };
-    expect(validateInput(input)['previousDate']).toMatch(/previous calendar day/);
+    expect(validateInput(input)['previousDate']).toMatch(
+      /previous calendar day/,
+    );
   });
 
   it('does not run when the form has errors', () => {
@@ -125,7 +117,10 @@ describe('verifiable-strategy coverage gaps', () => {
   });
 
   it('surfaces per-index allocation errors', () => {
-    const input = { ...inputFromExample(example), allocation: ['bad', '25', '25', '25', '25'] };
+    const input = {
+      ...inputFromExample(example),
+      allocation: ['bad', '25', '25', '25', '25'],
+    };
     render(
       <CalculatorForm
         input={input}
@@ -141,9 +136,8 @@ describe('verifiable-strategy coverage gaps', () => {
   });
 
   it('renders the undeployed answer without a submitted result', async () => {
-    const { mockClient } = await import(
-      '@/lib/verifiable-strategy/__tests__/fixtures'
-    );
+    const { mockClient } =
+      await import('@/lib/verifiable-strategy/__tests__/fixtures');
     const input = inputFromExample(example);
     const result = await runCalculator(input, dataset, mockClient().client);
     render(

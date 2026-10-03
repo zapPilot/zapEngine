@@ -1,5 +1,20 @@
-import { fireEvent, render, screen, cleanup, waitFor, act } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
+import {
+  fireEvent,
+  render,
+  screen,
+  cleanup,
+  waitFor,
+  act,
+} from '@testing-library/react';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+  type Mock,
+} from 'vitest';
 import type { EIP1193Provider, Hex } from 'viem';
 import { DeployStrategy } from '../DeployStrategy';
 import { DEPLOYMENT_ADDRESS } from '@/lib/verifiable-strategy/deployment';
@@ -9,7 +24,9 @@ const deployMocks = vi.hoisted(() => ({
 }));
 vi.mock('@/lib/verifiable-strategy/deployment', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('@/lib/verifiable-strategy/deployment')>();
+    await importOriginal<
+      typeof import('@/lib/verifiable-strategy/deployment')
+    >();
   return {
     ...actual,
     deployStrategy: deployMocks.deployStrategy,
@@ -20,7 +37,12 @@ function providerStub(overrides: Partial<Record<string, Mock>> = {}) {
   const on = vi.fn();
   const removeListener = vi.fn();
   const request = vi.fn().mockResolvedValue(['0xabc']);
-  const provider = { on, removeListener, request, ...overrides } as unknown as EIP1193Provider;
+  const provider = {
+    on,
+    removeListener,
+    request,
+    ...overrides,
+  } as unknown as EIP1193Provider;
   return { provider, on, removeListener, request };
 }
 
@@ -62,7 +84,9 @@ afterEach(cleanup);
 describe('DeployStrategy Rabby flow', () => {
   it('asks to install Rabby when no provider announces', async () => {
     render(<DeployStrategy onDeployed={vi.fn()} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Connect Rabby wallet' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Connect Rabby wallet' }),
+    );
     expect(await screen.findByText(/Rabby not detected/)).toBeInTheDocument();
   });
 
@@ -70,7 +94,9 @@ describe('DeployStrategy Rabby flow', () => {
     const { provider } = providerStub();
     render(<DeployStrategy onDeployed={vi.fn()} />);
     act(() => announceOther(provider));
-    fireEvent.click(screen.getByRole('button', { name: 'Connect Rabby wallet' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Connect Rabby wallet' }),
+    );
     expect(await screen.findByText(/Rabby not detected/)).toBeInTheDocument();
   });
 
@@ -78,20 +104,28 @@ describe('DeployStrategy Rabby flow', () => {
     const { provider, request } = providerStub();
     render(<DeployStrategy onDeployed={vi.fn()} />);
     act(() => announce(provider));
-    fireEvent.click(screen.getByRole('button', { name: 'Connect Rabby wallet' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Connect Rabby wallet' }),
+    );
     await screen.findByText(/Rabby connected/);
     expect(screen.getByText(/Connected:/)).toBeInTheDocument();
 
     request.mockResolvedValueOnce([]);
-    fireEvent.click(screen.getByRole('button', { name: 'Connect Rabby wallet' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Connect Rabby wallet' }),
+    );
     await screen.findByText(/Select an account in Rabby/);
 
     request.mockRejectedValueOnce(new Error('User rejected'));
-    fireEvent.click(screen.getByRole('button', { name: 'Connect Rabby wallet' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Connect Rabby wallet' }),
+    );
     await screen.findByText(/User rejected/);
 
     request.mockRejectedValueOnce('denied-string');
-    fireEvent.click(screen.getByRole('button', { name: 'Connect Rabby wallet' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Connect Rabby wallet' }),
+    );
     await screen.findByText(/Connection rejected/);
   });
 
@@ -99,7 +133,9 @@ describe('DeployStrategy Rabby flow', () => {
     const { provider, on } = providerStub();
     render(<DeployStrategy onDeployed={vi.fn()} />);
     act(() => announce(provider));
-    fireEvent.click(screen.getByRole('button', { name: 'Connect Rabby wallet' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Connect Rabby wallet' }),
+    );
     await screen.findByText(/Connected:/);
     const reset = on.mock.calls.find(
       ([event]) => event === 'accountsChanged',
@@ -117,14 +153,18 @@ describe('DeployStrategy Rabby flow', () => {
     const onDeployed = vi.fn();
     render(<DeployStrategy onDeployed={onDeployed} />);
     act(() => announce(provider));
-    fireEvent.click(screen.getByRole('button', { name: 'Connect Rabby wallet' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Connect Rabby wallet' }),
+    );
     await screen.findByText(/Connected:/);
     fireEvent.click(
       screen.getByRole('button', { name: 'Deploy to Arbitrum Sepolia' }),
     );
     await screen.findByText(/Deployment transaction:/);
     expect(onDeployed).toHaveBeenCalledTimes(1);
-    expect(await screen.findByText(/Deployed\. Runtime codehash verified/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/Deployed\. Runtime codehash verified/),
+    ).toBeInTheDocument();
     expect(deployMocks.deployStrategy).toHaveBeenCalledWith(
       provider,
       expect.any(Function),
@@ -135,7 +175,9 @@ describe('DeployStrategy Rabby flow', () => {
     const { provider } = providerStub();
     render(<DeployStrategy onDeployed={vi.fn()} />);
     act(() => announce(provider));
-    fireEvent.click(screen.getByRole('button', { name: 'Connect Rabby wallet' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Connect Rabby wallet' }),
+    );
     await screen.findByText(/Connected:/);
 
     deployMocks.deployStrategy.mockRejectedValueOnce(new Error('Out of gas'));
@@ -169,11 +211,15 @@ describe('DeployStrategy Rabby flow', () => {
     );
     render(<DeployStrategy onDeployed={vi.fn()} />);
     act(() => announce(provider));
-    fireEvent.click(screen.getByRole('button', { name: 'Connect Rabby wallet' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Connect Rabby wallet' }),
+    );
     await screen.findByText(/Connected:/);
     fireEvent.click(
       screen.getByRole('button', { name: 'Deploy to Arbitrum Sepolia' }),
     );
-    expect(await screen.findByText(/Deployment transaction:/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/Deployment transaction:/),
+    ).toBeInTheDocument();
   });
 });

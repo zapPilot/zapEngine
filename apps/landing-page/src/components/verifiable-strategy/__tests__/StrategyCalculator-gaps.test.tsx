@@ -1,4 +1,11 @@
-import { fireEvent, render, screen, cleanup, waitFor, act } from '@testing-library/react';
+import {
+  fireEvent,
+  render,
+  screen,
+  cleanup,
+  waitFor,
+  act,
+} from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { StrategyCalculator } from '../StrategyCalculator';
 import { dataset, example } from '@/lib/verifiable-strategy/__tests__/fixtures';
@@ -64,7 +71,9 @@ describe('StrategyCalculator verification and run gaps', () => {
   it('shows a fallback when verification rejects with non-Error', async () => {
     onchainMocks.verifyDeployment.mockRejectedValueOnce('string-failure');
     render(<StrategyCalculator data={dataset} />);
-    expect(await screen.findByText(/Bytecode check failed/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/Bytecode check failed/),
+    ).toBeInTheDocument();
   });
 
   it('ignores a late verification failure after unmount', async () => {
@@ -93,14 +102,10 @@ describe('StrategyCalculator verification and run gaps', () => {
   });
 
   it('maps network errors to the RPC hint', async () => {
-    onchainMocks.runCalculator.mockRejectedValueOnce(
-      new Error('network down'),
-    );
+    onchainMocks.runCalculator.mockRejectedValueOnce(new Error('network down'));
     render(<StrategyCalculator data={dataset} />);
     fireEvent.click(screen.getByRole('button', { name: 'Call contract' }));
-    expect(
-      await screen.findByText(/Arbitrum Sepolia RPC/),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/Arbitrum Sepolia RPC/)).toBeInTheDocument();
   });
 
   it('maps unknown errors to the connection hint', async () => {
@@ -139,15 +144,15 @@ describe('StrategyCalculator verification and run gaps', () => {
         }),
       );
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Connect Rabby wallet' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Connect Rabby wallet' }),
+    );
     await screen.findByText(/Connected:/);
     fireEvent.click(
       screen.getByRole('button', { name: 'Deploy to Arbitrum Sepolia' }),
     );
     await waitFor(() =>
-      expect(
-        screen.queryByText(/Deploy with Rabby/),
-      ).not.toBeInTheDocument(),
+      expect(screen.queryByText(/Deploy with Rabby/)).not.toBeInTheDocument(),
     );
   });
 });
