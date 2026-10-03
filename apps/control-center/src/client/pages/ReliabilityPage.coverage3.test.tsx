@@ -5,7 +5,6 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type {
-  CostHistoryResponse,
   OperationalSignal,
   OperationsResponse,
   PodcastCostResponse,
@@ -57,7 +56,7 @@ describe('ReliabilityPage coverage3', () => {
   it('renders cost overview with a null cost history', () => {
     render(
       <ReliabilityPage
-        costHistory={null as unknown as CostHistoryResponse}
+        costHistory={null}
         data={operations}
         overview={null}
         podcastCosts={podcastCosts}

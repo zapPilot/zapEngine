@@ -7,6 +7,7 @@ import {
   findPlaybackSection,
   nextPlaybackSection,
   parseStoredSpeedPreferences,
+  resolveFinishedPlayback,
   speedForSection,
   withSectionSpeed,
 } from '@/integration/podcastSections';
@@ -267,6 +268,40 @@ describe('findPlaybackSection', () => {
         'classroom',
       ),
     ).toBeNull();
+  });
+});
+
+describe('resolveFinishedPlayback', () => {
+  const withClassroom = buildPlaybackSections(episode({}));
+  const mainOnly = buildPlaybackSections(episode({ audioTracks: [] }));
+
+  it('prioritizes section advance, then episode advance, then stop', () => {
+    expect(
+      resolveFinishedPlayback({
+        sections: withClassroom,
+        currentSection: 'main',
+        queue: [],
+        queueIndex: 0,
+      }),
+    ).toEqual({ type: 'playSection', section: withClassroom[1] });
+
+    expect(
+      resolveFinishedPlayback({
+        sections: mainOnly,
+        currentSection: 'main',
+        queue: [episode({}), episode({})],
+        queueIndex: 0,
+      }),
+    ).toEqual({ type: 'nextEpisode' });
+
+    expect(
+      resolveFinishedPlayback({
+        sections: mainOnly,
+        currentSection: 'main',
+        queue: [episode({})],
+        queueIndex: 0,
+      }),
+    ).toEqual({ type: 'stop' });
   });
 });
 
