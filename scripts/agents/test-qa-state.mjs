@@ -5,7 +5,6 @@ import { pathToFileURL } from 'node:url';
 
 import {
   collectScopes,
-  emptyState,
   locateArtifactRun,
   findingId,
   MAX_TEXT_LENGTH,
