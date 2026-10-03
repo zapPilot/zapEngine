@@ -150,7 +150,7 @@ export function createOpsMcpServer(operations: OpsMcpOperations): McpServer {
     {
       title: 'Growth journey',
       description:
-        'Read two 30-day ordered, 1-day-window PostHog funnels: landing to waitlist CTA and landing to Discord CTA. Includes first-touch episode/platform/language lanes (PostHog 30-day unique people versus cumulative waitlist signups), per-source laneSources availability, and Discord guild member counts. Discord CTA proves intent, not membership; guild totals cannot be attributed to any source or lane. Availability is not product health. App and wallet counts are independent aggregates, not later funnel steps. Use for growth hypotheses and operator experiment proposals, never reliability priorities.',
+        'Read two 30-day ordered, 1-day-window PostHog funnels: landing to waitlist CTA and landing to Discord CTA. Includes ctaExperiment: versioned CTA exposure/visibility/form stages, bounded source/device segments, failures, confirmed durable signups, exclusions and sample readiness (never a winner). Includes first-touch episode/platform/language lanes (PostHog 30-day unique people versus cumulative waitlist signups), per-source laneSources availability, and Discord guild member counts. Discord CTA proves intent, not membership; guild totals cannot be attributed to any source or lane. Availability is not product health. App and wallet counts are independent aggregates, not later funnel steps. Use for growth hypotheses and operator experiment proposals, never reliability priorities.',
       inputSchema: forceSchema,
       annotations: READ_ONLY_ANNOTATIONS,
     },

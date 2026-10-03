@@ -1,3 +1,4 @@
+import { readCtaExperiment } from '../services/operations/cta-experiment.js';
 import { Hono } from 'hono';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -191,6 +192,10 @@ describe('Ops MCP HTTP protocol', () => {
         waitlist: { status: 'unavailable' as const, message: 'offline' },
       },
       journey: await loadGrowthJourney({ config: readControlCenterConfig({}) }),
+      ctaExperiment: await readCtaExperiment({
+        config: readControlCenterConfig({}),
+        now: new Date('2026-09-19T00:00:00Z'),
+      }),
     };
     vi.mocked(operations.getGrowth).mockResolvedValue(growth);
     const { payload } = await mcpRequest(

@@ -348,3 +348,49 @@ describe('waitlist clientIp precedence (branch sweep)', () => {
     expect(forwardedOnly.status).toBe(201);
   });
 });
+
+describe('waitlist CTA experiment attribution', () => {
+  it('persists bounded exposure identity on the idempotent first-touch write', async () => {
+    const fixture = databaseFixture();
+    const response = await createWaitlistRoutes(
+      fixture.databaseService,
+    ).request(
+      signupRequest(
+        {
+          email: 'experiment@example.com',
+          ctaExperiment: {
+            key: 'landing-waitlist-cta-v1',
+            variant: 'value_first',
+            exposureId: '12345678-1234-4234-8234-123456789012',
+          },
+        },
+        '203.0.113.170',
+      ),
+    );
+    expect(response.status).toBe(201);
+    expect(fixture.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cta_experiment_key: 'landing-waitlist-cta-v1',
+        cta_experiment_variant: 'value_first',
+        cta_exposure_id: '12345678-1234-4234-8234-123456789012',
+      }),
+      { onConflict: 'email', ignoreDuplicates: true },
+    );
+  });
+  it('rejects invented/partial experiment context before persistence', async () => {
+    const fixture = databaseFixture();
+    const response = await createWaitlistRoutes(
+      fixture.databaseService,
+    ).request(
+      signupRequest(
+        {
+          email: 'invalid-context@example.com',
+          ctaExperiment: { variant: 'winner' },
+        },
+        '203.0.113.171',
+      ),
+    );
+    expect(response.status).toBe(400);
+    expect(fixture.upsert).not.toHaveBeenCalled();
+  });
+});

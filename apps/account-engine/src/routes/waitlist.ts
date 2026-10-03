@@ -1,3 +1,4 @@
+import { landingCtaContextSchema } from '@zapengine/types/shared';
 import { Hono } from 'hono';
 import { z } from 'zod';
 
@@ -63,6 +64,7 @@ export const waitlistSignupSchema = z.object({
   utmCampaign: optionalText(200),
   utmContent: optionalText(200),
   company: optionalText(200),
+  ctaExperiment: landingCtaContextSchema.optional(),
 });
 
 type WaitlistSignup = z.infer<typeof waitlistSignupSchema>;
@@ -86,6 +88,13 @@ export function createWaitlistRoutes(databaseService: DatabaseService) {
     const { error } = await client.from('waitlist_signups').upsert(
       {
         email: signup.email,
+        ...(signup.ctaExperiment
+          ? {
+              cta_experiment_key: signup.ctaExperiment.key,
+              cta_experiment_variant: signup.ctaExperiment.variant,
+              cta_exposure_id: signup.ctaExperiment.exposureId,
+            }
+          : {}),
         social_publish_job_id: socialPublishJobId,
         cta_location: signup.ctaLocation ?? null,
         landing_path: signup.landingPath ?? null,

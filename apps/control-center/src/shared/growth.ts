@@ -1,3 +1,4 @@
+import type { CtaExperimentReading } from './cta-experiment.js';
 import type { SocialGrowthJourney } from './growth-journey.js';
 
 export interface OperationsGrowthResponse {
@@ -8,6 +9,7 @@ export interface OperationsGrowthResponse {
   community: DiscordCommunitySummary;
   lanes: GrowthLaneFunnel[];
   laneSources: GrowthLaneSources;
+  ctaExperiment: CtaExperimentReading;
 }
 
 export interface GrowthLaneFunnel {

@@ -1,3 +1,4 @@
+import { CtaExperiment } from '@/components/landing-v2/CtaExperiment';
 import { BacktestProof } from '@/components/landing-v2/BacktestProof';
 import { BehaviorReplacement } from '@/components/landing-v2/BehaviorReplacement';
 import { ClosingCta } from '@/components/landing-v2/ClosingCta';
@@ -10,18 +11,20 @@ import { YieldVenues } from '@/components/landing-v2/YieldVenues';
 
 export default function LandingPage() {
   return (
-    <div className="zp-root">
-      <Navbar />
-      <main>
-        <Hero />
-        <BehaviorReplacement />
-        <HowItWorks />
-        <BacktestProof />
-        <YieldVenues />
-        <TrustBoundary />
-        <ClosingCta />
-      </main>
-      <Footer />
-    </div>
+    <CtaExperiment>
+      <div className="zp-root">
+        <Navbar />
+        <main>
+          <Hero />
+          <BehaviorReplacement />
+          <HowItWorks />
+          <BacktestProof />
+          <YieldVenues />
+          <TrustBoundary />
+          <ClosingCta />
+        </main>
+        <Footer />
+      </div>
+    </CtaExperiment>
   );
 }

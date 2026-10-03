@@ -28,18 +28,20 @@ export function posthogQueryFetch(
         ? query.series[1].event === 'discord_cta_clicked'
           ? (overrides.discord ?? DISCORD_FUNNEL_STEPS)
           : (overrides.cta ?? CTA_FUNNEL_STEPS)
-        : query.query.includes('argMin(')
-          ? (overrides.sources ?? [
-              ['threads', 210],
-              ['x', 40],
-              ['youtube', 15],
-              ['rednote', 5],
-              ['direct', 20],
-              ['other', 10],
-            ])
-          : query.query.includes('AS episode_id')
-            ? (overrides.lanes ?? LANE_ROWS)
-            : (overrides.audience ?? [AUDIENCE_ROW]);
+        : query.query.includes('cta_exposure_id')
+          ? []
+          : query.query.includes('argMin(')
+            ? (overrides.sources ?? [
+                ['threads', 210],
+                ['x', 40],
+                ['youtube', 15],
+                ['rednote', 5],
+                ['direct', 20],
+                ['other', 10],
+              ])
+            : query.query.includes('AS episode_id')
+              ? (overrides.lanes ?? LANE_ROWS)
+              : (overrides.audience ?? [AUDIENCE_ROW]);
     return Response.json({ results }, { status: overrides.status ?? 200 });
   });
 }
