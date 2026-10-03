@@ -56,9 +56,9 @@ describe('lazy growth operations', () => {
     });
     expect(first.lanes[0]?.waitlistSignups).toBeNull();
     expect(await get()).toBe(first);
-    expect(fetchImpl).toHaveBeenCalledTimes(5);
+    expect(fetchImpl).toHaveBeenCalledTimes(6);
     await get(true);
-    expect(fetchImpl).toHaveBeenCalledTimes(10);
+    expect(fetchImpl).toHaveBeenCalledTimes(12);
     expect(deps.socialGrowth.getSocialGrowth).toHaveBeenLastCalledWith(true);
     expect(deps.community).toHaveBeenLastCalledWith(true);
   });

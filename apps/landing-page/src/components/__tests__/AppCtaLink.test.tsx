@@ -12,6 +12,7 @@ const { trackCtaClicked, trackWaitlistSubmitted, trackDiscordCtaClicked } =
   }));
 
 vi.mock('@/lib/analytics/events', () => ({
+  trackCtaDiagnostic: vi.fn(),
   trackDiscordCtaClicked,
   trackCtaClicked,
   trackWaitlistSubmitted,
@@ -36,7 +37,7 @@ describe('AppCtaLink', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Join waitlist' }));
 
     expect(screen.getByRole('dialog')).toBeInTheDocument();
-    expect(trackCtaClicked).toHaveBeenCalledWith('navbar');
+    expect(trackCtaClicked).toHaveBeenCalledWith('navbar', null);
   });
 
   it('submits email and captured first-touch attribution to account-engine', async () => {
@@ -72,7 +73,7 @@ describe('AppCtaLink', () => {
         body: expect.stringContaining('72f1ee5b-3f57-4e32-b7ad-fe57666985d6'),
       }),
     );
-    expect(trackWaitlistSubmitted).toHaveBeenCalledWith('hero', true);
+    expect(trackWaitlistSubmitted).toHaveBeenCalledWith('hero', true, null);
   });
   it('preserves first touch across visits and retries a failed signup', async () => {
     window.history.replaceState({}, '', '/?utm_source=x&utm_medium=social');
@@ -239,7 +240,7 @@ describe('AppCtaLink', () => {
       ctaLocation: 'hero',
       landingPath: '/',
     });
-    expect(trackWaitlistSubmitted).toHaveBeenCalledWith('hero', false);
+    expect(trackWaitlistSubmitted).toHaveBeenCalledWith('hero', false, null);
   });
   it('focuses the Discord CTA after signup and traps keyboard focus in the success dialog', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(

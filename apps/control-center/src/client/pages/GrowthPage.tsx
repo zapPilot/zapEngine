@@ -1,3 +1,4 @@
+import { CtaExperimentPanel } from '../components/CtaExperimentPanel.js';
 import { Lightbulb, TrendingDown, UserPlus, Video } from 'lucide-react';
 
 import type { OperationsGrowthResponse } from '../../shared/growth.js';
@@ -44,6 +45,8 @@ export function GrowthPage(props: {
   return (
     <div className="cc-stack">
       <DecisionBrief journey={props.journey} growth={props.growth} />
+
+      <CtaExperimentPanel reading={props.acquisition?.ctaExperiment ?? null} />
 
       <div className="growth-toolbar">
         <span>貼文量測時間（到站與轉換固定為 30 天）</span>
