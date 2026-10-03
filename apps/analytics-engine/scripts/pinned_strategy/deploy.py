@@ -61,7 +61,7 @@ def verify_code(rpc, address, artifact, block="latest"):
 
 def verify_source(address, transaction):
     payload = {
-        "compilerVersion": "0.4.3",
+        "compilerVersion": "0.4.3+commit.bff19ea2",
         "contractIdentifier": "dma_cross_down_slice.vy:dma_cross_down_slice",
         "creationTransactionHash": transaction,
         "stdJsonInput": {

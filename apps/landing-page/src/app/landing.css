@@ -3783,6 +3783,7 @@
 
 /* Contract answer: the only raised surface. */
 .shell-root .calc-answer {
+  min-width: 0;
   position: sticky;
   top: 24px;
   display: grid;
@@ -3962,6 +3963,39 @@
   cursor: not-allowed;
 }
 
+/* Keep long calldata inside the proof panel rather than sizing the grid. */
+.shell-root .calc-answer :where(div, section, details, pre) {
+  min-width: 0;
+  max-width: 100%;
+}
+.shell-root .calc-proof {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  border: 1px solid var(--line-hi);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--ink-dim);
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+.shell-root .calc-proof strong {
+  color: var(--success);
+  font-size: 0.8125rem;
+}
+.shell-root .calc-proof a {
+  width: fit-content;
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.shell-root .calc-proof p:last-child {
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+  font-family: var(--font-mono), monospace;
+  font-size: 0.6875rem;
+}
+
 /* Disclosure blocks */
 .shell-root .track-record-calculator summary {
   width: fit-content;
@@ -3972,6 +4006,9 @@
   color: var(--ink);
 }
 .shell-root .track-record-calculator pre {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   max-height: 320px;
   margin: 10px 0 0;
   overflow: auto;
@@ -3983,6 +4020,7 @@
   line-height: 1.6;
 }
 .shell-root .calc-verify-body {
+  overflow-wrap: anywhere;
   display: grid;
   gap: 10px;
   margin-top: 10px;

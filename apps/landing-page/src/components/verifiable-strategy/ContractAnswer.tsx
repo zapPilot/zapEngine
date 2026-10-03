@@ -79,7 +79,7 @@ export function ContractAnswer({
       : stale
         ? ['Inputs changed', 'muted']
         : result
-          ? [`Block ${result.blockNumber.toString()}`, 'done']
+          ? ['On-chain result', 'done']
           : data.deployment
             ? ['Ready', 'done']
             : ['Not deployed', 'muted'];
@@ -97,6 +97,34 @@ export function ContractAnswer({
         >
           {stale && (
             <p className="calc-stale-note">Previous answer — inputs changed</p>
+          )}
+          {data.deployment && (
+            <section
+              className="calc-proof"
+              aria-label="On-chain calculation receipt"
+            >
+              <strong>
+                {stale
+                  ? 'Previous on-chain result'
+                  : '✓ Answer returned by the contract'}
+              </strong>
+              <p>Arbitrum Sepolia · Block {result.blockNumber.toString()}</p>
+              <a
+                href={`https://sepolia.arbiscan.io/address/${data.deployment.address}#code`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {data.deployment.address.slice(0, 8)}…
+                {data.deployment.address.slice(-6)} ↗
+              </a>
+              <p>
+                Bytecode checked · {result.steps.length} read-only calls at the
+                same block
+              </p>
+              <p>
+                Your inputs → warmup → observe → cross_down_exit → this answer
+              </p>
+            </section>
           )}
           <p className="calc-verdict">{answer.title}</p>
           <p className="calc-reason">{answer.reason}</p>
@@ -144,10 +172,6 @@ export function ContractAnswer({
               Does not match the published decision.
             </p>
           )}
-          <p className="calc-receipt">
-            {result.steps.length} read-only calls at block{' '}
-            {result.blockNumber.toString()}
-          </p>
         </div>
       ) : (
         <div className="calc-answer-body">
@@ -179,12 +203,17 @@ export function ContractAnswer({
         type="submit"
         disabled={disabled || running}
       >
-        {running ? 'Calling Arbitrum Sepolia…' : 'Call contract'}
+        {running
+          ? 'Calling Arbitrum Sepolia…'
+          : result
+            ? 'Call contract again'
+            : 'Call contract'}
       </button>
       {result && data.deployment && (
         <details className="calc-verify">
           <summary>
-            Verify it yourself{stale ? ' (previous inputs)' : ''}
+            Verify it yourself · inputs & proof
+            {stale ? ' (previous inputs)' : ''}
           </summary>
           <VerifyYourself result={result} deployment={data.deployment} />
         </details>

@@ -84,8 +84,10 @@ it('always identifies the research slice and shows honest undeployed state', () 
       /Research slice: 1 of 6 rules, not the production strategy/,
     ),
   ).toBeInTheDocument();
+  cleanup();
+  render(<StrategyCalculator data={{ ...dataset, deployment: null }} />);
   expect(screen.getByText(/Contract not deployed yet/)).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'Call contract' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: /^Call contract/ })).toBeDisabled();
   expect(screen.getByLabelText('BTC price on decision day')).not.toHaveValue(
     '',
   );
@@ -93,8 +95,22 @@ it('always identifies the research slice and shows honest undeployed state', () 
 it('runs the default example, shows match, and labels stale outputs after edits', async () => {
   render(<StrategyCalculator data={dataset} />);
   await screen.findByText(/Codehash matches/);
-  fireEvent.click(screen.getByRole('button', { name: 'Call contract' }));
+  fireEvent.click(screen.getByRole('button', { name: /^Call contract/ }));
   await screen.findByText('✓ Same result as the Python backtest');
+  expect(
+    screen.getByText('✓ Answer returned by the contract'),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText(/Bytecode checked · 3 read-only calls at the same block/),
+  ).toBeInTheDocument();
+  const proof = screen
+    .getByText(/Verify it yourself · inputs & proof/)
+    .closest('details');
+  expect(proof).not.toHaveAttribute('open');
+  fireEvent.click(screen.getByText(/Verify it yourself · inputs & proof/));
+  expect(
+    screen.getByLabelText('On-chain calculation receipt'),
+  ).toHaveTextContent('warmup → observe → cross_down_exit');
   const before = screen.getAllByText(/cast call/)[1]!.textContent;
   Object.defineProperty(navigator, 'clipboard', {
     configurable: true,
@@ -113,7 +129,7 @@ it('runs the default example, shows match, and labels stale outputs after edits'
   expect(
     screen.queryByText('✓ Same result as the Python backtest'),
   ).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', { name: 'Call contract' }));
+  fireEvent.click(screen.getByRole('button', { name: /^Call contract/ }));
   await screen.findByText(
     'Custom inputs, so there is no historical comparison.',
   );
@@ -135,7 +151,7 @@ it('selects the date query and displays errors without a historical match', asyn
   state.query = new URLSearchParams('date=2025-10-18');
   state.fail = true;
   render(<StrategyCalculator data={dataset} />);
-  fireEvent.click(screen.getByRole('button', { name: 'Call contract' }));
+  fireEvent.click(screen.getByRole('button', { name: /^Call contract/ }));
   await screen.findByRole('alert');
   expect(screen.queryByText(/Matches the published/)).not.toBeInTheDocument();
 });
@@ -226,7 +242,7 @@ it('edits all scenarios before deployment, validates fields, and never calls', (
   expect(screen.getByLabelText('BTC price on decision day')).toHaveValue(
     '90.00',
   );
-  expect(screen.getByRole('button', { name: 'Call contract' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: /^Call contract/ })).toBeDisabled();
   fireEvent.submit(document.getElementById('strategy-calculator')!);
   expect(screen.queryByText(/Same result/)).not.toBeInTheDocument();
 });
@@ -244,7 +260,7 @@ it('derives the previous day from the decision day and submits edits', async () 
     'aria-invalid',
     'true',
   );
-  expect(screen.getByRole('button', { name: 'Call contract' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: /^Call contract/ })).toBeDisabled();
   fireEvent.change(screen.getByLabelText('Decision day'), {
     target: { value: '2025-10-19' },
   });
@@ -439,7 +455,7 @@ it('explains codehash failures when calling', async () => {
   state.runFail = 'codehash';
   render(<StrategyCalculator data={dataset} />);
   await screen.findByText(/Codehash matches/);
-  fireEvent.click(screen.getByRole('button', { name: 'Call contract' }));
+  fireEvent.click(screen.getByRole('button', { name: /^Call contract/ }));
   await screen.findByText(/pinned artifact/);
 });
 
@@ -447,7 +463,7 @@ it('explains network failures when calling', async () => {
   state.runFail = 'network';
   render(<StrategyCalculator data={dataset} />);
   await screen.findByText(/Codehash matches/);
-  fireEvent.click(screen.getByRole('button', { name: 'Call contract' }));
+  fireEvent.click(screen.getByRole('button', { name: /^Call contract/ }));
   await screen.findByText(/Arbitrum Sepolia RPC/);
 });
 
@@ -455,7 +471,7 @@ it('reports non-Error calculation failures', async () => {
   state.runFail = 'string';
   render(<StrategyCalculator data={dataset} />);
   await screen.findByText(/Codehash matches/);
-  fireEvent.click(screen.getByRole('button', { name: 'Call contract' }));
+  fireEvent.click(screen.getByRole('button', { name: /^Call contract/ }));
   await screen.findByText(/RPC calculation failed/);
 });
 
