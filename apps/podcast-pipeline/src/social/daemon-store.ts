@@ -12,6 +12,7 @@ import {
   type SocialPostRow,
   SUPPORTED_PRIMARY_LANGUAGE_CODES,
 } from '../types.js';
+import { recordSocialEnqueueResult } from './daemon-tick-telemetry.js';
 import type { SocialPlatform } from './platforms.js';
 
 export const SOCIAL_DAEMON_STATE_ID = 'local-social-daemon-v1';
@@ -276,27 +277,34 @@ export async function enqueueSocialPublishJob(
     scheduledAt: string;
   },
 ): Promise<boolean> {
-  return affectedSocialPublishJobRow(
-    getPipelineSupabase()
-      .from('social_publish_jobs')
-      .upsert(
-        {
-          episode_id: input.episodeId,
-          platform: input.platform,
-          language_code: input.languageCode ?? 'zh-Hant',
-          experiment_key: input.experimentKey ?? null,
-          experiment_variant: input.experimentVariant ?? null,
-          scheduled_at: input.scheduledAt,
-          next_attempt_at: input.scheduledAt,
-        },
-        {
-          onConflict: 'episode_id,platform,language_code',
-          ignoreDuplicates: true,
-        },
-      )
-      .select('id')
-      .maybeSingle<{ id: string }>(),
-  );
+  try {
+    const inserted = await affectedSocialPublishJobRow(
+      getPipelineSupabase()
+        .from('social_publish_jobs')
+        .upsert(
+          {
+            episode_id: input.episodeId,
+            platform: input.platform,
+            language_code: input.languageCode ?? 'zh-Hant',
+            experiment_key: input.experimentKey ?? null,
+            experiment_variant: input.experimentVariant ?? null,
+            scheduled_at: input.scheduledAt,
+            next_attempt_at: input.scheduledAt,
+          },
+          {
+            onConflict: 'episode_id,platform,language_code',
+            ignoreDuplicates: true,
+          },
+        )
+        .select('id')
+        .maybeSingle<{ id: string }>(),
+    );
+    recordSocialEnqueueResult(inserted ? 'inserted' : 'duplicate');
+    return inserted;
+  } catch (error) {
+    recordSocialEnqueueResult('error');
+    throw error;
+  }
 }
 
 /**
@@ -335,16 +343,26 @@ export interface PendingSocialPublishSchedule {
 export async function listPendingSocialPublishSchedules(): Promise<
   PendingSocialPublishSchedule[]
 > {
-  return many<PendingSocialPublishSchedule>(
-    getPipelineSupabase()
-      .from('social_publish_jobs')
-      .select(
-        'episode_id,platform,language_code,scheduled_at,completed_at,status,experiment_key,experiment_variant',
-      )
-      .in('status', ['queued', 'failed', 'processing', 'completed'])
-      .order('scheduled_at', { ascending: true })
-      .returns<PendingSocialPublishSchedule[]>(),
-  );
+  // Completed lanes remain authoritative duplicate-protection evidence. Read
+  // every page so a growing back catalogue cannot truncate a complete cohort
+  // into an apparent interrupted enqueue, or hide a newer cohort altogether.
+  const rows: PendingSocialPublishSchedule[] = [];
+  for (let offset = 0; ; offset += CANDIDATE_PAGE_SIZE) {
+    const page = await many<PendingSocialPublishSchedule>(
+      getPipelineSupabase()
+        .from('social_publish_jobs')
+        .select(
+          'episode_id,platform,language_code,scheduled_at,completed_at,status,experiment_key,experiment_variant',
+        )
+        .in('status', ['queued', 'failed', 'processing', 'completed'])
+        .order('scheduled_at', { ascending: true })
+        .order('id', { ascending: true })
+        .range(offset, offset + CANDIDATE_PAGE_SIZE - 1)
+        .returns<PendingSocialPublishSchedule[]>(),
+    );
+    rows.push(...page);
+    if (page.length < CANDIDATE_PAGE_SIZE) return rows;
+  }
 }
 
 type SocialQueueJobRow = Pick<

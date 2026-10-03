@@ -925,7 +925,7 @@ async function readXButtonCount(
 ): Promise<number | null> {
   const aria = await locator
     .first()
-    .getAttribute('aria-label')
+    .getAttribute('aria-label', { timeout: BROWSER_TIMEOUT_MS })
     .catch(() => null);
   const fromAria = parseFirstMetricNumber(aria);
   if (fromAria !== null) return fromAria;
@@ -937,7 +937,7 @@ async function readFirstMetricNumber(
 ): Promise<number | null> {
   const text = await locator
     .first()
-    .innerText()
+    .innerText({ timeout: BROWSER_TIMEOUT_MS })
     .catch(() => '');
   return parseFirstMetricNumber(text);
 }

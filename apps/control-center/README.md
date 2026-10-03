@@ -11,7 +11,9 @@ node scripts/env/run.mjs --environment prod -- \
 
 Direct shell reads of operational state must use the repository's canonical merged
 production runner. It combines committed non-secret production values with
-Infisical secrets. Bare `infisical run --env=prod -- ...` is **not** equivalent:
+Infisical secrets. `pnpm ops` selects this production runner automatically;
+an outer `infisical run --env=prod -- pnpm ops` is unnecessary.
+Bare `infisical run --env=prod -- ...` is **not** equivalent:
 it can omit identifiers from `config/env/prod.env` and make a configured provider
 look `unconfigured`. A bare local command can likewise report configuration state
 instead of production health. The repository-local `zap-pilot-ops` MCP launcher

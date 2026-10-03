@@ -373,3 +373,35 @@ pnpm --filter @zapengine/podcast-pipeline dev:worker   # video renders only
 ### R2 artifact retention
 
 Current published media remains durable. See [artifact retention and GC](docs/artifact-retention.md) for transient lifecycle rules, safe HLS replacement, and the reference-aware `artifacts:gc` dry-run / maintenance command.
+
+### Database incident evidence
+
+The always-on API starts an independent observational collector every minute.
+It fetches the Supabase Metrics API and the service-role-only
+`from_fed_to_chain.capture_db_io_evidence()` RPC with separate 10-second deadlines.
+A SQL timeout cannot suppress host metrics; neither source gates ingest or social
+publishing. The RPC has a 3-second statement timeout and reads at most 30 query
+statistics and 60 activity rows. It never resets statistics or writes DB data.
+
+Each capture emits an unsampled Sentry structured log `db_evidence_snapshot`,
+including safe memory/swap/CPU/disk series, query IDs/fingerprints/counters, wait
+states, blockers, stats-reset and postmaster timestamps, and explicit source
+failures. HTTP error bodies and credentials are not logged. Source failures are
+missing evidence, never zero usage. Normalized SQL is excluded from Sentry.
+
+Full raw Prometheus data and the bounded SQL snapshot (including up to 4,000
+characters of normalized SQL per query for post-restart identification) are
+stored as owner-only gzip files under `~/.zapengine/db-evidence`. Keep this
+location private: utility statements may include SQL literals. Local retention
+is seven days and 100 MiB; a Fly machine replacement loses this local archive.
+Sentry remains the external durable sink and preserves counters and IDs, while
+normalized query text needs the existing machine's private files. The public
+media R2 bucket is deliberately not used for incident evidence.
+
+Read-only manual validation uses `pnpm db:evidence --once`; `--directory path`
+overrides the local destination. Continuous captures never overlap. SIGINT and
+SIGTERM stop future captures and drain the bounded request in flight. A one-shot
+capture exits nonzero when either source fails. Apply the root migration before
+starting the collector. Existing `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`,
+`SUPABASE_DB_SCHEMA`, and `SENTRY_PODCAST_PIPELINE_DSN` configuration is reused;
+no database passwords or management API token is required.

@@ -40,7 +40,7 @@ describe('podcast pipeline Sentry observability', () => {
     expect(sentryMocks.init).not.toHaveBeenCalled();
   });
 
-  it('initializes error-only reporting', () => {
+  it('initializes errors and structured logs', () => {
     expect(
       initSentry({
         APP_COMMIT_SHA: 'sha',
@@ -53,6 +53,7 @@ describe('podcast pipeline Sentry observability', () => {
       environment: 'production',
       release: 'sha',
       sendDefaultPii: false,
+      enableLogs: true,
       skipOpenTelemetrySetup: true,
     });
   });

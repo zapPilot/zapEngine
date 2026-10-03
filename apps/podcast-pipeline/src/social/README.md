@@ -563,3 +563,31 @@ attempts, leases, and visual versions. Consumers must not interpret every
 nonempty result as media merely catching up: terminal or unclaimable producers
 need operator intervention. The view supplies facts; shared TypeScript retry
 eligibility owns the version policy.
+
+## Tick evidence outside the database
+
+Every regular daemon tick and `social:once` invocation writes one unsampled
+terminal `social_daemon_tick` record, including failed and zero-work ticks. It
+contains actual enqueue request attempts, newly inserted rows, successful
+ignore-duplicate responses, and enqueue errors, plus tick outcome, duration,
+host, pid, owner, and configured release. Existing complete cohorts generate
+zero enqueue requests; a repeated duplicate count is therefore an actionable
+signal even when all HTTP responses are successful.
+
+Evidence is appended and synced to
+`~/.zap-pilot/observability/social-daemon/ticks-YYYY-MM-DD.jsonl` (UTC), with
+private directory/file permissions and 30 days of retention. Each daily file is
+capped at approximately 5 MiB plus its most recent rotation (`.1`); the current
+record can exceed the boundary. Old unrelated files are never removed. The same
+summary is sent as a Sentry structured log when the existing
+`SENTRY_PODCAST_PIPELINE_DSN` is configured. Logging is independent of trace
+sampling, and no raw SQL, article text, credentials, or error messages are
+included. Inspect startup's `[sentry] enabled` line to confirm the remote sink is
+configured; local evidence still records ticks when Sentry is disabled/offline.
+
+Neither sink changes release behavior on failure; it emits a warning and the
+original tick result/error remains authoritative. Local evidence survives a
+Supabase restart, but not loss of the daemon host. Sentry delivery is buffered
+and best effort; a sudden process kill can lose buffered remote logs, while a
+kill before tick completion can leave that in-flight tick without a terminal
+record. Retain the independent per-minute DB/host monitor evidence as well.

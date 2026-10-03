@@ -14,6 +14,7 @@ import {
 } from './lib/env.js';
 import { installProcessShutdown } from './lib/process-shutdown.js';
 import { isRecord } from './lib/typeGuards.js';
+import { createDbEvidenceMonitor } from './observability/db-evidence.js';
 import { captureServerException, flushSentry } from './observability/sentry.js';
 import {
   buildIngestSummaryFromResult,
@@ -513,6 +514,8 @@ export interface BootstrapOptions {
   startVideoWorker?: boolean;
   /** Pass `null` to leave the render group alone; omit to read the Fly config. */
   renderCapacity?: RenderCapacityReconciler | null;
+  /** External DB evidence never gates ingest, rendering, or publishing. */
+  dbEvidence?: ReturnType<typeof createDbEvidenceMonitor> | null;
   /**
    * Injected HTTP server for tests. When provided, `serve()` is not called.
    * The server must expose `close(cb?)` and optionally `closeIdleConnections()`.
@@ -556,6 +559,10 @@ export function bootstrap(options: BootstrapOptions = {}) {
     options.renderCapacity === undefined
       ? createRenderCapacityFromEnv()
       : options.renderCapacity;
+  const dbEvidence =
+    options.dbEvidence === undefined
+      ? createDbEvidenceFromEnv()
+      : options.dbEvidence;
 
   const server =
     options.server ??
@@ -571,6 +578,7 @@ export function bootstrap(options: BootstrapOptions = {}) {
     );
   videoWorker?.start();
   renderCapacity?.start();
+  dbEvidence?.start();
 
   const { shutdown } = installProcessShutdown(async (signal) => {
     await new Promise<void>((resolve, reject) => {
@@ -589,13 +597,25 @@ export function bootstrap(options: BootstrapOptions = {}) {
       ).closeIdleConnections?.();
     });
     renderCapacity?.stop();
+    await dbEvidence?.stop();
     await videoWorker?.stop(new Error(`Received ${signal}`));
     // Fly restarts this machine on every deploy, and buffered events do not
     // survive the exit -- the worker already drains for the same reason.
     await flushSentry();
   });
 
-  return { app, server, videoWorker, renderCapacity, shutdown };
+  return { app, server, videoWorker, renderCapacity, dbEvidence, shutdown };
+}
+
+function createDbEvidenceFromEnv() {
+  try {
+    return createDbEvidenceMonitor();
+  } catch {
+    console.warn(
+      '[db-evidence] unavailable: check Supabase environment configuration',
+    );
+    return null;
+  }
 }
 
 /**

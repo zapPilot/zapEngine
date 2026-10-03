@@ -22,6 +22,7 @@
     "social:once": "tsx src/social/daemon.ts --once",
     "social:daemon:watch": "tsx watch --clear-screen=false src/social/daemon.ts",
     "sentry:smoke": "tsx src/observability/sentry-smoke.ts",
+    "db:evidence": "tsx src/observability/db-evidence-cli.ts",
     "artifacts:gc": "tsx src/services/artifact-gc-cli.ts",
     "video:render": "tsx src/services/video/cli.ts",
     "video:storyboard:smoke": "tsx src/services/video/storyboard/smoke-cli.ts",

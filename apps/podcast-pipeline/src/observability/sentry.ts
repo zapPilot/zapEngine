@@ -47,6 +47,7 @@ export function initSentry(rawEnv: SentryEnv = process.env) {
     environment: nonemptyString(rawEnv.NODE_ENV),
     release: nonemptyString(rawEnv.APP_COMMIT_SHA),
     sendDefaultPii: false,
+    enableLogs: true,
     skipOpenTelemetrySetup: true,
   });
   return true;
