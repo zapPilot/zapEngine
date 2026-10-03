@@ -13,6 +13,7 @@ import {
   createOperationsService,
   type OperationsAdapters,
 } from './aggregate.js';
+import { projectDomain, projectSignal } from '../../mcp/projections.js';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -114,6 +115,108 @@ function service(overrides: Partial<OperationsAdapters> = {}) {
 }
 
 describe('createOperationsService', () => {
+  it('reuses ranked follow-up without reading the ledger twice', async () => {
+    const readTriage = vi.fn().mockResolvedValue([]);
+    const instance = createOperationsService({
+      config: CONFIG,
+      now: () => NOW,
+      adapters: adapters({
+        fly: async () => [signal('fly', 'infra', 'critical')],
+      }),
+      readTriage,
+    });
+    const packet = await instance.investigate('fly:test/infra');
+    expect(packet.followUp?.status).toBe('available');
+    expect(readTriage).toHaveBeenCalledTimes(1);
+  });
+  it('reports unavailable recovery tracking when the default ledger is unconfigured', async () => {
+    const packet = await service().investigate('fly:test/infra');
+    expect(packet.incident.status).toBe('healthy');
+    expect(packet.followUp?.status).toBe('unavailable');
+  });
+  it('keeps incident follow-up available beyond the ranked queue and after a healthy reading', async () => {
+    for (const status of ['critical', 'healthy'] as const) {
+      const target = {
+        ...signal('fly', 'infra', status),
+        fingerprint: 'fly:app/zz-backend',
+      };
+      const otherSignals = Array.from({ length: 12 }, (_, index) => ({
+        ...signal('fly', 'infra', 'critical'),
+        fingerprint: `fly:app/backend-${index}`,
+      }));
+      const row = {
+        fingerprint: target.fingerprint,
+        actor: 'sweep',
+        recordedAt: NOW.toISOString(),
+        assessment: {
+          target: target.fingerprint,
+          classification: 'engineering' as const,
+          stage: 'repair_pending' as const,
+          reason: 'Startup failure needs repair',
+          evidence: ['Startup evidence'],
+          nextAction: 'Verify startup after the repair',
+          prNumber: null,
+          fixSha: null,
+          lastSeen: null,
+          reviewAfter: NOW.toISOString(),
+        },
+      };
+      const instance = createOperationsService({
+        config: CONFIG,
+        now: () => NOW,
+        adapters: adapters({ fly: async () => [...otherSignals, target] }),
+        readTriage: async () => [row],
+      });
+      const snapshot = await instance.getOperations();
+      expect(
+        snapshot.priorities.some(
+          (priority) => priority.signal.fingerprint === target.fingerprint,
+        ),
+      ).toBe(false);
+      const packet = await instance.investigate(target.fingerprint);
+      expect(packet.followUp?.items).toEqual([
+        { ...row, reviewRequired: true },
+      ]);
+      expect(packet.incident.status).toBe(status);
+    }
+  });
+  it('shares persisted follow-up in the REST snapshot and MCP projections', async () => {
+    const broken = signal('fly', 'infra', 'critical');
+    const row = {
+      fingerprint: broken.fingerprint,
+      actor: 'sweep',
+      recordedAt: NOW.toISOString(),
+      assessment: {
+        target: broken.fingerprint,
+        classification: 'engineering' as const,
+        stage: 'repair_pending' as const,
+        reason: 'Service startup failure',
+        evidence: ['Observed startup failure'],
+        nextAction: 'Reproduce service startup',
+        prNumber: null,
+        fixSha: null,
+        lastSeen: null,
+        reviewAfter: NOW.toISOString(),
+      },
+    };
+    const snapshot = await createOperationsService({
+      config: CONFIG,
+      now: () => NOW,
+      adapters: adapters({ fly: async () => [broken] }),
+      readTriage: async () => [row],
+    }).getOperations();
+    expect(snapshot.priorities[0]?.followUp?.items[0]).toEqual({
+      ...row,
+      reviewRequired: true,
+    });
+    expect(projectDomain(snapshot, 'infra').priorities[0]?.followUp).toEqual(
+      snapshot.priorities[0]?.followUp,
+    );
+    expect(
+      projectSignal(snapshot, broken.fingerprint).priority?.followUp,
+    ).toEqual(snapshot.priorities[0]?.followUp);
+    expect(snapshot.status).toBe('critical');
+  });
   it('always reports all eight domains', async () => {
     const response = await service({ fly: async () => [] }).getOperations();
 

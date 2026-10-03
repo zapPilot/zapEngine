@@ -28,6 +28,7 @@ import { createSocialGrowthService } from '../social-growth.js';
 import { createDiscordCommunityReader } from './discord.js';
 import { createOperationsGrowth } from './growth.js';
 import { prioritize } from './prioritize.js';
+import { attachTriage } from './triage.js';
 import { collectProductSignals } from './product.js';
 import { readSentryIssue, resolveSentryIssue } from './sentry-remediation.js';
 import { collectSentrySignals } from './sentry.js';
@@ -132,6 +133,7 @@ export function createOperationsService(input: {
   now?: () => Date;
   adapters?: Partial<OperationsAdapters>;
   socialGrowth?: ReturnType<typeof createSocialGrowthService>;
+  readTriage?: ReturnType<typeof createOperatorStore>['triage'];
 }) {
   const now = input.now ?? (() => new Date());
   const socialGrowth =
@@ -185,7 +187,11 @@ export function createOperationsService(input: {
       generatedAt: observedAt.toISOString(),
       status: worstOf(domains.map((domain) => domain.status)),
       domains,
-      priorities: prioritize(signals),
+      priorities: await attachTriage(
+        prioritize(signals),
+        input.readTriage ?? createOperatorStore(input.config).triage,
+        observedAt,
+      ),
       signals: [...signals].sort(bySeverityThenName),
     };
   }
@@ -231,6 +237,29 @@ export function createOperationsService(input: {
     getSocial,
     getCustomers,
     inspectSignal,
+
+    async reconcileSentryIssue(issueId: string) {
+      if (!/^\d+$/.test(issueId)) {
+        throw new Error(
+          'Reconciliation requires an exact numeric Sentry issue ID.',
+        );
+      }
+      const issue = await readSentryIssue({ config: input.config, issueId });
+      if (issue.id !== issueId) {
+        throw new Error('Sentry returned a different issue identity.');
+      }
+      if (issue.status !== 'resolved') {
+        return { issueId, status: issue.status, reconciled: false };
+      }
+      const reconciled = await createOperatorStore(input.config).rpc(
+        'ops_reconcile_resolution',
+        {
+          p_issue_id: issueId,
+          p_evidence: issue,
+        },
+      );
+      return { issueId, status: issue.status, reconciled };
+    },
 
     async resolveSentryIssue(
       issueId: string,
@@ -283,10 +312,23 @@ export function createOperationsService(input: {
         loadCustomers: () => getCustomers(false),
         loadSocial: () => getSocial(false),
       });
-      return enrichOperatorContext(
-        buildOpsIncidentContext({ packet, snapshot }),
-        createOperatorStore(input.config),
-      );
+      const context = buildOpsIncidentContext({ packet, snapshot });
+      // Ranking is bounded; an agent can investigate any current signal,
+      // including recovery readings and incidents outside the top twelve.
+      if (!context.followUp) {
+        const signal = snapshot.signals.find(
+          (candidate) => candidate.fingerprint === fingerprint,
+        );
+        if (signal) {
+          const [tracked] = await attachTriage(
+            [{ signal, score: 0, reasons: [] }],
+            input.readTriage ?? createOperatorStore(input.config).triage,
+            now(),
+          );
+          context.followUp = tracked!.followUp;
+        }
+      }
+      return enrichOperatorContext(context, createOperatorStore(input.config));
     },
   };
 }

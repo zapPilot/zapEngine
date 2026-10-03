@@ -41,6 +41,25 @@ function row(overrides: Record<string, unknown> = {}) {
 }
 
 describe('OperatorAudit', () => {
+  it('renders an operator-delegated close separately from verified recovery', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        auditResponse([
+          row({
+            state: 'closed_by_operator',
+            decision: 'Owner confirmed stale history',
+          }),
+        ]),
+      ),
+    );
+    render(<OperatorAudit />);
+    expect(
+      await screen.findByText(/closed_by_operator · operator/),
+    ).toBeVisible();
+    expect(screen.getByText('Owner confirmed stale history')).toBeVisible();
+    expect(screen.queryByText(/verified · operator/)).toBeNull();
+  });
   it('renders recorded observations with their evidence', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(auditResponse([row()])));
 

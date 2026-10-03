@@ -18,6 +18,8 @@
     "ops:mcp": "tsx src/server/mcp/stdio.ts",
     "ops:operator": "tsx src/server/ops-operator-cli.ts",
     "ops:status": "tsx src/server/ops-status-cli.ts",
+    "ops:triage": "tsx src/server/ops-triage-cli.ts",
+    "ops:reconcile-sentry": "tsx src/server/ops-reconcile-sentry-cli.ts",
     "ops:fly-billing-daemon": "tsx src/server/fly-billing-daemon.ts",
     "ops:sync": "tsx src/server/sync.ts",
     "start": "node dist/server/server/main.js",

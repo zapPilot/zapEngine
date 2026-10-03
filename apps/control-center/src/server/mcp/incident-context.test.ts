@@ -87,6 +87,24 @@ const PACKET: IncidentPacket = {
 };
 
 describe('buildOpsIncidentContext', () => {
+  it('carries the shared snapshot follow-up into the investigation packet', () => {
+    const followUp = {
+      status: 'unavailable' as const,
+      targetCoverage: 'partial' as const,
+      unassessedTargets: [],
+      items: [],
+    };
+    const snapshot = {
+      ...SNAPSHOT,
+      priorities: SNAPSHOT.priorities.map((priority) => ({
+        ...priority,
+        followUp,
+      })),
+    };
+    expect(
+      buildOpsIncidentContext({ packet: PACKET, snapshot }).followUp,
+    ).toEqual(followUp);
+  });
   it('exposes repository-backed provider links and relevant PostHog context', () => {
     const result = buildOpsIncidentContext({
       packet: PACKET,

@@ -292,6 +292,44 @@ describe('sentry resolution rails', () => {
     });
   }
 
+  it('reconciles only exact provider-confirmed resolution without sending another mutation', async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(jsonResponse({ id: '42', status: 'resolved' }));
+    const { service, rpc } = serviceWith(fetchImpl, () => ({
+      data: true,
+      error: null,
+    }));
+    await expect(service.reconcileSentryIssue('42')).resolves.toEqual({
+      issueId: '42',
+      status: 'resolved',
+      reconciled: true,
+    });
+    expect(rpc).toHaveBeenCalledExactlyOnceWith('ops_reconcile_resolution', {
+      p_issue_id: '42',
+      p_evidence: { id: '42', status: 'resolved' },
+    });
+    expect(
+      fetchImpl.mock.calls.every((call) => call[1]?.method !== 'PUT'),
+    ).toBe(true);
+    await expect(service.reconcileSentryIssue('desktop')).rejects.toThrow(
+      'numeric',
+    );
+    fetchImpl.mockResolvedValue(jsonResponse({ id: '43', status: 'resolved' }));
+    await expect(service.reconcileSentryIssue('42')).rejects.toThrow(
+      'different issue',
+    );
+    fetchImpl.mockResolvedValue(
+      jsonResponse({ id: '42', status: 'unresolved' }),
+    );
+    await expect(service.reconcileSentryIssue('42')).resolves.toEqual({
+      issueId: '42',
+      status: 'unresolved',
+      reconciled: false,
+    });
+    expect(rpc).toHaveBeenCalledTimes(1);
+  });
+
   it('resolves on the verified-fix rail and finishes the attempt', async () => {
     const fetchImpl = vi
       .fn<typeof fetch>()

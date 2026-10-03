@@ -22,10 +22,19 @@ the owner's explicit request for one worktree, one branch and one PR per session
   reasonable option, implement it and record it under "Decisions to review". Do
   the same wherever another skill or document says to ask the user.
 - **Everything goes through the PR.** Read production freely. Never change it
-  directly: no deploys, workflow dispatch or rerun, applied migrations, secret or
-  env edits, Sentry resolution, issue or label edits, merges, or the commands
+  directly, except bounded triage metadata with `ops:triage`, provider-read audit
+  reconciliation with `ops:reconcile-sentry`, and exact-issue
+  Sentry closure on the existing verified-fix rail: no deploys, workflow dispatch or rerun, applied migrations, secret or
+  env edits, unverified Sentry resolution, issue or label edits, merges, or the commands
   REFERENCE.md lists as never-run. Migrations, workflows and config are fine as
   commits in the PR.
+- **Verified closure only.** `ops_resolve_sentry_issue` is permitted only when
+  the existing persisted fix explicitly authorizes that exact issue and fresh
+  deploy-aware production verification passes. Never set `delegatedBy` from
+  this skill or infer verification from quiet time, passing tests or merge.
+  Generic services without supported verification remain `closure_pending`
+  with an exact owner verification/closure action. Read persisted attempts
+  before closure; unknown or failed outcomes require reconciliation, not retry.
 - **No feature work.** In scope: bugs, CI, reliability, observability,
   performance, security hardening, dead code, simplification, refactors, tests,
   docs and dependency hygiene. New user-facing behavior and product, UX, copy,
@@ -63,8 +72,9 @@ the owner's explicit request for one worktree, one branch and one PR per session
    PR's checks and fix red ones first. If the PR is `DIRTY`, merge `origin/main`
    into it. Update the body by reading the current body and changing only the
    item's lines.
-5. Other sessions may sweep at the same time. Before taking an item, skip it if
-   any open PR, including another `ops-sweep/*` PR, already covers it.
+5. Other sessions may sweep at the same time. Before coding an item, check if
+   an open PR, including another `ops-sweep/*` PR, already covers it. Track that
+   PR and the deployment/recovery follow-up instead of making a duplicate fix.
 6. A cancelled run is not a failure. Never push `.github/workflows/*` changes
    without first checking `gh auth status` reports the `workflow` scope.
 
@@ -72,7 +82,16 @@ the owner's explicit request for one worktree, one branch and one PR per session
 
 1. **Snapshot**, which also opens the PR body: `ops_status`, main CI, open issues
    and open PRs.
-2. **Queue**, highest first:
+2. **Reconcile Reliability first.** Read every current priority, including its
+   `followUp`, and all critical/degraded rows in `signals`: the ranked list is
+   capped at 12 and must not hide lower-ranked repairable work. Investigate each new, recurring or review-due target. For grouped
+   Sentry signals, enumerate exact issue IDs; a project fingerprint is not an
+   individual repair. Persist one assessment per target with `ops:triage` (see
+   REFERENCE.md). A runner refusal is not a refusal to deliver a reviewed PR.
+   Existing PR coverage changes the target to tracking work; never silently drop
+   it. Check PR merge state, actual deployment and recovery evidence separately.
+   Triage is not recovery proof, and never hides or lowers a health signal.
+3. **Queue**, highest first:
    1. red CI on main or on this PR;
    2. critical or degraded `ops_status` signals, through `ops_investigate`;
    3. Sentry issues unresolved in the last 30 days;
@@ -82,11 +101,13 @@ the owner's explicit request for one worktree, one branch and one PR per session
       choose, implement and record it;
    5. hygiene: lint warnings, knip config hints, coverage gaps, oversized or
       tangled modules to simplify, stale docs and comments.
-3. **Each item**: find the root cause, fix it with a test that fails without the
+4. **Each item**: find the root cause, fix it with a test that fails without the
    fix where one can, run the narrowest checks, commit, push, update the body.
-   If two approaches on one item both failed, `git revert --no-edit` it, list it
+   Record the linked PR and exact fix commit, then advance its assessment to
+   awaiting_deploy only after merge; observing only after proven deployment.
+   A tested repair is not production verification. If two approaches on one item both failed, `git revert --no-edit` it, list it
    under "Left for the owner" and skip it this session.
-4. Take a fresh snapshot when items 1-4 run dry or an hour has passed since the
+5. Take a fresh snapshot when items 1-4 run dry or an hour has passed since the
    last one. Hygiene never runs dry, so it must not hide a new incident.
 
 Optional input (an area, `#123` or a fingerprint) only orders the queue. When it

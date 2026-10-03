@@ -31,6 +31,23 @@ beforeEach(() => {
 });
 
 describe('operator store persistence branches', () => {
+  it('reads bounded triage from the shared ledger and validates the response', async () => {
+    const { rpc, client } = rpcClient(() => ({ data: [], error: null }));
+    fakeClient.current = client;
+    await expect(
+      createOperatorStore(CONFIGURED).triage(['fly:app/backend']),
+    ).resolves.toEqual([]);
+    expect(rpc).toHaveBeenCalledWith('ops_triage_history', {
+      p_fingerprints: ['fly:app/backend'],
+    });
+    fakeClient.current = rpcClient(() => ({
+      data: [{ assessment: {} }],
+      error: null,
+    })).client;
+    await expect(
+      createOperatorStore(CONFIGURED).triage(['fly:app/backend']),
+    ).rejects.toThrow();
+  });
   it('fails closed when persistence is unconfigured', async () => {
     const store = createOperatorStore(readControlCenterConfig({}));
 
