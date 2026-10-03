@@ -17,6 +17,15 @@ def _round_usd(value: float) -> float:
     return round(value, settings.validation.usd_decimal_places)
 
 
+def round_usd(value: float) -> float:
+    """Public form of the USD rounding applied by ``USDRounded``.
+
+    Callers that must reason about the value *after* rounding (for example a
+    ``> 0`` dust filter) use this so the check matches what the model emits.
+    """
+    return _round_usd(value)
+
+
 def _round_percentage(value: float) -> float:
     """Round percentage values to configured decimal places."""
     return round(value, settings.validation.percentage_decimal_places)
