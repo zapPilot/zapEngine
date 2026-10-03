@@ -1,16 +1,16 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-03T05:10:00.000Z",
+  "generatedAt": "2026-10-03T06:02:00.000Z",
   "github": {
     "runId": 0,
     "runAttempt": 1,
-    "sha": "76ab9df7c82fcaa089e32743f7f6e30ba2e2b7a0"
+    "sha": "558aaba118d1a962fc2f21b32d8151566b3d5c11"
   },
   "scopes": {
     "apps/control-center/src/client/pages/ReliabilityPage.tsx": {
-      "status": "pending",
+      "status": "clean",
       "auditedAt": "2026-10-03T04:55:00.000Z",
-      "auditedCommit": "787533002b3f7e7aa65ff4ea69226990bed61426",
+      "auditedCommit": "558aaba118d1a962fc2f21b32d8151566b3d5c11",
       "pathShas": {
         "apps/control-center/src/client/pages/ReliabilityPage.tsx": "1a82ebeb7dbf9741279869f1ea23012e1844c9f3",
         "apps/control-center/src/client/pages/ReliabilityPage.test.tsx": "bda9dc59a94287b00c4e072f9599184b39560463",
@@ -25,13 +25,12 @@
       "relatedPaths": [
         "apps/control-center/src/client/pages/ReliabilityPage.tsx"
       ],
-      "pr": 699,
       "findings": []
     },
     "apps/control-center/src/client/App.tsx": {
-      "status": "pending",
+      "status": "clean",
       "auditedAt": "2026-10-03T04:55:00.000Z",
-      "auditedCommit": "787533002b3f7e7aa65ff4ea69226990bed61426",
+      "auditedCommit": "558aaba118d1a962fc2f21b32d8151566b3d5c11",
       "pathShas": {
         "apps/control-center/src/client/App.tsx": "0f0be6d969a29456874e1cd65a17c23bce4a792c",
         "apps/control-center/src/client/App.test.tsx": "aec3729bf39b66776f462a4aca3f4ab3c4d58269",
@@ -46,7 +45,6 @@
       "relatedPaths": [
         "apps/control-center/src/client/App.tsx"
       ],
-      "pr": 699,
       "findings": []
     },
     "apps/control-center/src/client/components/QueueDrawer.tsx": {
@@ -70,9 +68,9 @@
       "findings": []
     },
     "apps/app/tests/app-100-small-gaps.test.ts": {
-      "status": "pending",
+      "status": "clean",
       "auditedAt": "2026-10-03T05:10:00.000Z",
-      "auditedCommit": "787533002b3f7e7aa65ff4ea69226990bed61426",
+      "auditedCommit": "558aaba118d1a962fc2f21b32d8151566b3d5c11",
       "pathShas": {
         "apps/app/tests/app-100-small-gaps.test.ts": "c21d4cc2f1a72d21c5aed838b69e0c2ca4e09c24"
       },
@@ -80,13 +78,12 @@
         "apps/app/tests/app-100-small-gaps.test.ts"
       ],
       "relatedPaths": [],
-      "pr": 699,
       "findings": []
     },
     "apps/control-center/src/client/components/VisualEvidence.tsx": {
-      "status": "pending",
+      "status": "clean",
       "auditedAt": "2026-10-03T05:10:00.000Z",
-      "auditedCommit": "787533002b3f7e7aa65ff4ea69226990bed61426",
+      "auditedCommit": "558aaba118d1a962fc2f21b32d8151566b3d5c11",
       "pathShas": {
         "apps/control-center/src/client/components/VisualEvidence.tsx": "9ee2310aa76aeae8ca969d1553e5c62acc402166",
         "apps/control-center/src/client/components/VisualEvidence.test.tsx": "6e3a564c6129bae8a36d710e859c06ded20866e7",
@@ -101,13 +98,12 @@
       "relatedPaths": [
         "apps/control-center/src/client/components/VisualEvidence.tsx"
       ],
-      "pr": 699,
       "findings": []
     },
     "apps/app/src/integration/podcastSections.ts": {
-      "status": "pending",
+      "status": "clean",
       "auditedAt": "2026-10-03T05:10:00.000Z",
-      "auditedCommit": "787533002b3f7e7aa65ff4ea69226990bed61426",
+      "auditedCommit": "558aaba118d1a962fc2f21b32d8151566b3d5c11",
       "pathShas": {
         "apps/app/src/integration/podcastSections.ts": "afd5eb225ca02315404812f53cb07ab0e2e7eb9c",
         "apps/app/tests/podcastSections.test.ts": "27ae1f1ccacfe71b5bc49b17625882d556c79ff1"
@@ -118,11 +114,83 @@
       "relatedPaths": [
         "apps/app/src/integration/podcastSections.ts"
       ],
-      "pr": 699,
+      "findings": []
+    },
+    "apps/app/tests/app-100-final-branches.test.tsx": {
+      "status": "pending",
+      "auditedAt": "2026-10-03T06:02:00.000Z",
+      "auditedCommit": "e8677c9ad8b49eca664f97e6eaf3ba482b5fd20a",
+      "pathShas": {
+        "apps/app/tests/app-100-final-branches.test.tsx": "defe0c96a473d04438b37f90475ee82b12c109c0"
+      },
+      "files": [
+        "apps/app/tests/app-100-final-branches.test.tsx"
+      ],
+      "relatedPaths": [
+        "apps/app/src/integration/depositTokens.ts",
+        "apps/app/src/integration/investFundingPlanner.ts",
+        "apps/app/src/integration/investTargetsModel.ts",
+        "apps/app/src/integration/portfolioMetrics.ts",
+        "apps/app/src/integration/useHomeData.ts",
+        "apps/app/src/integration/useAccount.ios.ts",
+        "apps/app/src/integration/useInvest.ts",
+        "apps/app/src/integration/useInvestExecution.tsx",
+        "apps/app/src/integration/walletTokens.ts",
+        "apps/app/tests/support/fundingBalanceRow.ts"
+      ],
+      "pr": 702,
+      "findings": [
+        {
+          "id": "contract-fixtures-20261003",
+          "kind": "test",
+          "summary": "Coverage-only fixtures bypassed production contracts with as never/as unknown as; replaced with typed production-shaped fixtures."
+        }
+      ]
+    },
+    "apps/podcast-pipeline/src/lib/is-main-module.ts": {
+      "status": "clean",
+      "auditedAt": "2026-10-03T06:02:00.000Z",
+      "auditedCommit": "558aaba118d1a962fc2f21b32d8151566b3d5c11",
+      "pathShas": {
+        "apps/podcast-pipeline/src/lib/is-main-module.ts": "9116394b52bd1de4306109892579ef982c630c87",
+        "apps/podcast-pipeline/src/lib/is-main-module.coverage.test.ts": "fcf5d9db426ee91a4d16e7eb4077c9f4029ce573"
+      },
+      "files": [
+        "apps/podcast-pipeline/src/lib/is-main-module.coverage.test.ts"
+      ],
+      "relatedPaths": [
+        "apps/podcast-pipeline/src/lib/is-main-module.ts"
+      ],
+      "findings": []
+    },
+    "apps/alpha-etl/src/routes/webhooks.responses.ts": {
+      "status": "clean",
+      "auditedAt": "2026-10-03T06:02:00.000Z",
+      "auditedCommit": "558aaba118d1a962fc2f21b32d8151566b3d5c11",
+      "pathShas": {
+        "apps/alpha-etl/src/routes/webhooks.responses.ts": "f189a0057c7bb9e8fdf8368303285af4a5c75bff",
+        "apps/alpha-etl/tests/unit/routes/webhooks.responses.coverage.test.ts": "8143d2bf83d266a44361884990a703c605b64d2f"
+      },
+      "files": [
+        "apps/alpha-etl/tests/unit/routes/webhooks.responses.coverage.test.ts"
+      ],
+      "relatedPaths": [
+        "apps/alpha-etl/src/routes/webhooks.responses.ts"
+      ],
       "findings": []
     }
   },
   "runs": [
+    {
+      "workerRunId": "20261003T060000Z",
+      "at": "2026-10-03T06:02:00.000Z",
+      "outcome": "changed",
+      "scopes": [
+        "apps/app/tests/app-100-final-branches.test.tsx",
+        "apps/podcast-pipeline/src/lib/is-main-module.ts",
+        "apps/alpha-etl/src/routes/webhooks.responses.ts"
+      ]
+    },
     {
       "workerRunId": "20261003T051000Z",
       "at": "2026-10-03T05:10:00.000Z",
