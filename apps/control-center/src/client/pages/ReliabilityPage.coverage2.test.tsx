@@ -5,6 +5,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type {
+  CostHistoryPoint,
   CostHistoryResponse,
   OperationalSignal,
   OperationsResponse,
@@ -65,7 +66,11 @@ function flySignal(
   };
 }
 
-function day(date: string, supabase: number | null, openrouter: number | null) {
+function day(
+  date: string,
+  supabase: number | null,
+  openrouter: number | null,
+): CostHistoryPoint {
   const providers = [];
   providers.push({
     accruedCostUsd: supabase,
@@ -73,7 +78,7 @@ function day(date: string, supabase: number | null, openrouter: number | null) {
     label: 'Supabase',
     periodEnd: date,
     provider: 'supabase' as const,
-    source: 'collector' as const,
+    source: 'api' as const,
   });
   providers.push({
     accruedCostUsd: openrouter,
@@ -81,7 +86,7 @@ function day(date: string, supabase: number | null, openrouter: number | null) {
     label: 'OpenRouter',
     periodEnd: date,
     provider: 'openrouter' as const,
-    source: 'collector' as const,
+    source: 'api' as const,
   });
   const total =
     supabase === null || openrouter === null ? null : supabase + openrouter;
@@ -99,7 +104,7 @@ const baseHistory = {
   ],
   monthlyTotals: [],
   previousMonthByProvider: [],
-} as unknown as CostHistoryResponse;
+};
 
 const baseCosts: PodcastCostResponse = {
   episodes: [],
@@ -189,7 +194,7 @@ describe('ReliabilityPage coverage2', () => {
         currentMonthDaily: [
           day('2026-09-08', null, 4),
           day('2026-09-09', 29, 7),
-        ] as unknown as CostHistoryResponse['currentMonthDaily'],
+        ],
       },
     });
     expect(screen.getByText('Spend today')).toBeVisible();
@@ -202,13 +207,13 @@ describe('ReliabilityPage coverage2', () => {
           costProviderFixture({
             provider: 'supabase',
             label: 'Supabase',
-            snapshot: null as never,
+            snapshot: null,
             message: 'no snapshot',
           }),
           costProviderFixture({
             provider: 'openrouter',
             label: 'OpenRouter',
-            snapshot: null as never,
+            snapshot: null,
             message: 'no snapshot',
           }),
         ],
@@ -228,7 +233,7 @@ describe('ReliabilityPage coverage2', () => {
           costProviderFixture({
             provider: 'supabase',
             label: 'Supabase',
-            snapshot: null as never,
+            snapshot: null,
             message: 'pending',
           }),
           costProviderFixture({
@@ -260,7 +265,7 @@ describe('ReliabilityPage coverage2', () => {
           day('2026-09-07', 0, 0),
           day('2026-09-08', 0, 0),
           day('2026-09-09', 5, 5),
-        ] as unknown as CostHistoryResponse['currentMonthDaily'],
+        ],
       },
     });
     expect(screen.queryByText(/花費上升/)).toBeNull();
@@ -314,10 +319,10 @@ describe('ReliabilityPage coverage2', () => {
   it('renders non-numeric and non-string evidence as fallbacks', () => {
     const odd = githubSignal({
       evidence: {
-        failureStreak: 'four' as unknown as number,
-        lastConclusion: 42 as unknown as string,
-        lastRunAt: 42 as unknown as string,
-        workflow: 42 as unknown as string,
+        failureStreak: 'four',
+        lastConclusion: 42,
+        lastRunAt: 42,
+        workflow: 42,
       },
     });
     renderPage({
