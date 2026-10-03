@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { WalletProviderInterface } from '@zapengine/app-core/types';
 import type {
   DepositPlan,
   DepositReviewGroup,
@@ -52,6 +51,8 @@ const mocks = vi.hoisted(() => ({
   readWatch: vi.fn(),
   watchListener: null as null | ((address: string | null) => void),
   unsubscribe: vi.fn(),
+  investExecute: vi.fn(),
+  investWait: vi.fn(),
   trackEvent: vi.fn(),
   invest: {
     stageDrafts: [] as StageDraft[],
@@ -68,12 +69,12 @@ const mocks = vi.hoisted(() => ({
     } as { address: string; isConnected: boolean } | null,
     isConnected: true,
     executionMode: 'eip7702' as 'atomic-batch' | 'eip7702' | undefined,
-    executeReviewedBatch: vi.fn<
-      NonNullable<WalletProviderInterface['executeReviewedBatch']>
-    >(),
-    waitForReviewedBatch: vi.fn<
-      NonNullable<WalletProviderInterface['waitForReviewedBatch']>
-    >(),
+    executeReviewedBatch: vi.fn() as
+      | ((...args: never[]) => Promise<never>)
+      | undefined,
+    waitForReviewedBatch: vi.fn() as
+      | ((...args: never[]) => Promise<never>)
+      | undefined,
   },
 }));
 
@@ -241,29 +242,18 @@ describe('app-100 final: percent input edges', () => {
 
 describe('app-100 final: attribution edges', () => {
   it('skips proven lookup for snapshots without a date', () => {
-    const yieldData = {
-      user_id: 'user-1',
-      period: {
-        start_date: '2026-01-03',
-        end_date: '2026-01-03',
-        days: 1,
-      },
+    const points = attachDailyAttribution([{ total_value_usd: 100 }], {
       daily_returns: [
         {
           date: '2026-01-03',
           protocol_name: 'morpho',
-          chain: 'base',
           yield_return_usd: 1,
           outlier: false,
           tokens: [],
         },
       ],
       wallet_returns: [],
-    } satisfies NonNullable<Parameters<typeof attachDailyAttribution>[1]>;
-    const points = attachDailyAttribution(
-      [{ total_value_usd: 100 }],
-      yieldData,
-    );
+    } as never);
     expect(points).toHaveLength(1);
     expect(points[0]).not.toHaveProperty('attribution');
   });
@@ -274,50 +264,14 @@ describe('app-100 final: attribution edges', () => {
 // ---------------------------------------------------------------------------
 
 describe('app-100 final: strategy status sentiment', () => {
-  function suggestion(
-    sentiment: number | null,
-  ): Parameters<typeof strategyStatusFromSuggestion>[0] {
+  function suggestion(sentiment: unknown) {
     return {
-      as_of: '2026-01-03',
-      config_id: 'config',
-      config_display_name: 'Strategy',
-      strategy_id: 'strategy',
-      action: {
-        status: 'no_action',
-        required: false,
-        kind: null,
-        reason_code: 'already-aligned',
-        transfers: [],
-      },
+      action: { status: 'no_action' },
       context: {
-        market: {
-          date: '2026-01-03',
-          token_price: { ETH: 2_000 },
-          sentiment,
-          sentiment_label: null,
-        },
-        signal: {
-          id: 'signal',
-          regime: 'calm',
-          confidence: 1,
-        },
-        portfolio: {
-          spot_usd: 0,
-          stable_usd: 100,
-          total_value: 100,
-          allocation: { spot: 0, stable: 1 },
-          asset_allocation: { btc: 0, eth: 0, spy: 0, stable: 1, alt: 0 },
-        },
-        target: {
-          allocation: { btc: 0, eth: 0, spy: 0, stable: 1, alt: 0 },
-        },
-        strategy: {
-          stance: 'hold',
-          reason_code: 'already-aligned',
-          rule_group: 'none',
-        },
+        signal: { regime: 'calm' },
+        market: { sentiment },
       },
-    };
+    } as never;
   }
 
   it('maps a missing sentiment to null fear/greed', () => {
@@ -542,12 +496,12 @@ async function renderInvest() {
 describe('app-100 final: stale execution status', () => {
   it('keeps the newer progress when an older batch reports failure late', async () => {
     let calls = 0;
-    mocks.execWallet.executeReviewedBatch.mockImplementation(async () => ({
+    mocks.investExecute.mockImplementation(async () => ({
       status: 'submitted',
       callsId: `calls-${(calls += 1)}`,
     }));
     const waiters = new Map<string, (status: unknown) => void>();
-    mocks.execWallet.waitForReviewedBatch.mockImplementation(
+    mocks.investWait.mockImplementation(
       ({ callsId }: { callsId: string }) =>
         new Promise((resolve) => {
           waiters.set(callsId, resolve);
@@ -620,13 +574,15 @@ beforeEach(() => {
   mocks.execWallet.account = { address: WALLET, isConnected: true };
   mocks.execWallet.isConnected = true;
   mocks.execWallet.executionMode = 'eip7702';
-  mocks.execWallet.executeReviewedBatch.mockResolvedValue({
+  mocks.execWallet.executeReviewedBatch =
+    mocks.investExecute as unknown as typeof mocks.execWallet.executeReviewedBatch;
+  mocks.execWallet.waitForReviewedBatch =
+    mocks.investWait as unknown as typeof mocks.execWallet.waitForReviewedBatch;
+  mocks.investExecute.mockResolvedValue({
     status: 'submitted',
     callsId: 'calls-1',
   });
-  mocks.execWallet.waitForReviewedBatch.mockResolvedValue({
-    status: 'confirmed',
-  });
+  mocks.investWait.mockResolvedValue({ status: 'confirmed' });
 });
 
 afterEach(() => {
