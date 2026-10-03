@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-03T06:18:00.000Z",
+  "generatedAt": "2026-10-03T08:10:00.000Z",
   "github": {
     "runId": 0,
     "runAttempt": 1,
-    "sha": "558aaba118d1a962fc2f21b32d8151566b3d5c11"
+    "sha": "9db497e3f98ba61ede66c6977686d9bc1635a103"
   },
   "scopes": {
     "apps/control-center/src/client/pages/ReliabilityPage.tsx": {
@@ -187,11 +187,11 @@
       "findings": []
     },
     "packages/app-core/tests/coverage-handoff-pure-gaps.test.ts": {
-      "status": "finding",
-      "auditedAt": "2026-10-03T06:15:00.000Z",
-      "auditedCommit": "558aaba118d1a962fc2f21b32d8151566b3d5c11",
+      "status": "pending",
+      "auditedAt": "2026-10-03T08:10:00.000Z",
+      "auditedCommit": "ad50cc81383deb95fb8f222ce1f9054aeb4f4194",
       "pathShas": {
-        "packages/app-core/tests/coverage-handoff-pure-gaps.test.ts": "69f7830b38ef1e90f9b8dc2eebd7115de37c5556"
+        "packages/app-core/tests/coverage-handoff-pure-gaps.test.ts": "60f79a9a84476909635cdad16fa530e8b62c41ae"
       },
       "files": [
         "packages/app-core/tests/coverage-handoff-pure-gaps.test.ts"
@@ -211,14 +211,15 @@
           "kind": "test",
           "summary": "Coverage-handoff fixtures use broad as-never helpers for typed landing/timeline inputs; retain deliberate casts only for explicit unknown-event/runtime-boundary cases and make valid fixtures contract-shaped."
         }
-      ]
+      ],
+      "pr": 702
     },
     "apps/app/tests/coverage-handoff-targets-income-gaps.test.ts": {
-      "status": "finding",
-      "auditedAt": "2026-10-03T06:15:00.000Z",
-      "auditedCommit": "558aaba118d1a962fc2f21b32d8151566b3d5c11",
+      "status": "pending",
+      "auditedAt": "2026-10-03T08:10:00.000Z",
+      "auditedCommit": "ad50cc81383deb95fb8f222ce1f9054aeb4f4194",
       "pathShas": {
-        "apps/app/tests/coverage-handoff-targets-income-gaps.test.ts": "04ec4d64ee06b17e97f2e896e7444e7080932750"
+        "apps/app/tests/coverage-handoff-targets-income-gaps.test.ts": "89928894cceda3938f5bef221271bfd8f60f03b3"
       },
       "files": [
         "apps/app/tests/coverage-handoff-targets-income-gaps.test.ts"
@@ -234,7 +235,8 @@
           "kind": "test",
           "summary": "Coverage-only token/draft/summary fixtures bypass production contracts with as never/as unknown as; replace valid fixtures with typed DesktopDepositToken, StageDraft, ChainBatchDraft and YieldReturnsSummaryResponse shapes."
         }
-      ]
+      ],
+      "pr": 702
     },
     "apps/app/src/integration/bridgeTestModel.ts": {
       "status": "clean",
@@ -254,6 +256,15 @@
     }
   },
   "runs": [
+    {
+      "workerRunId": "20261003T081000Z",
+      "at": "2026-10-03T08:10:00.000Z",
+      "outcome": "changed",
+      "scopes": [
+        "apps/app/tests/coverage-handoff-targets-income-gaps.test.ts",
+        "packages/app-core/tests/coverage-handoff-pure-gaps.test.ts"
+      ]
+    },
     {
       "workerRunId": "20261003T061500Z",
       "at": "2026-10-03T06:15:00.000Z",
