@@ -195,6 +195,29 @@ def test_exporter_replays_real_strategy_with_synthetic_test_inputs(
     assert exporter.generate([])["examples"] == []
 
 
+def _assert_decimal_close(
+    actual: str, expected: str, tol: Decimal = Decimal("1e-12")
+) -> None:
+    assert abs(Decimal(actual) - Decimal(expected)) <= tol, (
+        f"{actual} != {expected} beyond {tol}"
+    )
+
+
+def _assert_wad_close(actual: str, expected: str, tol_wad: int = 1_000_000) -> None:
+    assert abs(int(actual) - int(expected)) <= tol_wad, (
+        f"{actual} != {expected} beyond {tol_wad} wad"
+    )
+
+
+def _assert_obs_close(actual: list, expected: list) -> None:
+    assert len(actual) == len(expected)
+    for a_row, e_row in zip(actual, expected, strict=True):
+        assert a_row["symbol"] == e_row["symbol"]
+        for field in ("price", "dma"):
+            _assert_decimal_close(a_row[field]["decimal"], e_row[field]["decimal"])
+            _assert_wad_close(a_row[field]["wad"], e_row[field]["wad"])
+
+
 def test_approved_historical_example_before_deployment():
     from scripts.pinned_strategy.export_landing_examples import generate
 
@@ -204,5 +227,48 @@ def test_approved_historical_example_before_deployment():
     frozen["expected"].pop("publishedTarget")
     frozen.pop("publishedEvent")
     frozen["provenance"].pop("trackRecordSha256")
-    assert example == frozen
+    # Exact for structural fields; 1e-12 tolerance for engine float round-trip
+    # decimals (provenance documents allocation tolerance 1e-12). Exact dict
+    # equality is brittle across Python/numpy patch versions: the same
+    # recorded history replays to ...7320 vs ...7260 style last-digit drift.
+    assert set(example.keys()) == set(frozen.keys())
+    for key in (
+        "date",
+        "previousDate",
+        "lastExecutedDay",
+        "crossOnTouch",
+        "stateMode",
+        "priorStates",
+        "provenance",
+    ):
+        assert example[key] == frozen[key], key
+    _assert_obs_close(example["previous"], frozen["previous"])
+    _assert_obs_close(example["current"], frozen["current"])
+    assert len(example["allocation"]) == len(frozen["allocation"])
+    for actual, expected in zip(
+        example["allocation"], frozen["allocation"], strict=True
+    ):
+        _assert_decimal_close(actual["decimal"], expected["decimal"])
+        _assert_wad_close(actual["wad"], expected["wad"])
+    assert example["expected"]["triggerMask"] == frozen["expected"]["triggerMask"]
+    assert example["expected"]["exitMask"] == frozen["expected"]["exitMask"]
+    assert example["expected"]["liquidatedMask"] == frozen["expected"]["liquidatedMask"]
+    assert len(example["expected"]["pythonTarget"]) == len(
+        frozen["expected"]["pythonTarget"]
+    )
+    for actual, expected in zip(
+        example["expected"]["pythonTarget"],
+        frozen["expected"]["pythonTarget"],
+        strict=True,
+    ):
+        _assert_decimal_close(actual, expected)
+    assert len(example["expected"]["pyrevmTarget"]) == len(
+        frozen["expected"]["pyrevmTarget"]
+    )
+    for actual, expected in zip(
+        example["expected"]["pyrevmTarget"],
+        frozen["expected"]["pyrevmTarget"],
+        strict=True,
+    ):
+        _assert_wad_close(actual, expected)
     assert OUTPUT.read_bytes() == before
