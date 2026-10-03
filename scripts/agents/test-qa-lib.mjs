@@ -4,7 +4,6 @@ import { createHash } from 'node:crypto';
 import { posix } from 'node:path';
 
 export const STATE_SCHEMA_VERSION = 1;
-export const MAX_RECORD_PAYLOAD_BYTES = 60 * 1024;
 export const MAX_TEXT_LENGTH = 2_000;
 export const GLOBAL_TEST_CONFIGS = Object.freeze([
   'apps/account-engine/vitest.setup.ts',
@@ -118,6 +117,24 @@ export function listFilesAtRef(repoRoot, ref = 'HEAD') {
   return git(repoRoot, ['ls-tree', '-r', '--name-only', '-z', ref])
     .split('\0')
     .filter(Boolean);
+}
+
+export function listBlobShasAtRef(repoRoot, ref = 'HEAD') {
+  const entries = git(repoRoot, ['ls-tree', '-r', '-z', ref])
+    .split('\0')
+    .filter(Boolean);
+  return new Map(
+    entries.map((entry) => {
+      const tab = entry.indexOf('\t');
+      if (tab < 0) throw new Error('unexpected git ls-tree output');
+      const [mode, type, sha] = entry.slice(0, tab).split(' ');
+      const filePath = entry.slice(tab + 1);
+      if (!mode || type !== 'blob' || !/^[a-f0-9]{40,64}$/u.test(sha)) {
+        throw new Error(`unexpected git ls-tree entry for ${filePath}`);
+      }
+      return [filePath, sha];
+    }),
+  );
 }
 
 function blobCacheKey(repoRoot, ref, filePath) {
@@ -544,6 +561,7 @@ function commandSet(repoRoot, ref, scope, fileSet) {
 export function collectScopes(repoRoot, { ref = 'HEAD' } = {}) {
   const resolvedRef = resolveGitRef(repoRoot, ref);
   const files = listFilesAtRef(repoRoot, resolvedRef);
+  const blobShas = listBlobShasAtRef(repoRoot, resolvedRef);
   const fileSet = new Set(files);
   const tests = files.filter(isTestFile);
   const workspaces = [...new Set(tests.map(workspaceOf).filter(Boolean))];
@@ -621,9 +639,17 @@ export function collectScopes(repoRoot, { ref = 'HEAD' } = {}) {
         workspace: workspaceOf(filesInScope[0] ?? group.key),
         risk: riskFor(filesInScope, group.contents),
       };
+      const pathShas = Object.fromEntries(
+        fingerprintInputs(base).map((filePath) => {
+          const sha = blobShas.get(filePath);
+          if (!sha) throw new Error(`missing blob SHA for ${filePath}`);
+          return [filePath, sha];
+        }),
+      );
       return {
         ...base,
         fingerprint: fingerprintScope(repoRoot, resolvedRef, base),
+        pathShas,
         commands: commandSet(repoRoot, resolvedRef, base, fileSet),
       };
     })
@@ -678,6 +704,7 @@ function validateScopeState(scope, label) {
       'auditedAt',
       'auditedCommit',
       'fingerprint',
+      'pathShas',
       'files',
       'relatedPaths',
       'pr',
@@ -695,8 +722,28 @@ function validateScopeState(scope, label) {
   ) {
     throw new Error(`${label}.auditedCommit is invalid`);
   }
-  if (!/^[a-f0-9]{64}$/u.test(scope.fingerprint ?? '')) {
+  const fingerprintValid =
+    scope.fingerprint === undefined ||
+    /^[a-f0-9]{64}$/u.test(scope.fingerprint);
+  if (!fingerprintValid) {
     throw new Error(`${label}.fingerprint is invalid`);
+  }
+  const pathShasValid =
+    scope.pathShas === undefined ||
+    (scope.pathShas &&
+      typeof scope.pathShas === 'object' &&
+      !Array.isArray(scope.pathShas) &&
+      Object.entries(scope.pathShas).every(
+        ([filePath, sha]) =>
+          safePath(filePath) &&
+          typeof sha === 'string' &&
+          /^[a-f0-9]{40,64}$/u.test(sha),
+      ));
+  if (!pathShasValid) {
+    throw new Error(`${label}.pathShas is invalid`);
+  }
+  if (scope.fingerprint === undefined && scope.pathShas === undefined) {
+    throw new Error(`${label} requires fingerprint or pathShas`);
   }
   for (const field of ['files', 'relatedPaths']) {
     if (!Array.isArray(scope[field]) || !scope[field].every(safePath)) {

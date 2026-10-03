@@ -140,6 +140,16 @@ test('collectScopes groups sibling coverage tests around their production subjec
       'apps/foo/tests/helpers.ts',
     ]);
     assert.equal(github.risk.coverageNamed, 1);
+    assert.deepEqual(Object.keys(github.pathShas).sort(), [
+      'apps/foo/src/github-coverage.test.ts',
+      'apps/foo/src/github.test.ts',
+      'apps/foo/src/github.ts',
+    ]);
+    assert.ok(
+      Object.values(github.pathShas).every((sha) =>
+        /^[a-f0-9]{40,64}$/u.test(sha),
+      ),
+    );
     assert.match(github.commands.test, /exec vitest run/u);
     assert.match(
       github.commands.coverageReport,
@@ -367,6 +377,45 @@ test('shared imports do not invalidate scope, while test and subject changes do'
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+});
+
+test('connector blob snapshots drive change detection when present', () => {
+  const previous = {
+    status: 'clean',
+    auditedAt: '2026-09-30T00:00:00Z',
+    fingerprint: 'a'.repeat(64),
+    pathShas: {
+      'apps/foo/src/github.ts': '1'.repeat(40),
+      'apps/foo/src/github.test.ts': '2'.repeat(40),
+    },
+    findings: [],
+  };
+  assert.equal(
+    classifyScope(
+      {
+        fingerprint: 'b'.repeat(64),
+        pathShas: {
+          'apps/foo/src/github.ts': '1'.repeat(40),
+          'apps/foo/src/github.test.ts': '2'.repeat(40),
+        },
+      },
+      previous,
+    ).kind,
+    'clean',
+  );
+  assert.equal(
+    classifyScope(
+      {
+        fingerprint: 'a'.repeat(64),
+        pathShas: {
+          'apps/foo/src/github.ts': '3'.repeat(40),
+          'apps/foo/src/github.test.ts': '2'.repeat(40),
+        },
+      },
+      previous,
+    ).kind,
+    'changed',
+  );
 });
 
 test('record defaults use audited main except for pending PR contents', async () => {
