@@ -86,8 +86,6 @@ type ReviewAction =
 export async function runSocialCli(
   args: string[],
   runtime: {
-    strategyGuidance?: string;
-    strategyGuidanceByPlatform?: Partial<Record<SocialPlatform, string>>;
     setExitCodeOnFailure?: boolean;
   } = {},
 ): Promise<PublishPlatformOutcome[]> {
@@ -120,12 +118,6 @@ export async function runSocialCli(
     languageCode: options.languageCode,
     platforms,
     packagingByPlatform,
-    ...(runtime.strategyGuidance
-      ? { strategyGuidance: runtime.strategyGuidance }
-      : {}),
-    ...(runtime.strategyGuidanceByPlatform
-      ? { strategyGuidanceByPlatform: runtime.strategyGuidanceByPlatform }
-      : {}),
   });
   console.log(`[ai] Generated copy using ${generated.model}`);
 

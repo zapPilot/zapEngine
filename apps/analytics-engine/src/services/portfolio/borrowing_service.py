@@ -23,6 +23,7 @@ from src.models.borrowing import (
     TokenDetail,
 )
 from src.models.portfolio import BorrowingRiskMetrics, BorrowingSummary
+from src.models.types import round_usd
 from src.services.shared.base_analytics_service import CacheKeyMixin
 from src.services.shared.query_names import QUERY_NAMES
 from src.services.shared.query_service import QueryService
@@ -94,6 +95,12 @@ class BorrowingService(CacheKeyMixin):
             raise ValueError(f"User {user_id} has no borrowing positions")
 
         positions = self._transform_positions(raw_positions)
+        if not positions:
+            # Every row was dust once rounded to cents: the model's `> 0` debt
+            # contract has nothing to describe, so this is the same empty
+            # portfolio as having no rows at all.
+            logger.info("All borrowing positions for user_id=%s are dust", user_id)
+            raise ValueError(f"User {user_id} has no borrowing positions")
 
         # Calculate aggregates for the response object
         total_collateral = sum(p.collateral_usd for p in positions)
@@ -258,7 +265,10 @@ class BorrowingService(CacheKeyMixin):
         positions = []
 
         for row in raw_positions:
-            debt_usd = float(row.get("total_debt_usd", 0))
+            # Filter on the rounded value: ``USDRounded`` rounds after the bound
+            # check, so a raw 0.004 passed `gt=0` and then serialized as 0.0,
+            # which the app-core contract rejects.
+            debt_usd = round_usd(float(row.get("total_debt_usd", 0)))
             if debt_usd <= 0:
                 continue
 

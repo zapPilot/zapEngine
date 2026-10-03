@@ -26,7 +26,7 @@ export function AccountScreen() {
   return (
     <ScreenScrollView width="narrow">
       <PageHeader title={t('tabs.account')} />
-      <View className="px-5 pt-5">
+      <View className="pt-5">
         <Tap
           accessibilityRole="button"
           accessibilityLabel={t('account.manageWallets')}

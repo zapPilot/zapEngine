@@ -12,6 +12,12 @@ import DistributionPage from '../page';
 const snapshot = getDistributionSnapshot();
 
 describe('DistributionPage', () => {
+  it('keeps internal publishing strategy off the public page', () => {
+    const { container } = render(<DistributionPage />);
+    expect(container.textContent).not.toMatch(
+      /publishing strategy|strategy version/i,
+    );
+  });
   it('wraps content in zp-root so the landing-v2 tokens apply', () => {
     const { container } = render(<DistributionPage />);
     const root = container.firstChild as HTMLElement;

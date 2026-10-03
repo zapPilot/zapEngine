@@ -28,7 +28,7 @@ database URLs.
 - analytics-engine emits pytest-cov Cobertura at `coverage.xml`; the aggregator
   also accepts `htmlcov/coverage.xml` as a fallback.
 
-A complete sweep contains 14 workspaces:
+A complete sweep contains 15 workspaces:
 
 ```text
 apps/account-engine
@@ -39,6 +39,7 @@ apps/control-center
 apps/desktop
 apps/landing-page
 apps/podcast-pipeline
+apps/video
 packages/app-core
 packages/brand-assets
 packages/cost-observability
@@ -51,7 +52,7 @@ After a full run, verify completeness with:
 
 ```bash
 pnpm exec tsx scripts/coverage-summary.ts
-jq '.workspaces | length' coverage/summary.json # 14
+jq '.workspaces | length' coverage/summary.json # 15
 ```
 
 ## Agent handoff

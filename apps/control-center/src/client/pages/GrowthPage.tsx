@@ -1,4 +1,5 @@
-import { Lightbulb, TrendingDown, UserPlus, Video } from 'lucide-react';
+import { ContentPackagingCard } from '../components/ContentPackagingCard.js';
+import { TrendingDown, UserPlus, Video } from 'lucide-react';
 
 import type { OperationsGrowthResponse } from '../../shared/growth.js';
 import { GrowthLaneTable } from '../components/GrowthLaneTable.js';
@@ -11,19 +12,12 @@ import { GrowthJourneyPanel } from '../components/GrowthJourneyPanel.js';
 import { Card } from '../components/ui/Card.js';
 import { EmptyState } from '../components/ui/EmptyState.js';
 import { ProviderLink } from '../components/ui/Links.js';
-import { Pill } from '../components/ui/Pill.js';
 import { RankedList, type RankedItem } from '../components/ui/RankedList.js';
 import { ShareDonut, type ShareSlice } from '../components/ui/ShareDonut.js';
 import { Stat } from '../components/ui/Stat.js';
-import { platformColorVar, type Tone } from '../components/ui/tone.js';
+import { platformColorVar } from '../components/ui/tone.js';
 import { integer, percent } from '../format.js';
 import { PlatformIdentity, platformLabel } from '../platform.js';
-
-const CONFIDENCE_TONE: Record<string, Tone> = {
-  high: 'success',
-  low: 'neutral',
-  medium: 'warning',
-};
 
 export const CURRENT_RELEASE_SLOTS_JST = [
   '09:30',
@@ -109,22 +103,9 @@ export function GrowthPage(props: {
           <ContentPerformance data={props.data} />
         </Card>
 
-        <Card
-          icon={Lightbulb}
-          subtitle="依觀看樣本歸納，尚未驗證能提高註冊"
-          title="內容題材參考"
-          tone="accent"
-        >
-          <RankedList
-            empty={
-              <EmptyState
-                detail="還沒有累積到足以形成建議的樣本。"
-                title="No learned guidance yet"
-              />
-            }
-            items={decisionItems(props.data)}
-          />
-        </Card>
+        <ContentPackagingCard
+          packaging={props.acquisition?.packaging ?? null}
+        />
       </div>
     </div>
   );
@@ -176,7 +157,7 @@ function DecisionBrief(props: {
           ? '註冊資料不可用，先恢復資料再評估成效。'
           : waitlist.signups30d === 0 && journey.landingVisitors30d > 0
             ? '優先檢查 Landing → CTA → 表單是否可完成，再測試與貼文內容一致的價值主張；目前沒有註冊證據支持增加發文量。'
-            : '比較渠道帶來的註冊結果，再決定下一個內容實驗；觀看數只作題材參考。'}
+            : '比較渠道帶來的註冊結果，再決定下一個內容實驗；觀看數只作包裝參考。'}
       </p>
     </Card>
   );
@@ -414,33 +395,4 @@ function ContentPerformance(props: { data: SocialPerformanceResponse | null }) {
       ))}
     </div>
   );
-}
-
-/** The learner's per-platform guidance. `confidence` is sample coverage, not
- * statistical significance, so it is shown as-is rather than as an impact score. */
-function decisionItems(data: SocialPerformanceResponse | null): RankedItem[] {
-  return (data?.decisions ?? [])
-    .filter((decision) => decision.evidenceSamples > 0)
-    .map((decision) => ({
-      aside: (
-        <Pill tone={CONFIDENCE_TONE[decision.confidence] ?? 'neutral'}>
-          {decision.confidence}
-        </Pill>
-      ),
-      detail: [
-        decision.bestTopic ? `最佳題材：${decision.bestTopic}` : null,
-        decision.publishSlotsJst
-          ? `發佈時段：${decision.publishSlotsJst}`
-          : null,
-        decision.preferredHookTypes.length > 0
-          ? `開場：${decision.preferredHookTypes.join('、')}`
-          : null,
-      ]
-        .filter(Boolean)
-        .join(' · '),
-      id: `decision-${decision.platform}`,
-      meta: `${integer(decision.evidenceSamples)} samples`,
-      title: platformLabel(decision.platform),
-      tone: 'accent',
-    }));
 }

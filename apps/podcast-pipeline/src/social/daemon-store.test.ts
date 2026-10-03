@@ -20,13 +20,10 @@ vi.mock('../services/supabase-client.js', () => ({
 }));
 
 import {
-  activateSocialStrategy,
   completeSocialPublishJob,
-  deactivateSocialStrategy,
   enqueueSocialPublishJob,
   ensureSocialDaemonStart,
   failSocialPublishJob,
-  getActiveSocialStrategies,
   getSocialQueueSnapshot,
   insertSocialAccountSnapshot,
   latestSocialAccountSnapshots,
@@ -705,13 +702,6 @@ describe('social daemon store', () => {
       }),
     ).rejects.toThrow('lease update failed');
 
-    queue({ data: null, error: new Error('active lookup failed') });
-    await expect(getActiveSocialStrategies()).rejects.toThrow(
-      'active lookup failed',
-    );
-    queue({ data: null, error: null });
-    await expect(getActiveSocialStrategies()).resolves.toEqual([]);
-
     queue({ data: null, error: new Error('learning posts failed') });
     await expect(
       listLearningSocialPosts('2026-08-01T00:00:00Z'),
@@ -738,7 +728,7 @@ describe('social daemon store', () => {
     await expect(listMetricWindowsForPosts(['post-1'])).resolves.toEqual([]);
   });
 
-  it('persists the strategy version that actually guided a completed publish', async () => {
+  it('does not stamp a strategy version on completion', async () => {
     const now = new Date('2026-08-16T10:00:00.000Z');
     queue({ data: { id: 'job-1' }, error: null });
 
@@ -748,13 +738,12 @@ describe('social daemon store', () => {
         owner: 'mac:1',
         completedAt: now,
         socialPostId: 'post-1',
-        strategyVersionId: 'strategy-7',
       }),
     ).resolves.toBeUndefined();
 
     const updates = mocks.calls.filter((call) => call.method === 'update');
     expect(updates[updates.length - 1]?.args[0]).toEqual(
-      expect.objectContaining({ strategy_version_id: 'strategy-7' }),
+      expect.not.objectContaining({ strategy_version_id: expect.anything() }),
     );
   });
 
@@ -810,93 +799,6 @@ describe('social daemon store', () => {
         'threads|zh-Hant': { experiment: null },
       },
     });
-  });
-
-  it('surfaces each activation-stage error and starts versioning at one', async () => {
-    const input = {
-      platform: 'x' as const,
-      config: { preferredHookTypes: ['question'] },
-      basedOnSamples: 8,
-      now: new Date('2026-08-16T10:00:00Z'),
-    };
-
-    queue({ data: null, error: new Error('version lookup failed') });
-    await expect(activateSocialStrategy(input)).rejects.toThrow(
-      'version lookup failed',
-    );
-
-    queue(
-      { data: null, error: null },
-      { data: null, error: new Error('deactivate failed') },
-    );
-    await expect(activateSocialStrategy(input)).rejects.toThrow(
-      'deactivate failed',
-    );
-
-    queue(
-      { data: [], error: null },
-      { data: null, error: null },
-      { data: null, error: new Error('insert strategy failed') },
-    );
-    await expect(activateSocialStrategy(input)).rejects.toThrow(
-      'insert strategy failed',
-    );
-    const insertCall = mocks.calls.find((call) => call.method === 'insert');
-    expect(insertCall?.args[0]).toEqual(
-      expect.objectContaining({ version: 1 }),
-    );
-  });
-
-  it('reads and activates versioned strategies while surfacing Supabase errors', async () => {
-    const strategy = {
-      id: 'strategy-1',
-      platform: 'x',
-      version: 1,
-      config: { preferredHookTypes: ['question'] },
-      based_on_samples: 5,
-      active: true,
-      activated_at: '2026-08-16T10:00:00Z',
-      created_at: '2026-08-16T10:00:00Z',
-    };
-    queue({ data: [strategy], error: null });
-    await expect(getActiveSocialStrategies()).resolves.toEqual([strategy]);
-
-    const next = { ...strategy, id: 'strategy-2', version: 2 };
-    queue(
-      { data: [{ version: 1 }], error: null },
-      { data: null, error: null },
-      { data: next, error: null },
-    );
-    await expect(
-      activateSocialStrategy({
-        platform: 'x',
-        config: { preferredHashtags: ['macro'] },
-        basedOnSamples: 8,
-        now: new Date('2026-08-16T10:00:00Z'),
-      }),
-    ).resolves.toEqual(next);
-
-    queue({ data: null, error: new Error('query failed') });
-    await expect(
-      listSocialPublishCandidates('2026-08-01T00:00:00Z'),
-    ).rejects.toThrow('query failed');
-  });
-
-  it('fails activation when the insert returns no row despite no Supabase error', async () => {
-    queue(
-      { data: [], error: null },
-      { data: null, error: null },
-      { data: null, error: null },
-    );
-
-    await expect(
-      activateSocialStrategy({
-        platform: 'x',
-        config: { preferredHookTypes: ['question'] },
-        basedOnSamples: 2,
-        now: new Date('2026-08-16T10:00:00Z'),
-      }),
-    ).rejects.toThrow('Failed to activate social strategy');
   });
 
   it('keeps visible and under-review posts in learning while excluding suppressed states', async () => {
@@ -963,21 +865,6 @@ describe('social daemon store', () => {
       method: 'insert',
       args: [{ platform: 'threads', followers: 42, details: {} }],
     });
-  });
-
-  it('deactivates one strategy row through the active-row fence', async () => {
-    queue({ data: null, error: null });
-
-    await expect(
-      deactivateSocialStrategy('strategy-1'),
-    ).resolves.toBeUndefined();
-    expect(mocks.calls).toEqual(
-      expect.arrayContaining([
-        { method: 'update', args: [{ active: false }] },
-        { method: 'eq', args: ['id', 'strategy-1'] },
-        { method: 'eq', args: ['active', true] },
-      ]),
-    );
   });
 
   it('reads every ready localization for a set of episodes, unfiltered by the discovery anchor', async () => {

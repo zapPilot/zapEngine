@@ -97,6 +97,13 @@
     "apps/podcast-pipeline/{*.json,*.config.*,examples/**/*.json}": [
       "pnpm --filter @zapengine/podcast-pipeline exec prettier --write"
     ],
+    "apps/video/**/*.{ts,tsx}": [
+      "pnpm --filter @zapengine/video exec eslint --fix",
+      "pnpm --filter @zapengine/video exec prettier --write"
+    ],
+    "apps/video/**/*.{json,md,mjs}": [
+      "pnpm --filter @zapengine/video exec prettier --write --ignore-unknown"
+    ],
     "packages/**/*.{js,mjs,cjs,ts,tsx,json,md}": [
       "pnpm --filter @zapengine/eslint-config exec prettier --write"
     ],

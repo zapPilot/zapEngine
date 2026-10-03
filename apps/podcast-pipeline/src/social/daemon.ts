@@ -44,7 +44,6 @@ import {
   enqueueSocialPublishJob,
   ensureSocialDaemonStart,
   failSocialPublishJob,
-  getActiveSocialStrategies,
   getSocialQueueSnapshot,
   listDueSocialPublishPlatforms,
   listLearningSocialMetrics,
@@ -63,7 +62,6 @@ import {
   type SocialPublishCandidate,
   type SocialPublishJobRow,
   type SocialQueueLaneItem,
-  type SocialStrategyVersionRow,
 } from './daemon-store.js';
 import { withSocialDaemonTickTelemetry } from './daemon-tick-telemetry.js';
 import { buildSocialExperimentReports } from './experiment-report.js';
@@ -106,16 +104,10 @@ import {
   SCHEDULING_HORIZON_DAYS,
   withinPublishWindow,
 } from './slot-policy.js';
-import {
-  activeStrategyMap,
-  buildStrategyGuidance,
-  refreshSocialStrategies,
-  strategyMapKey,
-} from './strategy.js';
 
 const POLL_INTERVAL_MS = 60_000;
 const METRIC_LOOKBACK_DAYS = 8;
-const STRATEGY_REFRESH_INTERVAL_MS = 6 * 60 * 60_000;
+const EXPERIMENT_REPORT_INTERVAL_MS = 6 * 60 * 60_000;
 const OWNER = `${hostname()}:${process.pid}`;
 /**
  * An already-aligned article may still publish this long after its slot. Once
@@ -161,6 +153,14 @@ interface PublishDueJobsOptions {
   verbose: boolean;
 }
 
+function experimentReportDue(
+  verbose: boolean,
+  now: Date,
+  lastReport: number,
+): boolean {
+  return verbose && now.getTime() - lastReport >= EXPERIMENT_REPORT_INTERVAL_MS;
+}
+
 export async function runSocialDaemon(
   dependencies: SocialDaemonDependencies = {},
 ): Promise<never> {
@@ -171,7 +171,7 @@ export async function runSocialDaemon(
   // Programmatic callers keep the historical detailed log unless they opt in
   // to compact mode. The CLI entry point explicitly passes false by default.
   const verbose = dependencies.verbose ?? true;
-  let lastStrategyRefresh = 0;
+  let lastExperimentReport = 0;
   let consecutiveTransientFailures = 0;
   let lastQueueFingerprint: string | null = null;
 
@@ -194,13 +194,15 @@ export async function runSocialDaemon(
 
   for (;;) {
     const tickStartedAt = now();
+    const reportExperiments = experimentReportDue(
+      verbose,
+      tickStartedAt,
+      lastExperimentReport,
+    );
     if (verbose) {
       log(
         `🔄 [social-daemon] checking discovery · publishing · metrics${
-          tickStartedAt.getTime() - lastStrategyRefresh >=
-          STRATEGY_REFRESH_INTERVAL_MS
-            ? ' · strategy'
-            : ''
+          reportExperiments ? ' · experiments' : ''
         }`,
       );
     }
@@ -215,9 +217,7 @@ export async function runSocialDaemon(
         onSummary: (summary) => {
           tickSummary = summary;
         },
-        refreshStrategy:
-          tickStartedAt.getTime() - lastStrategyRefresh >=
-          STRATEGY_REFRESH_INTERVAL_MS,
+        reportExperiments,
       });
     } catch (error) {
       await recordTick({
@@ -239,11 +239,8 @@ export async function runSocialDaemon(
       }
       throw error;
     }
-    if (
-      tickStartedAt.getTime() - lastStrategyRefresh >=
-      STRATEGY_REFRESH_INTERVAL_MS
-    ) {
-      lastStrategyRefresh = tickStartedAt.getTime();
+    if (reportExperiments) {
+      lastExperimentReport = tickStartedAt.getTime();
     }
     await isolate('queue summary', log, async () => {
       const snapshot = await getSocialQueueSnapshot({
@@ -368,7 +365,7 @@ function finishSocialCatchUp(
  * `reconcile`, `align schedules`, `discover`, and `publish` are release-shape
  * stages: a failure here can leave a cohort's lanes disagreeing about what was
  * actually published, or leave the queue mis-scheduled. Those propagate and
- * stop the whole process. Metrics, snapshots, strategy and reports are purely
+ * stop the whole process. Metrics, snapshots and experiment reports are purely
  * observational and stay isolated.
  *
  * One exception is handled by the main loop: socket/DNS-layer transient
@@ -393,7 +390,7 @@ async function runSocialDaemonTickWork(input: {
   now: Date;
   firstStartedAt: string;
   log?: (message: string) => void;
-  refreshStrategy?: boolean;
+  reportExperiments?: boolean;
   verbose?: boolean;
   onSummary?: (summary: SocialDaemonTickSummary) => void;
 }): Promise<void> {
@@ -451,15 +448,10 @@ async function runSocialDaemonTickWork(input: {
   } finally {
     await observationBrowser?.close();
   }
-  if (input.refreshStrategy) {
-    await isolate('strategy', log, () =>
-      refreshSocialStrategies({ now: input.now, log: observationLog }),
+  if (verbose && input.reportExperiments) {
+    await isolate('experiment report', log, () =>
+      logExperimentReports(input.now, log),
     );
-    if (verbose) {
-      await isolate('experiment report', log, () =>
-        logExperimentReports(input.now, log),
-      );
-    }
   }
 
   input.onSummary?.({ deferredArticles: discovery.deferredArticles });
@@ -961,10 +953,9 @@ async function publishDueJobs(
     return 'empty';
   }
 
-  const [active, titleByEpisodeLanguage] = await Promise.all([
-    activeStrategiesForPublish(log),
-    titleIndex.load(jobs.map((job) => job.episode_id)),
-  ]);
+  const titleByEpisodeLanguage = await titleIndex.load(
+    jobs.map((job) => job.episode_id),
+  );
   const { pendingByEpisodeLanguage, claimFailures } =
     await reconcileClaimedJobsForPublish(
       jobs,
@@ -995,7 +986,6 @@ async function publishDueJobs(
   // never pays for an LLM call.
   const groups = await holdCohortsMissingCopy(
     mediaReady,
-    active,
     now,
     titleByEpisodeLanguage,
     log,
@@ -1009,7 +999,6 @@ async function publishDueJobs(
       await publishLanguageBatch(
         group.jobs,
         group.copy,
-        active,
         titleByEpisodeLanguage,
         now,
         log,
@@ -1104,7 +1093,6 @@ interface PreparedReleaseGroup {
  */
 async function holdCohortsMissingCopy(
   groups: readonly SocialPublishJobRow[][],
-  active: Record<string, SocialStrategyVersionRow | null>,
   now: Date,
   titleByEpisodeLanguage: ReadonlyMap<string, string | null>,
   log: (message: string) => void,
@@ -1117,7 +1105,6 @@ async function holdCohortsMissingCopy(
     const firstJob = jobs[0];
     if (!firstJob || heldEpisodes.has(firstJob.episode_id)) continue;
     const languageCode = jobLanguage(firstJob);
-    const guidanceByPlatform = buildGuidanceForJobs(jobs, active);
     try {
       copyByGroup.set(
         groupKey(firstJob),
@@ -1125,9 +1112,6 @@ async function holdCohortsMissingCopy(
           episodeId: firstJob.episode_id,
           languageCode,
           platforms: jobs.map((job) => job.platform),
-          ...(Object.keys(guidanceByPlatform).length > 0
-            ? { strategyGuidanceByPlatform: guidanceByPlatform }
-            : {}),
           logLlm: verbose,
         }),
       );
@@ -1380,51 +1364,9 @@ async function reconcileClaimedJob(
   return true;
 }
 
-// The language experiment is over and no new lane is ever tagged, but jobs
-// queued before the decision still carry these keys and have not all published
-// yet. Copy guidance on those lanes stays frozen so their concluded arms are
-// not confounded by learned hook/hashtag bias in their final posts. This set
-// can be deleted once no unpublished job carries a language experiment key.
-const HISTORICAL_LANGUAGE_EXPERIMENT_KEYS: ReadonlySet<string> = new Set([
-  'x-language-v1',
-  'x-language-v2',
-  'threads-language-v1',
-  'youtube-language-v1',
-]);
-
-/**
- * `buildStrategyGuidance` samples `Math.random`, so it is computed exactly
- * once per group, by the copy barrier that hands it to the writer. Rebuilding
- * it at publish time -- which is where it used to live -- would record
- * guidance the published copy was never written against.
- */
-function buildGuidanceForJobs(
-  jobs: readonly SocialPublishJobRow[],
-  active: Record<string, SocialStrategyVersionRow | null>,
-): Partial<Record<SocialPlatform, string>> {
-  return Object.fromEntries(
-    jobs.flatMap((job) => {
-      const isLanguageExperiment = Boolean(
-        job.experiment_key &&
-        HISTORICAL_LANGUAGE_EXPERIMENT_KEYS.has(job.experiment_key),
-      );
-      const guidance = buildStrategyGuidance(
-        job.platform,
-        active[strategyMapKey(job.platform, jobLanguage(job))]?.config,
-        Math.random,
-        {
-          languageExperimentActive: isLanguageExperiment,
-        },
-      );
-      return guidance ? [[job.platform, guidance]] : [];
-    }),
-  );
-}
-
 async function publishLanguageBatch(
   jobs: SocialPublishJobRow[],
   preparedCopy: PreparedSocialBatchCopy,
-  active: Record<string, SocialStrategyVersionRow | null>,
   titleByEpisodeLanguage: ReadonlyMap<string, string | null>,
   now: Date,
   log: (message: string) => void,
@@ -1468,7 +1410,6 @@ async function publishLanguageBatch(
     await finalizePublishOutcome(
       job,
       outcomes,
-      active[strategyMapKey(job.platform, jobLanguage(job))] ?? null,
       now,
       titleByEpisodeLanguage,
       log,
@@ -1480,7 +1421,6 @@ async function publishLanguageBatch(
 async function finalizePublishOutcome(
   job: SocialPublishJobRow,
   outcomes: Awaited<ReturnType<typeof publishSocialBatch>>,
-  strategy: SocialStrategyVersionRow | null,
   now: Date,
   titleByEpisodeLanguage: ReadonlyMap<string, string | null>,
   log: (message: string) => void,
@@ -1520,7 +1460,6 @@ async function finalizePublishOutcome(
     owner: OWNER,
     completedAt: now,
     socialPostId: post.id,
-    ...(strategy ? { strategyVersionId: strategy.id } : {}),
   });
   logPublishedOutcome(job, post.post_url, titleByEpisodeLanguage, log, verbose);
 }
@@ -1597,19 +1536,6 @@ function compactLaneLabel(
   languageCode: string,
 ): string {
   return `${platformIcon(platform)}${languageCode}`;
-}
-
-async function activeStrategiesForPublish(
-  log: (message: string) => void,
-): Promise<Record<string, SocialStrategyVersionRow | null>> {
-  try {
-    return activeStrategyMap(await getActiveSocialStrategies());
-  } catch (error) {
-    log(
-      `⚠️ [social-daemon] publishing without strategy guidance · ${errorMessage(error)}`,
-    );
-    return activeStrategyMap([]);
-  }
 }
 
 const TERMINAL_METRIC_REVIEW_STATUSES = new Set<string>([

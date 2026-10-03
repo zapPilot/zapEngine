@@ -150,7 +150,7 @@ export function PodcastLanguageDropdown({
         onPress={() => setOpen((value) => !value)}
         className={cn(
           'items-center justify-center rounded-full border',
-          showsCompletion ? 'h-11 min-w-[76px] px-3' : 'h-12 w-12',
+          showsCompletion ? 'h-11 min-w-[76px] px-3' : 'h-11 w-11',
           open
             ? 'border-[rgba(212,197,163,.42)] bg-[rgba(212,197,163,.16)]'
             : 'border-[rgba(212,197,163,.24)] bg-[rgba(255,255,255,.045)]',

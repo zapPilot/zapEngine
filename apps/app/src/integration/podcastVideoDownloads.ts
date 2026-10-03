@@ -13,6 +13,18 @@ export interface PodcastVideoDownloadRecord {
   downloadedAt: string;
 }
 
+/** What the shelf shows for a transfer that has no manifest record yet. */
+export interface RunningDownloadInfo {
+  title: string;
+  thumbnailUrl: string;
+  durationSeconds: number;
+}
+
+export type PodcastDownloadState =
+  | { status: 'idle' | 'downloaded' }
+  | ({ status: 'downloading'; progress: number } & RunningDownloadInfo)
+  | { status: 'failed'; message: string };
+
 export const PODCAST_VIDEO_DOWNLOADS_STORAGE_KEY = 'podcast_video_downloads';
 
 export function videoDownloadFileNames(localizationId: string) {
@@ -106,35 +118,129 @@ export function resolveOfflineEpisodeVideo(
       };
 }
 
+export function sortDownloadRecords(
+  records: readonly PodcastVideoDownloadRecord[],
+  sortDirection: 'newest' | 'oldest',
+): PodcastVideoDownloadRecord[] {
+  return [...records].sort(
+    (a, b) =>
+      (sortDirection === 'newest' ? -1 : 1) *
+      (a.createdAt.localeCompare(b.createdAt) ||
+        a.localizationId.localeCompare(b.localizationId)),
+  );
+}
+
 export function downloadedEpisodeRows(
   records: readonly PodcastVideoDownloadRecord[],
   sortDirection: 'newest' | 'oldest',
 ): PodcastEpisode[] {
-  return [...records]
-    .sort(
-      (a, b) =>
-        (sortDirection === 'newest' ? -1 : 1) *
-        (a.createdAt.localeCompare(b.createdAt) ||
-          a.localizationId.localeCompare(b.localizationId)),
-    )
-    .map((record) => ({
-      id: record.episodeId,
-      localizationId: record.localizationId,
-      title: record.title,
-      languageCode: record.languageCode,
-      createdAt: record.createdAt,
-      hlsUrl: '',
-      listened: false,
-      likeCount: 0,
-      script: null,
-      video: {
-        url: record.videoFileName,
-        thumbnailUrl: record.thumbnailFileName,
-        durationSeconds: record.durationSeconds,
-      },
-      videoGeneration: null,
-      audioTracks: [],
-      languageClassrooms: [],
-      lastPositionSeconds: 0,
-    }));
+  return sortDownloadRecords(records, sortDirection).map((record) => ({
+    id: record.episodeId,
+    localizationId: record.localizationId,
+    title: record.title,
+    languageCode: record.languageCode,
+    createdAt: record.createdAt,
+    hlsUrl: '',
+    listened: false,
+    likeCount: 0,
+    script: null,
+    video: {
+      url: record.videoFileName,
+      thumbnailUrl: record.thumbnailFileName,
+      durationSeconds: record.durationSeconds,
+    },
+    videoGeneration: null,
+    audioTracks: [],
+    languageClassrooms: [],
+    lastPositionSeconds: 0,
+  }));
+}
+
+/** Whole percent (0-100) of a 0-1 transfer fraction; anything unusable is 0. */
+function toDownloadPercent(progress: number): number {
+  if (!Number.isFinite(progress)) return 0;
+  return Math.min(100, Math.max(0, Math.floor(progress * 100)));
+}
+
+export type EpisodeDownloadPhase =
+  | 'unsupported'
+  | 'unavailable'
+  | 'idle'
+  | 'downloading'
+  | 'downloaded'
+  | 'failed';
+
+export interface EpisodeDownloadView {
+  phase: EpisodeDownloadPhase;
+  /** Whole percent; 0 unless the phase is `downloading`. */
+  percent: number;
+  /**
+   * The provider's failure text. Set for `failed`, and for `downloaded` when a
+   * later removal failed and the video is therefore still on the device.
+   */
+  message: string | null;
+  /** Bytes the saved files occupy; null unless the phase is `downloaded`. */
+  byteSize: number | null;
+}
+
+/**
+ * Collapses the provider's per-episode facts into the one phase the UI shows.
+ * Order matters: a platform that cannot download outranks everything, and an
+ * episode without a video is only "unavailable" while nothing is saved for it.
+ */
+export function describeEpisodeDownload({
+  isSupported,
+  hasVideo,
+  record,
+  state,
+}: {
+  isSupported: boolean;
+  hasVideo: boolean;
+  record: PodcastVideoDownloadRecord | undefined;
+  state: PodcastDownloadState | undefined;
+}): EpisodeDownloadView {
+  const view = (
+    phase: EpisodeDownloadPhase,
+    detail: Partial<Omit<EpisodeDownloadView, 'phase'>> = {},
+  ): EpisodeDownloadView => ({
+    phase,
+    percent: 0,
+    message: null,
+    byteSize: null,
+    ...detail,
+  });
+  if (!isSupported) return view('unsupported');
+  if (!hasVideo && record === undefined) return view('unavailable');
+  if (state?.status === 'downloading')
+    return view('downloading', { percent: toDownloadPercent(state.progress) });
+  const failure = state?.status === 'failed' ? state.message : null;
+  if (record !== undefined)
+    return view('downloaded', { byteSize: record.byteSize, message: failure });
+  if (failure !== null) return view('failed', { message: failure });
+  return view('idle');
+}
+
+export interface RunningDownload extends RunningDownloadInfo {
+  localizationId: string;
+  /** Whole percent, 0-100. */
+  percent: number;
+}
+
+/** Every transfer in flight, in the order they were started. */
+export function runningDownloads(
+  states: Readonly<Record<string, PodcastDownloadState>>,
+): RunningDownload[] {
+  return Object.entries(states).flatMap(([localizationId, state]) =>
+    state.status === 'downloading'
+      ? [
+          {
+            localizationId,
+            title: state.title,
+            thumbnailUrl: state.thumbnailUrl,
+            durationSeconds: state.durationSeconds,
+            percent: toDownloadPercent(state.progress),
+          },
+        ]
+      : [],
+  );
 }

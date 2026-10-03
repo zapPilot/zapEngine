@@ -87,7 +87,7 @@
   },
   {
     "name": "social-daemon",
-    "purpose": "Publish scheduled social posts, collect metrics, and refresh social strategy guidance.",
+    "purpose": "Publish scheduled social posts, collect metrics, and report experiments.",
     "schedule_kind": "continuous",
     "schedule": "process lifetime",
     "schedule_source": "external",

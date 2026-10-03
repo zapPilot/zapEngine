@@ -22,7 +22,6 @@ const mocks = vi.hoisted(() => ({
   listCandidateEpisodes: vi.fn(),
   listPendingSchedules: vi.fn(),
   queueSnapshot: vi.fn(),
-  activeStrategies: vi.fn(),
   claimCohort: vi.fn(),
   capture: vi.fn(),
   flush: vi.fn(),
@@ -61,7 +60,6 @@ vi.mock('./daemon-store.js', async (importOriginal) => ({
   listSocialPublishCandidatesForEpisodes: mocks.listCandidateEpisodes,
   listPendingSocialPublishSchedules: mocks.listPendingSchedules,
   getSocialQueueSnapshot: mocks.queueSnapshot,
-  getActiveSocialStrategies: mocks.activeStrategies,
 }));
 vi.mock('./release-cohort-store.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./release-cohort-store.js')>()),
@@ -98,7 +96,6 @@ beforeEach(() => {
     nextByLane: {},
     waitingVideos: [],
   });
-  mocks.activeStrategies.mockResolvedValue([]);
   mocks.claimCohort.mockResolvedValue([]);
   mocks.flush.mockResolvedValue(undefined);
   mocks.send.mockResolvedValue(undefined);

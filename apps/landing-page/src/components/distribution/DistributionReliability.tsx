@@ -27,11 +27,6 @@ function reliabilityItems(snapshot: DistributionSnapshot): ReliabilityItem[] {
       claim:
         'metric snapshots successfully collected. A reading that could not be taken is recorded as unavailable rather than as zero.',
     },
-    {
-      value: formatCount(reliability.strategyVersions),
-      claim:
-        'versions of the publishing strategy, one per platform and language, each derived from the measurements above.',
-    },
   ];
 }
 

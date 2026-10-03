@@ -1,6 +1,6 @@
 # Zap Pilot Control Center
 
-Founder decision dashboard for operational status, customer economics, product health, persisted cost history, learned social publishing guidance, and podcast production recovery. It is lifecycle-independent from production daemons and pipelines.
+Founder decision dashboard for operational status, customer economics, product health, persisted cost history, universal content packaging insight, and podcast production recovery. It is lifecycle-independent from production daemons and pipelines.
 
 ```bash
 pnpm ops             # dashboard + Fly billing reader + social daemon, from the repository root
@@ -40,12 +40,12 @@ remaining mutation-surface decisions stay open in #677.
 
 Four primary surfaces answer the operator's immediate questions:
 
-| View                     | Question                                        | Evidence                                                                                                                 |
-| ------------------------ | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| **今日 (Today)**         | What needs intervention now?                    | At most three ranked operations, then company pulse, latest release, cost and failed-attempt spend                       |
-| **成長 (Growth)**        | How does content reach become product demand?   | Cross-channel journey, per-episode acquisition lanes, Discord intent and guild totals, waitlist and language performance |
-| **Pipeline**             | Which API → Render → Social job needs recovery? | Existing queue board and bounded recovery drawer                                                                         |
-| **可靠性 (Reliability)** | Which risks, costs and repairs need attention?  | Operations, provider costs, failed-attempt spend, raw Evidence and operator audit                                        |
+| View                     | Question                                        | Evidence                                                                                                                                         |
+| ------------------------ | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **今日 (Today)**         | What needs intervention now?                    | At most three ranked operations, then company pulse, latest release, cost and failed-attempt spend                                               |
+| **成長 (Growth)**        | How does content reach become product demand?   | Cross-channel journey, per-episode acquisition lanes, Discord intent and guild totals, waitlist and universal title/cover packaging associations |
+| **Pipeline**             | Which API → Render → Social job needs recovery? | Existing queue board and bounded recovery drawer                                                                                                 |
+| **可靠性 (Reliability)** | Which risks, costs and repairs need attention?  | Operations, provider costs, failed-attempt spend, raw Evidence and operator audit                                                                |
 
 Today composes existing read models and hides numeric priority scores. Unknown,
 failed and stale observations never render the healthy no-intervention state.
@@ -387,10 +387,10 @@ operator-Mac trigger.
 
 Vendor credentials and Supabase service-role credentials are read only by the Hono/CLI process. Browser responses contain normalized ledger data and never include tokens.
 
-## Decision layers
+## Packaging insight
 
 The Product view reads product health from the existing public-schema account data: registered users, verified wallets, users with observed portfolio data, WAU/MAU, observed portfolio value, freshness coverage, and portfolio concentration. The portfolio value is deliberately labeled **observed**, not authoritative AUM, because coverage/freshness are part of the decision.
 
-Social decisions reuse the pipeline's active `social_strategy_versions` rather than implementing a second learner. Control Center supplements those preferred hook/hashtag choices with simple 24-hour evidence for timing and topic, reports the learner sample count/confidence, and keeps raw per-post metrics as a secondary evidence layer. Platform-specific decision signals replace universal columns that had no producer (for example impressions, cover CTR, and media-quality score).
+Content packaging uses the shared `/api/growth` and `ops_growth` read model with a 15-minute cache. Rednote distributed 24-hour observations determine episode packaging ranks; other lanes confirm after independent rolling normalization. Title features describe associations only. Suppressed notes are excluded and the distribution gate is reported separately. These insights never choose topics or platform-specific slots/hooks, and never enter reliability priorities.
 
 See [Waitlist acquisition contract](docs/waitlist-acquisition.md) for persisted lead metrics, attribution and rollout order.

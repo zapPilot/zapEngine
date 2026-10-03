@@ -12,7 +12,6 @@ const social = {
   window: 'latest' as const,
   generatedAt: NOW.toISOString(),
   accounts: [{ platform: 'x', followers: 10, capturedAt: NOW.toISOString() }],
-  decisions: [],
   episodes: [],
 };
 

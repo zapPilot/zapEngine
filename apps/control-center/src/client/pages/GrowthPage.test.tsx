@@ -32,23 +32,6 @@ const journey: SocialGrowthJourney = {
 
 const social = {
   accounts: [],
-  decisions: [
-    {
-      avoidHashtags: [],
-      bestTopic: 'macro',
-      bestTopicLiftVsPlatformMedian: null,
-      bestTopicMedian24hViews: null,
-      bestTopicSamples: 12,
-      confidence: 'high',
-      evidenceSamples: 53,
-      platform: 'threads',
-      platformMedian24hViews: null,
-      preferredHashtags: [],
-      preferredHookTypes: ['contrarian'],
-      publishSlotsJst: '09:30 / 12:00',
-      topExample: null,
-    },
-  ],
   episodes: [
     {
       episodeId: 'ep-1',
@@ -68,8 +51,6 @@ const social = {
         },
       ],
       title: '一集沒有人看的內容',
-      totalImpressions: null,
-      totalViews: 0,
     },
   ],
   generatedAt: '2026-09-10T01:00:00Z',
@@ -210,10 +191,12 @@ describe('Growth drop-off reading', () => {
 });
 
 describe('Growth guidance', () => {
-  it('shows learned guidance with its sample coverage, not an invented impact score', () => {
+  it('shows universal packaging without platform recommendations', () => {
     renderGrowth();
-    expect(screen.getByText('53 samples')).toBeVisible();
-    expect(screen.getByText('high')).toBeVisible();
+    expect(screen.getByText('內容包裝洞察')).toBeVisible();
+    expect(
+      screen.queryByText(/內容題材參考|最佳題材|發佈時段|開場/),
+    ).toBeNull();
     expect(screen.queryByText('高影響')).toBeNull();
   });
 });

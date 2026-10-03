@@ -11,7 +11,6 @@ import type {
   PodcastCostResponse,
   ProductHealthResponse,
   SocialGrowthResponse,
-  SocialPerformanceResponse,
 } from '../../../shared/types.js';
 import type { PodcastPipelineResponse } from '../../../shared/podcast-pipeline.js';
 import type { MetricSeries } from '../metric-snapshots.js';
@@ -46,7 +45,6 @@ export interface StatementInputs {
   costHistory: CostHistoryResponse;
   product: ProductHealthResponse;
   socialGrowth: SocialGrowthResponse;
-  socialPerformance: SocialPerformanceResponse;
   customers: CustomerEconomicsResponse;
   operationsSocial: OperationsSocialResponse;
   podcastPipeline: PodcastPipelineResponse;

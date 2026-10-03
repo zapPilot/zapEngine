@@ -60,11 +60,6 @@ export interface DistributionPublishJobRow {
   status: string;
 }
 
-export interface DistributionStrategyVersionRow {
-  platform: SocialPlatform;
-  language_code: PrimaryLanguageCode;
-}
-
 export interface DistributionSnapshotSource {
   episodes: readonly DistributionEpisodeRow[];
   localizations: readonly DistributionLocalizationRow[];
@@ -72,7 +67,6 @@ export interface DistributionSnapshotSource {
   posts: readonly DistributionPostRow[];
   metrics: readonly DistributionMetricRow[];
   publishJobs: readonly DistributionPublishJobRow[];
-  strategyVersions: readonly DistributionStrategyVersionRow[];
 }
 
 export interface DistributionFunnel {
@@ -112,7 +106,6 @@ export interface DistributionReliability {
   publishJobsFailed: number;
   metricSnapshots: number;
   metricSnapshotsCollected: number;
-  strategyVersions: number;
 }
 
 export interface DistributionExampleChannel {
@@ -218,7 +211,6 @@ export function buildDistributionSnapshot(
       metricSnapshotsCollected: source.metrics.filter(
         (metric) => metric.collection_status === 'collected',
       ).length,
-      strategyVersions: source.strategyVersions.length,
     },
     example: selectExample({
       episodes: source.episodes,

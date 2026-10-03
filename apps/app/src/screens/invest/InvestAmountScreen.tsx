@@ -190,7 +190,7 @@ export function InvestAmountScreen() {
     <ScreenScrollView width="narrow">
       <InvestStepHeader title="Invest" step="Step 1 of 2" />
       <StepProgress current={1} />
-      <View className="px-5 pt-5">
+      <View className="pt-5">
         <Text className="font-serif text-[28px] leading-[32px] text-ink">
           How much do you want to invest?
         </Text>

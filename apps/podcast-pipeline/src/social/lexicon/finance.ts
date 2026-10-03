@@ -6,8 +6,8 @@
  *
  * Precision rule: our own subject matter is never listed. 穩定幣、比特幣、
  * 以太坊、美聯儲、流動性、年化收益率、槓桿、超額收益、龐氏騙局 are what the feed
- * reports on — suppressing a topic is the learner's job (review_status
- * de-pollution), not this gate's. Two-character fragments that appear inside
+ * reports on. Owner interest decides topics; neither this gate nor a learner
+ * may suppress them. Two-character fragments that appear inside
  * ordinary sentences are also excluded: 保本 would match 「確保本次」.
  */
 export const FINANCE_TERMS = [

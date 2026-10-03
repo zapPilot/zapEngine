@@ -141,7 +141,6 @@ describe('durable release copy', () => {
     const retry = await prepareSocialBatchCopy({
       ...input,
       platforms: ['rednote'],
-      strategyGuidanceByPlatform: { rednote: 'new guidance' },
     });
     expect(retry.snapshot).toEqual(durable.snapshot);
     expect(mocks.generate).toHaveBeenCalledTimes(1);

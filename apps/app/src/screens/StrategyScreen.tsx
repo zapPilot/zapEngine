@@ -1,6 +1,6 @@
-import { tokens } from '@zapengine/design-tokens/tokens';
+import { Callout } from '@/components/ui/Callout';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowRight, TriangleAlert } from 'lucide-react-native';
+import { ArrowRight } from 'lucide-react-native';
 import { useEffect, useRef, useState } from 'react';
 import { type LayoutChangeEvent, ScrollView, Text, View } from 'react-native';
 
@@ -106,7 +106,7 @@ export function StrategyScreen() {
         highlightedSignalId={decision.data?.trigger.chartSeriesId ?? null}
       />
 
-      <View className="mx-5 mt-6 flex-row items-center justify-between">
+      <View className="mt-6 flex-row items-center justify-between">
         <Text className="font-sans-semibold text-[14px] text-ink">
           {t('strategy.backtest')}
         </Text>
@@ -122,7 +122,7 @@ export function StrategyScreen() {
         />
       </View>
 
-      <Card className="mx-5 mt-3 p-[15px]">
+      <Card className="mt-3 p-[15px]">
         <View className="flex-row items-end justify-between">
           <View>
             <Text className="font-mono text-[9px] uppercase tracking-[0.9px] text-[#9a8f78]">
@@ -159,12 +159,12 @@ export function StrategyScreen() {
       </Card>
 
       {loading ? (
-        <StatGrid loading className="mt-5 px-5" count={8} />
+        <StatGrid loading className="mt-5" count={8} />
       ) : (
-        <StatGrid className="mt-5 px-5" metrics={strategy.backtest.metrics} />
+        <StatGrid className="mt-5" metrics={strategy.backtest.metrics} />
       )}
 
-      <Card className="mx-5 mt-6 p-4">
+      <Card className="mt-6 p-4">
         <View className="flex-row items-center justify-between">
           <Text className="font-sans-semibold text-[15px] text-ink">
             {t('strategy.currentPositioning')}
@@ -203,19 +203,14 @@ export function StrategyScreen() {
       </Card>
 
       {result.data && !result.data.hasTargetAllocation && !isDemo ? (
-        <View className="mx-5 mt-4 flex-row gap-2 rounded-2xl border border-[rgba(255,111,97,.25)] bg-[rgba(255,111,97,.08)] p-3">
-          <TriangleAlert
-            size={17}
-            strokeWidth={1.8}
-            color={tokens.color.danger}
-          />
-          <Text className="flex-1 text-[12px] leading-[18px] text-danger">
-            {t('strategy.allocationUnavailable')}
-          </Text>
-        </View>
+        <Callout
+          tone="danger"
+          body={t('strategy.allocationUnavailable')}
+          className="mt-4"
+        />
       ) : null}
 
-      <View className="mx-5 mt-5">
+      <View className="mt-5">
         <Button onPress={startStrategy}>
           <Text className="font-sans-semibold text-[15.5px] text-[#0a0a0a]">
             {t('strategy.start')}

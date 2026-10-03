@@ -7,7 +7,13 @@ import {
   Layers,
   ShieldAlert,
 } from 'lucide-react-native';
-import { useMemo, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useContext,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
 import { Text, View } from 'react-native';
 
 import { ProtocolIcon } from '@/components/token/ProtocolIcon';
@@ -39,6 +45,7 @@ interface HomeIncomeCardProps {
 }
 
 const PROTOCOL_ICON_SIZE = 36;
+const IconColumnWidth = createContext(PROTOCOL_ICON_SIZE);
 const TOKEN_BADGE_SIZE = 17;
 const TOKEN_BADGE_BORDER = 1;
 const TOKEN_BADGE_WIDTH = TOKEN_BADGE_SIZE + TOKEN_BADGE_BORDER * 2;
@@ -65,6 +72,7 @@ function DisclosureRow({
   onToggle,
   accessibilityLabel,
 }: DisclosureRowProps) {
+  const iconColumnWidth = useContext(IconColumnWidth);
   const Chevron = expanded ? ChevronDown : ChevronRight;
 
   return (
@@ -75,8 +83,10 @@ function DisclosureRow({
       onPress={onToggle}
       className="flex-row items-center gap-3 py-2"
     >
-      <View className="h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-line">
-        {icon}
+      <View style={{ width: iconColumnWidth }}>
+        <View className="h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-line">
+          {icon}
+        </View>
       </View>
       <View className="min-w-0 flex-1">
         <Text className="text-[13px] text-ink">{title}</Text>
@@ -104,13 +114,11 @@ function positionIconWidth(tokenCount: number): number {
 }
 
 function PositionIcon({ row }: { row: HomeProtocolIncomeRow }) {
+  const iconColumnWidth = useContext(IconColumnWidth);
   const visibleTokens = row.tokenSymbols.slice(0, MAX_VISIBLE_TOKENS);
 
   return (
-    <View
-      className="relative h-11 shrink-0"
-      style={{ width: positionIconWidth(visibleTokens.length) }}
-    >
+    <View className="relative h-11 shrink-0" style={{ width: iconColumnWidth }}>
       <View className="absolute left-0 top-0">
         <ProtocolIcon protocol={row.protocol} size={PROTOCOL_ICON_SIZE} />
       </View>
@@ -459,91 +467,102 @@ export function HomeIncomeCard({
   if (isError) return null;
 
   return (
-    <View>
-      <SectionHeader title={t('home.passiveIncomeTitle')} />
-      <Card className="mt-3 px-4 py-4">
-        {isLoading ? (
-          <>
-            <SkeletonBlock className="h-7 w-44" />
-            <SkeletonBlock className="mt-3 h-4 w-64" />
-          </>
-        ) : income.status !== 'ready' ? (
-          <Text className="text-[12px] leading-[18px] text-ink-dim">
-            {t(
-              income.status === 'insufficient'
-                ? 'home.incomeInsufficient'
-                : 'home.incomeEmpty',
-            )}
-          </Text>
-        ) : (
-          <>
-            <Text className="font-serif text-[25px] leading-[31px] text-ink">
-              {t('home.passiveIncomePerMonth', {
-                amount: formatUsd(income.passiveMonthlyUsd),
-              })}
+    <IconColumnWidth.Provider
+      value={Math.max(
+        PROTOCOL_ICON_SIZE,
+        ...income.protocolRows.map((row) =>
+          positionIconWidth(
+            Math.min(row.tokenSymbols.length, MAX_VISIBLE_TOKENS),
+          ),
+        ),
+      )}
+    >
+      <View>
+        <SectionHeader title={t('home.passiveIncomeTitle')} />
+        <Card className="mt-3 px-4 py-4">
+          {isLoading ? (
+            <>
+              <SkeletonBlock className="h-7 w-44" />
+              <SkeletonBlock className="mt-3 h-4 w-64" />
+            </>
+          ) : income.status !== 'ready' ? (
+            <Text className="text-[12px] leading-[18px] text-ink-dim">
+              {t(
+                income.status === 'insufficient'
+                  ? 'home.incomeInsufficient'
+                  : 'home.incomeEmpty',
+              )}
             </Text>
-            <Text className="mt-1.5 text-[11px] leading-[16px] text-ink-dim">
-              {t('home.passiveIncomeBasis')}
-            </Text>
+          ) : (
+            <>
+              <Text className="font-serif text-[25px] leading-[31px] text-ink">
+                {t('home.passiveIncomePerMonth', {
+                  amount: formatUsd(income.passiveMonthlyUsd),
+                })}
+              </Text>
+              <Text className="mt-1.5 text-[11px] leading-[16px] text-ink-dim">
+                {t('home.passiveIncomeBasis')}
+              </Text>
 
-            {showGrossSplit ? (
-              <View className="mt-3 flex-row gap-2">
-                <View
-                  accessible
-                  accessibilityLabel={t('home.passiveIncomeGrossA11y', {
-                    amount: formatUsd(income.incomeMonthlyUsd),
-                  })}
-                  className="flex-1 flex-row items-center gap-1.5 rounded-xl border border-line bg-[rgba(255,255,255,.025)] px-3 py-2.5"
-                >
-                  <ArrowUpRight size={13} color="#d4c5a3" strokeWidth={2} />
-                  <Text className="font-mono-semibold text-[12px] text-accent">
-                    {formatSignedUsd(income.incomeMonthlyUsd)}
-                  </Text>
+              {showGrossSplit ? (
+                <View className="mt-3 flex-row gap-2">
+                  <View
+                    accessible
+                    accessibilityLabel={t('home.passiveIncomeGrossA11y', {
+                      amount: formatUsd(income.incomeMonthlyUsd),
+                    })}
+                    className="flex-1 flex-row items-center gap-1.5 rounded-xl border border-line bg-[rgba(255,255,255,.025)] px-3 py-2.5"
+                  >
+                    <ArrowUpRight size={13} color="#d4c5a3" strokeWidth={2} />
+                    <Text className="font-mono-semibold text-[12px] text-accent">
+                      {formatSignedUsd(income.incomeMonthlyUsd)}
+                    </Text>
+                  </View>
+                  <View
+                    accessible
+                    accessibilityLabel={t('home.passiveCostGrossA11y', {
+                      amount: formatUsd(Math.abs(income.costMonthlyUsd)),
+                    })}
+                    className="flex-1 flex-row items-center gap-1.5 rounded-xl border border-line bg-[rgba(255,255,255,.025)] px-3 py-2.5"
+                  >
+                    <ArrowDownRight size={13} color="#ef9292" strokeWidth={2} />
+                    <Text className="font-mono-semibold text-[12px] text-[#ef9292]">
+                      {formatSignedUsd(income.costMonthlyUsd)}
+                    </Text>
+                  </View>
                 </View>
-                <View
-                  accessible
-                  accessibilityLabel={t('home.passiveCostGrossA11y', {
-                    amount: formatUsd(Math.abs(income.costMonthlyUsd)),
-                  })}
-                  className="flex-1 flex-row items-center gap-1.5 rounded-xl border border-line bg-[rgba(255,255,255,.025)] px-3 py-2.5"
-                >
-                  <ArrowDownRight size={13} color="#ef9292" strokeWidth={2} />
-                  <Text className="font-mono-semibold text-[12px] text-[#ef9292]">
-                    {formatSignedUsd(income.costMonthlyUsd)}
-                  </Text>
+              ) : null}
+
+              {income.protocolRows.length > 0 ? (
+                <View className="mt-3 border-t border-line pt-1">
+                  {incomeRows.map((row) => (
+                    <IncomeRow
+                      key={`${row.protocol}:${row.chain ?? ''}:income`}
+                      row={row}
+                    />
+                  ))}
+                  {incomeRows.length > 0 && costRows.length > 0 ? (
+                    <View className="my-1 h-px bg-line" />
+                  ) : null}
+                  {costRows.map((row) => (
+                    <IncomeRow
+                      key={`${row.protocol}:${row.chain ?? ''}:cost`}
+                      row={row}
+                    />
+                  ))}
+                  {partition.other.length > 0 ? (
+                    <OtherIncomeRow partition={partition} />
+                  ) : null}
                 </View>
-              </View>
-            ) : null}
+              ) : null}
+            </>
+          )}
 
-            {income.protocolRows.length > 0 ? (
-              <View className="mt-3 border-t border-line pt-1">
-                {incomeRows.map((row) => (
-                  <IncomeRow
-                    key={`${row.protocol}:${row.chain ?? ''}:income`}
-                    row={row}
-                  />
-                ))}
-                {incomeRows.length > 0 && costRows.length > 0 ? (
-                  <View className="my-1 h-px bg-line" />
-                ) : null}
-                {costRows.map((row) => (
-                  <IncomeRow
-                    key={`${row.protocol}:${row.chain ?? ''}:cost`}
-                    row={row}
-                  />
-                ))}
-                {partition.other.length > 0 ? (
-                  <OtherIncomeRow partition={partition} />
-                ) : null}
-              </View>
-            ) : null}
-          </>
-        )}
-
-        {!isLoading && borrowingRisk ? (
-          <BorrowingRiskSection risk={borrowingRisk} />
-        ) : null}
-      </Card>
-    </View>
+          {!isLoading && borrowingRisk ? (
+            <BorrowingRiskSection risk={borrowingRisk} />
+          ) : null}
+        </Card>
+      </View>
+    </IconColumnWidth.Provider>
   );
 }

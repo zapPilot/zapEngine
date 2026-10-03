@@ -58,7 +58,6 @@ function overview(): OverviewResponse {
       window: 'latest',
       message: null,
       accounts: [],
-      decisions: [],
       episodes: [],
     } satisfies SocialPerformanceResponse,
   };

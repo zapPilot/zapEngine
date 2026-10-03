@@ -3,15 +3,18 @@
 `src/social` is the local social publishing and measurement stack for completed
 podcast localizations. The long-lived `social:daemon` discovers publishable
 media, schedules article releases, publishes every active platform/language lane,
-records post/account metrics, and refreshes copy guidance.
+records post/account metrics, and reports experiments.
 
 This is the operator-facing runbook. It explains how the product contract behaves
 in production; it does not define a competing policy.
 
 ## Canonical sources
 
+Optimization contract: [Social optimization contract](AGENTS.md#social-optimization-contract).
+
 | Concern                              | Canonical source                                                                                  |
 | ------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| Optimization contract                | `src/social/AGENTS.md#social-optimization-contract`                                               |
 | Product invariant                    | `apps/podcast-pipeline/AGENTS.md` + `src/social/AGENTS.md`                                        |
 | Executable invariant                 | `src/social/daemon-release-cohort-contract.test.ts` + `scripts/check-social-release-contract.mjs` |
 | Release-lane shape                   | `src/social/cohort.ts` + `src/social/policy.ts`                                                   |
@@ -57,7 +60,7 @@ Only one daemon may run at a time. It owns a pid lock at:
 ```
 
 A stale lock from a dead process is taken over on the next start. The Control
-Center is optional; publishing, metric collection, and strategy refresh do not
+Center is optional; publishing and metric collection do not
 depend on its process staying alive.
 
 Manual break-glass / diagnostics remain package-level commands:
@@ -101,14 +104,11 @@ rather than kept as dead recovery paths. Nothing was lost:
   They publish on their original languages and then the experiment shape is gone.
 - Published experiment posts, metrics, and `social_experiment_assignments` rows
   are untouched in the database and remain available for analysis.
-- `daemon.ts` still recognises the historical experiment keys for one purpose:
-  keeping learned copy guidance frozen on those not-yet-published lanes.
-
-Episodes created before **2026-08-24** (`SOCIAL_RELEASE_MIN_EPISODE_CREATED_AT`,
-when multilingual distribution started) get no lanes at all.
-`social_publish_candidates` has no creation-time filter of its own, so this
-constant is what stops a re-rendered old video from making the whole back
-catalogue publishable in one tick.
+- Episodes created before **2026-08-24** (`SOCIAL_RELEASE_MIN_EPISODE_CREATED_AT`,
+  when multilingual distribution started) get no lanes at all.
+  `social_publish_candidates` has no creation-time filter of its own, so this
+  constant is what stops a re-rendered old video from making the whole back
+  catalogue publishable in one tick.
 
 Current article timing is **4 articles per JST day at 09:30, 12:00, 16:00 and
 21:00 JST**. Each article takes one of those times and every active lane of that
@@ -210,7 +210,7 @@ Each successful preparation commits generated/published copy, model, and
 packaging assignments to `social_copy_snapshots`, keyed by episode and language,
 before returning. Threads and Rednote share the zh-Hant row. Ordinary daemon
 retries (including `ops --social-once`) reuse that row even after transport
-failure, changed strategy guidance, or partial publication; they never overwrite
+failure or partial publication; they never overwrite
 or automatically regenerate it. Missing platform blocks and database read/write
 failures stop the release. Canonical titles still come from the localization,
 and `social_posts` still records only successful publication. Snapshot invalidation
@@ -328,7 +328,7 @@ or persistence race is reconciled rather than uploaded twice.
 
 Publishing is fail-closed and fail-fast for release work. `reconcile`, cohort
 alignment, discovery, and publishing are release-shape stages; failures propagate
-and stop the daemon. Metrics, pre-publish/account snapshots, strategy refresh,
+and stop the daemon. Metrics, pre-publish/account snapshots,
 experiment reporting, and queue summaries are observational and remain isolated.
 
 A platform call that already succeeded before a later failure remains persisted.
@@ -468,8 +468,7 @@ In normal operation, `social:daemon` owns standardized post metric windows and
 account snapshots; `social:metrics` remains a manual diagnostic/recovery entry
 point.
 
-Strategy learning uses persisted posts plus standardized 24-hour metric samples.
-It may influence copy/content guidance but does not own release timing.
+The per-platform learner was removed on 2026-10-03. Control Center alone exposes a universal observational packaging read model; no learned guidance enters generation.
 
 ## Language and packaging experiments
 
@@ -478,10 +477,7 @@ not write language experiment keys or variants. Historical `social_posts` and
 `social_experiment_assignments` remain intact so the v1/v2/v3 results can still
 be evaluated within each platform using standardized 24-hour samples.
 
-Current jobs are not language experiment arms, so strategy guidance is not
-frozen merely because historical keys still exist in the database. Stale active
-strategy rows for language lanes no longer present in
-`SOCIAL_LANGUAGE_BY_PLATFORM` are retired by the normal strategy refresh.
+No lane receives learned guidance. Historical strategy rows remain readable and new jobs leave strategy_version_id null.
 
 Platform-specific packaging experiments are currently disabled.
 `packaging-experiments.ts` deliberately returns no assignments.
@@ -591,3 +587,5 @@ Supabase restart, but not loss of the daemon host. Sentry delivery is buffered
 and best effort; a sudden process kill can lose buffered remote logs, while a
 kill before tick completion can leave that in-flight tick without a terminal
 record. Retain the independent per-minute DB/host monitor evidence as well.
+
+Optimization contract: [one universal packaging strategy](AGENTS.md#social-optimization-contract). Owner interest controls topic selection. Cover → title → video opening; observed associations never prove causation or justify topic selection.

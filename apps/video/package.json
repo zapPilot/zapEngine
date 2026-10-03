@@ -1,0 +1,61 @@
+{
+  "name": "@zapengine/video",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "remotion bundle src/index.ts",
+    "capture": "tsx scripts/capture.ts",
+    "clean": "rm -rf build out coverage",
+    "deadcode": "knip",
+    "deadcode:fix": "knip --fix",
+    "dev": "remotion studio src/index.ts",
+    "dup:check": "node ../../scripts/lint/run-jscpd.mjs src",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint src/ scripts/ *.ts --max-warnings 0",
+    "lint:fix": "eslint src/ scripts/ *.ts --fix",
+    "render": "tsx scripts/render.ts",
+    "stills": "tsx scripts/contact-sheet.ts",
+    "test": "vitest run",
+    "test:ci": "vitest run --coverage",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest",
+    "type-check": "tsc --noEmit -p tsconfig.json",
+    "voiceover": "tsx scripts/voiceover.ts"
+  },
+  "dependencies": {
+    "@remotion/google-fonts": "4.0.532",
+    "@remotion/media": "4.0.532",
+    "@remotion/transitions": "4.0.532",
+    "@zapengine/design-tokens": "workspace:*",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "remotion": "4.0.532",
+    "zod": "4.5.4"
+  },
+  "devDependencies": {
+    "@remotion/bundler": "4.0.532",
+    "@remotion/cli": "4.0.532",
+    "@remotion/renderer": "4.0.532",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "@zapengine/eslint-config": "workspace:*",
+    "@zapengine/knip-config": "workspace:*",
+    "@zapengine/tsconfig": "workspace:*",
+    "eslint": "catalog:",
+    "knip": "catalog:",
+    "mediabunny": "1.56.1",
+    "playwright-core": "^1.60.0",
+    "prettier": "catalog:",
+    "sharp": "^0.35.3",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "viem": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": "24.x"
+  }
+}

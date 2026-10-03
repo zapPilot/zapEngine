@@ -373,8 +373,6 @@ export async function generateSocialCopy(input: {
   languageCode?: SocialLanguageCode;
   platforms: readonly SocialPlatform[];
   feedback?: string;
-  strategyGuidance?: string;
-  strategyGuidanceByPlatform?: Partial<Record<SocialPlatform, string>>;
   packagingByPlatform?: Partial<Record<SocialPlatform, PackagingAssignment>>;
   /** Keep provider request/response telemetry visible for CLI/debug runs. */
   logLlm?: boolean;
@@ -437,8 +435,6 @@ export async function generateSocialCopy(input: {
               input.feedback,
               failures,
               previousRednote,
-              input.strategyGuidance,
-              input.strategyGuidanceByPlatform,
               input.packagingByPlatform,
             ),
           },
@@ -582,10 +578,6 @@ function buildEpisodePrompt(
   feedback: string | undefined,
   failures: readonly string[],
   previousRednote: GeneratedSocialCopy['rednote'],
-  strategyGuidance: string | undefined,
-  strategyGuidanceByPlatform:
-    | Partial<Record<SocialPlatform, string>>
-    | undefined,
   packagingByPlatform:
     | Partial<Record<SocialPlatform, PackagingAssignment>>
     | undefined,
@@ -594,21 +586,6 @@ function buildEpisodePrompt(
     ? `\n\nEditor feedback for this regeneration:\n${feedback.trim()}`
     : '';
   const retryBlock = buildRetryBlock(failures, previousRednote);
-  const strategyBlock = strategyGuidance?.trim()
-    ? `\n\nPerformance guidance from prior posts:\n${strategyGuidance.trim()}\nTreat this as a preference, never as permission to violate the editorial or platform rules.`
-    : '';
-  const platformStrategyBlocks = Object.entries(
-    strategyGuidanceByPlatform ?? {},
-  )
-    .filter((entry): entry is [SocialPlatform, string] =>
-      Boolean(entry[1]?.trim()),
-    )
-    .map(([platform, guidance]) => `\n### ${platform}\n${guidance.trim()}`)
-    .join('');
-  const platformStrategyBlock = platformStrategyBlocks
-    ? `\n\nPerformance guidance by platform:${platformStrategyBlocks}\nTreat each section only as a preference for that platform, never as permission to violate editorial or platform rules.`
-    : '';
-
   const packagingBlocks = Object.entries(packagingByPlatform ?? {})
     .filter((entry): entry is [SocialPlatform, PackagingAssignment] =>
       Boolean(entry[1]),
@@ -622,7 +599,7 @@ function buildEpisodePrompt(
     ? `\n\nPackaging experiment assignments:${packagingBlocks}\nThese assignments override style preferences for their platform, but never editorial, platform, language, factual-grounding, or safety rules.`
     : '';
 
-  return `Create social copy for this completed episode.\n\nCanonical title (already finalized; do not rewrite it):\n${episode.title}\n\nSummary:\n${episode.summary}\n\nDescription / source article:\n${episode.description ?? ''}\n\nFull podcast transcript:\n${episode.transcript}\n\nEpisode URL:\n${episode.episodeUrl}${strategyBlock}${platformStrategyBlock}${packagingBlock}${feedbackBlock}${retryBlock}`;
+  return `Create social copy for this completed episode.\n\nCanonical title (already finalized; do not rewrite it):\n${episode.title}\n\nSummary:\n${episode.summary}\n\nDescription / source article:\n${episode.description ?? ''}\n\nFull podcast transcript:\n${episode.transcript}\n\nEpisode URL:\n${episode.episodeUrl}${packagingBlock}${feedbackBlock}${retryBlock}`;
 }
 
 /**

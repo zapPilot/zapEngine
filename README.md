@@ -28,7 +28,8 @@ zapEngine/
 │   ├── desktop             # Electron — macOS shell around the app web export
 │   ├── landing-page        # Next.js 15 — marketing & docs site (port 3000)
 │   ├── app                 # Expo / React Native — universal Zap Pilot app (iOS/Android/Web)
-│   └── podcast-pipeline    # Hono — article → episode pipeline (port 3000)
+│   ├── podcast-pipeline    # Hono — article → episode pipeline (port 3000)
+│   └── video               # Remotion — product videos as code (calculator pitch)
 └── packages/
     ├── app-core            # Shared app core — schemas, wallet flows, and state for the Expo app and desktop shell
     ├── brand-assets        # Brand asset sources and rasterized outputs
@@ -51,6 +52,7 @@ zapEngine/
 | landing-page     | TypeScript   | Next.js 15        |
 | app              | TypeScript   | Expo 57 / RN 0.86 |
 | podcast-pipeline | TypeScript   | Hono 4.12         |
+| video            | TypeScript   | Remotion 4        |
 
 ## Prerequisites
 

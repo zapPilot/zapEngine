@@ -177,9 +177,11 @@ GitHub workflow inspection selects scheduled runs; recent-failure selects main r
 
 ## Growth and coverage review
 
+Packaging in `ops_growth` is the same 15-minute cached read model as `/api/growth`: one universal title/cover insight, Rednote 24h primary, normalized within each lane with ±7-day baselines. It reports observed associations, excludes suppressed notes and separates the ≤20-view distribution gate. It never recommends platform topics, slots, hooks or article selection and never enters `ops_status` reliability priorities.
+
 `ops_growth` is a separate lazy read with a 15-minute cache and `force` refresh.
-Version 0.11.0 returns observation time, `windowDays: 30`, `journey`,
-`community`, `lanes`, and `laneSources`. Journey contains separate ordered one-day
+Version 0.12.0 returns observation time, `windowDays: 30`, `journey`,
+`community`, `lanes`, `laneSources`, and `packaging`. Journey contains separate ordered one-day
 landing → waitlist CTA and landing → Discord CTA funnels. Lanes join first-touch
 episode/platform/language across PostHog 30-day unique people, recent social posts,
 and cumulative waitlist signups; these mixed windows must not be treated as a

@@ -19,7 +19,7 @@ export function ConnectGatePage({
 }): ReactElement {
   return (
     <ScreenScrollView width="narrow">
-      <View className="flex-1 px-5 pt-16">
+      <View className="flex-1 pt-16">
         <ConnectGateCard
           variant="page"
           title={CONNECT_GATE_COPY.signInTitle}

@@ -91,7 +91,7 @@ export function PortfolioScreen() {
         actions={<SharePortfolioButton />}
       />
 
-      <View className="px-5 pt-4">
+      <View className="pt-4">
         <SectionHeader title={t('portfolio.positionValue')} />
         <View className="mt-[5px]">
           <DisplayUsdValue
@@ -124,7 +124,7 @@ export function PortfolioScreen() {
         </View>
       </View>
 
-      <View className="mt-3 px-5">
+      <View className="mt-3">
         <View className="flex-row items-center justify-between">
           <SectionHeader title={t('portfolio.valueHistory')} />
           <SegmentedControl
@@ -156,12 +156,12 @@ export function PortfolioScreen() {
       </View>
 
       {loading && portfolio === null ? (
-        <StatGrid loading className="mt-5 px-5" count={6} />
+        <StatGrid loading className="mt-5" count={6} />
       ) : (
-        <StatGrid className="mt-5 px-5" metrics={localizedMetrics} />
+        <StatGrid className="mt-5" metrics={localizedMetrics} />
       )}
 
-      <View className="mt-6 px-5">
+      <View className="mt-6">
         <View className="flex-row items-center justify-between">
           <Text className="font-sans-semibold text-[15px] text-ink">
             {t('strategy.currentAllocation')}

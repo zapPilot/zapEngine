@@ -6,7 +6,7 @@ import {
 } from '../../../shared/growth.js';
 import type { SocialWaitlistSummary } from '../../../shared/waitlist-growth.js';
 import type { ControlCenterConfig } from '../../config/env.js';
-import { createServiceRoleClient } from '../supabase.js';
+import { requireServiceRoleClient } from '../supabase.js';
 import { postTitle } from '../social.js';
 import type { PosthogLaneReading } from './posthog.js';
 
@@ -26,14 +26,8 @@ export async function readRecentSocialPosts(input: {
   now: Date;
   createSupabaseClient?: typeof createClient;
 }): Promise<GrowthPost[]> {
-  const { SUPABASE_URL: url, SUPABASE_SERVICE_ROLE_KEY: key } = input.config;
-  if (!url || !key) {
-    throw new Error('Supabase is not connected');
-  }
-  const client = createServiceRoleClient(
-    url,
-    key,
-    input.config.SUPABASE_DB_SCHEMA,
+  const client = requireServiceRoleClient(
+    input.config,
     input.createSupabaseClient,
   );
   const result = await client

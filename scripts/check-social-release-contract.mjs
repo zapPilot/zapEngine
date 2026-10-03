@@ -200,6 +200,63 @@ for (const path of [
   }
 }
 
+// Social optimization contract: global packaging only.
+requireMatch(
+  'social optimization contract',
+  socialAgents,
+  /NON-NEGOTIABLE PRODUCT CONTRACT: one universal packaging strategy/,
+);
+requireMatch(
+  'same thesis copy',
+  read('apps/podcast-pipeline/src/social/copy.ts'),
+  /same underlying episode thesis/,
+);
+requireMatch(
+  'growth packaging read model',
+  read('apps/control-center/src/server/services/operations/growth.ts'),
+  /readContentPackagingEvidence/,
+);
+for (const file of ['copy.ts', 'publish-batch.ts']) {
+  forbidMatch(
+    file,
+    read(`apps/podcast-pipeline/src/social/${file}`),
+    /Performance guidance|strategyGuidance/,
+  );
+}
+forbidMatch(
+  'daemon optimization',
+  daemon,
+  /refreshSocialStrategies|buildStrategyGuidance|strategyVersionId/,
+);
+forbidMatch(
+  'Growth recommendations',
+  growthView,
+  /內容題材參考|最佳題材|bestTopic|publishSlotsJst|preferredHookTypes/,
+);
+for (const file of ['server/services/social.ts', 'shared/types.ts']) {
+  forbidMatch(
+    file,
+    read(`apps/control-center/src/${file}`),
+    /SocialDecision|bestTopic|LiftVsPlatformMedian|social_strategy_versions/,
+  );
+}
+forbidMatch(
+  'statement recommendations',
+  read('apps/control-center/src/server/services/statements/rules.ts'),
+  /publish the next one/,
+);
+for (const file of [
+  'DistributionChain.tsx',
+  'DistributionChannels.tsx',
+  'DistributionReliability.tsx',
+]) {
+  forbidMatch(
+    file,
+    read(`apps/landing-page/src/components/distribution/${file}`),
+    /publishing strategy|strategyVersions/,
+  );
+}
+
 if (failures.length > 0) {
   console.error('Social release contract check failed:');
   for (const failure of failures) console.error(`- ${failure}`);

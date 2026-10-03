@@ -568,8 +568,7 @@ export async function collectRednoteMetrics(
       }
 
       // Read the state before the numbers: a suppressed note still renders a
-      // stat row of zeros, and recording those as a snapshot is what taught the
-      // learner to avoid the hashtags of a post nobody was ever shown.
+      // stat row of zeros; those zeros cannot measure packaging nobody was shown.
       // `under_review` is temporary, so a recovery back to `visible` is written
       // too — otherwise one moderation pass would exclude the post forever.
       const reviewStatus = detectRednoteReviewStatus(await card.innerText());

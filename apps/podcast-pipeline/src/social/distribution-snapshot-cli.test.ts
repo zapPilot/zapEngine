@@ -72,7 +72,6 @@ function completeSource(): DistributionSnapshotSource {
       },
     ],
     publishJobs: [{ status: 'completed' }],
-    strategyVersions: [{ platform: 'x', language_code: 'zh-Hant' }],
   };
 }
 
@@ -172,7 +171,6 @@ describe('runDistributionSnapshotCli', () => {
       posts: [],
       metrics: [],
       publishJobs: [],
-      strategyVersions: [],
     });
 
     await expect(runDistributionSnapshotCli([], deps)).rejects.toThrow(

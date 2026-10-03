@@ -18,7 +18,6 @@ import {
   ruleR2,
   ruleR3,
   ruleR4,
-  ruleR5,
   ruleR6,
   ruleR7,
   ruleR8,
@@ -141,7 +140,6 @@ export function buildStatements(input: StatementInputs): StatementsResponse {
   const r2 = ruleR2(input);
   const r3 = ruleR3(input);
   const r4 = ruleR4(input);
-  const r5 = ruleR5(input);
   const r6 = ruleR6(input);
   const r7 = ruleR7(input);
   const r8 = ruleR8(input);
@@ -178,7 +176,7 @@ export function buildStatements(input: StatementInputs): StatementsResponse {
     toStatement(
       input,
       'growth',
-      { ...r4, segments: combineSegments(r4, r5, r11) },
+      { ...r4, segments: combineSegments(r4, r11) },
       input.socialGrowth.generatedAt,
     ),
   ].sort((a, b) => b.score - a.score);
@@ -188,7 +186,7 @@ export function buildStatements(input: StatementInputs): StatementsResponse {
     toHeader('product', [r6, r7, r8, productDemand, r9]),
     toHeader('pipeline', [r10]),
     toHeader('spend', [r2, r3]),
-    toHeader('growth', [r4, r5, r11]),
+    toHeader('growth', [r4, r11]),
   ];
   // `headers` is exhaustive over STATEMENT_DOMAINS by construction; assert it
   // here so a future domain added to one list is caught if forgotten in the other.
