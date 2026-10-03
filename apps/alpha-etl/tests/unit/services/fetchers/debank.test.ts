@@ -872,7 +872,9 @@ describe('DeBankFetcher', () => {
 
       await expect(
         prodFetcher.fetchWalletTokenList(testWalletAddress),
-      ).rejects.toThrow('DeBank API error: DeBank API returned non-array response');
+      ).rejects.toThrow(
+        'DeBank API error: DeBank API returned non-array response',
+      );
     });
 
     it('should use strict mode when NODE_ENV is undefined', async () => {
@@ -886,7 +888,9 @@ describe('DeBankFetcher', () => {
 
       await expect(
         noEnvFetcher.fetchWalletTokenList(testWalletAddress),
-      ).rejects.toThrow('DeBank API error: DeBank API returned non-array response');
+      ).rejects.toThrow(
+        'DeBank API error: DeBank API returned non-array response',
+      );
     });
 
     it('should respect DEBANK_STRICT_ERRORS env var', async () => {
@@ -908,7 +912,9 @@ describe('DeBankFetcher', () => {
       fetchMock().mockResolvedValueOnce(nonArrayResponse());
       await expect(
         strictFetcherEnv.fetchWalletTokenList(testWalletAddress),
-      ).rejects.toThrow('DeBank API error: DeBank API returned non-array response');
+      ).rejects.toThrow(
+        'DeBank API error: DeBank API returned non-array response',
+      );
 
       delete process.env.DEBANK_STRICT_ERRORS;
     });
