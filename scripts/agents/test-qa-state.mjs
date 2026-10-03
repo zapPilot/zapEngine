@@ -1,18 +1,13 @@
 #!/usr/bin/env node
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import {
   collectScopes,
   emptyState,
-  fingerprintPaths,
-  fingerprintInputs,
   locateArtifactRun,
-  listFilesAtRef,
   findingId,
-  MAX_RECORD_PAYLOAD_BYTES,
   MAX_TEXT_LENGTH,
   safePath,
   STATE_SCHEMA_VERSION,
@@ -32,6 +27,7 @@ const SCOPE_FIELDS = [
   'auditedAt',
   'auditedCommit',
   'fingerprint',
+  'pathShas',
   'files',
   'relatedPaths',
   'pr',
@@ -121,8 +117,31 @@ export function validateRecord(record) {
   ) {
     throw new Error('record.scope.auditedCommit is invalid');
   }
-  if (!/^[a-f0-9]{64}$/u.test(record.scope.fingerprint ?? '')) {
+  if (
+    record.scope.fingerprint !== undefined &&
+    !/^[a-f0-9]{64}$/u.test(record.scope.fingerprint)
+  ) {
     throw new Error('record.scope.fingerprint is invalid');
+  }
+  if (
+    record.scope.pathShas !== undefined &&
+    (!record.scope.pathShas ||
+      typeof record.scope.pathShas !== 'object' ||
+      Array.isArray(record.scope.pathShas) ||
+      !Object.entries(record.scope.pathShas).every(
+        ([filePath, sha]) =>
+          safePath(filePath) &&
+          typeof sha === 'string' &&
+          /^[a-f0-9]{40,64}$/u.test(sha),
+      ))
+  ) {
+    throw new Error('record.scope.pathShas is invalid');
+  }
+  if (
+    record.scope.fingerprint === undefined &&
+    record.scope.pathShas === undefined
+  ) {
+    throw new Error('record.scope requires fingerprint or pathShas');
   }
   for (const field of ['files', 'relatedPaths']) {
     if (
@@ -267,6 +286,7 @@ export function createRecord(options) {
       auditedAt: at,
       auditedCommit: gitSha(repoRoot, ref),
       fingerprint: scope.fingerprint,
+      pathShas: scope.pathShas,
       files: scope.files,
       relatedPaths: scope.relatedPaths,
       ...(Number.isInteger(options.pr) && options.pr > 0
@@ -275,88 +295,6 @@ export function createRecord(options) {
       findings,
     },
   });
-}
-
-function parseMergeArgs(argv) {
-  const options = {
-    previous: null,
-    output: process.cwd(),
-    repo: 'zapPilot/zapEngine',
-  };
-  for (let index = 0; index < argv.length; index += 1) {
-    const arg = argv[index];
-    const value = argv[++index];
-    if (value === undefined) throw new Error(`missing value for ${arg}`);
-    if (arg === '--event') options.event = value;
-    else if (arg === '--previous') options.previous = value;
-    else if (arg === '--output') options.output = value;
-    else if (arg === '--repo') options.repo = value;
-    else throw new Error(`unknown argument: ${arg}`);
-  }
-  return options;
-}
-
-export function loadPrevious(filePath, bootstrap = false) {
-  if (filePath && existsSync(filePath))
-    return validateState(JSON.parse(readFileSync(filePath, 'utf8')));
-  if (!bootstrap)
-    throw new Error(
-      'No previous state; first initialization requires payload --bootstrap',
-    );
-  return emptyState();
-}
-
-export function parseRecords(raw) {
-  const parsed = JSON.parse(raw);
-  if (!Array.isArray(parsed)) throw new Error('records must be a JSON array');
-  if (
-    Buffer.byteLength(JSON.stringify(parsed), 'utf8') > MAX_RECORD_PAYLOAD_BYTES
-  )
-    throw new Error('records exceeds 60 KiB');
-  return parsed.map(validateRecord);
-}
-
-export function parseEvent(event) {
-  assertKeys(event.client_payload, ['records', 'bootstrap'], 'client_payload');
-  const { records, bootstrap } = event.client_payload;
-  if (bootstrap !== undefined && typeof bootstrap !== 'boolean')
-    throw new Error('bootstrap must be a boolean');
-  return {
-    records: parseRecords(JSON.stringify(records)),
-    bootstrap: bootstrap === true,
-  };
-}
-
-export function createPayload(records, bootstrap = false) {
-  const payload = {
-    event_type: 'test-qa-state',
-    client_payload: { records, ...(bootstrap ? { bootstrap: true } : {}) },
-  };
-  parseEvent(payload);
-  if (
-    Buffer.byteLength(JSON.stringify(payload), 'utf8') >
-    MAX_RECORD_PAYLOAD_BYTES
-  )
-    throw new Error('payload exceeds 60 KiB');
-  return payload;
-}
-
-function readPr(repo, number) {
-  return JSON.parse(
-    execFileSync(
-      'gh',
-      [
-        'pr',
-        'view',
-        String(number),
-        '--repo',
-        repo,
-        '--json',
-        'number,state,mergedAt,headRefOid,mergeCommit',
-      ],
-      { encoding: 'utf8', maxBuffer: 4 * 1024 * 1024 },
-    ),
-  );
 }
 
 export function reconcilePendingScopes(state, prReader, mainScopeReader) {
@@ -377,6 +315,7 @@ export function reconcilePendingScopes(state, prReader, mainScopeReader) {
         continue;
       }
       scope.fingerprint = baseline.fingerprint;
+      scope.pathShas = baseline.pathShas;
       scope.files = baseline.files;
       scope.relatedPaths = baseline.relatedPaths;
       scope.auditedCommit = baseline.auditedCommit;
@@ -488,99 +427,10 @@ function recordMain(argv) {
   process.stdout.write(`${JSON.stringify(record, null, 2)}\n`);
 }
 
-function mergeMain(argv) {
-  const options = parseMergeArgs(argv);
-  if (!options.event) throw new Error('--event is required');
-  const { records, bootstrap } = parseEvent(
-    JSON.parse(readFileSync(resolve(options.event), 'utf8')),
-  );
-  const previous = loadPrevious(
-    options.previous ? resolve(options.previous) : null,
-    bootstrap,
-  );
-  const github = {
-    runId: Number(process.env.GITHUB_RUN_ID ?? 0),
-    runAttempt: Number(process.env.GITHUB_RUN_ATTEMPT ?? 1),
-    sha: process.env.GITHUB_SHA ?? '',
-  };
-  if (!Number.isInteger(github.runId) || github.runId < 0) {
-    throw new Error('GITHUB_RUN_ID is invalid');
-  }
-  if (!Number.isInteger(github.runAttempt) || github.runAttempt < 1) {
-    throw new Error('GITHUB_RUN_ATTEMPT is invalid');
-  }
-
-  let mainScopes;
-  let mainFiles;
-  const mainSha = gitSha(process.cwd(), 'HEAD');
-  const state = mergeState({
-    mainScopeReader: (key, previousScope) => {
-      mainScopes ??= new Map(
-        collectScopes(process.cwd(), { ref: mainSha }).map((scope) => [
-          scope.key,
-          { ...scope, auditedCommit: mainSha },
-        ]),
-      );
-      const scope = mainScopes.get(key);
-      if (scope) return scope;
-      mainFiles ??= new Set(listFilesAtRef(process.cwd(), mainSha));
-      const files = previousScope.files.filter((path) => mainFiles.has(path));
-      const relatedPaths = previousScope.relatedPaths.filter((path) =>
-        mainFiles.has(path),
-      );
-      return {
-        files,
-        relatedPaths,
-        auditedCommit: mainSha,
-        fingerprint: fingerprintPaths(
-          process.cwd(),
-          mainSha,
-          fingerprintInputs({ key, files }).filter((path) =>
-            mainFiles.has(path),
-          ),
-        ),
-      };
-    },
-    previous,
-    records,
-    github,
-    prReader: (number) => readPr(options.repo, number),
-  });
-  const output = resolve(options.output);
-  mkdirSync(output, { recursive: true });
-  writeFileSync(
-    resolve(output, 'state.json'),
-    `${JSON.stringify(state, null, 2)}\n`,
-    'utf8',
-  );
-  writeFileSync(
-    resolve(output, 'STATE.md'),
-    renderStateMarkdown(state),
-    'utf8',
-  );
-  console.log(
-    `test-qa state: ${Object.keys(state.scopes).length} scopes, ${state.runs.length} runs`,
-  );
-}
-
 function main() {
   const [command, ...argv] = process.argv.slice(2);
   if (command === 'record') recordMain(argv);
-  else if (command === 'merge') mergeMain(argv);
-  else if (command === 'payload') {
-    const bootstrap = argv.includes('--bootstrap');
-    const paths = argv.filter((arg) => arg !== '--bootstrap');
-    if (paths.some((arg) => arg.startsWith('--')))
-      throw new Error('unknown payload option');
-    process.stdout.write(
-      `${JSON.stringify(
-        createPayload(
-          paths.map((path) => JSON.parse(readFileSync(path, 'utf8'))),
-          bootstrap,
-        ),
-      )}\n`,
-    );
-  } else if (command === 'locate') {
+  else if (command === 'locate') {
     const options = {};
     for (let i = 0; i < argv.length; i += 2) {
       const key = argv[i].slice(2);
@@ -600,7 +450,7 @@ function main() {
     else console.log(run);
   } else {
     throw new Error(
-      'usage: test-qa-state.mjs <record|merge|payload|locate> [options]',
+      'usage: test-qa-state.mjs <record|locate> [options]',
     );
   }
 }
