@@ -68,10 +68,12 @@ const mocks = vi.hoisted(() => ({
     } as { address: string; isConnected: boolean } | null,
     isConnected: true,
     executionMode: 'eip7702' as 'atomic-batch' | 'eip7702' | undefined,
-    executeReviewedBatch:
-      vi.fn<NonNullable<WalletProviderInterface['executeReviewedBatch']>>(),
-    waitForReviewedBatch:
-      vi.fn<NonNullable<WalletProviderInterface['waitForReviewedBatch']>>(),
+    executeReviewedBatch: vi.fn<
+      NonNullable<WalletProviderInterface['executeReviewedBatch']>
+    >(),
+    waitForReviewedBatch: vi.fn<
+      NonNullable<WalletProviderInterface['waitForReviewedBatch']>
+    >(),
   },
 }));
 
@@ -257,7 +259,9 @@ describe('app-100 final: attribution edges', () => {
         },
       ],
       wallet_returns: [],
-    } satisfies NonNullable<Parameters<typeof attachDailyAttribution>[1]>;
+    } satisfies NonNullable<
+      Parameters<typeof attachDailyAttribution>[1]
+    >;
     const points = attachDailyAttribution(
       [{ total_value_usd: 100 }],
       yieldData,
@@ -622,7 +626,9 @@ beforeEach(() => {
     status: 'submitted',
     callsId: 'calls-1',
   });
-  mocks.execWallet.waitForReviewedBatch.mockResolvedValue({ status: 'confirmed' });
+  mocks.execWallet.waitForReviewedBatch.mockResolvedValue({
+    status: 'confirmed',
+  });
 });
 
 afterEach(() => {
