@@ -9,8 +9,8 @@ const LEFT = 8;
 const RIGHT = WIDTH - 8;
 
 // Float conversion is confined to SVG geometry; encoding uses the exact strings.
-// distancePercent already guarantees finite positive inputs when before/after
-// are non-null, so plot always succeeds for the rendered path.
+// Callers only plot rows with valid nonzero decimals (distancePercent is
+// non-null for both days), so every value here is finite and positive.
 function plot(previous: Row, current: Row) {
   const values = [previous.price, previous.dma, current.price, current.dma].map(
     Number,

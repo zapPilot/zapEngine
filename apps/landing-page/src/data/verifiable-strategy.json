@@ -5,7 +5,7 @@
   "compiler": "0.4.3",
   "evmVersion": "shanghai",
   "runtimeCodehash": "0xc34735d87c23ebd06260a554d0e5a15f8d6616c16b3d73c296ee29cd837acf50",
-  "sourceUrl": "https://github.com/zapPilot/zapEngine/blob/177adca6e07e55cf4f9c016a395863dc6bfe77ab/apps/analytics-engine/contracts/pinned_strategy/dma_cross_down_slice.vy",
+  "sourceUrl": "https://github.com/zapPilot/zapEngine/blob/dc10a08935446d92d6238d2fc1717a2ff32c50e8/apps/analytics-engine/contracts/pinned_strategy/dma_cross_down_slice.vy",
   "abi": [
     {
       "inputs": [
@@ -453,20 +453,20 @@
       ],
       "allocation": [
         {
-          "decimal": "0.133925388034267320",
-          "wad": "133925388034267320"
+          "decimal": "0.133925388034267260",
+          "wad": "133925388034267260"
         },
         {
-          "decimal": "0.003504375694207595",
-          "wad": "3504375694207595"
+          "decimal": "0.003504375694207640",
+          "wad": "3504375694207640"
         },
         {
-          "decimal": "0.038812862059842550",
-          "wad": "38812862059842550"
+          "decimal": "0.038812862059842496",
+          "wad": "38812862059842496"
         },
         {
-          "decimal": "0.823757374211682500",
-          "wad": "823757374211682500"
+          "decimal": "0.823757374211682600",
+          "wad": "823757374211682600"
         },
         {
           "decimal": "0.000000000000000000",
@@ -485,10 +485,10 @@
         "pythonTarget": [
           "0.000000000000000000",
           "0.000000000000000000",
-          "0.038812862059842550",
-          "0.961187137940157400"
+          "0.038812862059842496",
+          "0.961187137940157500"
         ],
-        "pyrevmTarget": ["0", "0", "38812862059842551", "961187137940157449"],
+        "pyrevmTarget": ["0", "0", "38812862059842496", "961187137940157504"],
         "triggerMask": 2,
         "exitMask": 6,
         "liquidatedMask": 6,

@@ -1,27 +1,14 @@
 import {
+  act,
   fireEvent,
   render,
   screen,
   cleanup,
-  waitFor,
-  act,
 } from '@testing-library/react';
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-  type Mock,
-} from 'vitest';
-import type { EIP1193Provider, Hex } from 'viem';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { DeployStrategy } from '../DeployStrategy';
 import { DEPLOYMENT_ADDRESS } from '@/lib/verifiable-strategy/deployment';
 
-const deployMocks = vi.hoisted(() => ({
-  deployStrategy: vi.fn(),
-}));
 vi.mock('@/lib/verifiable-strategy/deployment', async (importOriginal) => {
   const actual =
     await importOriginal<
@@ -29,197 +16,182 @@ vi.mock('@/lib/verifiable-strategy/deployment', async (importOriginal) => {
     >();
   return {
     ...actual,
-    deployStrategy: deployMocks.deployStrategy,
+    deployStrategy: vi.fn(),
   };
 });
 
-function providerStub(overrides: Partial<Record<string, Mock>> = {}) {
-  const on = vi.fn();
-  const removeListener = vi.fn();
-  const request = vi.fn().mockResolvedValue(['0xabc']);
-  const provider = {
-    on,
-    removeListener,
-    request,
+import { deployStrategy } from '@/lib/verifiable-strategy/deployment';
+
+const deployMock = vi.mocked(deployStrategy);
+
+function provider(overrides: Record<string, unknown> = {}) {
+  return {
+    request: vi.fn().mockResolvedValue(['0xabc']),
+    on: vi.fn(),
+    removeListener: vi.fn(),
     ...overrides,
-  } as unknown as EIP1193Provider;
-  return { provider, on, removeListener, request };
+  } as unknown as Parameters<typeof deployStrategy>[0];
 }
 
-function announce(provider: EIP1193Provider) {
+function announce(p: unknown) {
   window.dispatchEvent(
     new CustomEvent('eip6963:announceProvider', {
-      detail: { info: { rdns: 'io.rabby' }, provider },
-    }),
-  );
-}
-
-function announceOther(provider: EIP1193Provider) {
-  window.dispatchEvent(
-    new CustomEvent('eip6963:announceProvider', {
-      detail: { info: { rdns: 'io.other' }, provider },
+      detail: { info: { rdns: 'io.rabby' }, provider: p },
     }),
   );
 }
 
 beforeEach(() => {
   vi.resetAllMocks();
-  deployMocks.deployStrategy.mockImplementation(
-    async (_p: EIP1193Provider, onTx: (h: Hex) => void) => {
-      const transactionHash = `0x${'11'.repeat(32)}` as Hex;
-      onTx(transactionHash);
-      return {
-        chainId: 421614,
-        address: DEPLOYMENT_ADDRESS,
-        transactionHash,
-        blockNumber: '1',
-        runtimeCodehash: `0x${'22'.repeat(32)}` as Hex,
-        sourcify: { status: 'pending' as const },
-      };
-    },
-  );
 });
+
 afterEach(cleanup);
 
-describe('DeployStrategy Rabby flow', () => {
-  it('asks to install Rabby when no provider announces', async () => {
-    render(<DeployStrategy onDeployed={vi.fn()} />);
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Connect Rabby wallet' }),
-    );
-    expect(await screen.findByText(/Rabby not detected/)).toBeInTheDocument();
+it('shows the deterministic address and warns without a wallet', async () => {
+  const onDeployed = vi.fn();
+  render(<DeployStrategy onDeployed={onDeployed} />);
+  expect(screen.getByText(/Deterministic address/)).toBeInTheDocument();
+  expect(screen.getByText(DEPLOYMENT_ADDRESS)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Connect Rabby wallet' }));
+  expect(await screen.findByText(/Rabby not detected/)).toBeInTheDocument();
+  expect(onDeployed).not.toHaveBeenCalled();
+});
+
+it('connects through an announced Rabby provider and resets on account change', async () => {
+  const onDeployed = vi.fn();
+  const p = provider();
+  render(<DeployStrategy onDeployed={onDeployed} />);
+  act(() => {
+    announce(p);
   });
-
-  it('ignores providers that are not Rabby', async () => {
-    const { provider } = providerStub();
-    render(<DeployStrategy onDeployed={vi.fn()} />);
-    act(() => announceOther(provider));
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Connect Rabby wallet' }),
-    );
-    expect(await screen.findByText(/Rabby not detected/)).toBeInTheDocument();
-  });
-
-  it('connects, handles empty accounts, and surfaces connection errors', async () => {
-    const { provider, request } = providerStub();
-    render(<DeployStrategy onDeployed={vi.fn()} />);
-    act(() => announce(provider));
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Connect Rabby wallet' }),
-    );
-    await screen.findByText(/Rabby connected/);
-    expect(screen.getByText(/Connected:/)).toBeInTheDocument();
-
-    request.mockResolvedValueOnce([]);
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Connect Rabby wallet' }),
-    );
-    await screen.findByText(/Select an account in Rabby/);
-
-    request.mockRejectedValueOnce(new Error('User rejected'));
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Connect Rabby wallet' }),
-    );
-    await screen.findByText(/User rejected/);
-
-    request.mockRejectedValueOnce('denied-string');
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Connect Rabby wallet' }),
-    );
-    await screen.findByText(/Connection rejected/);
-  });
-
-  it('resets the account when Rabby disconnects or switches accounts', async () => {
-    const { provider, on } = providerStub();
-    render(<DeployStrategy onDeployed={vi.fn()} />);
-    act(() => announce(provider));
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Connect Rabby wallet' }),
-    );
-    await screen.findByText(/Connected:/);
-    const reset = on.mock.calls.find(
-      ([event]) => event === 'accountsChanged',
-    )?.[1] as () => void;
-    expect(reset).toBeDefined();
+  fireEvent.click(screen.getByRole('button', { name: 'Connect Rabby wallet' }));
+  expect(await screen.findByText(/Connected:/)).toBeInTheDocument();
+  expect(screen.getByText(/Arbitrum Sepolia test ETH/)).toBeInTheDocument();
+  const onHandler = vi.mocked(p.on as unknown as (...args: unknown[]) => void);
+  const reset = onHandler.mock.calls.find(
+    (call) => call[0] === 'accountsChanged',
+  )?.[1] as () => void;
+  expect(reset).toBeDefined();
+  act(() => {
     reset();
-    await waitFor(() =>
-      expect(screen.queryByText(/Connected:/)).not.toBeInTheDocument(),
-    );
-    expect(on).toHaveBeenCalledWith('disconnect', expect.any(Function));
   });
+  expect(screen.queryByText(/Connected:/)).not.toBeInTheDocument();
+});
 
-  it('deploys, shows the transaction, and reports success', async () => {
-    const { provider } = providerStub();
-    const onDeployed = vi.fn();
-    render(<DeployStrategy onDeployed={onDeployed} />);
-    act(() => announce(provider));
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Connect Rabby wallet' }),
-    );
-    await screen.findByText(/Connected:/);
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Deploy to Arbitrum Sepolia' }),
-    );
-    await screen.findByText(/Deployment transaction:/);
-    expect(onDeployed).toHaveBeenCalledTimes(1);
-    expect(
-      await screen.findByText(/Deployed\. Runtime codehash verified/),
-    ).toBeInTheDocument();
-    expect(deployMocks.deployStrategy).toHaveBeenCalledWith(
-      provider,
-      expect.any(Function),
+it('asks to select an account when the wallet returns none', async () => {
+  const onDeployed = vi.fn();
+  const p = provider({ request: vi.fn().mockResolvedValue([]) });
+  render(<DeployStrategy onDeployed={onDeployed} />);
+  act(() => {
+    announce(p);
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Connect Rabby wallet' }));
+  expect(
+    await screen.findByText(/Select an account in Rabby/),
+  ).toBeInTheDocument();
+});
+
+it('surfaces connection rejections', async () => {
+  const onDeployed = vi.fn();
+  const p = provider({
+    request: vi.fn().mockRejectedValue(new Error('User rejected')),
+  });
+  render(<DeployStrategy onDeployed={onDeployed} />);
+  act(() => {
+    announce(p);
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Connect Rabby wallet' }));
+  expect(await screen.findByText('User rejected')).toBeInTheDocument();
+});
+
+it('deploys, reports the transaction, and notifies the parent', async () => {
+  const onDeployed = vi.fn();
+  const p = provider();
+  const deployment = {
+    chainId: 421614,
+    address: DEPLOYMENT_ADDRESS,
+    transactionHash: `0x${'33'.repeat(32)}`,
+    blockNumber: '7',
+    runtimeCodehash: '0xabc',
+    sourcify: { status: 'pending' },
+  };
+  deployMock.mockImplementation(async (_provider, onTransaction) => {
+    onTransaction(deployment.transactionHash as `0x${string}`);
+    return deployment as unknown as Awaited<ReturnType<typeof deployStrategy>>;
+  });
+  render(<DeployStrategy onDeployed={onDeployed} />);
+  act(() => {
+    announce(p);
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Connect Rabby wallet' }));
+  await screen.findByText(/Connected:/);
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Deploy to Arbitrum Sepolia' }),
+  );
+  expect(
+    await screen.findByText(/Deployment transaction:/),
+  ).toBeInTheDocument();
+  expect(
+    await screen.findByText(/Runtime codehash verified/),
+  ).toBeInTheDocument();
+  expect(onDeployed).toHaveBeenCalledWith(deployment);
+  expect(
+    screen.getByText(/uv run python -m scripts.pinned_strategy.deploy/),
+  ).toBeInTheDocument();
+});
+
+it('surfaces deployment failures without notifying the parent', async () => {
+  const onDeployed = vi.fn();
+  const p = provider();
+  deployMock.mockRejectedValue(new Error('Deployment reverted'));
+  render(<DeployStrategy onDeployed={onDeployed} />);
+  act(() => {
+    announce(p);
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Connect Rabby wallet' }));
+  await screen.findByText(/Connected:/);
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Deploy to Arbitrum Sepolia' }),
+  );
+  expect(await screen.findByText('Deployment reverted')).toBeInTheDocument();
+  expect(onDeployed).not.toHaveBeenCalled();
+});
+
+it('ignores providers that are not Rabby', async () => {
+  const onDeployed = vi.fn();
+  const p = provider();
+  render(<DeployStrategy onDeployed={onDeployed} />);
+  act(() => {
+    window.dispatchEvent(
+      new CustomEvent('eip6963:announceProvider', {
+        detail: { info: { rdns: 'io.other' }, provider: p },
+      }),
     );
   });
+  fireEvent.click(screen.getByRole('button', { name: 'Connect Rabby wallet' }));
+  expect(await screen.findByText(/Rabby not detected/)).toBeInTheDocument();
+});
 
-  it('reports deployment failures including non-Error rejections', async () => {
-    const { provider } = providerStub();
-    render(<DeployStrategy onDeployed={vi.fn()} />);
-    act(() => announce(provider));
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Connect Rabby wallet' }),
-    );
-    await screen.findByText(/Connected:/);
-
-    deployMocks.deployStrategy.mockRejectedValueOnce(new Error('Out of gas'));
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Deploy to Arbitrum Sepolia' }),
-    );
-    await screen.findByText(/Out of gas/);
-
-    deployMocks.deployStrategy.mockRejectedValueOnce('boom-string');
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Deploy to Arbitrum Sepolia' }),
-    );
-    await screen.findByText(/Deployment failed/);
+it('reports non-Error connection and deployment rejections', async () => {
+  const onDeployed = vi.fn();
+  const p = provider({ request: vi.fn().mockRejectedValue('nope') });
+  render(<DeployStrategy onDeployed={onDeployed} />);
+  act(() => {
+    announce(p);
   });
-
-  it('updates status while the transaction is submitted', async () => {
-    const { provider } = providerStub();
-    const tx = `0x${'ab'.repeat(32)}` as Hex;
-    deployMocks.deployStrategy.mockImplementationOnce(
-      async (_p: EIP1193Provider, onTx: (h: Hex) => void) => {
-        onTx(tx);
-        return {
-          chainId: 421614,
-          address: DEPLOYMENT_ADDRESS,
-          transactionHash: tx,
-          blockNumber: '2',
-          runtimeCodehash: `0x${'33'.repeat(32)}`,
-          sourcify: { status: 'pending' },
-        };
-      },
-    );
-    render(<DeployStrategy onDeployed={vi.fn()} />);
-    act(() => announce(provider));
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Connect Rabby wallet' }),
-    );
-    await screen.findByText(/Connected:/);
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Deploy to Arbitrum Sepolia' }),
-    );
-    expect(
-      await screen.findByText(/Deployment transaction:/),
-    ).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Connect Rabby wallet' }));
+  expect(await screen.findByText('Connection rejected')).toBeInTheDocument();
+  cleanup();
+  const q = provider();
+  deployMock.mockRejectedValue('nope');
+  render(<DeployStrategy onDeployed={onDeployed} />);
+  act(() => {
+    announce(q);
   });
+  fireEvent.click(screen.getByRole('button', { name: 'Connect Rabby wallet' }));
+  await screen.findByText(/Connected:/);
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Deploy to Arbitrum Sepolia' }),
+  );
+  expect(await screen.findByText('Deployment failed')).toBeInTheDocument();
 });

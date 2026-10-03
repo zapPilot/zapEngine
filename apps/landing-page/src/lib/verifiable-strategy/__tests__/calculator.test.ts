@@ -70,6 +70,31 @@ describe('exact decimal encoding', () => {
         })),
       }),
     ).toThrow();
+    expect(() =>
+      encodeInputs({
+        ...input,
+        current: input.current.map((row) => ({
+          ...row,
+          price: `1${'0'.repeat(41)}`,
+        })),
+      }),
+    ).toThrow(/safe slice range/);
+    expect(() =>
+      encodeInputs({
+        ...input,
+        current: input.current.map((row) => ({
+          ...row,
+          dma: `2${'0'.repeat(41)}`,
+        })),
+      }),
+    ).toThrow(/safe slice range/);
+  });
+  it('rejects a previous day that is not the calendar day before', () => {
+    const input = inputFromExample(example);
+    expect(validateInput(input)).toEqual({});
+    expect(
+      validateInput({ ...input, previousDate: input.date })['previousDate'],
+    ).toMatch(/previous calendar day/);
   });
 });
 
@@ -242,6 +267,18 @@ describe('guided inputs', () => {
       percentToWad('40'),
     ]);
     expect(foldAllocation(['bad', '100', '0', '0', '0'])[0]).toBe(0n);
+    expect(foldAllocation(['10'])).toEqual([percentToWad('10'), 0n, 0n, 0n]);
+    expect(foldAllocation([])).toEqual([0n, 0n, 0n, 0n]);
+  });
+  it('reports non-Error validation failures as invalid input', () => {
+    const input = inputFromExample(example);
+    const throwing = {
+      ...input,
+      get date() {
+        throw 'string failure';
+      },
+    } as unknown as typeof input;
+    expect(validateInput(throwing)['date']).toBe('Invalid input');
   });
   it('describes each asset from observe views and exit masks', () => {
     const view = {
