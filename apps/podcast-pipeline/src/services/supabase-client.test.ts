@@ -176,6 +176,29 @@ describe('createRetryingSupabaseFetch', () => {
     expect(sleep).not.toHaveBeenCalled();
   });
 
+  it('gives a read with a pre-execution failure the longer budget', async () => {
+    const fetcher = vi.fn().mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            code: 'PGRST002',
+            message: 'Could not query the database for the schema cache.',
+          }),
+          { status: 503 },
+        ),
+    );
+    const sleep = vi.fn().mockResolvedValue(undefined);
+    const retryingFetch = createRetryingSupabaseFetch(fetcher, sleep);
+
+    const response = await retryingFetch(
+      'https://example.test/rest/v1/episodes',
+      { method: 'GET' },
+    );
+
+    expect(response.status).toBe(503);
+    expect(fetcher).toHaveBeenCalledTimes(5);
+  });
+
   it('gives a pre-execution failure a longer budget than a generic read', async () => {
     const fetcher = vi.fn().mockImplementation(
       async () =>

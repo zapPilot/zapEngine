@@ -112,13 +112,11 @@ async function retryBudgetFor(
   if (!isRetryableSupabaseStatus(response.status)) {
     return null;
   }
-  if (idempotentRead) {
-    return SUPABASE_READ_MAX_ATTEMPTS;
-  }
   const code = await readPostgrestErrorCode(response);
-  return code !== null && PRE_EXECUTION_RETRY_CODES.has(code)
-    ? SUPABASE_PRE_EXECUTION_MAX_ATTEMPTS
-    : null;
+  if (code !== null && PRE_EXECUTION_RETRY_CODES.has(code)) {
+    return SUPABASE_PRE_EXECUTION_MAX_ATTEMPTS;
+  }
+  return idempotentRead ? SUPABASE_READ_MAX_ATTEMPTS : null;
 }
 
 async function readPostgrestErrorCode(
