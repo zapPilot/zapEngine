@@ -261,3 +261,12 @@ describe('HomeScreen — asset row render churn', () => {
     expect(tokenIconRenderCounts.USDC ?? 0).toBeGreaterThan(usdcBefore);
   });
 });
+
+vi.mock('@zapengine/app-core/hooks/queries/wallet/useUserWallets', () => ({
+  useUserWallets: () => ({
+    data: [{ wallet: '0xf8a6000000000000000000000000000000000f94' }],
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
+  }),
+}));

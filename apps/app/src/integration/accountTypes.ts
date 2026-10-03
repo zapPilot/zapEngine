@@ -1,3 +1,5 @@
+import type { BundleView } from './bundleViewStore';
+
 /**
  * Outcome of an account connect attempt. Dismissing Privy's login UI is a
  * normal user action, not a failure.
@@ -5,6 +7,7 @@
 export type ConnectOutcome = 'connected' | 'cancelled';
 
 export interface DesktopAccount {
+  bundleView: BundleView | null;
   /** A signing wallet is connected. On iOS watch-only mode this remains false. */
   isConnected: boolean;
   isConnecting: boolean;

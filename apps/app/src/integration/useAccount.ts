@@ -1,3 +1,5 @@
+import { accountSessions } from '@/storage/accountSessions';
+import { revokeAccountOwnerSession } from '@zapengine/app-core/services/accountAuthService';
 import { useUser } from '@zapengine/app-core/hooks/queries/wallet/useUser';
 import { useWalletProvider } from '@zapengine/app-core/providers/walletContext';
 import { useCallback, useMemo } from 'react';
@@ -7,7 +9,7 @@ import type {
   DesktopAccount,
 } from '@/integration/accountTypes';
 import { resolveViewingState } from '@/integration/bundleViewModel';
-import { getBundleViewUserId } from '@/integration/bundleViewParam';
+import { useBundleView } from '@/integration/bundleViewStore';
 import { isPrivyLoginCancellation } from '@/integration/nativePrivyLogin';
 
 export type {
@@ -50,7 +52,8 @@ export function useAccount(): DesktopAccount {
       })) ?? EMPTY_WALLET_ENTRIES,
     [additionalWallets],
   );
-  const urlUserId = getBundleViewUserId();
+  const bundleView = useBundleView();
+  const urlUserId = bundleView?.userId ?? null;
   // `userId` stays the real logged-in user; the viewing fields decide whose
   // bundle the screens display (a `?userId=` link overrides, read-only).
   const viewing = useMemo(
@@ -107,12 +110,26 @@ export function useAccount(): DesktopAccount {
     etlJobId: user.userInfo?.etlJobId ?? null,
     isNewUser: user.userInfo?.isNewUser ?? false,
     ...viewing,
-    email: user.userInfo?.email ?? null,
+    bundleView,
+    email: null,
     loadingUser: user.loading,
     connectionError: walletError?.message ?? null,
     userResolutionError: user.error,
     connect,
     retryUserResolution,
-    disconnect,
+    disconnect: async () => {
+      try {
+        if (userId) {
+          const session = await accountSessions.get(userId);
+          try {
+            if (session) await revokeAccountOwnerSession(session.token);
+          } finally {
+            await accountSessions.clear(userId);
+          }
+        }
+      } finally {
+        await disconnect();
+      }
+    },
   };
 }

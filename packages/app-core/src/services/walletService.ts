@@ -11,9 +11,7 @@ import type {
 import {
   addWalletToBundle,
   getUserWallets,
-  removeUserEmail as removeUserEmailRequest,
   removeWalletFromBundle,
-  updateUserEmail,
   updateWalletLabel as updateWalletLabelRequest,
   verifyWalletOwnership,
 } from './accountService';
@@ -37,11 +35,10 @@ export async function loadWallets(userId: string): Promise<WalletData[]> {
 export async function addWallet(
   userId: string,
   address: string,
-  signature: string | undefined,
   label: string,
 ): Promise<ServiceResult<AddWalletResponse>> {
   return wrapServiceCall(async () => {
-    return addWalletToBundle(userId, address, signature, label);
+    return addWalletToBundle(userId, address, label);
   });
 }
 
@@ -49,9 +46,10 @@ export async function verifyWallet(
   userId: string,
   address: string,
   signature: string,
+  challengeId: string,
 ): Promise<ServiceResult<VerifyWalletResponse>> {
   return wrapServiceCall(() =>
-    verifyWalletOwnership(userId, address, signature),
+    verifyWalletOwnership(userId, address, signature, challengeId),
   );
 }
 
@@ -78,21 +76,4 @@ export async function updateManagedWalletLabel(
   return wrapServiceCall(async () => {
     await updateWalletLabelRequest(userId, walletAddress, newLabel);
   });
-}
-
-/**
- * Subscribe a user to email updates for bundle activity.
- */
-export async function updateUserEmailSubscription(
-  userId: string,
-  email: string,
-): Promise<void> {
-  await updateUserEmail(userId, email);
-}
-
-/**
- * Remove the user's email subscription.
- */
-export async function unsubscribeUserEmail(userId: string): Promise<void> {
-  await removeUserEmailRequest(userId);
 }

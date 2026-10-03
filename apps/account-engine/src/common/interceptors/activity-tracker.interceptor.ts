@@ -1,5 +1,3 @@
-import type { MiddlewareHandler } from 'hono';
-
 import { DatabaseService } from '../../database/database.service';
 import { Logger } from '../logger';
 import { getErrorMessage } from '../utils';
@@ -88,21 +86,4 @@ export class ActivityTracker {
       }
     }
   }
-}
-
-/**
- * Hono middleware: reads userId from the matched route's path params (or
- * query string as a fallback) and forwards to the tracker. Must be mounted
- * on a pattern that declares `:userId` — e.g. inside a route group as
- * `app.use('/:userId', mw)` and `app.use('/:userId/*', mw)` — because
- * `c.req.param()` resolves against the middleware's own registered pattern,
- * not downstream route patterns.
- */
-export function createActivityTrackingMiddleware(
-  tracker: ActivityTracker,
-): MiddlewareHandler {
-  return async (c, next) => {
-    tracker.trackUserId(c.req.param('userId') ?? c.req.query('userId'));
-    await next();
-  };
 }

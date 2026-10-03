@@ -7,14 +7,17 @@ import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 
 export function HomeActionRow({
   isStrategyActionRequired,
+  disabled = false,
 }: {
   isStrategyActionRequired: boolean;
+  disabled?: boolean;
 }) {
   const router = useRouter();
   const { t } = useContentLanguage();
   return (
     <View className="mt-5 flex-row gap-3">
       <Button
+        disabled={disabled}
         className="flex-1"
         variant={isStrategyActionRequired ? 'secondary' : 'primary'}
         leadingIcon={ArrowDown}
@@ -23,6 +26,7 @@ export function HomeActionRow({
         {t('home.invest')}
       </Button>
       <Button
+        disabled={disabled}
         className="flex-1"
         variant={isStrategyActionRequired ? 'tonal' : 'secondary'}
         leadingIcon={Scale}
@@ -35,6 +39,7 @@ export function HomeActionRow({
         {t('home.rebalance')}
       </Button>
       <Button
+        disabled={disabled}
         className="flex-1"
         variant="secondary"
         leadingIcon={ArrowUp}

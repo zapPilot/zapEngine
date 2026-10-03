@@ -10,7 +10,7 @@ import {
 } from '../../src/schemas/api/accountSchemas';
 
 describe('account service response schemas', () => {
-  it('accepts wallet-only profiles with a nullable email from account-engine', () => {
+  it('strips private email from public profile responses', () => {
     expect(
       validateUserProfileResponse({
         user: {
@@ -24,7 +24,6 @@ describe('account service response schemas', () => {
     ).toMatchObject({
       user: {
         id: 'user-1',
-        email: null,
       },
       wallets: [],
     });

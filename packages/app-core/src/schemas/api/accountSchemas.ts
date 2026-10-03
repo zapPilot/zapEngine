@@ -18,7 +18,6 @@ import { z } from 'zod';
  */
 export const userSchema = z.object({
   id: z.string(),
-  email: z.email().nullable().optional(),
   is_subscribed_to_reports: z.boolean(),
   created_at: z.string(),
 });
@@ -167,7 +166,7 @@ export const verifyWalletResponseSchema = z.object({
 });
 
 export const ownershipChallengeSchema = z.object({
-  nonce: z.string().length(64),
+  challengeId: z.uuid(),
   message: z.string().min(1),
   expiresAt: z.string(),
 });
@@ -258,9 +257,6 @@ export const validateAddWalletResponse = createValidator(
 );
 export const validateVerifyWalletResponse = createValidator(
   verifyWalletResponseSchema,
-);
-export const validateOwnershipChallenge = createValidator(
-  ownershipChallengeSchema,
 );
 export const validateUpdateEmailResponse = createValidator(
   updateEmailResponseSchema,

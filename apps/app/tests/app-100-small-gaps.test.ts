@@ -76,7 +76,7 @@ import { buildHomeBorrowingRiskView } from '@/integration/homeBorrowingRiskModel
 import { buildHomeIncomeView } from '@/integration/homeIncomeModel';
 import { resolveEmbeddedWalletId } from '@/integration/walletBackendModel';
 import { InvestProvider, useInvest } from '@/integration/useInvest';
-import { OwnBundleUrlSync } from '@/integration/bundleShareUrlSync.web';
+import { BundleUrlSync } from '@/integration/bundleShareUrlSync.web';
 import {
   DesktopSchedulerContextSync,
   useDesktopBridge,
@@ -116,7 +116,7 @@ vi.mock('@/integration/bundleViewParam', () => ({
 }));
 
 vi.mock('@/integration/bundleShareModel', () => ({
-  resolveOwnBundleUrlSearch: mocks.resolve,
+  resolveBundleUrlSearch: mocks.resolve,
 }));
 
 vi.mock('@zapengine/app-core/services/planOrchestrationService', () => ({
@@ -1731,7 +1731,7 @@ describe('web sync window and ready guards', () => {
       document.body.appendChild(container);
       root = createRoot(container);
     }
-    await act(async () => root?.render(createElement(OwnBundleUrlSync)));
+    await act(async () => root?.render(createElement(BundleUrlSync)));
   }
 
   beforeEach(() => {
@@ -1755,7 +1755,7 @@ describe('web sync window and ready guards', () => {
     if (w) (globalThis as any).window = w;
   });
 
-  it('waits one frame before touching the URL', async () => {
+  it('waits for the router handoff before touching the URL', async () => {
     effectCalls.list.length = 0;
     await renderOwn();
     expect(mocks.resolve).not.toHaveBeenCalled();
@@ -1765,13 +1765,20 @@ describe('web sync window and ready guards', () => {
     expect(entry).toBeDefined();
     frames.delete(entry![0]);
     await act(async () => entry![1](0));
+    expect(mocks.resolve).not.toHaveBeenCalled();
+    const next = frames.entries().next().value as [
+      number,
+      FrameRequestCallback,
+    ];
+    frames.delete(next[0]);
+    await act(async () => next[1](0));
     expect(mocks.resolve).toHaveBeenCalled();
   });
 
   it('covers window-undefined guards without crashing', async () => {
     effectCalls.list.length = 0;
     await renderOwn();
-    // Flush to reach ready=true so later effects reach the window check.
+    // Advance the router handoff before exercising the window guard.
     const entry = frames.entries().next().value as
       | [number, FrameRequestCallback]
       | undefined;

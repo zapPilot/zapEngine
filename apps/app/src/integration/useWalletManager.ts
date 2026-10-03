@@ -1,3 +1,4 @@
+import { withOwnerAuth } from '@zapengine/app-core/lib/http/accountOwnerSession';
 import { useWalletLabels } from '@zapengine/app-core/hooks/wallet/useWalletLabels';
 import { useWalletList } from '@zapengine/app-core/hooks/wallet/useWalletList';
 import { useWalletMutations } from '@zapengine/app-core/hooks/wallet/useWalletMutations';
@@ -108,6 +109,18 @@ export function useWalletManager(
 
   const verifyWallet = useCallback(
     async (walletAddress: string) => {
+      if (!userId) return { success: false, error: 'User ID is required' };
+      try {
+        await withOwnerAuth(
+          { userId, interactive: true, recent: true },
+          async () => undefined,
+        );
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
       if (!equalsAddress(activeAddress, walletAddress)) {
         // Callers fire this without awaiting, so a rejected connect would be
         // an unhandled rejection. Report it through the result instead.
@@ -128,7 +141,7 @@ export function useWalletManager(
       }
       return verifyBundledWallet(walletAddress);
     },
-    [activeAddress, verifyBundledWallet, walletProvider],
+    [activeAddress, verifyBundledWallet, walletProvider, userId],
   );
 
   return {

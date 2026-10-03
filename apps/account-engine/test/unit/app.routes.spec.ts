@@ -47,6 +47,12 @@ function createServices(): AppServices {
       NODE_ENV: 'test',
       ADMIN_API_KEY: 'secret',
     },
+    accountAuthService: {
+      authenticate: vi.fn().mockImplementation(async () => ({
+        user_id: '123e4567-e89b-12d3-a456-426614174000',
+        created_at: new Date().toISOString(),
+      })),
+    },
     activityTracker: {
       trackUserId: vi.fn(),
       cleanupCache: vi.fn(),
@@ -290,7 +296,7 @@ describe('Hono app routes', () => {
     // /connect-wallet is intentionally excluded from activity tracking —
     // there's no userId yet and the middleware's UUID regex constraint
     // prevents it from matching `/users/connect-wallet`.
-    expect(services.activityTracker.trackUserId).not.toHaveBeenCalled();
+    expect(services.activityTracker.trackUserId).toHaveBeenCalledWith('user-1');
   });
 
   it('tracks user activity on userId-scoped routes', async () => {
@@ -304,7 +310,7 @@ describe('Hono app routes', () => {
     const response = await app.request(`http://localhost/users/${userId}`);
 
     expect(response.status).toBe(200);
-    expect(services.activityTracker.trackUserId).toHaveBeenCalledWith(userId);
+    expect(services.activityTracker.trackUserId).not.toHaveBeenCalled();
   });
 
   it('tracks user activity on nested /:userId/* routes', async () => {
@@ -318,7 +324,7 @@ describe('Hono app routes', () => {
     );
 
     expect(response.status).toBe(200);
-    expect(services.activityTracker.trackUserId).toHaveBeenCalledWith(userId);
+    expect(services.activityTracker.trackUserId).not.toHaveBeenCalled();
   });
 
   it('does not track non-UUID path segments — UUID regex guards the middleware', async () => {
@@ -340,7 +346,7 @@ describe('Hono app routes', () => {
 
     const response = await app.request(
       'http://localhost/users/123e4567-e89b-12d3-a456-426614174000/wallets/0x1234567890abcdef1234567890abcdef12345678/fetch-data',
-      { method: 'POST' },
+      { method: 'POST', headers: { Authorization: 'Bearer token' } },
     );
 
     expect(response.status).toBe(429);

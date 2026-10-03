@@ -5,6 +5,7 @@ export const TELEGRAM_MAX_POLL_DURATION_MS = 120_000;
 
 /** What the connection card should render. Mirrors the old settings flow. */
 export type TelegramConnectionView =
+  | { kind: 'locked' }
   | { kind: 'loading' }
   | { kind: 'idle'; status: TelegramStatus }
   | { kind: 'connecting'; deepLink: string }
@@ -94,8 +95,15 @@ export function createTelegramConnectionModel(
   const fetchStatus = async (): Promise<void> => {
     try {
       setView({ kind: 'idle', status: await deps.getStatus(userId) });
-    } catch {
-      setView(loadErrorView());
+    } catch (error) {
+      setView(
+        error &&
+          typeof error === 'object' &&
+          'code' in error &&
+          error.code === 'ACCOUNT_SESSION_REQUIRED'
+          ? { kind: 'locked' }
+          : loadErrorView(),
+      );
     }
   };
 

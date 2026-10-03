@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAccount } from '@/integration/useAccount.ios';
 
 const mocks = vi.hoisted(() => ({
+  bundleView: null as null | { userId: string; matchedAddress: null },
   privy: {
     isReady: true,
     user: null as null | { linked_accounts?: unknown[] },
@@ -19,6 +20,9 @@ const mocks = vi.hoisted(() => ({
   watchListener: null as null | ((address: string | null) => void),
 }));
 
+vi.mock('@/integration/bundleViewStore', () => ({
+  useBundleView: () => mocks.bundleView,
+}));
 vi.mock('@privy-io/expo', () => ({
   usePrivy: () => mocks.privy,
 }));
@@ -125,6 +129,7 @@ async function renderAccount() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.bundleView = null;
   mocks.privy.isReady = true;
   mocks.privy.user = null;
   mocks.watchAddress = null;
@@ -211,4 +216,22 @@ describe('useAccount.ios', () => {
 
     await rendered.unmount();
   });
+});
+
+it('treats another bundle as read-only for an authenticated Privy wallet', async () => {
+  mocks.bundleView = { userId: 'visitor', matchedAddress: null };
+  mocks.privy.user = {
+    linked_accounts: [
+      {
+        type: 'wallet',
+        connector_type: 'embedded',
+        chain_type: 'ethereum',
+        address: '0x1111111111111111111111111111111111111111',
+      },
+    ],
+  };
+  const rendered = await renderAccount();
+  expect(rendered.account.viewingUserId).toBe('visitor');
+  expect(rendered.account.isOwnBundle).toBe(false);
+  await rendered.unmount();
 });

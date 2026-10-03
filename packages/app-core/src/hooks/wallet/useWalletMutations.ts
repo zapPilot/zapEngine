@@ -159,7 +159,6 @@ export function useWalletMutations({
         const response = await addWalletToBundle(
           userId,
           newWallet.address,
-          undefined,
           newWallet.label,
         );
 
@@ -237,6 +236,7 @@ export function useWalletMutations({
           userId,
           walletAddress,
           signature,
+          challenge.challengeId,
         );
         if (!response.success) {
           const error = response.error ?? VERIFY_WALLET_ERROR;

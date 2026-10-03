@@ -55,7 +55,7 @@ const baseUserQueryConfig = createQueryConfig({
 interface BuildUserInfoInput {
   userId: string;
   profileData: UserProfileResponse;
-  fallbackWallet?: string | null;
+  fallbackWallet: string;
 }
 
 function buildUserInfo({
@@ -64,13 +64,9 @@ function buildUserInfo({
   fallbackWallet,
 }: BuildUserInfoInput): UserInfo {
   const wallets = profileData.wallets || [];
-  const userEmail = profileData.user?.email || '';
   let bundleWallets: string[] = [];
-  if (wallets.length > 0) {
-    bundleWallets = wallets.map((w) => w.wallet);
-  } else if (fallbackWallet) {
-    bundleWallets = [fallbackWallet];
-  }
+  bundleWallets =
+    wallets.length > 0 ? wallets.map((w) => w.wallet) : [fallbackWallet];
 
   const additionalWallets = wallets.map((w) => ({
     wallet_address: w.wallet,
@@ -80,7 +76,7 @@ function buildUserInfo({
 
   return {
     userId,
-    email: userEmail,
+    email: '',
     isSubscribedToReports: profileData.user?.is_subscribed_to_reports ?? false,
     bundleWallets,
     additionalWallets,
@@ -244,23 +240,4 @@ export function useCurrentUser() {
       (userQuery.error as Error | null)?.message ??
       null,
   };
-}
-
-/**
- * Hook to get user data by userId (for viewing bundle owner's data).
- * Used in visitor mode to see bundle owner's wallets.
- *
- * @param userId - The userId to fetch (bundle owner ID from URL)
- * @returns Query result with user profile data
- */
-export function useUserById(userId: string | null) {
-  return useQuery(
-    buildUserQuery(queryKeys.user.byId(userId || ''), userId, async () => {
-      if (!userId) throw new Error('No user ID provided');
-
-      const profileData: UserProfileResponse = await getUserProfile(userId);
-
-      return buildUserInfo({ userId, profileData });
-    }),
-  );
 }

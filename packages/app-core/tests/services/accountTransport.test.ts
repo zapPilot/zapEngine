@@ -1,3 +1,4 @@
+import { configureAccountOwnerSession } from '../../src/lib/http/accountOwnerSession';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { configureAppCoreEnv } from '../../src/lib/env/runtimeEnv';
 import * as account from '../../src/services/accountService';
@@ -7,6 +8,10 @@ import * as telegram from '../../src/services/telegramService';
 const fetchMock = vi.fn<typeof fetch>();
 const ok = { success: true, message: 'updated' };
 beforeEach(() => {
+  configureAccountOwnerSession({
+    getToken: async () => 'owner-token',
+    invalidate: vi.fn(),
+  });
   configureAppCoreEnv({ VITE_ACCOUNT_API_URL: 'https://account.example' });
   vi.stubGlobal('fetch', fetchMock);
   fetchMock.mockReset();
@@ -37,6 +42,10 @@ describe('account API transport and validation', () => {
       method: 'GET',
       body: undefined,
     });
+    await account.getUserByWallet('0xabc', { verifiedOnly: true });
+    expect(request().url).toBe(
+      'https://account.example/users/by-wallet/0xabc?verifiedOnly=true',
+    );
     respond({ user_id: 'u', is_new_user: true });
     await expect(account.connectWallet('0xabc')).resolves.toMatchObject({
       is_new_user: true,
@@ -88,13 +97,13 @@ describe('account API transport and validation', () => {
   });
   it('uses PUT for email subscription and DELETE to unsubscribe', async () => {
     respond(ok);
-    await wallet.updateUserEmailSubscription('u', 'me@example.com');
+    await account.updateUserEmail('u', 'me@example.com');
     expect(request()).toEqual({
       url: 'https://account.example/users/u/email',
       method: 'PUT',
       body: { email: 'me@example.com' },
     });
-    await wallet.unsubscribeUserEmail('u');
+    await account.removeUserEmail('u');
     expect(request()).toEqual({
       url: 'https://account.example/users/u/email',
       method: 'DELETE',
@@ -116,11 +125,10 @@ describe('account API transport and validation', () => {
     );
     respond({ wallet_id: 'w', message: 'added', ownership_verified: true });
     await expect(
-      wallet.addWallet('u', '0xabc', 'sig', 'Savings'),
+      wallet.addWallet('u', '0xabc', 'Savings'),
     ).resolves.toMatchObject({ success: true });
     expect(request().body).toEqual({
       wallet: '0xabc',
-      signature: 'sig',
       label: 'Savings',
     });
     respond({
@@ -129,7 +137,7 @@ describe('account API transport and validation', () => {
       ownership_verified_at: '2026-01-01T00:00:00Z',
     });
     await expect(
-      wallet.verifyWallet('u', '0xabc', 'sig'),
+      wallet.verifyWallet('u', '0xabc', 'sig', 'challenge'),
     ).resolves.toMatchObject({ success: true });
     respond({ message: 'updated' });
     await expect(

@@ -36,7 +36,7 @@ export function AccountScreen() {
             <View className="flex-row items-start justify-between gap-3">
               <View className="min-w-0 flex-1">
                 <Text className="font-sans-semibold text-[15px] text-ink">
-                  {account.email || DEMO.account.label}
+                  {account.address || DEMO.account.label}
                 </Text>
                 <Text className="mt-2 font-mono text-[13px] text-accent">
                   {truncateAddress(address)}

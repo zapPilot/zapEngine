@@ -87,7 +87,7 @@ export function SideNav() {
               className="min-h-hit rounded-control px-3 py-3"
             >
               <Text variant="body-sm" numberOfLines={1}>
-                {account.email ??
+                {account.address ??
                   (account.address
                     ? truncateAddress(account.address)
                     : t('tabs.account'))}

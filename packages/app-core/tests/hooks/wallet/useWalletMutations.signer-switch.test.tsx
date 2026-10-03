@@ -77,7 +77,7 @@ beforeEach(() => {
   mocks.loadWallets.mockResolvedValue(undefined);
   mocks.verifyWallet.mockResolvedValue({ success: true });
   mocks.requestWalletBindingChallenge.mockResolvedValue({
-    nonce: 'a'.repeat(64),
+    challengeId: '123e4567-e89b-12d3-a456-426614174000',
     message: 'ownership-message',
     expiresAt: '2026-08-23T00:05:00.000Z',
   });
@@ -86,7 +86,7 @@ beforeEach(() => {
 describe('useWalletMutations signer switching', () => {
   it('does not open signing after the active signer changes while challenge is pending', async () => {
     let resolveChallenge!: (challenge: {
-      nonce: string;
+      challengeId: string;
       message: string;
       expiresAt: string;
     }) => void;
@@ -120,7 +120,7 @@ describe('useWalletMutations signer switching', () => {
 
     await act(async () => {
       resolveChallenge({
-        nonce: 'b'.repeat(64),
+        challengeId: '223e4567-e89b-12d3-a456-426614174000',
         message: 'stale-ownership-message',
         expiresAt: '2026-08-23T00:05:00.000Z',
       });

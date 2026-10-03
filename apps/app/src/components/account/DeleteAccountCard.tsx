@@ -44,7 +44,7 @@ export function DeleteAccountCard() {
       // remount/refetch may bootstrap this connected wallet into a new user.
       suspendAccountBootstrap(address);
       try {
-        await deleteUser(userId, address, signature);
+        await deleteUser(userId, challenge.challengeId, signature);
       } catch (error) {
         resumeAccountBootstrap(address);
         throw error;

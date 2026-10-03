@@ -84,19 +84,20 @@ export const ecdsaSignatureSchema = z
   .string()
   .regex(
     ECDSA_SIGNATURE_REGEX,
-    'signature must be a 65-byte hex-encoded ECDSA signature',
+    '暫不支援智能合約錢包；signature must be a 65-byte hex-encoded ECDSA signature',
   );
 
 export const addWalletBodySchema = walletBodySchema.extend({
   label: walletLabelSchema.optional(),
-  signature: ecdsaSignatureSchema.optional(),
 });
 
-export const deleteUserBodySchema = walletBodySchema.extend({
+export const deleteUserBodySchema = z.object({
+  challengeId: zUuid(),
   signature: ecdsaSignatureSchema,
 });
 
 export const verifyWalletBodySchema = z.object({
+  challengeId: zUuid(),
   signature: ecdsaSignatureSchema,
 });
 

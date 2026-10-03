@@ -1,7 +1,7 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 
 /**
- * `/home?userId=<uuid>` is the only Home path that needs no wallet and no
+ * Public Home bundle views and wallet searches need no wallet and no
  * login (`src/integration/bundleViewParam.web.ts`), which makes it the only
  * place a browser can prove how Home's sections load. Everything else on Home
  * is gated behind a Privy connection the e2e build deliberately cannot make.
@@ -170,6 +170,38 @@ async function routeHomeBundleApi(
   options: { dashboardDelayMs?: number } = {},
 ): Promise<void> {
   await page.route(
+    `**/users/${BUNDLE_USER_ID}/wallets`,
+    jsonRoute([
+      {
+        id: 'wallet-1',
+        user_id: BUNDLE_USER_ID,
+        wallet: '0x1234567890abcdef1234567890abcdef12345678',
+        label: 'Public wallet',
+        created_at: '2026-09-06T00:00:00Z',
+      },
+    ]),
+  );
+  await page.route('https://*.g.alchemy.com/v2/**', async (route) => {
+    const request = route.request().postDataJSON() as {
+      id: number;
+      method: string;
+    };
+    const result =
+      request.method === 'eth_getBalance'
+        ? '0xde0b6b3a7640000'
+        : { tokenBalances: [] };
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({ jsonrpc: '2.0', id: request.id, result }),
+    });
+  });
+  await page.route(
+    'https://api.g.alchemy.com/prices/**',
+    jsonRoute({
+      data: [{ symbol: 'ETH', prices: [{ currency: 'usd', value: '2000' }] }],
+    }),
+  );
+  await page.route(
     `**/api/v2/portfolio/${BUNDLE_USER_ID}/landing`,
     jsonRoute(LANDING_FIXTURE),
   );
@@ -206,6 +238,7 @@ async function routeHomeBundleApi(
 
 test('public bundle view renders Home read-only for a logged-out visitor', async ({
   page,
+  context,
 }) => {
   // Safe to assert here because the trap below guarantees every analytics
   // request is answered with JSON; nothing can parse `index.html` and retry.
@@ -232,16 +265,30 @@ test('public bundle view renders Home read-only for a logged-out visitor', async
   await expect(page.getByText('Sign in to continue')).toHaveCount(0);
 
   // The read-only invariant: with `?userId=` set, `account.isOwnBundle` is
-  // false and the write affordances must not render at all. These locators are
+  // false and the write affordances must remain disabled. These locators are
   // not vacuous — smoke.spec.ts asserts the same three buttons and the wallet
   // assets label are VISIBLE on the own-bundle Home.
   for (const label of OWNER_ONLY_BUTTONS) {
     await expect(
       page.getByRole('button', { name: label, exact: true }),
-    ).toHaveCount(0);
+    ).toBeDisabled();
   }
-  await expect(page.getByText('Wallet assets')).toHaveCount(0);
+  await expect(page.getByText('Wallet assets')).toBeVisible();
+  await expect(page.getByText('Ethereum', { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Share portfolio' }),
+  ).toBeVisible();
 
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.getByRole('button', { name: 'Share portfolio' }).click();
+  await expect(page.getByText('Link copied', { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+    `${new URL(page.url()).origin}/home?userId=${BUNDLE_USER_ID}`,
+  );
+  await page.screenshot({
+    path: '/tmp/bundle-home-readonly.png',
+    fullPage: true,
+  });
   expect([...unstubbedPaths]).toEqual([]);
   expect(pageErrors).toEqual([]);
 });
@@ -282,4 +329,58 @@ test('a slow dashboard no longer holds back the balance headline', async ({
   });
 
   expect([...unstubbedPaths]).toEqual([]);
+});
+
+test('guest wallet search switches to a verified bundle, survives navigation and clears', async ({
+  page,
+}) => {
+  const address = '0x1234567890abcdef1234567890abcdef12345678';
+  const missing = '0x2234567890abcdef1234567890abcdef12345678';
+  let bootstrapCalls = 0;
+  await page.route('**/users/connect-wallet', async (route) => {
+    bootstrapCalls += 1;
+    await route.fulfill({ status: 500, body: '{}' });
+  });
+  await page.route(
+    `**/users/by-wallet/${address}?verifiedOnly=true`,
+    jsonRoute({ user_id: BUNDLE_USER_ID }),
+  );
+  await page.route(
+    `**/users/by-wallet/${missing}?verifiedOnly=true`,
+    async (route) =>
+      route.fulfill({
+        status: 404,
+        contentType: 'application/json',
+        body: JSON.stringify({ message: 'Portfolio not found' }),
+      }),
+  );
+  await routeHomeBundleApi(page);
+  await page.goto('/home');
+  const input = page.getByPlaceholder('Search wallet address');
+  await expect(input).toBeVisible({ timeout: APP_BOOT_TIMEOUT });
+  await input.fill('invalid');
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
+  await expect(page.getByText('Enter a valid Ethereum address.')).toBeVisible();
+  await input.fill(missing);
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
+  await expect(page.getByText('Portfolio not found.')).toBeVisible();
+  await input.fill(address);
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`userId=${BUNDLE_USER_ID}`));
+  await expect(page.getByText(/Read-only view/)).toBeVisible();
+  for (const name of OWNER_ONLY_BUTTONS)
+    await expect(
+      page.getByRole('button', { name, exact: true }),
+    ).toBeDisabled();
+  await page.getByRole('link', { name: 'Podcast', exact: true }).click();
+  await expect(page).toHaveURL(/\/podcast$/);
+  await page.getByRole('link', { name: 'Home', exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`userId=${BUNDLE_USER_ID}`));
+  await page
+    .getByRole('button', { name: 'Clear wallet search', exact: true })
+    .first()
+    .click();
+  await expect(page).toHaveURL(/\/home$/);
+  await expect(page.getByText(/Read-only view/)).toHaveCount(0);
+  expect(bootstrapCalls).toBe(0);
 });

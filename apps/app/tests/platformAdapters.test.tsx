@@ -5,7 +5,7 @@ import {
   DesktopSchedulerContextSync,
   useDesktopBridge,
 } from '@/integration/desktopBridge';
-import { OwnBundleUrlSync } from '@/integration/bundleShareUrlSync';
+import { BundleUrlSync } from '@/integration/bundleShareUrlSync';
 import { getBundleShareOrigin } from '@/integration/bundleShareOrigin';
 import { InvestProvider } from '@/integration/useInvest.ios';
 import { InvestExecutionProvider } from '@/integration/useInvestExecution.ios';
@@ -23,7 +23,7 @@ describe('native platform adapters', () => {
     expect((await import('@/config/appRuntime')).APP_RUNTIME).toBe('native');
     expect(useDesktopBridge()).toBeUndefined();
     expect(DesktopSchedulerContextSync()).toBeNull();
-    expect(OwnBundleUrlSync()).toBeNull();
+    expect(BundleUrlSync()).toBeNull();
     expect(getBundleShareOrigin()).toMatch(/^https:\/\//);
   });
 

@@ -99,7 +99,7 @@ beforeEach(() => {
   mocks.removeWallet.mockResolvedValue({ success: true });
   mocks.verifyWallet.mockResolvedValue({ success: true });
   mocks.requestWalletBindingChallenge.mockResolvedValue({
-    nonce: 'a'.repeat(64),
+    challengeId: '123e4567-e89b-12d3-a456-426614174000',
     message: 'ownership-message',
     expiresAt: '2026-08-22T00:05:00.000Z',
   });
@@ -247,7 +247,6 @@ describe('useWalletMutations ownership proof', () => {
     expect(mocks.addWallet).toHaveBeenCalledWith(
       USER_ID,
       WALLET,
-      undefined,
       'Owned wallet',
     );
   });
@@ -273,6 +272,7 @@ describe('useWalletMutations ownership proof', () => {
       USER_ID,
       WALLET,
       '0xsignature',
+      '123e4567-e89b-12d3-a456-426614174000',
     );
     expect(mocks.invalidateAndRefetch).toHaveBeenCalled();
     expect(mocks.loadWallets).toHaveBeenCalledOnce();
@@ -423,7 +423,6 @@ describe('useWalletMutations ownership proof', () => {
     expect(mocks.addWallet).toHaveBeenCalledWith(
       USER_ID,
       WALLET,
-      undefined,
       'Owned wallet',
     );
   });

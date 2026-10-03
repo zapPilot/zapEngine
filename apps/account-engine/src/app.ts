@@ -14,6 +14,7 @@ import {
 } from './container';
 import { createPlanOrchestrationRoutes } from './modules/plan-orchestration';
 import { captureServerException, flushSentry } from './observability/sentry';
+import { createAuthRoutes } from './routes/auth';
 import { createEtlRoutes } from './routes/etl';
 import { createHealthRoutes, type ReleaseMetadataEnv } from './routes/health';
 import { createJobsRoutes } from './routes/jobs';
@@ -37,6 +38,7 @@ export function createApp(
   app.use('*', createRequestLoggerMiddleware());
 
   app.route('/health', createHealthRoutes(releaseEnv));
+  app.route('/auth', createAuthRoutes(services));
   app.route('/users', createUsersRoutes(services));
   app.route('/waitlist', createWaitlistRoutes(services.databaseService));
   app.route(

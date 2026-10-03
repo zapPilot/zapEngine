@@ -1,3 +1,4 @@
+import { configureAccountOwnerSession } from '../../src/lib/http/accountOwnerSession';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const accountApi = vi.hoisted(() => ({
@@ -37,6 +38,10 @@ const {
 describe('accountService wallet verification', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    configureAccountOwnerSession({
+      getToken: async () => 'owner-token',
+      invalidate: vi.fn(),
+    });
   });
 
   it('omits the signature key when adding an unverified wallet', async () => {
@@ -50,14 +55,17 @@ describe('accountService wallet verification', () => {
       addWalletToBundle(
         'user-1',
         '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
-        undefined,
         'Watch wallet',
       ),
     ).resolves.toMatchObject({ ownership_verified: false });
-    expect(accountApi.post).toHaveBeenCalledWith('/users/user-1/wallets', {
-      label: 'Watch wallet',
-      wallet: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
-    });
+    expect(accountApi.post).toHaveBeenCalledWith(
+      '/users/user-1/wallets',
+      {
+        label: 'Watch wallet',
+        wallet: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
+      },
+      { headers: { Authorization: 'Bearer owner-token' } },
+    );
   });
 
   it('posts a signature to the wallet verify endpoint', async () => {
@@ -68,11 +76,12 @@ describe('accountService wallet verification', () => {
     });
 
     await expect(
-      verifyWalletOwnership('user-1', '0xabc', '0xsignature'),
+      verifyWalletOwnership('user-1', '0xabc', '0xsignature', 'challenge'),
     ).resolves.toMatchObject({ success: true });
     expect(accountApi.post).toHaveBeenCalledWith(
       '/users/user-1/wallets/0xabc/verify',
-      { signature: '0xsignature' },
+      { signature: '0xsignature', challengeId: 'challenge' },
+      { headers: { Authorization: 'Bearer owner-token' } },
     );
   });
 });
@@ -80,6 +89,10 @@ describe('accountService wallet verification', () => {
 describe('accountService wallet fetch trigger', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    configureAccountOwnerSession({
+      getToken: async () => 'owner-token',
+      invalidate: vi.fn(),
+    });
   });
 
   it('accepts rate-limited trigger responses with a null job id', async () => {
@@ -100,6 +113,8 @@ describe('accountService wallet fetch trigger', () => {
     ).resolves.toEqual(response);
     expect(accountApi.post).toHaveBeenCalledWith(
       '/users/user-1/wallets/0x742d35Cc6634C0532925a3b844Bc454e4438f44e/fetch-data',
+      undefined,
+      { headers: { Authorization: 'Bearer owner-token' } },
     );
   });
 
@@ -118,6 +133,10 @@ describe('accountService wallet fetch trigger', () => {
 describe('accountService report unsubscribe', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    configureAccountOwnerSession({
+      getToken: async () => 'owner-token',
+      invalidate: vi.fn(),
+    });
   });
 
   it('posts the signed token to the public unsubscribe endpoint', async () => {
@@ -132,19 +151,27 @@ describe('accountService report unsubscribe', () => {
       success: true,
       message: 'Successfully unsubscribed from email reports',
     });
-    expect(accountApi.post).toHaveBeenCalledWith('/users/reports/unsubscribe', {
-      token: 'signed-token',
-    });
+    expect(accountApi.post).toHaveBeenCalledWith(
+      '/users/reports/unsubscribe',
+      {
+        token: 'signed-token',
+      },
+      {},
+    );
   });
 });
 
 describe('accountService ownership challenges', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    configureAccountOwnerSession({
+      getToken: async () => 'owner-token',
+      invalidate: vi.fn(),
+    });
   });
 
   const challenge = {
-    nonce: 'a'.repeat(64),
+    challengeId: '123e4567-e89b-12d3-a456-426614174000',
     message: 'Sign this purpose-separated message',
     expiresAt: '2026-08-22T00:05:00.000Z',
   };
@@ -156,8 +183,14 @@ describe('accountService ownership challenges', () => {
       requestWalletBindingChallenge('user-1', '0xabc'),
     ).resolves.toEqual(challenge);
     expect(accountApi.post).toHaveBeenCalledWith(
-      '/users/user-1/wallets/challenge',
-      { wallet: '0xabc' },
+      '/auth/challenge',
+      {
+        purpose: 'binding',
+        userId: 'user-1',
+        wallet: '0xabc',
+        domain: 'v2.zap-pilot.org',
+      },
+      { headers: { Authorization: 'Bearer owner-token' } },
     );
   });
 
@@ -174,16 +207,24 @@ describe('accountService ownership challenges', () => {
     await expect(
       deleteUser('user-1', '0xabc', '0xsignature'),
     ).resolves.toMatchObject({ success: true });
-    expect(accountApi.delete).toHaveBeenCalledWith('/users/user-1', {
-      wallet: '0xabc',
-      signature: '0xsignature',
-    });
+    expect(accountApi.delete).toHaveBeenCalledWith(
+      '/users/user-1',
+      {
+        challengeId: '0xabc',
+        signature: '0xsignature',
+      },
+      {},
+    );
   });
 });
 
 describe('accountService wallet bundle errors', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    configureAccountOwnerSession({
+      getToken: async () => 'owner-token',
+      invalidate: vi.fn(),
+    });
   });
 
   it('preserves unauthorized wallet bundle failures as AccountServiceError details', async () => {
@@ -199,7 +240,6 @@ describe('accountService wallet bundle errors', () => {
       addWalletToBundle(
         'user-1',
         '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
-        '0xsignature',
         'Primary wallet',
       ),
     ).rejects.toMatchObject({
@@ -208,11 +248,14 @@ describe('accountService wallet bundle errors', () => {
       status: 401,
     });
 
-    expect(accountApi.post).toHaveBeenCalledWith('/users/user-1/wallets', {
-      label: 'Primary wallet',
-      signature: '0xsignature',
-      wallet: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
-    });
+    expect(accountApi.post).toHaveBeenCalledWith(
+      '/users/user-1/wallets',
+      {
+        label: 'Primary wallet',
+        wallet: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
+      },
+      { headers: { Authorization: 'Bearer owner-token' } },
+    );
   });
 
   it('maps duplicate wallet conflicts to the user-facing bundle message', async () => {
@@ -227,7 +270,6 @@ describe('accountService wallet bundle errors', () => {
       addWalletToBundle(
         'user-1',
         '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
-        '0xsignature',
         'Primary wallet',
       ),
     ).rejects.toMatchObject({
@@ -235,11 +277,14 @@ describe('accountService wallet bundle errors', () => {
       status: 409,
     });
 
-    expect(accountApi.post).toHaveBeenCalledWith('/users/user-1/wallets', {
-      label: 'Primary wallet',
-      signature: '0xsignature',
-      wallet: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
-    });
+    expect(accountApi.post).toHaveBeenCalledWith(
+      '/users/user-1/wallets',
+      {
+        label: 'Primary wallet',
+        wallet: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
+      },
+      { headers: { Authorization: 'Bearer owner-token' } },
+    );
   });
 
   it('preserves wallet bundle rate-limit failures for retry-aware UI handling', async () => {
@@ -255,7 +300,6 @@ describe('accountService wallet bundle errors', () => {
       addWalletToBundle(
         'user-1',
         '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
-        '0xsignature',
         'Primary wallet',
       ),
     ).rejects.toMatchObject({
@@ -264,11 +308,14 @@ describe('accountService wallet bundle errors', () => {
       status: 429,
     });
 
-    expect(accountApi.post).toHaveBeenCalledWith('/users/user-1/wallets', {
-      label: 'Primary wallet',
-      signature: '0xsignature',
-      wallet: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
-    });
+    expect(accountApi.post).toHaveBeenCalledWith(
+      '/users/user-1/wallets',
+      {
+        label: 'Primary wallet',
+        wallet: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
+      },
+      { headers: { Authorization: 'Bearer owner-token' } },
+    );
   });
 
   it('preserves wallet bundle server errors instead of remapping them to validation copy', async () => {
@@ -283,7 +330,6 @@ describe('accountService wallet bundle errors', () => {
       addWalletToBundle(
         'user-1',
         '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
-        '0xsignature',
         'Primary wallet',
       ),
     ).rejects.toMatchObject({
@@ -291,11 +337,14 @@ describe('accountService wallet bundle errors', () => {
       status: 503,
     });
 
-    expect(accountApi.post).toHaveBeenCalledWith('/users/user-1/wallets', {
-      label: 'Primary wallet',
-      signature: '0xsignature',
-      wallet: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
-    });
+    expect(accountApi.post).toHaveBeenCalledWith(
+      '/users/user-1/wallets',
+      {
+        label: 'Primary wallet',
+        wallet: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
+      },
+      { headers: { Authorization: 'Bearer owner-token' } },
+    );
   });
 
   it('rejects malformed wallet bundle success responses', async () => {
@@ -305,22 +354,28 @@ describe('accountService wallet bundle errors', () => {
       addWalletToBundle(
         'user-1',
         '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
-        '0xsignature',
         'Primary wallet',
       ),
     ).rejects.toThrow(/wallet_id/);
 
-    expect(accountApi.post).toHaveBeenCalledWith('/users/user-1/wallets', {
-      label: 'Primary wallet',
-      signature: '0xsignature',
-      wallet: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
-    });
+    expect(accountApi.post).toHaveBeenCalledWith(
+      '/users/user-1/wallets',
+      {
+        label: 'Primary wallet',
+        wallet: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
+      },
+      { headers: { Authorization: 'Bearer owner-token' } },
+    );
   });
 });
 
 describe('accountService wallet bundle removal errors', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    configureAccountOwnerSession({
+      getToken: async () => 'owner-token',
+      invalidate: vi.fn(),
+    });
   });
 
   it('preserves unauthorized remove wallet failures as AccountServiceError details', async () => {
@@ -342,6 +397,8 @@ describe('accountService wallet bundle removal errors', () => {
 
     expect(accountApi.delete).toHaveBeenCalledWith(
       '/users/user-1/wallets/wallet-1',
+      undefined,
+      { headers: { Authorization: 'Bearer owner-token' } },
     );
   });
 });

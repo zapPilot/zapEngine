@@ -10,6 +10,8 @@ import { fileURLToPath } from 'node:url';
 // Privy config gate reach production while the e2e suite stays green.
 const E2E_PRIVY_CONFIG = {
   EXPO_PUBLIC_PRIVY_APP_ID: 'e2eprivyappidplaceholder0',
+  // Browser specs intercept every Alchemy call; this is a disposable test key.
+  EXPO_PUBLIC_ALCHEMY_API_KEY: 'e2ealchemyplaceholder',
 };
 
 const appRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
