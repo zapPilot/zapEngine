@@ -303,9 +303,21 @@ export function reconcilePendingScopes(state, prReader, mainScopeReader) {
     if (!cache.has(scope.pr)) cache.set(scope.pr, prReader(scope.pr));
     const pr = cache.get(scope.pr);
     if (pr.state === 'MERGED' || pr.mergedAt) {
-      scope.status = 'clean';
+      const baseline = mainScopeReader(key, scope);
+      if (!baseline) {
+        delete state.scopes[key];
+        continue;
+      }
+      scope.fingerprint = baseline.fingerprint;
+      scope.pathShas = baseline.pathShas;
+      scope.files = baseline.files;
+      scope.relatedPaths = baseline.relatedPaths;
       scope.auditedCommit =
-        pr.mergeCommit?.oid ?? pr.headRefOid ?? scope.auditedCommit;
+        baseline.auditedCommit ??
+        pr.mergeCommit?.oid ??
+        pr.headRefOid ??
+        scope.auditedCommit;
+      scope.status = 'clean';
     } else if (pr.state === 'CLOSED') {
       // Rejection must be compared with main, not the unmerged PR contents.
       const baseline = mainScopeReader(key, scope);
