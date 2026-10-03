@@ -4,7 +4,6 @@ import { createHash } from 'node:crypto';
 import { posix } from 'node:path';
 
 export const STATE_SCHEMA_VERSION = 1;
-export const MAX_RECORD_PAYLOAD_BYTES = 60 * 1024;
 export const MAX_TEXT_LENGTH = 2_000;
 export const GLOBAL_TEST_CONFIGS = Object.freeze([
   'apps/account-engine/vitest.setup.ts',
