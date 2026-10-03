@@ -46,7 +46,10 @@ The checkpoint uses the same state shape accepted by
 `fingerprint`, connector-native `pathShas`, or both. `pathShas` maps only
 fingerprint inputs — the scope's test files plus its primary production subject
 when the key is production code — to Git blob SHAs. Shared `relatedPaths` are
-reading context and do not invalidate the scope.
+reading context and do not invalidate the scope. The root `github` object is
+retained for schema compatibility: connector writes use `runId: 0`,
+`runAttempt: 1`, and `sha: <latest main commit>`, while `generatedAt` is the
+current run timestamp.
 
 Example connector-managed scope:
 
