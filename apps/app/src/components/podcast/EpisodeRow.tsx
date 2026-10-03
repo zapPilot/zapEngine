@@ -1,6 +1,9 @@
-import { Headphones, Pause, Play } from 'lucide-react-native';
+import { Check, Headphones, Pause, Play } from 'lucide-react-native';
 import { type ReactNode } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { Text } from '@/components/ui/Text';
+import { Icon } from '@/components/ui/Icon';
+import { IconButton } from '@/components/ui/IconButton';
 
 import { formatPodcastEpisodeDate } from '@/components/podcast/episodeFormatters';
 import { Tap } from '@/components/ui/Tap';
@@ -12,17 +15,11 @@ function EpisodeBadge({ active }: { active: boolean }) {
   return (
     <View
       className={cn(
-        'h-10 w-10 shrink-0 items-center justify-center rounded-xl border',
-        active
-          ? 'border-[rgba(212,197,163,.3)] bg-[rgba(212,197,163,.12)]'
-          : 'border-line bg-[rgba(255,255,255,.045)]',
+        'h-10 w-10 shrink-0 items-center justify-center rounded-control border',
+        active ? 'border-accent-line bg-accent-soft' : 'border-line bg-surface',
       )}
     >
-      <Headphones
-        size={18}
-        strokeWidth={1.8}
-        color={active ? '#d4c5a3' : '#a1a1aa'}
-      />
+      <Icon icon={Headphones} size="sm" tone={active ? 'accent' : 'muted'} />
     </View>
   );
 }
@@ -49,7 +46,7 @@ export function EpisodeRow({
   return (
     <View
       className={cn(
-        'flex-row items-start gap-3 py-[13px]',
+        'flex-row items-center gap-3 py-[13px]',
         !first && 'border-t border-line',
       )}
     >
@@ -57,21 +54,19 @@ export function EpisodeRow({
         onPress={onOpen}
         accessibilityRole="button"
         accessibilityLabel={t('podcast.openEpisode', { title: episode.title })}
-        className="min-w-0 flex-1 flex-row gap-3"
+        className="min-w-0 flex-1 flex-row items-center gap-3"
       >
         <EpisodeBadge active={active} />
         <View className="min-w-0 flex-1">
           <Text
-            className={cn(
-              'font-sans-semibold text-[14px]',
-              active ? 'text-accent' : 'text-ink',
-            )}
-            numberOfLines={1}
+            variant="subheading"
+            tone={active ? 'accent' : 'default'}
+            numberOfLines={2}
           >
             {episode.title}
           </Text>
-          <View className="mt-[5px] flex-row items-center gap-2">
-            <Text className="font-mono text-[10px] text-ink-faint">
+          <View className="mt-1 flex-row flex-wrap items-center gap-2">
+            <Text variant="caption" tone="muted">
               {formatPodcastEpisodeDate(
                 episode.createdAt,
                 'short',
@@ -79,35 +74,28 @@ export function EpisodeRow({
               )}
             </Text>
             {episode.listened ? (
-              <Text className="font-mono text-[9px] uppercase tracking-[0.9px] text-ink-faint">
-                {t('podcast.completedEpisode')}
-              </Text>
+              <View className="flex-row items-center gap-1">
+                <Icon icon={Check} size="xs" tone="success" />
+                <Text variant="caption" tone="success">
+                  {t('podcast.completedEpisode')}
+                </Text>
+              </View>
             ) : null}
           </View>
           {supportingContent}
         </View>
       </Tap>
-      <Tap
+      <IconButton
+        icon={playing ? Pause : Play}
+        size="sm"
+        variant={playing ? 'tonal' : 'secondary'}
         onPress={onToggle}
-        accessibilityRole="button"
         accessibilityLabel={
           playing
             ? t('podcast.pauseEpisode', { title: episode.title })
             : t('podcast.playEpisode', { title: episode.title })
         }
-        className={cn(
-          'h-8 w-8 shrink-0 items-center justify-center rounded-full border',
-          active
-            ? 'border-[rgba(212,197,163,.3)] bg-[rgba(212,197,163,.16)]'
-            : 'border-line bg-[rgba(255,255,255,.05)]',
-        )}
-      >
-        {playing ? (
-          <Pause size={14} strokeWidth={2} color="#d4c5a3" />
-        ) : (
-          <Play size={14} strokeWidth={2} color="#cfcabb" />
-        )}
-      </Tap>
+      />
     </View>
   );
 }

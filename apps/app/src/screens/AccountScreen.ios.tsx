@@ -65,7 +65,7 @@ export function AccountScreen() {
   return (
     <ScreenScrollView width="narrow">
       <PageHeader title={t('account.settingsTitle')} />
-      <View className="px-5 pt-5">
+      <View className="pt-5">
         <Card className="p-5">
           <Text className="font-sans-semibold text-[15px] text-ink">
             {t('tabs.account')}

@@ -395,7 +395,7 @@ function AudioPlaybackControls({
         </Text>
       </View>
 
-      <View className="mt-5 flex-row items-center justify-between">
+      <View className="mt-5 w-full max-w-[360px] self-center flex-row items-center justify-between">
         <PodcastIconButton
           label="Rewind 15 seconds"
           disabled={!isCurrent}
@@ -801,7 +801,7 @@ export function EpisodeMediaPlayer({
         }
       >
         {activeAudioSection === 'classroom' && classroomSections.length > 1 ? (
-          <View className="flex-row flex-wrap gap-2 px-5 pt-4">
+          <View className="flex-row flex-wrap gap-2 pt-4">
             {classroomSections.map((section) => {
               const language = section.languageCode;
               if (language === null) return null;
@@ -848,7 +848,7 @@ export function EpisodeMediaPlayer({
   };
 
   return (
-    <View className="px-5 pt-5">
+    <View className="pt-5">
       <View className="overflow-hidden rounded-[28px] border border-line bg-surface">
         <View className="border-b border-line p-3">
           <View

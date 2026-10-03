@@ -18,7 +18,11 @@ export function StatGrid({
 }: StatGridProps): ReactElement {
   const total = loading ? count : metrics.length;
   return (
-    <Columns minColumnWidth={144} {...(className ? { className } : {})}>
+    <Columns
+      maxColumns={4}
+      minColumnWidth={144}
+      {...(className ? { className } : {})}
+    >
       {Array.from({ length: total }, (_, index) => {
         const metric = metrics[index];
         return (

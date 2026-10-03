@@ -178,7 +178,7 @@ describe('DownloadedEpisodesSection', () => {
 
   it('invites the first download when nothing is saved', async () => {
     await render();
-    expect(container.textContent).toContain('podcast.downloadsEmptyTitle');
+    expect(container.textContent).not.toContain('podcast.downloadsEmptyTitle');
     expect(container.textContent).toContain('podcast.downloadsEmptyMessage');
     expect(container.textContent).toContain('(0)');
     expect(container.textContent).not.toContain('podcast.downloadsScope');

@@ -1,3 +1,6 @@
+import { Button } from '@/components/ui/Button';
+import { Text as KitText } from '@/components/ui/Text';
+import { ProgressBar } from '@/components/ui/ProgressBar';
 import { podcastEpisodeHref } from '@/integration/podcastRoutes';
 import { useRouter } from 'expo-router';
 import { Search, X } from 'lucide-react-native';
@@ -64,7 +67,7 @@ function useDebouncedValue(value: string, delayMs: number): string {
 
 function EpisodeListSkeleton() {
   return (
-    <View className="px-5" accessibilityRole="progressbar">
+    <View accessibilityRole="progressbar">
       {[0, 1, 2, 3].map((item) => (
         <View
           key={item}
@@ -130,7 +133,7 @@ function PodcastSearchBar({
   const { t } = useContentLanguage();
 
   return (
-    <View className="flex-row items-center gap-3 px-5 pt-3">
+    <View className="flex-row items-center gap-3 pt-3">
       <View className="h-11 min-w-0 flex-1 flex-row items-center gap-3 rounded-[18px] border border-line bg-[rgba(255,255,255,.045)] px-3">
         <Search size={18} strokeWidth={2} color="#a1a1aa" />
         <TextInput
@@ -178,7 +181,7 @@ function EmptyStateCard({
   message: string;
 }) {
   return (
-    <View className="px-5 pt-[18px]">
+    <View className="pt-[18px]">
       <Card className="p-5">
         <Text className="font-sans-semibold text-[15px] text-ink">{title}</Text>
         <Text className="mt-2 text-[12.5px] leading-[19px] text-ink-dim">
@@ -385,11 +388,11 @@ export function PodcastScreen() {
         mergeEpisodeProgress(result.episode, progress),
       );
       return (
-        <View className="px-5">
+        <>
           {renderRows(searchEpisodes, searchEpisodes, (_episode, index) => (
             <SearchMatchSummary result={searchResults[index]!} />
           ))}
-        </View>
+        </>
       );
     }
     if (!hasAnyEpisode) {
@@ -442,25 +445,25 @@ export function PodcastScreen() {
               listenedEpisodes,
             )}
             {visibleListened < listenedEpisodes.length ? (
-              <Tap
-                accessibilityRole="button"
+              <Button
+                variant="secondary"
+                size="sm"
                 accessibilityLabel={t('podcast.loadMoreListened')}
                 onPress={() =>
                   setVisibleListened((current) => current + LISTENED_PAGE_SIZE)
                 }
-                className="mt-2 items-center rounded-full border border-line py-[10px]"
+                className="mt-2"
               >
-                <Text className="font-mono text-[11px] uppercase tracking-[0.8px] text-ink-dim">
-                  {t('podcast.loadMore')}
-                </Text>
-              </Tap>
+                {t('podcast.loadMore')}
+              </Button>
             ) : null}
           </ExpandableSection>
         ) : null}
 
-        <View className="items-center px-5 pb-2 pt-6">
-          <Tap
-            accessibilityRole="button"
+        <View className="items-center pb-2 pt-6">
+          <Button
+            variant="ghost"
+            size="sm"
             accessibilityLabel={t('podcast.markAllListened')}
             accessibilityState={{ disabled: !markAllReady }}
             disabled={!markAllReady}
@@ -473,14 +476,14 @@ export function PodcastScreen() {
                 setConfirmMarkAll(true);
               }
             }}
-            className={cn('px-3 py-1', !markAllReady && 'opacity-40')}
+            className="min-h-hit"
           >
-            <Text className="font-mono text-[10px] text-ink-faint">
+            <KitText variant="caption" tone="muted">
               {confirmMarkAll
                 ? t('podcast.confirmMarkAllListened')
                 : t('podcast.markAllListened')}
-            </Text>
-          </Tap>
+            </KitText>
+          </Button>
         </View>
       </View>
     );
@@ -489,7 +492,7 @@ export function PodcastScreen() {
   return (
     <View className="flex-1 bg-bg">
       <ScreenScrollView
-        width="dashboard"
+        width="reading"
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -504,30 +507,32 @@ export function PodcastScreen() {
       >
         <PageHeader
           title={t('podcast.title')}
-          leading={
-            <PodcastLanguageDropdown
-              completionByLanguage={visibleCompletionByLanguage}
-            />
-          }
           actions={
-            <Tap
-              accessibilityRole="button"
-              accessibilityLabel={t('podcast.searchEpisodes')}
-              accessibilityState={{ expanded: searchExpanded }}
-              onPress={() => setSearchExpanded(true)}
-              className={cn(
-                'h-11 w-11 items-center justify-center rounded-full border',
-                searchExpanded
-                  ? 'border-[rgba(212,197,163,.42)] bg-[rgba(212,197,163,.16)]'
-                  : 'border-line bg-[rgba(255,255,255,.045)]',
-              )}
-            >
-              <Search
-                size={19}
-                strokeWidth={2}
-                color={searchExpanded ? '#d4c5a3' : '#a1a1aa'}
+            <View className="flex-row items-center gap-2">
+              <PodcastLanguageDropdown
+                completionByLanguage={
+                  visibleCompletionByLanguage ?? EMPTY_COMPLETION_BY_LANGUAGE
+                }
               />
-            </Tap>
+              <Tap
+                accessibilityRole="button"
+                accessibilityLabel={t('podcast.searchEpisodes')}
+                accessibilityState={{ expanded: searchExpanded }}
+                onPress={() => setSearchExpanded(true)}
+                className={cn(
+                  'h-11 w-11 items-center justify-center rounded-full border',
+                  searchExpanded
+                    ? 'border-[rgba(212,197,163,.42)] bg-[rgba(212,197,163,.16)]'
+                    : 'border-line bg-[rgba(255,255,255,.045)]',
+                )}
+              >
+                <Search
+                  size={19}
+                  strokeWidth={2}
+                  color={searchExpanded ? '#d4c5a3' : '#a1a1aa'}
+                />
+              </Tap>
+            </View>
           }
         />
 
@@ -543,9 +548,11 @@ export function PodcastScreen() {
         {searchActive &&
         searchQueryResult.isFetching &&
         searchResults.length > 0 ? (
-          <View className="mx-5 mt-3 h-[2px] overflow-hidden rounded-full bg-line">
-            <View className="h-full w-1/2 rounded-full bg-accent" />
-          </View>
+          <ProgressBar
+            height={2}
+            className="mt-3"
+            accessibilityLabel={t('podcast.searching')}
+          />
         ) : null}
 
         {normalisedSearchQuery !== '' ||

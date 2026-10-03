@@ -36,7 +36,7 @@ export function AuthenticatedRoute({
   if (account.isConnected) {
     return (
       <ScreenScrollView width="narrow">
-        <View className="flex-1 px-5 pt-16">
+        <View className="flex-1 pt-16">
           <AccountUnavailableCard
             variant="page"
             onRetry={() => void account.retryUserResolution()}

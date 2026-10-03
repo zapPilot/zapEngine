@@ -71,7 +71,7 @@ export function EpisodeTranscript({
   const body = episode.script?.trim();
 
   return (
-    <View className="px-5 pt-7">
+    <View className="pt-7">
       <Text className="font-sans-semibold text-[17px] text-ink">
         {t('podcast.transcript')}
       </Text>

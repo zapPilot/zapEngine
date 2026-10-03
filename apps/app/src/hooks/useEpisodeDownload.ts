@@ -25,3 +25,7 @@ export function useEpisodeDownload(episode: PodcastEpisode): {
   });
   return { downloads, view };
 }
+
+export interface EpisodeDownloadControlProps {
+  episode: PodcastEpisode;
+}
