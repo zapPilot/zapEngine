@@ -25,13 +25,25 @@ pnpm --filter @zapengine/kokode-ai ops check
 | `/pitch/partner/` | Deck for sales partners, 13 slides, noindex   |
 | `/privacy.html`   | Privacy policy, hand-written                  |
 
+Each of the first three pages is prerendered in Japanese (the paths above),
+English (`/en/…`) and Traditional Chinese (`/zh/…`, `zh-Hant`). Language
+links point to the same surface; canonical and hreflang tags cover all three.
+English and Traditional Chinese copy is a draft awaiting native-speaker review.
+The privacy policy remains Japanese, with its language marked beside links.
+
 Every word on the first three, and in the apps/video `kokode-clinic` film,
 comes from `src/story/` (beats, the four sequences in `narrative.ts`, demos,
 disclaimers, form, meta). A Vite plugin (`src/site/plugin.ts`) replaces the
 `<!--kokode:<page>:<head|body>-->` markers in the HTML shells at build and dev
-time; the dev server restarts when a story file changes. Tests fence the
-claims (`src/story/story.test.ts`) and the rendered structure
+time, choosing the locale from the shell’s `<html lang>`; the dev server restarts when a story file changes. Tests fence the
+claims in each language (`src/story/story.test.ts`) and the rendered structure
 (`src/site/site.test.ts`).
+
+`src/story/ja/`, `en/` and `zh-Hant/` share the same copy contracts.
+`storyFor(locale)` supplies the renderers; the barrel’s named exports remain
+Japanese for the film, whose Japanese captions and English narration are unchanged.
+Browser scripts import only the localized form copy. Interest option text is
+localized, but submitted values always use the Japanese labels.
 
 The decks page with arrow keys, PageUp/PageDown, Space, Home and End, and
 keep the slide in the URL hash. Their contact links carry
@@ -42,11 +54,17 @@ keep the slide in the URL hash. Their contact links carry
 pnpm --filter @zapengine/kokode-ai pitch:pdf
 ```
 
-builds the site and writes `output/kokode-pitch.pdf` and
-`output/kokode-pitch-partner.pdf` (one 13.333 x 7.5 in page per slide, links
+builds the site and writes six PDFs: `output/kokode-pitch.<locale>.pdf` and
+`output/kokode-pitch-partner.<locale>.pdf`, for `ja`, `en` and `zh-Hant` (one 13.333 x 7.5 in page per slide, links
 absolute with `utm_medium=pdf`). It refuses to write when a slide count,
 overflow, demo disclaimer or page count check fails. Run it on macOS so the
 Japanese text is set in Hiragino.
+
+`pnpm --filter @zapengine/kokode-ai site:smoke` builds and checks all nine
+pages at 375px and 1280px, language navigation, same-language deck CTAs,
+interest preselection and UTM parameters. It also saves four English/Traditional
+Chinese deck contact sheets under `output/smoke/`. After building, run
+`node scripts/smoke-site.mjs --dev` from this workspace for the same dev-server check.
 
 Default dev queues leads locally; dev:live writes to production. The browser posts
 without keys to genba-lead; only the backend can insert into kokode_ai.leads.

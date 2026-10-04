@@ -1,12 +1,12 @@
-export { BEATS } from './beats';
-export { CHAT_UI, DEMO_FIGURES, DEMOS } from './demos';
-export type { ChatDemo, DemoId, ImageDemo, PatientDemo } from './demos';
-export { DISCLAIMERS, footnote } from './disclaimers';
-export { FIGURES } from './figures';
+export { BEATS } from './ja/beats';
+export { CHAT_UI, DEMO_FIGURES, DEMOS } from './ja/demos';
+export type { ChatDemo, DemoId, ImageDemo, PatientDemo } from './ja/demos';
+export { DISCLAIMERS, footnote } from './ja/disclaimers';
+export { FIGURES } from './ja/figures';
 export { FILM } from './film';
 export type { FilmLine, FilmScene, FilmScreen } from './film';
-export { FORM, INTEREST } from './form';
-export type { InterestId } from './form';
+export { FORM, INTEREST } from './ja/form';
+export type { InterestId } from './ja/form';
 export {
   arcViolations,
   DOCTOR_DECK,
@@ -16,8 +16,8 @@ export {
   REQUIRED_BEATS,
 } from './narrative';
 export type { FilmSceneId, LandingSectionId } from './narrative';
-export { FILM_LINK, META, NAV, NAV_CTA, SITE, SITE_URL } from './site';
-export type { PageId, PageMeta } from './site';
+export { FILM_LINK, META, NAV, NAV_CTA, SITE, SITE_URL } from './ja/site';
+export type { PageId, PageMeta } from './ja/site';
 export type {
   Action,
   Beat,
@@ -29,3 +29,8 @@ export type {
   Price,
   Source,
 } from './types';
+
+export { storyFor } from './localized';
+export type { Story } from './localized';
+export { LOCALES, DEFAULT_LOCALE } from './locales';
+export type { Locale } from './locales';

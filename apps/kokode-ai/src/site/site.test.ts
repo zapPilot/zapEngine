@@ -5,12 +5,14 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { LOCALES, LOCALE_INFO, pagePath } from '../story/locales';
+import { storyFor } from '../story/localized';
 import { DOM_IDS } from '../dom-ids';
-import { DEMOS, type DemoId } from '../story/demos';
-import { footnote } from '../story/disclaimers';
-import { INTEREST } from '../story/form';
+import { DEMOS, type DemoId } from '../story/ja/demos';
+import { footnote } from '../story/ja/disclaimers';
+import { INTEREST } from '../story/ja/form';
 import { DOCTOR_DECK, LANDING, PARTNER_DECK } from '../story/narrative';
-import { META } from '../story/site';
+import { META } from '../story/ja/site';
 import type { Group } from '../story/types';
 import { ctaHref, toPdfHref } from './links';
 import { escape, lines, markup } from './markup';
@@ -264,5 +266,95 @@ describe('markup', () => {
     ).toBe('<p title="&quot;x&quot;"><b>&lt;i&gt;</b>&amp;1</p>');
     expect(String(lines(['a<b', "c'd"]))).toBe('a&lt;b<br />c&#39;d');
     expect(escape('plain')).toBe('plain');
+  });
+});
+
+describe.each(LOCALES)('%s pages', (locale) => {
+  const story = storyFor(locale);
+  const docs = (['landing', 'pitch', 'partner'] as const).map((page) => {
+    const entry = pagePath(page, locale).slice(1) + 'index.html';
+    return { page, doc: build(entry) };
+  });
+  it('renders localized metadata, reciprocal links and current language', () => {
+    for (const { page, doc } of docs) {
+      expect(doc.documentElement.lang).toBe(locale);
+      expect(doc.title).toBe(story.META[page].title);
+      expect(
+        doc.querySelector('link[rel="canonical"]')?.getAttribute('href'),
+      ).toBe('https://www.kokode.xyz' + pagePath(page, locale));
+      expect(
+        doc
+          .querySelector('meta[property="og:locale"]')
+          ?.getAttribute('content'),
+      ).toBe(LOCALE_INFO[locale].og);
+      expect(doc.querySelectorAll('link[rel="alternate"]')).toHaveLength(4);
+      for (const target of LOCALES)
+        expect(
+          doc.querySelector(`link[hreflang="${target}"]`)?.getAttribute('href'),
+        ).toBe('https://www.kokode.xyz' + pagePath(page, target));
+      expect(
+        doc.querySelector('link[hreflang="x-default"]')?.getAttribute('href'),
+      ).toBe('https://www.kokode.xyz' + pagePath(page, 'ja'));
+      for (const nav of doc.querySelectorAll('.lang-switch')) {
+        expect(nav.querySelectorAll('a')).toHaveLength(3);
+        expect(nav.querySelectorAll('[aria-current="true"]')).toHaveLength(1);
+        expect(
+          nav.querySelector('[aria-current="true"]')?.getAttribute('lang'),
+        ).toBe(locale);
+        for (const target of LOCALES)
+          expect(
+            nav.querySelector(`a[lang="${target}"]`)?.getAttribute('href'),
+          ).toBe(pagePath(page, target));
+      }
+      expect(doc.querySelectorAll('.lang-switch').length).toBeGreaterThan(0);
+      for (const figure of doc.querySelectorAll<HTMLElement>(
+        'figure[data-demo]',
+      )) {
+        for (const note of story.DEMOS[figure.dataset['demo'] as DemoId]
+          .disclaimers)
+          expect(figure.textContent).toContain(story.footnote(note));
+      }
+      for (const link of doc.querySelectorAll<HTMLAnchorElement>(
+        'a[data-cta]',
+      )) {
+        const url = new URL(
+          link.getAttribute('href') ?? '',
+          'https://www.kokode.xyz',
+        );
+        expect(url.pathname).toBe(LOCALE_INFO[locale].prefix);
+        expect(url.hash).toBe('#contact');
+        expect(url.searchParams.get('utm_campaign')).toBe(
+          story.META[page].campaign,
+        );
+      }
+      if (locale !== 'ja')
+        expect(doc.querySelector('.translation-draft')?.textContent).toBe(
+          LOCALE_INFO[locale].draft,
+        );
+    }
+  });
+  it('shows translated form labels while retaining Japanese submission values', () => {
+    const doc = docs[0]!.doc;
+    const options = Array.from(
+      doc.querySelectorAll<HTMLOptionElement>('#interest option'),
+    ).slice(1);
+    expect(options.map((option) => option.value)).toEqual(
+      INTEREST.map((option) => option.label),
+    );
+    expect(options.map((option) => option.textContent)).toEqual(
+      story.INTEREST.map((option) => option.label),
+    );
+    expect(doc.querySelector('a[href="/privacy.html"]')?.textContent).toContain(
+      story.FORM.privacy,
+    );
+    if (locale === 'en') {
+      for (const { doc } of docs) {
+        const body = doc.body.cloneNode(true) as HTMLElement;
+        body
+          .querySelectorAll('.lang-switch, #interest option')
+          .forEach((el) => el.remove());
+        expect(/[ぁ-ヿ一-鿿]/.test(body.textContent ?? '')).toBe(false);
+      }
+    }
   });
 });

@@ -1,5 +1,5 @@
-import { BEATS } from './beats';
-import type { DemoId } from './demos';
+import { BEATS } from './ja/beats';
+import type { DemoId } from './ja/demos';
 import type { FilmSceneId } from './narrative';
 import type { DisclaimerId } from './types';
 

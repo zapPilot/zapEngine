@@ -450,3 +450,15 @@ footer {
     padding: 24px 0;
   }
 }
+
+.nav-inner {
+  flex-wrap: wrap;
+}
+@media (max-width: 760px) {
+  .nav-inner {
+    gap: 8px;
+  }
+  .nav .lang-switch {
+    margin-left: auto;
+  }
+}

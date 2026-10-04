@@ -2,7 +2,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { initInterest, interestLabel } from './interest';
-import { INTEREST } from './story/form';
+import { LOCALES } from './story/locales';
+import { storyFor } from './story/localized';
+import { createLanding } from './site/landing';
+import { INTEREST } from './story/ja/form';
 
 const label = (id: string) =>
   INTEREST.find((option) => option.id === id)?.label ?? '';
@@ -81,3 +84,27 @@ describe('initInterest', () => {
     expect(() => initInterest()).not.toThrow();
   });
 });
+
+it.each(LOCALES)(
+  '%s preselects partner by canonical value with a localized label',
+  (locale) => {
+    document.documentElement.lang = locale;
+    document.body.innerHTML = createLanding(
+      storyFor(locale),
+    ).renderPilotForm().html;
+    window.history.replaceState(
+      null,
+      '',
+      '/?interest=partner&utm_source=pitch#contact',
+    );
+    initInterest();
+    expect(select().value).toBe(label('partner'));
+    expect(select().selectedOptions[0]?.textContent).toBe(
+      storyFor(locale).INTEREST.find((option) => option.id === 'partner')
+        ?.label,
+    );
+    expect(new URLSearchParams(window.location.search).get('utm_source')).toBe(
+      'pitch',
+    );
+  },
+);

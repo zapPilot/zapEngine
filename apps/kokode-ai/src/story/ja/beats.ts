@@ -1,4 +1,4 @@
-import type { Beat, BeatId } from './types';
+import type { Beat, BeatId } from '../types';
 
 // Japanese copy is a draft until a native speaker has reviewed it. Claims are
 // fenced by src/story/story.test.ts: when a guardrail fails, change the copy.

@@ -1,4 +1,4 @@
-import type { DisclaimerId, FigureId } from './types';
+import type { DisclaimerId, FigureId } from '../types';
 
 // Demo screens show what using KOKODE looks like. Every patient detail is
 // fictional; each demo names the disclaimers it must always be shown with.

@@ -2,7 +2,7 @@ import { getAttribution, trackEvent } from './analytics';
 import { LEAD_ENDPOINT, LEAD_SOURCE } from './config';
 import { DOM_IDS } from './dom-ids';
 // The file, not the story barrel: only the form copy enters the page bundle.
-import { FORM } from './story/form';
+import { formForPage } from './story/form-locales';
 
 // Payload mirrors the `kokode_ai.leads` columns (snake_case). The Edge
 // Function whitelists these keys; `page_url` is submit-time context kept
@@ -34,9 +34,12 @@ function isConfigured(): boolean {
 
 type InvalidLeadCode = 'invalid_email' | 'invalid_interest';
 
-const INVALID_LEAD_MESSAGES: Record<InvalidLeadCode, string> = {
-  invalid_email: FORM.messages.invalidEmail,
-  invalid_interest: FORM.messages.invalidInterest,
+const INVALID_LEAD_MESSAGES: Record<
+  InvalidLeadCode,
+  'invalidEmail' | 'invalidInterest'
+> = {
+  invalid_email: 'invalidEmail',
+  invalid_interest: 'invalidInterest',
 };
 
 function isInvalidLeadCode(code: string): code is InvalidLeadCode {
@@ -202,6 +205,7 @@ export function flushQueue(): Promise<void> {
 }
 
 export function initWaitlist(): void {
+  const FORM = formForPage();
   const form = document.querySelector<HTMLFormElement>(`#${DOM_IDS.form}`);
   const message = document.querySelector<HTMLElement>(`#${DOM_IDS.message}`);
   const interest = document.querySelector<HTMLSelectElement>(
@@ -294,7 +298,8 @@ export function initWaitlist(): void {
         void flushQueue();
       } catch (error) {
         if (error instanceof InvalidLeadError) {
-          message.textContent = INVALID_LEAD_MESSAGES[error.code];
+          message.textContent =
+            FORM.messages[INVALID_LEAD_MESSAGES[error.code]];
           return;
         }
         queueLead(payload);

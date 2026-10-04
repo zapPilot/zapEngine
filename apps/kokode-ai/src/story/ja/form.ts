@@ -14,7 +14,7 @@ export const INTEREST = [
   { id: 'partner', label: '販売パートナーとして相談' },
 ] as const;
 
-export type InterestId = (typeof INTEREST)[number]['id'];
+export type { InterestId } from '../types';
 
 export const FORM = {
   interestLabel: '試したい業務',

@@ -311,3 +311,21 @@ body.pitch-page {
     aspect-ratio: auto;
   }
 }
+
+.slide-foot .translation-draft {
+  font-size: 0.8cqi;
+  margin: 0;
+}
+.slide-foot .lang-switch {
+  font-size: 0.9cqi;
+}
+@media (orientation: portrait) and (max-width: 760px) {
+  .slide-foot {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .slide-foot .lang-switch,
+  .slide-foot .translation-draft {
+    font-size: 10px;
+  }
+}

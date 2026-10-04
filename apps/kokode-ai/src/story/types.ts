@@ -1,7 +1,13 @@
 // The story is plain data shared by the landing page, both pitch decks and the
 // Remotion film (apps/video imports it by relative path). Keep it portable:
 // strings only, extensionless relative imports, ES2020, no runtime globals.
-import type { InterestId } from './form';
+export type InterestId =
+  | 'referral'
+  | 'search'
+  | 'materials'
+  | 'voice'
+  | 'other'
+  | 'partner';
 
 /** One idea of the story. Every surface renders beats; none owns copy. */
 export type BeatId =
@@ -85,3 +91,12 @@ export interface Group<Id extends string = string> {
   readonly id: Id;
   readonly beats: readonly BeatId[];
 }
+
+/** Same keys for translated copy, with strings widened from Japanese literals. */
+export type CopyShape<T> = T extends string
+  ? string
+  : T extends readonly (infer V)[]
+    ? readonly CopyShape<V>[]
+    : T extends object
+      ? { readonly [K in keyof T]: CopyShape<T[K]> }
+      : T;

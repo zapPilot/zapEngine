@@ -1,32 +1,33 @@
-import { CHAT_UI, DEMO_FIGURES, DEMOS, type DemoId } from '../story/demos';
-import { footnote } from '../story/disclaimers';
-import { FIGURES } from '../story/figures';
+import { type Story } from '../story/localized';
+import type { DemoId } from '../story/ja/demos';
 import type { FigureId } from '../story/types';
 import { ICONS, SKETCH } from './icons';
 import { markup, type Markup } from './markup';
 
-// Diagrams shared by the landing page and the decks. Sizes inside use
-// container-query units (src/styles/figures.css), so one markup scales from a
-// phone column to a 16:9 slide. Labels are real text with a figcaption.
+export function createFigures(story: Story) {
+  const { CHAT_UI, DEMO_FIGURES, DEMOS, footnote, FIGURES } = story;
+  // Diagrams shared by the landing page and the decks. Sizes inside use
+  // container-query units (src/styles/figures.css), so one markup scales from a
+  // phone column to a 16:9 slide. Labels are real text with a figcaption.
 
-const steps = (items: readonly string[]): Markup =>
-  markup`<ol class="flow-steps">${items.map((item) => markup`<li>${item}</li>`)}</ol>`;
+  const steps = (items: readonly string[]): Markup =>
+    markup`<ol class="flow-steps">${items.map((item) => markup`<li>${item}</li>`)}</ol>`;
 
-function beforeAfter(): Markup {
-  const { before, after, inside } = FIGURES.beforeAfter;
-  return markup`<div class="flow-row is-before">
+  function beforeAfter(): Markup {
+    const { before, after, inside } = FIGURES.beforeAfter;
+    return markup`<div class="flow-row is-before">
       <span class="flow-label">${before.label}</span>${steps(before.steps)}
     </div>
     <div class="flow-row is-after">
       <span class="flow-label">${after.label}</span>
       <div class="zone"><span class="zone-label">${inside}</span>${steps(after.steps)}</div>
     </div>`;
-}
+  }
 
-function boundary(): Markup {
-  const f = FIGURES.boundary;
-  const [pc = '', tablet = ''] = f.devices;
-  return markup`<div class="zone bd-inside">
+  function boundary(): Markup {
+    const f = FIGURES.boundary;
+    const [pc = '', tablet = ''] = f.devices;
+    return markup`<div class="zone bd-inside">
       <span class="zone-label">${f.inside}</span>
       <div class="bd-net">
         <span class="bd-net-label">${ICONS.wifi}${f.network}</span>
@@ -43,17 +44,17 @@ function boundary(): Markup {
       <span class="bd-outside-label">${ICONS.phone}${f.outside}</span>
       <span class="bd-blocked">${ICONS.blocked}${f.blocked}</span>
     </div>`;
-}
+  }
 
-const windowBar = (): Markup =>
-  markup`<div class="window-bar"><span class="window-dots" aria-hidden="true"></span><span class="window-address">${DEMOS.chat.address}</span></div>`;
+  const windowBar = (): Markup =>
+    markup`<div class="window-bar"><span class="window-dots" aria-hidden="true"></span><span class="window-address">${DEMOS.chat.address}</span></div>`;
 
-const userMessage = (text: string): Markup =>
-  markup`<p class="msg is-user">${text}</p>`;
+  const userMessage = (text: string): Markup =>
+    markup`<p class="msg is-user">${text}</p>`;
 
-function chatDemo(): Markup {
-  const demo = DEMOS.chat;
-  return markup`<div class="window">
+  function chatDemo(): Markup {
+    const demo = DEMOS.chat;
+    return markup`<div class="window">
       ${windowBar()}
       <div class="chat">
         ${userMessage(demo.prompt)}
@@ -63,11 +64,11 @@ function chatDemo(): Markup {
         </div>
       </div>
     </div>`;
-}
+  }
 
-function patientDemo(): Markup {
-  const demo = DEMOS.patient;
-  return markup`<div class="window">
+  function patientDemo(): Markup {
+    const demo = DEMOS.patient;
+    return markup`<div class="window">
       ${windowBar()}
       <div class="chat">
         <div class="record">
@@ -81,12 +82,12 @@ function patientDemo(): Markup {
         </div>
       </div>
     </div>`;
-}
+  }
 
-function imageDemo(): Markup {
-  const demo = DEMOS.image;
-  const [sketchStep = '', slideStep = ''] = demo.steps;
-  return markup`<div class="window">
+  function imageDemo(): Markup {
+    const demo = DEMOS.image;
+    const [sketchStep = '', slideStep = ''] = demo.steps;
+    return markup`<div class="window">
       ${windowBar()}
       <div class="chat">
         ${userMessage(demo.prompt)}
@@ -107,65 +108,68 @@ function imageDemo(): Markup {
         </div>
       </div>
     </div>`;
-}
+  }
 
-function turnkey(): Markup {
-  const { layers, hardwareAlt } = FIGURES.turnkey;
-  const last = layers.length - 1;
-  return markup`<ol class="stack">${layers.map(
-    (layer, index) =>
-      markup`<li class="stack-layer">
+  function turnkey(): Markup {
+    const { layers, hardwareAlt } = FIGURES.turnkey;
+    const last = layers.length - 1;
+    return markup`<ol class="stack">${layers.map(
+      (layer, index) =>
+        markup`<li class="stack-layer">
         <strong>${layer.title}</strong><span>${layer.text}</span>
         ${index === last ? markup`<img class="stack-hardware" src="/assets/studio.webp" alt="${hardwareAlt}" />` : null}
       </li>`,
-  )}</ol>`;
-}
+    )}</ol>`;
+  }
 
-function partnerRoles(): Markup {
-  const { client, partner, kokode } = FIGURES.partnerRoles;
-  const node = (role: { readonly title: string; readonly text: string }) =>
-    markup`<div class="role"><strong>${role.title}</strong><span>${role.text}</span></div>`;
-  return markup`<div class="roles">
+  function partnerRoles(): Markup {
+    const { client, partner, kokode } = FIGURES.partnerRoles;
+    const node = (role: { readonly title: string; readonly text: string }) =>
+      markup`<div class="role"><strong>${role.title}</strong><span>${role.text}</span></div>`;
+    return markup`<div class="roles">
       <div class="roles-team">${node(partner)}<span class="roles-plus" aria-hidden="true">+</span>${node(kokode)}</div>
       <span class="roles-arrow">${ICONS.arrow}</span>
       ${node(client)}
     </div>`;
-}
+  }
 
-const DIAGRAMS: { readonly [Id in FigureId]: () => Markup } = {
-  beforeAfter,
-  boundary,
-  experience: chatDemo,
-  demoPatient: patientDemo,
-  demoImage: imageDemo,
-  turnkey,
-  partnerRoles,
-};
+  const DIAGRAMS: { readonly [Id in FigureId]: () => Markup } = {
+    beforeAfter,
+    boundary,
+    experience: chatDemo,
+    demoPatient: patientDemo,
+    demoImage: imageDemo,
+    turnkey,
+    partnerRoles,
+  };
 
-function caption(id: FigureId, demo: DemoId | undefined): string {
-  if (demo) return DEMOS[demo].caption;
-  if (id === 'beforeAfter') return FIGURES.beforeAfter.caption;
-  if (id === 'boundary') return FIGURES.boundary.caption;
-  if (id === 'turnkey') return FIGURES.turnkey.caption;
-  return FIGURES.partnerRoles.caption;
-}
+  function caption(id: FigureId, demo: DemoId | undefined): string {
+    if (demo) return DEMOS[demo].caption;
+    if (id === 'beforeAfter') return FIGURES.beforeAfter.caption;
+    if (id === 'boundary') return FIGURES.boundary.caption;
+    if (id === 'turnkey') return FIGURES.turnkey.caption;
+    return FIGURES.partnerRoles.caption;
+  }
 
-/**
- * A figure with its caption. Demo screens carry `data-demo` and print every
- * disclaimer their demo declares; tests and the PDF export check both.
- */
-export function renderFigure(id: FigureId): Markup {
-  const demo = DEMO_FIGURES[id];
-  const notes = demo ? DEMOS[demo].disclaimers : [];
-  return markup`<figure class="fig fig-${id}" data-figure="${id}"${
-    demo
-      ? markup` data-demo="${demo}" data-disclaimer="${notes.join(' ')}"`
-      : null
-  }>
+  /**
+   * A figure with its caption. Demo screens carry `data-demo` and print every
+   * disclaimer their demo declares; tests and the PDF export check both.
+   */
+  function renderFigure(id: FigureId): Markup {
+    const demo = DEMO_FIGURES[id];
+    const notes = demo ? DEMOS[demo].disclaimers : [];
+    return markup`<figure class="fig fig-${id}" data-figure="${id}"${
+      demo
+        ? markup` data-demo="${demo}" data-disclaimer="${notes.join(' ')}"`
+        : null
+    }>
     <div class="fig-body">${DIAGRAMS[id]()}</div>
     <figcaption>
       <span class="fig-caption">${caption(id, demo)}</span>
       ${notes.map((note) => markup`<small class="fig-note" data-note="${note}">${footnote(note)}</small>`)}
     </figcaption>
   </figure>`;
+  }
+
+  return { renderFigure };
 }

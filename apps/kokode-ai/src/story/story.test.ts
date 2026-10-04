@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import * as story from './index';
+import { LOCALES } from './locales';
+import { storyFor } from './localized';
 import {
   arcViolations,
   BEATS,
@@ -37,23 +39,26 @@ function collect(value: unknown, path: string, out: Entry[]): Entry[] {
   return out;
 }
 
-const ALL = Object.entries(story).flatMap(([name, value]) =>
-  collect(value, name, []),
-);
-const COPY = ALL.filter((entry) => !entry.path.startsWith('DISCLAIMERS.'));
-
 const JAPANESE = /[　-ヿ㐀-䶿一-鿿＀-￯]/;
 
-function offending(pattern: RegExp, entries = COPY): string[] {
-  return entries
-    .filter((entry) => pattern.test(entry.text))
-    .map((entry) => `${entry.path}: ${entry.text}`);
-}
-
-describe('claim guardrails', () => {
+describe.each(LOCALES)('%s claim guardrails', (locale) => {
+  const localized = storyFor(locale);
+  const ALL =
+    locale === 'ja'
+      ? Object.entries(story).flatMap(([name, value]) =>
+          collect(value, name, []),
+        )
+      : Object.entries(localized).flatMap(([name, value]) =>
+          collect(value, name, []),
+        );
+  const COPY = ALL.filter((entry) => !entry.path.startsWith('DISCLAIMERS.'));
+  const offending = (pattern: RegExp, entries = COPY) =>
+    entries
+      .filter((entry) => pattern.test(entry.text))
+      .map((entry) => `${entry.path}: ${entry.text}`);
   it('collects every exported string', () => {
     expect(ALL.length).toBeGreaterThan(200);
-    expect(COPY.some((entry) => entry.path.startsWith('FILM.'))).toBe(true);
+    expect(COPY.some((entry) => entry.path.startsWith('BEATS.'))).toBe(true);
   });
 
   it('makes no absolute, regulatory or medical-device claim outside the disclaimers', () => {
@@ -64,7 +69,7 @@ describe('claim guardrails', () => {
     ).toEqual([]);
     expect(
       offending(
-        /guarantee|compliant|compliance|hipaa|diagnos|censor|certified|\bcures?\b/i,
+        /guarantee|compliant|compliance|hipaa|diagnos|censor|certified|\bcures?\b|完全安全|不會外洩|保證|符合.*法規|認證|醫療器材|診斷|治療|審查|絕對安全/i,
       ),
     ).toEqual([]);
   });
@@ -122,10 +127,12 @@ describe('claim guardrails', () => {
     const amounts = ALL.flatMap(
       (entry) =>
         entry.text.match(
-          /\d[\d,.]*\s*(?:万|億|千)?\s*円|[¥￥$]\s*\d|\d[\d,.]*\s*(?:usd|jpy|yen|dollars?)/gi,
+          /jpy\s*\d[\d,.]*|\d[\d,.]*\s*(?:萬|万|億|千)?\s*(?:日圓|円)|[¥￥$]\s*\d|\d[\d,.]*\s*(?:usd|jpy|yen|dollars?)/gi,
         ) ?? [],
     );
-    expect(amounts).toEqual(['30万円']);
+    expect(amounts).toEqual([
+      { ja: '30万円', en: 'JPY 300,000', 'zh-Hant': '30 萬日圓' }[locale],
+    ]);
     expect(BEATS.startSmall.price?.label).toBe('PoC');
   });
 });
@@ -297,4 +304,51 @@ describe('form', () => {
       if (interest !== undefined) expect(ids).toContain(interest);
     }
   });
+});
+
+describe('locale contracts', () => {
+  function keys(value: unknown, prefix = ''): string[] {
+    if (Array.isArray(value))
+      return value.flatMap((item, i) => keys(item, `${prefix}[${i}]`));
+    if (value !== null && typeof value === 'object')
+      return Object.entries(value).flatMap(([key, item]) =>
+        keys(item, `${prefix}.${key}`),
+      );
+    return [prefix];
+  }
+  it.each(LOCALES)(
+    '%s preserves the story structure and identifiers',
+    (locale) => {
+      const localized = storyFor(locale);
+      const japanese = storyFor('ja');
+      expect(keys(localized)).toEqual(keys(japanese));
+      expect(localized.INTEREST.map((option) => option.id)).toEqual(
+        japanese.INTEREST.map((option) => option.id),
+      );
+      for (const id of Object.keys(BEATS) as BeatId[]) {
+        expect(localized.BEATS[id].notes).toEqual(BEATS[id].notes);
+        expect(localized.BEATS[id].figure).toEqual(BEATS[id].figure);
+        expect(localized.BEATS[id].action?.interest).toEqual(
+          BEATS[id].action?.interest,
+        );
+      }
+      const translatedCopy = collect(localized, '', []);
+      if (locale === 'en')
+        expect(
+          translatedCopy.filter((entry) => /[ぁ-ヿ一-鿿]/.test(entry.text)),
+        ).toEqual([]);
+      if (locale === 'zh-Hant')
+        expect(
+          translatedCopy.filter((entry) => /[ぁ-ヿ]/.test(entry.text)),
+        ).toEqual([]);
+      expect(localized.DEMO_FIGURES).toEqual(japanese.DEMO_FIGURES);
+      for (const id of ['chat', 'patient', 'image'] as const)
+        expect(localized.DEMOS[id].disclaimers).toEqual(
+          japanese.DEMOS[id].disclaimers,
+        );
+      expect(localized.BEATS.painPatient.source?.href).toBe(
+        japanese.BEATS.painPatient.source?.href,
+      );
+    },
+  );
 });

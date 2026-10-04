@@ -20,10 +20,16 @@ const appRoot = path.resolve(
   '..',
 );
 const outDir = path.join(appRoot, 'output');
-const DECKS = [
-  { path: '/pitch/', file: 'kokode-pitch.pdf' },
-  { path: '/pitch/partner/', file: 'kokode-pitch-partner.pdf' },
-];
+const DECKS = ['ja', 'en', 'zh-Hant'].flatMap((locale) => {
+  const prefix = { ja: '', en: '/en', 'zh-Hant': '/zh' }[locale];
+  return [
+    { path: `${prefix}/pitch/`, file: `kokode-pitch.${locale}.pdf` },
+    {
+      path: `${prefix}/pitch/partner/`,
+      file: `kokode-pitch-partner.${locale}.pdf`,
+    },
+  ];
+});
 
 if (process.platform !== 'darwin') {
   console.warn('warning: not on macOS; Japanese text will not use Hiragino.');

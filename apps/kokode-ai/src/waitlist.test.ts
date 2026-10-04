@@ -1,7 +1,10 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { FORM, INTEREST } from './story/form';
+import { LOCALES } from './story/locales';
+import { storyFor } from './story/localized';
+import { createLanding } from './site/landing';
+import { FORM, INTEREST } from './story/ja/form';
 
 const SUPABASE_URL = 'https://example-ref.supabase.co';
 const ENDPOINT = `${SUPABASE_URL}/functions/v1/genba-lead`;
@@ -103,6 +106,7 @@ function submit(email: string): void {
 }
 
 beforeEach(() => {
+  document.documentElement.lang = 'ja';
   localStorage.clear();
   sessionStorage.clear();
   fetchMock.mockReset();
@@ -364,5 +368,56 @@ describe('flushQueue', () => {
     await flushing;
 
     expect(readStoredQueue()).toEqual([]);
+  });
+});
+
+describe.each(LOCALES)('%s localized submission', (locale) => {
+  async function initialize() {
+    document.documentElement.lang = locale;
+    document.body.innerHTML = createLanding(
+      storyFor(locale),
+    ).renderPilotForm().html;
+    const interest = document.querySelector<HTMLSelectElement>('#interest')!;
+    interest.value = INTEREST.find((option) => option.id === 'partner')!.label;
+    const { initWaitlist } = await load();
+    initWaitlist();
+    return interest;
+  }
+  it('posts Japanese labels and shows localized success', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(201, { ok: true }));
+    await initialize();
+    submit('partner@example.com');
+    await vi.waitFor(() =>
+      expect(message()).toBe(storyFor(locale).FORM.messages.success),
+    );
+    expect(
+      JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)).interest,
+    ).toBe(INTEREST.find((option) => option.id === 'partner')!.label);
+  });
+  it('shows localized validation and retry messages', async () => {
+    const interest = await initialize();
+    interest.value = '';
+    submit('partner@example.com');
+    expect(message()).toBe(storyFor(locale).FORM.messages.invalidInterest);
+    interest.value = REFERRAL;
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(400, { error: 'invalid_email' }),
+    );
+    submit('partner@example.com');
+    await vi.waitFor(() =>
+      expect(message()).toBe(storyFor(locale).FORM.messages.invalidEmail),
+    );
+    await vi.waitFor(() =>
+      expect(
+        document.querySelector<HTMLButtonElement>('button[type="submit"]')!
+          .disabled,
+      ).toBe(false),
+    );
+    fetchMock.mockRejectedValueOnce(new TypeError('offline'));
+    submit('partner@example.com');
+    await vi.waitFor(() =>
+      expect(message()).toBe(storyFor(locale).FORM.messages.retry),
+    );
+    expect(readStoredQueue()[0]?.interest).toBe(REFERRAL);
   });
 });

@@ -49,7 +49,7 @@ import {
   voiceKey,
 } from './lib/vo-cache';
 
-const DEFAULT_ENGINE = 's2-pro';
+const DEFAULT_ENGINE = 's2.1-pro-free';
 
 const { values, positionals } = cliArgs(process.argv.slice(2), {
   prune: { type: 'boolean', default: false },

@@ -17,7 +17,8 @@
     "format:check": "prettier --check . ../../supabase/functions/genba-lead",
     "test:coverage": "vitest run --config vitest.config.ts --coverage",
     "test:watch": "vitest --config vitest.config.ts",
-    "pitch:pdf": "pnpm run build && node scripts/export-pitch-pdf.mjs"
+    "pitch:pdf": "pnpm run build && node scripts/export-pitch-pdf.mjs",
+    "site:smoke": "pnpm run build && node scripts/smoke-site.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.6.2",

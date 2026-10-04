@@ -123,7 +123,7 @@ select {
   letter-spacing: -0.03em;
   line-height: 1.25;
   font-feature-settings: 'palt';
-  word-break: auto-phrase;
+  word-break: normal;
 }
 .beat-body {
   margin: 0 0 12px;
@@ -194,4 +194,42 @@ select {
   font-size: 13px;
   color: var(--muted);
   line-height: 1.6;
+}
+
+:lang(ja) .beat-title {
+  word-break: auto-phrase;
+}
+body:lang(en) {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+}
+body:lang(zh-Hant) {
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'PingFang TC', 'Microsoft JhengHei',
+    sans-serif;
+}
+.lang-switch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7em;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.lang-switch a {
+  padding: 4px 0;
+}
+.lang-switch [aria-current] {
+  color: var(--blue);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.translation-draft {
+  margin: 8px 20px;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+}
+@media print {
+  .lang-switch {
+    display: none;
+  }
 }
