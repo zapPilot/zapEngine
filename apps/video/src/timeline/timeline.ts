@@ -1,4 +1,10 @@
-import { bridgeGaps, spanPhrases, splitCaptionPhrases } from './captions';
+import {
+  bridgeGaps,
+  CAPTION_PROFILES,
+  cueTextOf,
+  spanPhrases,
+} from './captions';
+import { readingUnits } from './cjk';
 import type { VoManifest } from './manifest';
 import type { SceneSpec, Storyboard, VoLine } from './types';
 
@@ -10,6 +16,8 @@ const CAPTION_HOLD_FRAMES = 15;
 
 export interface Beat {
   readonly line: VoLine;
+  /** What cue phrases are matched in: `cueTextOf` the line. */
+  readonly cueText: string;
   /** Narration file below `public/`, or null while the line is estimated. */
   readonly file: string | null;
   /** Frame relative to the scene start. */
@@ -80,6 +88,7 @@ export function buildTimeline<Scene extends SceneSpec>(
 ): Timeline<Scene> {
   assertUniqueLineIds(storyboard.scenes);
   const { fps, transitionFrames } = storyboard;
+  const profile = CAPTION_PROFILES[storyboard.captions?.lang ?? 'en'];
   const scenes: TimedScene<Scene>[] = [];
   const voice: VoicePlacement[] = [];
   const captions: CaptionCue[] = [];
@@ -98,6 +107,7 @@ export function buildTimeline<Scene extends SceneSpec>(
       if (clip === undefined) estimatedLines.push(line.id);
       beats.push({
         line,
+        cueText: cueTextOf(line, storyboard.captions),
         file: clip?.file ?? null,
         from: cursor,
         durationInFrames,
@@ -123,8 +133,13 @@ export function buildTimeline<Scene extends SceneSpec>(
           durationInFrames: beat.durationInFrames,
         });
       }
-      const phrases = splitCaptionPhrases(beat.line.text);
-      const spans = spanPhrases(phrases, from, beat.durationInFrames);
+      const phrases = profile.split(beat.line.text);
+      const spans = spanPhrases(
+        phrases,
+        from,
+        beat.durationInFrames,
+        profile.weigh,
+      );
       for (const [i, span] of spans.entries()) {
         captions.push({ text: phrases[i] as string, ...span });
       }
@@ -142,4 +157,41 @@ export function buildTimeline<Scene extends SceneSpec>(
     captions: bridgeGaps(captions, CAPTION_HOLD_FRAMES),
     estimatedLines,
   };
+}
+
+export interface ReadingRate {
+  readonly lineId: string;
+  /** The caption the viewer reads. */
+  readonly text: string;
+  /** `readingUnits` of `text`. */
+  readonly units: number;
+  /** How long the line's narration, and so its captions, last. */
+  readonly seconds: number;
+  /** Units per second the viewer must read to keep up. */
+  readonly cps: number;
+}
+
+/**
+ * Reading speed of every narrated line, for Japanese captions only: they are
+ * read rather than heard, so a line that says too much for its narration
+ * leaves the viewer behind. English captions follow the voice and return [].
+ */
+export function readingRates(
+  storyboard: Storyboard,
+  timeline: Timeline,
+): ReadingRate[] {
+  if (storyboard.captions?.lang !== 'ja') return [];
+  return timeline.scenes.flatMap((scene) =>
+    scene.beats.map((beat) => {
+      const units = readingUnits(beat.line.text);
+      const seconds = beat.durationInFrames / storyboard.fps;
+      return {
+        lineId: beat.line.id,
+        text: beat.line.text,
+        units,
+        seconds,
+        cps: units === 0 ? 0 : units / seconds,
+      };
+    }),
+  );
 }

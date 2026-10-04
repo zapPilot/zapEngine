@@ -1,5 +1,8 @@
 import { getAttribution, trackEvent } from './analytics';
 import { LEAD_ENDPOINT, LEAD_SOURCE } from './config';
+import { DOM_IDS } from './dom-ids';
+// The file, not the story barrel: only the form copy enters the page bundle.
+import { FORM } from './story/form';
 
 // Payload mirrors the `kokode_ai.leads` columns (snake_case). The Edge
 // Function whitelists these keys; `page_url` is submit-time context kept
@@ -32,9 +35,8 @@ function isConfigured(): boolean {
 type InvalidLeadCode = 'invalid_email' | 'invalid_interest';
 
 const INVALID_LEAD_MESSAGES: Record<InvalidLeadCode, string> = {
-  invalid_email:
-    '入力内容をご確認ください。メールアドレスが正しくない可能性があります。',
-  invalid_interest: 'ご関心のあるプランを選択してください。',
+  invalid_email: FORM.messages.invalidEmail,
+  invalid_interest: FORM.messages.invalidInterest,
 };
 
 function isInvalidLeadCode(code: string): code is InvalidLeadCode {
@@ -200,17 +202,25 @@ export function flushQueue(): Promise<void> {
 }
 
 export function initWaitlist(): void {
-  const form = document.querySelector<HTMLFormElement>('#waitlist-form');
-  const message = document.querySelector<HTMLElement>('#form-message');
-  const interest = document.querySelector<HTMLSelectElement>('#interest');
-  const emailInput = document.querySelector<HTMLInputElement>('#email');
+  const form = document.querySelector<HTMLFormElement>(`#${DOM_IDS.form}`);
+  const message = document.querySelector<HTMLElement>(`#${DOM_IDS.message}`);
+  const interest = document.querySelector<HTMLSelectElement>(
+    `#${DOM_IDS.interest}`,
+  );
+  const emailInput = document.querySelector<HTMLInputElement>(
+    `#${DOM_IDS.email}`,
+  );
   if (!form || !message || !interest || !emailInput) return;
   const submitButton = form.querySelector<HTMLButtonElement>(
     'button[type="submit"]',
   );
-  const orgInput = document.querySelector<HTMLInputElement>('#organization');
-  const nameInput = document.querySelector<HTMLInputElement>('#contact-name');
-  const idleSubmitLabel = submitButton?.textContent ?? '案内を受け取る';
+  const orgInput = document.querySelector<HTMLInputElement>(
+    `#${DOM_IDS.organization}`,
+  );
+  const nameInput = document.querySelector<HTMLInputElement>(
+    `#${DOM_IDS.name}`,
+  );
+  const idleSubmitLabel = submitButton?.textContent ?? FORM.submit;
   let submitting = false;
 
   const setSubmitting = (active: boolean): void => {
@@ -220,12 +230,16 @@ export function initWaitlist(): void {
     submitButton.classList.toggle('is-loading', active);
     if (active) {
       submitButton.setAttribute('aria-busy', 'true');
-      submitButton.textContent = '送信中…';
+      submitButton.textContent = FORM.submitting;
     } else {
       submitButton.removeAttribute('aria-busy');
       submitButton.textContent = idleSubmitLabel;
     }
   };
+
+  // The button ships disabled so the form cannot submit (as a GET carrying
+  // the email in the URL) before this handler exists.
+  if (submitButton) submitButton.disabled = false;
 
   // Best-effort: migrate the old queue, then re-send previous visits.
   migrateLegacyQueue();
@@ -240,6 +254,11 @@ export function initWaitlist(): void {
 
     const email = emailInput.value.trim();
     if (!email) return;
+    if (!interest.value) {
+      message.textContent = FORM.messages.invalidInterest;
+      interest.focus();
+      return;
+    }
 
     const attribution = getAttribution();
     const payload: LeadPayload = {
@@ -260,8 +279,7 @@ export function initWaitlist(): void {
 
     if (!isConfigured()) {
       queueLead(payload);
-      message.textContent =
-        'ありがとうございます。フォーム受付先の公開準備中です。';
+      message.textContent = FORM.messages.notConfigured;
       return;
     }
 
@@ -270,7 +288,7 @@ export function initWaitlist(): void {
       try {
         await postLead(payload);
         form.reset();
-        message.textContent = '登録しました。ご案内をお送りします。';
+        message.textContent = FORM.messages.success;
         trackEvent('lead_submitted', { interest: payload.interest });
         // A previous queue may exist; try to drain it now that we are online.
         void flushQueue();
@@ -280,8 +298,7 @@ export function initWaitlist(): void {
           return;
         }
         queueLead(payload);
-        message.textContent =
-          '送信できませんでした。入力内容は保存されており、接続の回復後に自動で再送します。';
+        message.textContent = FORM.messages.retry;
         trackEvent('lead_failed', { interest: payload.interest });
       } finally {
         setSubmitting(false);

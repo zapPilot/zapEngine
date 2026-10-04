@@ -1,18 +1,18 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { FORM, INTEREST } from './story/form';
+
 const SUPABASE_URL = 'https://example-ref.supabase.co';
 const ENDPOINT = `${SUPABASE_URL}/functions/v1/genba-lead`;
 const QUEUE_KEY = 'genba-ai-lead-queue-v2';
 
-const MSG_SUCCESS = '登録しました。ご案内をお送りします。';
-const MSG_INVALID_EMAIL =
-  '入力内容をご確認ください。メールアドレスが正しくない可能性があります。';
-const MSG_INVALID_INTEREST = 'ご関心のあるプランを選択してください。';
-const MSG_RETRY =
-  '送信できませんでした。入力内容は保存されており、接続の回復後に自動で再送します。';
-const MSG_NOT_CONFIGURED =
-  'ありがとうございます。フォーム受付先の公開準備中です。';
+const MSG_SUCCESS = FORM.messages.success;
+const MSG_INVALID_EMAIL = FORM.messages.invalidEmail;
+const MSG_INVALID_INTEREST = FORM.messages.invalidInterest;
+const MSG_RETRY = FORM.messages.retry;
+const MSG_NOT_CONFIGURED = FORM.messages.notConfigured;
+const REFERRAL = INTEREST[0].label;
 
 type Waitlist = typeof import('./waitlist');
 
@@ -24,7 +24,7 @@ const windowListeners: Array<[string, EventListenerOrEventListenerObject]> = [];
 function lead(email: string): Record<string, string> {
   return {
     email,
-    interest: 'KOKODE Studio',
+    interest: REFERRAL,
     organization: '',
     name: '',
     source: 'kokode-website',
@@ -69,17 +69,19 @@ function seedQueue(items: Array<Record<string, string>>): void {
 
 function mountForm(): void {
   document.body.innerHTML = `
-    <select id="interest">
-      <option>KOKODE Studio</option>
-      <option>KOKODE Rack</option>
+    <select id="interest" form="waitlist-form" required>
+      <option value="">-</option>
+      ${INTEREST.map((option) => `<option>${option.label}</option>`).join('')}
     </select>
     <form id="waitlist-form">
       <input id="organization" />
       <input id="contact-name" />
       <input id="email" type="email" />
-      <button type="submit">送信</button>
+      <button type="submit" disabled>Submit</button>
     </form>
     <div id="form-message"></div>`;
+  const interest = document.querySelector<HTMLSelectElement>('#interest');
+  if (interest) interest.value = REFERRAL;
 }
 
 async function load(supabaseUrl = SUPABASE_URL): Promise<Waitlist> {
@@ -143,7 +145,7 @@ describe('form submission', () => {
     expect(headers.has('authorization')).toBe(false);
     expect(JSON.parse(String(init?.body))).toMatchObject({
       email: 'user@example.com',
-      interest: 'KOKODE Studio',
+      interest: REFERRAL,
       source: 'kokode-website',
     });
     expect(readStoredQueue()).toEqual([]);
@@ -164,7 +166,7 @@ describe('form submission', () => {
     expect(button?.disabled).toBe(true);
     expect(button?.classList.contains('is-loading')).toBe(true);
     expect(button?.getAttribute('aria-busy')).toBe('true');
-    expect(button?.textContent).toBe('送信中…');
+    expect(button?.textContent).toBe(FORM.submitting);
 
     submit('user@example.com');
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -175,7 +177,31 @@ describe('form submission', () => {
     expect(button?.disabled).toBe(false);
     expect(button?.classList.contains('is-loading')).toBe(false);
     expect(button?.hasAttribute('aria-busy')).toBe(false);
-    expect(button?.textContent).toBe('送信');
+    expect(button?.textContent).toBe('Submit');
+  });
+
+  it('enables the submit button that ships disabled for no-JS visitors', async () => {
+    const button = document.querySelector<HTMLButtonElement>(
+      '#waitlist-form button[type="submit"]',
+    );
+    expect(button?.disabled).toBe(true);
+    const { initWaitlist } = await load();
+    initWaitlist();
+    expect(button?.disabled).toBe(false);
+  });
+
+  it('asks for a task before posting when none is selected', async () => {
+    const { initWaitlist } = await load();
+    initWaitlist();
+    const interest = document.querySelector<HTMLSelectElement>('#interest');
+    if (interest) interest.value = '';
+
+    submit('user@example.com');
+
+    expect(message()).toBe(MSG_INVALID_INTEREST);
+    expect(document.activeElement).toBe(interest);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(readStoredQueue()).toEqual([]);
   });
 
   it.each([

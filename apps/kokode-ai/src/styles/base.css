@@ -1,0 +1,197 @@
+/* Tokens and base elements shared by the landing page and the decks.
+   apps/video/src/videos/kokode-clinic/theme.ts mirrors :root; its test fails
+   when the two drift. */
+:root {
+  --bg: #f5f5f7;
+  --surface: #fff;
+  --ink: #161617;
+  --muted: #6e6e73;
+  --line: #d2d2d7;
+  --blue: #0071e3;
+  --blue-hover: #0077ed;
+  --blue-soft: #e8f2fd;
+  --danger: #d70015;
+  --dark: #0d0d0f;
+  --radius: 28px;
+  --shadow: 0 22px 70px rgba(0, 0, 0, 0.08);
+}
+* {
+  box-sizing: border-box;
+}
+html {
+  scroll-behavior: smooth;
+}
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+body {
+  margin: 0;
+  color: var(--ink);
+  background: var(--bg);
+  -webkit-text-size-adjust: 100%;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text',
+    'Hiragino Sans', 'Yu Gothic UI', 'Yu Gothic', Meiryo, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  line-break: strict;
+}
+a {
+  color: inherit;
+  text-decoration: none;
+}
+button,
+input,
+select {
+  font: inherit;
+}
+:focus-visible {
+  outline: 3px solid rgba(0, 113, 227, 0.35);
+  outline-offset: 3px;
+}
+.skip-link {
+  position: fixed;
+  left: 14px;
+  top: 10px;
+  z-index: 100;
+  transform: translateY(-160%);
+  background: #111;
+  color: #fff;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.skip-link:focus {
+  transform: translateY(0);
+}
+.wrap {
+  width: min(1180px, calc(100% - 40px));
+  margin: auto;
+}
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  font-size: 22px;
+}
+.brand-mark {
+  width: 28px;
+  height: 28px;
+  display: block;
+}
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 22px;
+  border-radius: 999px;
+  background: var(--blue);
+  color: #fff;
+  font-weight: 700;
+  border: 0;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+.btn:not(:disabled):hover {
+  background: var(--blue-hover);
+  transform: translateY(-1px);
+}
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+  transform: none;
+}
+.btn.secondary {
+  background: #fff;
+  color: #1d1d1f;
+  border: 1px solid var(--line);
+}
+.eyebrow {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--blue);
+}
+.beat-title {
+  margin: 10px 0 18px;
+  letter-spacing: -0.03em;
+  line-height: 1.25;
+  font-feature-settings: 'palt';
+  word-break: auto-phrase;
+}
+.beat-body {
+  margin: 0 0 12px;
+  color: var(--muted);
+  line-height: 1.85;
+}
+.note,
+.source {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.7;
+  color: #86868b;
+}
+.source a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.points {
+  list-style: none;
+  margin: 18px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+.point {
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  column-gap: 14px;
+  row-gap: 2px;
+  align-items: start;
+}
+.point-num {
+  grid-row: span 2;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--ink);
+  color: #fff;
+  font-weight: 700;
+}
+.point span:last-child {
+  color: var(--muted);
+  font-size: 0.92em;
+  line-height: 1.7;
+}
+.price {
+  display: inline-grid;
+  gap: 4px;
+  margin-top: 18px;
+  padding: 20px 26px;
+  border-radius: 20px;
+  background: var(--surface);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 12px 38px rgba(0, 0, 0, 0.05);
+}
+.price-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--blue);
+}
+.price-amount {
+  font-size: 34px;
+  letter-spacing: -0.03em;
+}
+.price-note {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.6;
+}

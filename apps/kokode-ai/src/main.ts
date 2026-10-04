@@ -1,18 +1,7 @@
+import { getAttribution } from './analytics';
 import { SALES_EMAIL, SUPPORT_EMAIL } from './config';
+import { initInterest } from './interest';
 import { initWaitlist } from './waitlist';
-
-function initInterestLinks(): void {
-  const interest = document.querySelector<HTMLSelectElement>('#interest');
-  if (!interest) return;
-
-  document
-    .querySelectorAll<HTMLAnchorElement>('.interest-link')
-    .forEach((link) => {
-      link.addEventListener('click', () => {
-        interest.value = link.dataset.interest || 'KOKODE Studio';
-      });
-    });
-}
 
 function initContactEmails(): void {
   const row = document.querySelector<HTMLElement>('[data-contact-row]');
@@ -41,6 +30,9 @@ function initContactEmails(): void {
   if (row) row.hidden = visible === 0;
 }
 
-initInterestLinks();
+// Record the first touch (UTM, referrer, landing URL) on arrival, not only
+// when the form is submitted. Runs on every page, including privacy.html.
+getAttribution();
+initInterest();
 initContactEmails();
 initWaitlist();

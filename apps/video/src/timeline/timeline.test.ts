@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import type { VoManifest } from './manifest';
-import { buildTimeline, ESTIMATED_CHARS_PER_SECOND } from './timeline';
+import {
+  buildTimeline,
+  ESTIMATED_CHARS_PER_SECOND,
+  readingRates,
+} from './timeline';
 import type { SceneSpec, Storyboard } from './types';
 
 const scene = (
@@ -141,6 +145,58 @@ describe('buildTimeline', () => {
     expect(timeline.scenes.map((s) => s.durationInFrames)).toEqual([90, 24]);
   });
 
+  it('matches cues in the caption by default and in the narration for a translation', () => {
+    const vo = [
+      { id: 'a', text: '字幕です。', say: 'A caption.' },
+      { id: 'b', text: 'Same.' },
+    ];
+    const cueTexts = (captions?: Storyboard['captions']) =>
+      buildTimeline(
+        board([{ id: 's', props: {}, vo }], captions ? { captions } : {}),
+        manifest({}),
+      ).scenes[0]?.beats.map((b) => b.cueText);
+    expect(cueTexts()).toEqual(['字幕です。', 'Same.']);
+    expect(cueTexts({ lang: 'ja', relation: 'transcript' })).toEqual([
+      '字幕です。',
+      'Same.',
+    ]);
+    expect(cueTexts({ lang: 'ja', relation: 'translation' })).toEqual([
+      'A caption.',
+      'Same.',
+    ]);
+  });
+
+  it('splits and times Japanese captions by reading units', () => {
+    const timeline = buildTimeline(
+      board(
+        [
+          {
+            id: 'a',
+            props: {},
+            vo: [
+              {
+                id: 'a-0',
+                text: '受付の待ち時間を、スマートフォンからkokode.localで確認できます。',
+                say: 'Check the wait from your phone.',
+              },
+            ],
+          },
+        ],
+        { captions: { lang: 'ja', relation: 'translation' } },
+      ),
+      manifest({ 'a-0': 4 }),
+    );
+    // Weights 8 + 1 (、) and 21.5 + 2 (。) share 120 frames from frame 12.
+    expect(timeline.captions).toEqual([
+      { text: '受付の待ち時間を、', from: 12, to: 45 },
+      {
+        text: 'スマートフォンからkokode.localで確認できます。',
+        from: 45,
+        to: 132,
+      },
+    ]);
+  });
+
   it('rejects duplicate line ids', () => {
     expect(() =>
       buildTimeline(
@@ -164,5 +220,42 @@ describe('buildTimeline', () => {
         manifest({ 'a-0': 1, 'b-0': 1 }),
       ),
     ).toThrow('Narration "b-0" starts before "a-0" ends');
+  });
+});
+
+describe('readingRates', () => {
+  const japanese = board(
+    [
+      {
+        id: 'a',
+        props: {},
+        vo: [
+          { id: 'a-0', text: 'はい、そうです。', say: 'Yes.' },
+          { id: 'a-1', text: '', say: '' },
+        ],
+      },
+    ],
+    { captions: { lang: 'ja', relation: 'translation' } },
+  );
+
+  it('reports reading units per second of narration for Japanese captions', () => {
+    const timeline = buildTimeline(japanese, manifest({ 'a-0': 1.5 }));
+    expect(readingRates(japanese, timeline)).toEqual([
+      {
+        lineId: 'a-0',
+        text: 'はい、そうです。',
+        units: 6,
+        seconds: 1.5,
+        cps: 4,
+      },
+      { lineId: 'a-1', text: '', units: 0, seconds: 0, cps: 0 },
+    ]);
+  });
+
+  it('is empty for English captions', () => {
+    const english = board([scene('a', ['One.'])]);
+    expect(readingRates(english, buildTimeline(english, manifest({})))).toEqual(
+      [],
+    );
   });
 });
