@@ -35,11 +35,7 @@ const pointer = (path: string, content = POINTER): IndexEntry => ({
 
 function workspaceRoot(dir: string): IndexEntry[] {
   const prefix = dir === '.' ? '' : `${dir}/`;
-  return [
-    file(`${prefix}AGENTS.md`),
-    link(`${prefix}CLAUDE.md`),
-    link(`${prefix}GEMINI.md`),
-  ];
+  return [file(`${prefix}AGENTS.md`), link(`${prefix}CLAUDE.md`)];
 }
 
 function nestedScope(dir: string): IndexEntry[] {
@@ -105,16 +101,21 @@ describe('checkAgentEntryPoints', () => {
     );
   });
 
-  it('rejects a GEMINI.md in a nested scope', () => {
+  it('rejects a legacy GEMINI.md in any scope', () => {
     assert.deepEqual(
       summarize([
         ...conforming,
         link('apps/podcast-pipeline/src/social/GEMINI.md'),
+        link('packages/types/GEMINI.md'),
       ]),
       [
         {
           type: 'agent_entry_point_unexpected',
           file: 'apps/podcast-pipeline/src/social/GEMINI.md',
+        },
+        {
+          type: 'agent_entry_point_unexpected',
+          file: 'packages/types/GEMINI.md',
         },
       ],
     );
@@ -133,13 +134,16 @@ describe('checkAgentEntryPoints', () => {
     );
   });
 
-  it('requires both CLAUDE.md and GEMINI.md at the repo root and workspace roots', () => {
+  it('requires CLAUDE.md at the repo root and workspace roots', () => {
     assert.deepEqual(
       summarize(
-        without(without(conforming, 'GEMINI.md'), 'packages/types/CLAUDE.md'),
+        without(
+          without(conforming, 'CLAUDE.md'),
+          'packages/types/CLAUDE.md',
+        ),
       ),
       [
-        { type: 'agent_entry_point_missing', file: 'GEMINI.md' },
+        { type: 'agent_entry_point_missing', file: 'CLAUDE.md' },
         { type: 'agent_entry_point_missing', file: 'packages/types/CLAUDE.md' },
       ],
     );
@@ -147,12 +151,12 @@ describe('checkAgentEntryPoints', () => {
 
   it('rejects a workspace-root symlink that points anywhere but AGENTS.md', () => {
     const issues = checkAgentEntryPoints(
-      replacing(conforming, link('packages/types/GEMINI.md', 'CLAUDE.md')),
+      replacing(conforming, link('packages/types/CLAUDE.md', 'GEMINI.md')),
     );
     assert.equal(issues.length, 1);
     assert.equal(issues[0].type, 'agent_entry_point_target');
-    assert.equal(issues[0].file, 'packages/types/GEMINI.md');
-    assert.match(issues[0].issue, /points to "CLAUDE\.md"/);
+    assert.equal(issues[0].file, 'packages/types/CLAUDE.md');
+    assert.match(issues[0].issue, /points to "GEMINI\.md"/);
   });
 
   it('rejects an AGENTS.md that is itself a symlink', () => {
@@ -173,8 +177,14 @@ describe('checkAgentEntryPoints', () => {
   });
 
   it('rejects an entry point with no AGENTS.md beside it', () => {
+    assert.deepEqual(summarize([...conforming, link('docs/CLAUDE.md')]), [
+      { type: 'agent_entry_point_orphan', file: 'docs/CLAUDE.md' },
+    ]);
+  });
+
+  it('rejects an orphan legacy GEMINI.md', () => {
     assert.deepEqual(summarize([...conforming, link('docs/GEMINI.md')]), [
-      { type: 'agent_entry_point_orphan', file: 'docs/GEMINI.md' },
+      { type: 'agent_entry_point_unexpected', file: 'docs/GEMINI.md' },
     ]);
   });
 });
@@ -221,7 +231,6 @@ describe('readIndexEntries', () => {
       await mkdir(join(root, 'apps', 'web', 'src'), { recursive: true });
       await writeFile(join(root, 'apps', 'web', 'AGENTS.md'), '# web\n');
       await symlink('AGENTS.md', join(root, 'apps', 'web', 'CLAUDE.md'));
-      await symlink('AGENTS.md', join(root, 'apps', 'web', 'GEMINI.md'));
       await writeFile(join(root, 'apps', 'web', 'src', 'AGENTS.md'), '# src\n');
       await writeFile(join(root, 'apps', 'web', 'src', 'CLAUDE.md'), POINTER);
       await mkdir(join(root, '.claude'));
@@ -250,9 +259,7 @@ describe('readIndexEntries', () => {
         { path: 'apps/web/src/AGENTS.md', mode: '100644' },
         { path: 'apps/web/src/CLAUDE.md', mode: '100644', content: POINTER },
       ]);
-      assert.deepEqual(summarize(entries), [
-        { type: 'agent_entry_point_missing', file: 'apps/web/GEMINI.md' },
-      ]);
+      assert.deepEqual(summarize(entries), []);
     } finally {
       await rm(root, { recursive: true, force: true });
     }

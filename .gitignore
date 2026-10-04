@@ -96,7 +96,6 @@ apps/analytics-engine/*.md
 !apps/analytics-engine/README.md
 !apps/analytics-engine/AGENTS.md
 !apps/analytics-engine/CLAUDE.md
-!apps/analytics-engine/GEMINI.md
 
 # podcast-pipeline & mobile credentials
 service-account.json

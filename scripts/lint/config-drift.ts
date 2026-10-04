@@ -42,7 +42,8 @@ export interface IndexEntry {
 }
 
 const AGENT_INSTRUCTIONS = 'AGENTS.md';
-const ENTRY_POINTS = ['CLAUDE.md', 'GEMINI.md'];
+const ENTRY_POINTS = ['CLAUDE.md'];
+const LEGACY_ENTRY_POINTS = ['GEMINI.md'];
 const NESTED_ENTRY_POINT = 'CLAUDE.md';
 const NESTED_POINTER =
   'See @AGENTS.md for the canonical instructions for this scope.';
@@ -107,11 +108,11 @@ function nestedEntryPointIssue(
 
 /**
  * Agent CLIs auto-load only their own file name, so every AGENTS.md scope needs
- * a CLAUDE.md beside it. The repo root and each workspace root also carry
- * GEMINI.md, and there both must be symlinks so they cannot diverge from
- * AGENTS.md. A nested scope carries only a CLAUDE.md holding the pointer line,
- * so instructions cannot drift into it. Takes git index entries rather than the
- * working tree so an untracked file cannot make the check pass.
+ * a CLAUDE.md beside it. At workspace roots it must be a symlink so it cannot
+ * diverge from AGENTS.md. A nested scope carries only a CLAUDE.md holding the
+ * pointer line, so instructions cannot drift into it. GEMINI.md is legacy and
+ * must not exist. Takes git index entries rather than the working tree so an
+ * untracked file cannot make the check pass.
  */
 export function checkAgentEntryPoints(
   entries: readonly IndexEntry[],
@@ -154,6 +155,16 @@ export function checkAgentEntryPoints(
 
   for (const entry of entries) {
     const name = posix.basename(entry.path);
+    if (LEGACY_ENTRY_POINTS.includes(name)) {
+      issues.push(
+        agentFileIssue(
+          'agent_entry_point_unexpected',
+          entry.path,
+          `${name} is legacy; remove it`,
+        ),
+      );
+      continue;
+    }
     if (!ENTRY_POINTS.includes(name)) continue;
     const scope = posix.dirname(entry.path);
     if (!scopes.has(scope)) {
@@ -222,7 +233,9 @@ export function readIndexEntries(root: string): IndexEntry[] {
     execFileSync('git', args, { cwd: root, encoding: 'utf-8' });
   const blobs = new Map<string, string>();
   const pathspecs = [
-    ...[AGENT_INSTRUCTIONS, ...ENTRY_POINTS].map((name) => `*${name}`),
+    ...[AGENT_INSTRUCTIONS, ...ENTRY_POINTS, ...LEGACY_ENTRY_POINTS].map(
+      (name) => `*${name}`,
+    ),
     SKILLS_LINK,
   ];
 
