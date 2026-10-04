@@ -12,7 +12,7 @@ export type StatementSegment =
 
 /**
  * The five narrative domains Home summarizes, in reading order. Distinct
- * from `OperationsDomain` (the finer eight-way infra classification
+ * from `OperationsDomain` (the finer nine-way infra classification
  * `prioritize.ts` scores on): a Statement is a page-level story, not a
  * signal source.
  */

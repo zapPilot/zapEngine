@@ -167,3 +167,22 @@ describe('buildRemediationFacts', () => {
     );
   });
 });
+
+it.each(['unknown', 'source-failure'])(
+  'security observer %s blocks remediation',
+  (observer) => {
+    const result = facts({
+      signal: signal({
+        source: 'github-security',
+        domain: 'security',
+        fingerprint:
+          observer === 'unknown'
+            ? 'github-security:dependabot/repository'
+            : 'github-security:source-failure/dependabot',
+        status: observer === 'unknown' ? 'unknown' : 'degraded',
+      }),
+    });
+    expect(result.observer).toBe(observer);
+    expect(result.blockers.length).toBeGreaterThan(0);
+  },
+);

@@ -91,6 +91,7 @@ const SOURCE_LABELS = new Map<OperationsSource, string>([
   ['cost-ledger', 'Cost ledger'],
   ['social-queue', 'Social queue'],
   ['social-daemon', 'Social daemon'],
+  ['github-security', 'GitHub Security'],
   ['github-actions', 'GitHub Actions'],
   ['fly', 'Fly.io'],
   ['sentry', 'Sentry'],

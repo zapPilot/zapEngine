@@ -91,6 +91,7 @@ function adapters(
     product: async () => [signal('product-health', 'product', 'healthy')],
     costs: async () => [signal('cost-ledger', 'costs', 'healthy')],
     github: async () => [signal('github-actions', 'jobs', 'healthy')],
+    security: async () => [signal('github-security', 'security', 'healthy')],
     fly: async () => [signal('fly', 'infra', 'healthy')],
     sentry: async () => [signal('sentry', 'errors', 'healthy')],
     posthog: async () => [signal('posthog', 'analytics', 'unknown')],
@@ -217,7 +218,7 @@ describe('createOperationsService', () => {
     ).toEqual(snapshot.priorities[0]?.followUp);
     expect(snapshot.status).toBe('critical');
   });
-  it('always reports all eight domains', async () => {
+  it('always reports all nine domains', async () => {
     const response = await service({ fly: async () => [] }).getOperations();
 
     expect(response.domains.map((domain) => domain.domain)).toEqual([
@@ -228,6 +229,7 @@ describe('createOperationsService', () => {
       'jobs',
       'infra',
       'errors',
+      'security',
       'analytics',
     ]);
     // A domain nobody reported on is unknown, never healthy — an absent row

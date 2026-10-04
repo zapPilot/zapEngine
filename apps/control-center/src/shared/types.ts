@@ -333,21 +333,28 @@ export const OPERATIONS_DOMAINS = [
   'jobs',
   'infra',
   'errors',
+  'security',
   'analytics',
 ] as const;
 
 export type OperationsDomain = (typeof OPERATIONS_DOMAINS)[number];
 
-export type OperationsSource =
-  | 'customer-economics'
-  | 'product-health'
-  | 'cost-ledger'
-  | 'social-queue'
-  | 'social-daemon'
-  | 'github-actions'
-  | 'fly'
-  | 'sentry'
-  | 'posthog';
+export const OPERATIONS_SOURCES = [
+  'customer-economics',
+  'product-health',
+  'cost-ledger',
+  'social-queue',
+  'social-daemon',
+  'github-actions',
+  'github-security',
+  'fly',
+  'sentry',
+  'posthog',
+] as const;
+export type OperationsSource = (typeof OPERATIONS_SOURCES)[number];
+export function isOperationsSource(value: unknown): value is OperationsSource {
+  return OPERATIONS_SOURCES.some((source) => source === value);
+}
 
 export interface OperationalSignal {
   /**
@@ -383,7 +390,7 @@ export interface OperationsDomainSummary {
 export interface OperationsResponse {
   generatedAt: string;
   status: OperationalStatus;
-  /** All eight domains, always — an absent domain would read as "fine". */
+  /** All nine domains, always — an absent domain would read as "fine". */
   domains: OperationsDomainSummary[];
   priorities: OperationalPriority[];
   signals: OperationalSignal[];

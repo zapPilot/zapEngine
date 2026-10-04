@@ -3,14 +3,12 @@ import { z } from 'zod';
 /* jscpd:ignore-start -- mirrored inspector imports, kept colocated for locality */
 import type { ControlCenterConfig } from '../../../config/env.js';
 import { isGithubOperationalFailure } from '../github-run.js';
-import { fetchJson, fetchText } from '../http.js';
+import { githubJson, githubText } from '../github-api.js';
 import type { ParsedOperationalFingerprint } from './fingerprint.js';
 import { messageOf, unsupported } from './helpers.js';
 import type { SignalInspection } from './types.js';
 /* jscpd:ignore-end */
 
-const REPO = 'zapPilot/zapEngine';
-const API = `https://api.github.com/repos/${REPO}`;
 const RUN_EVIDENCE_LIMIT = 5;
 const RECENT_FAILURE_RUN_FETCH_LIMIT = 100;
 const JOB_LIMIT = 3;
@@ -308,46 +306,6 @@ function redact(value: string): string {
       '[REDACTED_GITHUB_TOKEN]',
     )
     .replace(/(Bearer\s+)[A-Za-z0-9._~+/-]{16,}/g, '$1[REDACTED]');
-}
-
-async function githubJson<T>(input: {
-  token: string;
-  fetchImpl: typeof fetch;
-  label: string;
-  path: string;
-  schema: z.ZodType<T>;
-}): Promise<T> {
-  return fetchJson({
-    label: input.label,
-    url: `${API}/${input.path}`,
-    token: input.token,
-    schema: input.schema,
-    fetchImpl: input.fetchImpl,
-    headers: githubHeaders(),
-  });
-}
-
-async function githubText(input: {
-  token: string;
-  fetchImpl: typeof fetch;
-  label: string;
-  path: string;
-}): Promise<string> {
-  return fetchText({
-    label: input.label,
-    url: `${API}/${input.path}`,
-    token: input.token,
-    fetchImpl: input.fetchImpl,
-    headers: githubHeaders(),
-  });
-}
-
-function githubHeaders(): Record<string, string> {
-  return {
-    Accept: 'application/vnd.github+json',
-    'X-GitHub-Api-Version': '2022-11-28',
-    'User-Agent': 'zapengine-control-center',
-  };
 }
 
 async function commitsSinceRun(

@@ -255,7 +255,7 @@ describe('buildStatements coverage', () => {
     expect(values.get('spend')).toBe('$60.80');
     expect(values.get('growth')).toBe('1,204');
     const deltas = new Map(result.statements.map((s) => [s.domain, s.delta]));
-    expect(deltas.get('reliability')).toBe('7 of 8 healthy');
+    expect(deltas.get('reliability')).toBe('8 of 9 healthy');
     expect(deltas.get('pipeline')).toBe('0 in production');
     expect(byDomain.get('reliability')?.url).toBe(
       'https://fly.io/apps/from-fed-to-chain-api',

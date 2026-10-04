@@ -1,4 +1,8 @@
-import type { OperationsSource } from '../../../../shared/types.js';
+import { inspectGithubSecuritySignal } from './github-security.js';
+import {
+  isOperationsSource,
+  type OperationsSource,
+} from '../../../../shared/types.js';
 import type { ControlCenterConfig } from '../../../config/env.js';
 import { parseOperationalFingerprint } from './fingerprint.js';
 import { inspectFlySignal } from './fly.js';
@@ -20,6 +24,7 @@ type Inspector = (input: InspectorInput) => Promise<SignalInspection>;
 
 const INSPECTORS: Partial<Record<OperationsSource, Inspector>> = {
   'github-actions': inspectGithubSignal,
+  'github-security': inspectGithubSecuritySignal,
   sentry: inspectSentrySignal,
   fly: inspectFlySignal,
 };
@@ -42,7 +47,7 @@ export async function inspectOperationalSignal(input: {
     });
   }
 
-  const source = inspectionSource(parsed.source);
+  const source = isOperationsSource(parsed.source) ? parsed.source : null;
   const inspector = source ? INSPECTORS[source] : undefined;
   if (!source || !inspector) {
     return unsupportedInspection({
@@ -92,11 +97,4 @@ export async function inspectOperationalSignal(input: {
       reason,
     });
   }
-}
-
-function inspectionSource(source: string): OperationsSource | null {
-  if (source === 'github-actions' || source === 'sentry' || source === 'fly') {
-    return source;
-  }
-  return null;
 }

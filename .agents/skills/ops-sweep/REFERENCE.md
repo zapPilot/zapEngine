@@ -4,9 +4,9 @@
 
 | Source           | Read                                                                                                  | Notes                                                                                                                                                                                                                                       |
 | ---------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Ops snapshot     | `ops_status`                                                                                          | Eight domains plus ranked priorities. `unknown` is never healthy.                                                                                                                                                                           |
+| Ops snapshot     | `ops_status`                                                                                          | Nine domains plus ranked priorities. `unknown` is never healthy.                                                                                                                                                                            |
 | One incident     | `ops_investigate { fingerprint }`                                                                     | Read `remediation`, `customerImpact` and `evidenceGaps`. A blocker means the fix belongs in code, never in production.                                                                                                                      |
-| Provider detail  | `ops_inspect_signal { fingerprint }`                                                                  | Deep inspectors exist for `github-actions`, `sentry` and `fly` only.                                                                                                                                                                        |
+| Provider detail  | `ops_inspect_signal { fingerprint }`                                                                  | Deep inspectors exist for `github-actions`, `github-security`, `sentry` and `fly`.                                                                                                                                                          |
 | Sentry history   | `ops_inspect_signal` with `sentry: { start, end, query: "is:unresolved", cursor }`                    | Fingerprint `sentry:issues/organization`. Pass `start` and `end` together, ISO-8601 with a timezone, or the window silently falls back to 24h. Follow `evidence.nextCursor`; one page is not a total. One issue: `query: "issue:SHORT-ID"`. |
 | Main CI          | `gh run list --branch main --limit 20`, then `gh run view <id> --log-failed`                          | A later commit is not a fix; a later green run on main is.                                                                                                                                                                                  |
 | This PR's CI     | `gh pr checks <pr>`                                                                                   | Zero checks usually means `gh pr view <pr> --json mergeStateStatus` reports `DIRTY`.                                                                                                                                                        |
@@ -48,6 +48,8 @@ gh run download "$run_id" --repo zapPilot/zapEngine --name coverage-handoff \
 - `supabase db push`, `fly deploy`, `vercel deploy`, `gh workflow run`,
   `gh run rerun`, `infisical secrets set` or `delete`.
 
+- Alert `gh api -X PATCH`, `@dependabot` instructions and changes to GitHub security settings. Never dismiss an alert.
+
 ## Signals no code change clears
 
 Persist these as per-target triage with evidence, an exact next action and a
@@ -56,6 +58,7 @@ PR prose alone does not define what already reported means across sessions:
 
 - a render on a superseded `EPISODE_VIDEO_VISUAL_VERSION`, or an abandoned
   episode: reviving one forces a new visual plan and search spend;
+- advisories without patched versions, and secret rotation: exact owner action;
 - inactive priority accounts: a pricing decision;
 - a Sentry issue whose fix is on main but not yet deployed: the deploy clears it.
 
@@ -70,7 +73,7 @@ node scripts/env/run.mjs --environment prod -- \
 ```
 
 The JSON has `fingerprint`, `actor` and `assessment`. Assessment contains:
-`target` (exact numeric Sentry issue ID, otherwise signal fingerprint),
+`target` (exact numeric Sentry or GitHub code/secret alert ID; Dependabot manifest path; otherwise signal fingerprint),
 `classification` (engineering/owner/external/insufficient_evidence),
 `stage` (investigating/repair_pending/pr_open/awaiting_deploy/observing/closure_pending/blocked),
 `reason`, nonempty `evidence` references, `nextAction`, nullable `prNumber` and

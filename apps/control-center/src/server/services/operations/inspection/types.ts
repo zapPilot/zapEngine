@@ -15,6 +15,7 @@ export interface OperationalEntityRef {
   type:
     | 'workspace'
     | 'github-workflow'
+    | 'github-security-alert'
     | 'github-run'
     | 'fly-app'
     | 'fly-process-group'

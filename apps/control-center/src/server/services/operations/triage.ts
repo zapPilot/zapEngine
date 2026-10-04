@@ -18,10 +18,12 @@ export async function attachTriage(
       ),
     ]);
     return priorities.map((priority) => {
-      const ids = priority.signal.evidence['issueIds'];
+      const ids =
+        priority.signal.evidence['followUpTargets'] ??
+        priority.signal.evidence['issueIds'];
       const currentTargets =
         typeof ids === 'string'
-          ? ids.split(',')
+          ? ids.split(',').filter(Boolean)
           : [priority.signal.fingerprint];
       const items = rows
         .filter(

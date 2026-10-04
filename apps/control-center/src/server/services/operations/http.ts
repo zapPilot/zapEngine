@@ -8,6 +8,17 @@ import type { z } from 'zod';
  * and one hung vendor would stall the whole status page instead of degrading
  * the single domain that vendor feeds.
  */
+export class HttpStatusError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+    public readonly headers: Headers,
+  ) {
+    super(message);
+    this.name = 'HttpStatusError';
+  }
+}
+
 const REQUEST_TIMEOUT_MS = 10_000;
 
 /**
@@ -124,7 +135,11 @@ async function authenticatedFetch(input: {
     signal: input.signal,
   });
   if (!response.ok) {
-    throw new Error(`${input.label} failed (${response.status})`);
+    throw new HttpStatusError(
+      `${input.label} failed (${response.status})`,
+      response.status,
+      response.headers,
+    );
   }
   return response;
 }

@@ -1,3 +1,4 @@
+import { collectGithubSecuritySignals } from './github-security.js';
 import { renderSignals, inspectRender } from './operator/render-signals.js';
 import { createOperatorStore } from './operator/store.js';
 import { collectOperatorHeartbeatSignal } from './operator/heartbeat.js';
@@ -49,6 +50,7 @@ const TTL_MS = {
   fly: 120_000,
   costs: 300_000,
   github: 300_000,
+  security: 300_000,
   sentry: 300_000,
   posthog: 900_000,
 } as const;
@@ -94,6 +96,7 @@ export interface OperationsAdapters {
   product: SignalCollector;
   costs: SignalCollector;
   github: SignalCollector;
+  security: SignalCollector;
   fly: SignalCollector;
   sentry: SignalCollector;
   posthog: SignalCollector;
@@ -114,6 +117,7 @@ const ORIGIN: Record<
   product: { source: 'product-health', domain: 'product' },
   costs: { source: 'cost-ledger', domain: 'costs' },
   github: { source: 'github-actions', domain: 'jobs' },
+  security: { source: 'github-security', domain: 'security' },
   fly: { source: 'fly', domain: 'infra' },
   sentry: { source: 'sentry', domain: 'errors' },
   posthog: { source: 'posthog', domain: 'analytics' },
@@ -149,6 +153,7 @@ export function createOperationsService(input: {
     product: cache(TTL_MS.product, adapters.product),
     costs: cache(TTL_MS.costs, adapters.costs),
     github: cache(TTL_MS.github, adapters.github),
+    security: cache(TTL_MS.security, adapters.security),
     fly: cache(TTL_MS.fly, adapters.fly),
     sentry: cache(TTL_MS.sentry, adapters.sentry),
     posthog: cache(TTL_MS.posthog, adapters.posthog),
@@ -343,6 +348,7 @@ function defaultAdapters(
   overrides: Partial<OperationsAdapters> = {},
 ): OperationsAdapters {
   return {
+    security: () => collectGithubSecuritySignals({ config, now: now() }),
     product: () => collectProductSignals({ config, now: now() }),
     costs: () => collectCostSignals({ config, now: now() }),
     github: async () => {

@@ -71,3 +71,44 @@ describe('bounded triage writer', () => {
     expect(mocks.rpc).toHaveBeenCalledTimes(1);
   });
 });
+
+it.each(['code-scanning', 'secret-scanning'])(
+  'guards %s target identities',
+  async (surface) => {
+    vi.spyOn(process.stdout, 'write').mockReturnValue(true);
+    const fingerprint = `github-security:${surface}/repository`;
+    await expect(
+      run(['a'], {
+        ...record,
+        fingerprint,
+        assessment: { ...record.assessment, target: fingerprint },
+      }),
+    ).rejects.toThrow('numeric alert ID');
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    await run(['a'], { ...record, fingerprint });
+    expect(mocks.rpc).toHaveBeenCalledTimes(1);
+  },
+);
+it.each([
+  'github-security:dependabot/repository',
+  '../requirements.txt',
+  'not-a-manifest',
+])('rejects invalid Dependabot target %s', async (target) => {
+  await expect(
+    run(['a'], {
+      ...record,
+      fingerprint: 'github-security:dependabot/repository',
+      assessment: { ...record.assessment, target },
+    }),
+  ).rejects.toThrow('manifest path');
+  expect(mocks.rpc).not.toHaveBeenCalled();
+});
+it('accepts a Dependabot manifest target', async () => {
+  vi.spyOn(process.stdout, 'write').mockReturnValue(true);
+  await run(['a'], {
+    ...record,
+    fingerprint: 'github-security:dependabot/repository',
+    assessment: { ...record.assessment, target: 'pnpm-lock.yaml' },
+  });
+  expect(mocks.rpc).toHaveBeenCalledTimes(1);
+});

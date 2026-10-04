@@ -114,14 +114,18 @@ export function sourceFailure(input: {
   domain: OperationsDomain;
   error: unknown;
   observedAt: Date;
+  key?: string;
+  title?: string;
+  evidence?: OperationalSignal['evidence'];
 }): OperationalSignal {
   return buildSignal({
     source: input.source,
     domain: input.domain,
     kind: 'source-failure',
-    key: 'adapter',
+    key: input.key ?? 'adapter',
     status: 'degraded',
-    title: `${input.source} check failed`,
+    title: input.title ?? `${input.source} check failed`,
+    evidence: input.evidence,
     detail: errorMessage(input.error),
     observedAt: input.observedAt,
   });

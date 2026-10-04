@@ -91,6 +91,7 @@ describe('operations service branches', () => {
       'jobs',
       'infra',
       'errors',
+      'security',
       'analytics',
     ]);
   });
@@ -101,7 +102,7 @@ describe('operations service branches', () => {
     });
     const response = await service.getOperations();
 
-    expect(response.domains).toHaveLength(8);
+    expect(response.domains).toHaveLength(9);
     expect(Date.parse(response.generatedAt)).not.toBeNaN();
   });
 
@@ -117,6 +118,7 @@ describe('operations service branches', () => {
         product: async () => [],
         costs: async () => [],
         github: async () => [],
+        security: async () => [],
         fly: async () => [],
         posthog: async () => [],
         social: async () => ({
@@ -145,6 +147,7 @@ describe('operations service branches', () => {
         product: async () => [],
         costs: async () => [],
         github: async () => [],
+        security: async () => [],
         fly: async () => [],
         sentry: async () => [],
         posthog: async () => [],
@@ -178,6 +181,7 @@ describe('operations service branches', () => {
         product: async () => [],
         costs: async () => [],
         github: async () => [],
+        security: async () => [],
         fly: async () => [],
         sentry: async () => [],
         posthog: async () => [],
@@ -205,6 +209,7 @@ describe('operations service branches', () => {
         product: async () => [],
         costs: async () => [],
         github: async () => [],
+        security: async () => [],
         fly: async () => [],
         sentry: async () => [],
         posthog: async () => [],
@@ -231,6 +236,7 @@ describe('operations service branches', () => {
         product: async () => [],
         costs: async () => [],
         github: async () => [],
+        security: async () => [],
         fly: async () => [],
         sentry: async () => [],
         posthog: async () => [],
@@ -276,6 +282,7 @@ describe('sentry resolution rails', () => {
         product: async () => [],
         costs: async () => [],
         github: async () => [],
+        security: async () => [],
         fly: async () => [],
         sentry: async () => [],
         posthog: async () => [],
@@ -441,6 +448,7 @@ describe('default social adapter render branches', () => {
         product: async () => [],
         costs: async () => [],
         github: async () => [],
+        security: async () => [],
         fly: async () => [],
         sentry: async () => [],
         posthog: async () => [],

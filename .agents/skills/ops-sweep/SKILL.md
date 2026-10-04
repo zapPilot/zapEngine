@@ -85,7 +85,8 @@ the owner's explicit request for one worktree, one branch and one PR per session
 2. **Reconcile Reliability first.** Read every current priority, including its
    `followUp`, and all critical/degraded rows in `signals`: the ranked list is
    capped at 12 and must not hide lower-ranked repairable work. Investigate each new, recurring or review-due target. For grouped
-   Sentry signals, enumerate exact issue IDs; a project fingerprint is not an
+   Sentry signals, enumerate exact issue IDs; for grouped `github-security`,
+   enumerate alert IDs or manifest paths from `followUp`; a project fingerprint is not an
    individual repair. Persist one assessment per target with `ops:triage` (see
    REFERENCE.md). A runner refusal is not a refusal to deliver a reviewed PR.
    Existing PR coverage changes the target to tracking work; never silently drop
@@ -113,6 +114,14 @@ the owner's explicit request for one worktree, one branch and one PR per session
 Optional input (an area, `#123` or a fingerprint) only orders the queue. When it
 is done, continue with the full queue.
 
+## Security findings
+
+- CodeQL: fix source and add a regression test. Workflow edits require `workflow` scope and a PR warning line.
+- Dependabot: first check for an existing Dependabot PR; follow `monorepo-security-audit`. Unpatched advisories are owner/blocked.
+- Secrets: a PR removes exposure; rotation belongs to the owner. Never copy secret values into evidence.
+- Recovery requires the target absent from a forced snapshot and `gh api .../alerts/<n> --jq .state` returning `fixed`; dismissed is not fixed.
+- Never dismiss alerts, send `@dependabot` commands, rotate secrets or change security settings.
+
 ## Parallel work
 
 When the harness offers subagents or workflows, use them. Give each subagent one
@@ -131,13 +140,14 @@ orchestrating session pushes. Read-only investigation can always fan out.
 
 ## Rationalizations — STOP
 
-| Temptation                          | Do instead                                    |
-| ----------------------------------- | --------------------------------------------- |
-| Ask the owner which option to take  | Choose, implement, record under Decisions     |
-| Several items blocked; time to stop | Note them, take the next item                 |
-| The queue is empty; report done     | Take a fresh snapshot; hygiene never ends     |
-| The PR is getting big; open another | Keep appending; there is no size cap          |
-| Wait for CI before continuing       | Push, keep working, read checks between items |
-| A provider is unknown               | Record it; the other sources remain           |
-| Close the issue or rerun the job    | Write `Fixes #n` or list it for the owner     |
-| It touches money or auth; skip it   | Fix it and flag it under Decisions to review  |
+| Temptation                           | Do instead                                    |
+| ------------------------------------ | --------------------------------------------- |
+| Ask the owner which option to take   | Choose, implement, record under Decisions     |
+| Several items blocked; time to stop  | Note them, take the next item                 |
+| The queue is empty; report done      | Take a fresh snapshot; hygiene never ends     |
+| The PR is getting big; open another  | Keep appending; there is no size cap          |
+| Wait for CI before continuing        | Push, keep working, read checks between items |
+| A provider is unknown                | Record it; the other sources remain           |
+| Close the issue or rerun the job     | Write `Fixes #n` or list it for the owner     |
+| It touches money or auth; skip it    | Fix it and flag it under Decisions to review  |
+| Dismiss an alert to clear the signal | Fix it; require GitHub state `fixed`          |

@@ -32,12 +32,12 @@ const STATUS_SCORE: Record<OperationalStatus, number> = {
   healthy: 10,
 };
 
-/** Which of the eight `OperationsDomain`s each narrative domain draws its
+/** Which of the nine `OperationsDomain`s each narrative domain draws its
  * priority score from — a Statement's rank must never disagree with the
  * queue the rest of the page already shows. */
 const RELATED_OPERATIONS_DOMAINS: Record<StatementDomain, OperationsDomain[]> =
   {
-    reliability: ['infra', 'errors', 'jobs', 'analytics'],
+    reliability: ['infra', 'errors', 'security', 'jobs', 'analytics'],
     product: ['product', 'customers'],
     pipeline: ['jobs'],
     spend: ['costs'],

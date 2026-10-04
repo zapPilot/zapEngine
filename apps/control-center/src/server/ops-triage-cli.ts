@@ -18,6 +18,23 @@ if (
 ) {
   throw new Error('Sentry triage requires an exact issue ID.');
 }
+if (
+  /^github-security:(?:code-scanning|secret-scanning)\/repository$/.test(
+    record.fingerprint,
+  ) &&
+  !/^\d+$/.test(record.assessment.target)
+) {
+  throw new Error('GitHub Security triage requires an exact numeric alert ID.');
+}
+if (
+  record.fingerprint === 'github-security:dependabot/repository' &&
+  (!/^[^:\s,]+\.(?:ya?ml|json|toml|txt|lock|in)$/.test(
+    record.assessment.target,
+  ) ||
+    record.assessment.target.includes('..'))
+) {
+  throw new Error('Dependabot triage requires a manifest path.');
+}
 const incidentId = await createOperatorStore(readControlCenterConfig()).rpc(
   'ops_record_triage',
   {

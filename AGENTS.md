@@ -10,3 +10,8 @@ Read the nearest scoped `AGENTS.md` before changing code. Scoped rules may add t
 - Fix root causes. Do not weaken tests, CI gates, coverage thresholds, types, lint rules, validation, or architectural boundaries merely to make a failure disappear. For bugs, reproduce the reported failure with a test or deterministic check when practical.
 - Verify real behavior before declaring success: use the narrowest relevant check during development and one appropriate aggregate gate before handoff or push. Do not treat a vacuous or no-op check as evidence. If executable verification is unavailable, complete the work and report exactly what was not run.
 - Do not preserve backward compatibility unless the nearest scoped instructions or an explicitly supported external contract require it. Otherwise remove obsolete paths instead of adding compatibility layers or fallbacks.
+
+## Messaging
+
+Use [.agents/skills/persuasive-messaging/SKILL.md](.agents/skills/persuasive-messaging/SKILL.md) for marketing copy, positioning, pitch decks, promo video packaging and editorial titles.
+Technical docs and functional UI strings are outside this scope.

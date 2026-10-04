@@ -1,10 +1,11 @@
-import type {
-  CustomerEconomicsResponse,
-  OperationalSignal,
-  OperationalStatus,
-  OperationsResponse,
-  OperationsSocialResponse,
-  OperationsSource,
+import {
+  isOperationsSource,
+  type CustomerEconomicsResponse,
+  type OperationalSignal,
+  type OperationalStatus,
+  type OperationsResponse,
+  type OperationsSocialResponse,
+  type OperationsSource,
 } from '../../../shared/types.js';
 import { record, records } from '../json.js';
 import { buildRemediationFacts, type RemediationFacts } from './autonomy.js';
@@ -270,20 +271,7 @@ function providerSource(
 function operationsSource(
   value: string | null | undefined,
 ): OperationsSource | null {
-  switch (value) {
-    case 'customer-economics':
-    case 'product-health':
-    case 'cost-ledger':
-    case 'social-queue':
-    case 'social-daemon':
-    case 'github-actions':
-    case 'fly':
-    case 'sentry':
-    case 'posthog':
-      return value;
-    default:
-      return null;
-  }
+  return isOperationsSource(value) ? value : null;
 }
 
 function operationalContextSignals(
