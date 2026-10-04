@@ -1,9 +1,10 @@
-/* eslint-disable sonarjs/no-duplicate-string -- 'generated-slide' is a domain literal intentionally repeated in asset planning logic */
 import { rm } from 'node:fs/promises';
 
 import sharp from 'sharp';
 
 import { errorMessage, toError } from '../../lib/errorMessage.js';
+/* eslint-disable sonarjs/no-duplicate-string -- 'generated-slide' is a domain literal intentionally repeated in asset planning logic */
+import { isPanewsHostname } from '../../lib/panews.js';
 import type { ImageCandidate } from '../../types.js';
 import {
   type AcquiredRemoteImage,
@@ -56,6 +57,10 @@ import {
   partitionViableCandidates,
   searchCueScore,
 } from './search-candidate-ranking.js';
+import {
+  PODCAST_INTRO_ASSET_ID,
+  PODCAST_OUTRO_ASSET_ID,
+} from './visual-asset-shared.js';
 
 /**
  * How many photos of its own a subject may take from the pool. Scenes of the
@@ -65,7 +70,7 @@ import {
  * publisher image or one borrowed from another subject cost it no budget and
  * must not push it into repeating a photo it has already shown.
  */
-const MAX_DISTINCT_SEARCHED_ASSETS_PER_SUBJECT = 6;
+export const MAX_DISTINCT_SEARCHED_ASSETS_PER_SUBJECT = 20;
 const PERCEPTUAL_HASH_DISTANCE_LIMIT = 6;
 /**
  * The message string is the only channel out of the planner an alert reads, and
@@ -448,13 +453,7 @@ function isPublisherBodyImage(candidate: ImageCandidate): boolean {
 
 function isPanewsPublisherImage(candidate: ImageCandidate): boolean {
   try {
-    const hostname = new URL(candidate.sourceUrl).hostname.toLowerCase();
-    return (
-      hostname === 'panews.io' ||
-      hostname.endsWith('.panews.io') ||
-      hostname === 'panewslab.com' ||
-      hostname.endsWith('.panewslab.com')
-    );
+    return isPanewsHostname(new URL(candidate.sourceUrl).hostname);
   } catch {
     return false;
   }
@@ -492,21 +491,27 @@ function leadCoverOrderedArticleImages(
   'articleImages' | 'leadCoverCandidateUrl' | 'leadCoverFallbackReason'
 > {
   const panewsBodyImages = requiredPanewsBodyImages(candidates);
-  const { candidates: ordinaryViable, dropReasons } =
-    partitionViableCandidates(candidates, [
-      'openGraph',
-      'article',
-      'figure',
-    ] as const);
+  const { candidates: ordinaryViable, dropReasons } = partitionViableCandidates(
+    candidates,
+    ['openGraph', 'article', 'figure'] as const,
+  );
   const openGraph = candidates.find(
     (candidate) => candidate.origin === 'openGraph',
   );
-  const bodyImages =
-    panewsBodyImages.length > 0
-      ? panewsBodyImages
-      : ordinaryViable.filter(
-          (candidate) => candidate.origin !== 'openGraph',
-        );
+  const required = new Set(panewsBodyImages);
+  const viable = new Set(ordinaryViable);
+  const seen = new Set<string>();
+  const bodyImages = candidates.filter((candidate) => {
+    const url = canonicalCandidateUrl(candidate.imageUrl);
+    if (
+      !url ||
+      seen.has(url) ||
+      (!required.has(candidate) && !viable.has(candidate))
+    )
+      return false;
+    seen.add(url);
+    return true;
+  });
   if (!openGraph) {
     return {
       articleImages: bodyImages,
@@ -540,6 +545,13 @@ function leadCoverOrderedArticleImages(
     leadCoverCandidateUrl: lead.imageUrl,
     leadCoverFallbackReason: null,
   };
+}
+
+export function publisherImageSlotCount(
+  candidates: readonly ImageCandidate[],
+): number {
+  if (requiredPanewsBodyImages(candidates).length === 0) return 0;
+  return leadCoverOrderedArticleImages(candidates).articleImages.length;
 }
 
 /**
@@ -974,7 +986,14 @@ function nextAssetId(assets: readonly PlannedVisualImage[]): string {
     const match = /^image-(\d+)$/u.exec(asset.assetId);
     return match ? Math.max(current, Number.parseInt(match[1]!, 10)) : current;
   }, 0);
-  return `image-${String(max + 1).padStart(2, '0')}`;
+  let next = max + 1;
+  while (
+    [PODCAST_INTRO_ASSET_ID, PODCAST_OUTRO_ASSET_ID].includes(
+      `image-${String(next).padStart(2, '0')}`,
+    )
+  )
+    next += 1;
+  return `image-${String(next).padStart(2, '0')}`;
 }
 
 function rememberSubjectAsset(
@@ -1075,6 +1094,10 @@ async function acquireNextArticleImage(
         canonicalCandidateUrl(state.leadCoverCandidateUrl);
     const isRequiredBodyImage =
       isPublisherBodyImage(candidate) && isPanewsPublisherImage(candidate);
+    let duplicateCheck: 'similar' | 'identical' | 'none' = isRequiredBodyImage
+      ? 'identical'
+      : 'similar';
+    if (isMandatoryLead) duplicateCheck = 'none';
     const acquired = await tryAcquireUniqueImage({
       candidate,
       provider: 'article',
@@ -1085,7 +1108,7 @@ async function acquireNextArticleImage(
       attemptedUrls: state.attemptedUrls,
       rejections,
       allowSmallDimensions: isMandatoryLead || isRequiredBodyImage,
-      allowPerceptualDuplicate: isRequiredBodyImage,
+      duplicateCheck,
     });
     if (acquired) return acquired;
     if (isMandatoryLead) {
@@ -1302,7 +1325,7 @@ async function tryAcquireUniqueImage(input: {
   attemptedUrls: Set<string>;
   rejections: CandidateRejections;
   allowSmallDimensions?: boolean;
-  allowPerceptualDuplicate?: boolean;
+  duplicateCheck?: 'similar' | 'identical' | 'none';
 }): Promise<PlannedVisualImage | null> {
   const canonicalUrl = canonicalCandidateUrl(input.candidate.imageUrl)!;
   if (input.attemptedUrls.has(canonicalUrl)) {
@@ -1351,12 +1374,13 @@ async function tryAcquireUniqueImage(input: {
     return null;
   }
   const duplicate =
-    !input.allowPerceptualDuplicate &&
+    input.duplicateCheck !== 'none' &&
     input.assets.some(
       (asset) =>
         asset.sha256 === acquired.sha256 ||
-        perceptualHashDistance(asset.perceptualHash, perceptualHash) <=
-          PERCEPTUAL_HASH_DISTANCE_LIMIT,
+        (input.duplicateCheck !== 'identical' &&
+          perceptualHashDistance(asset.perceptualHash, perceptualHash) <=
+            PERCEPTUAL_HASH_DISTANCE_LIMIT),
     );
   if (duplicate) {
     await rm(acquired.path, { force: true });
