@@ -113,10 +113,20 @@ describe('coverage handoff: pure app-core boundary behavior', () => {
         } as LandingPageResponse['portfolio_roi']),
       ),
     ).toEqual({ change7d: 2, change30d: 0 });
+    expect(
+      extractROIChanges(
+        landing({
+          windows: { '30d': { value: 5, data_points: 1 } },
+        } as LandingPageResponse['portfolio_roi']),
+      ),
+    ).toEqual({ change7d: 0, change30d: 5 });
   });
 
   it('defaults absent portfolio balances in both public transformers', () => {
-    const input = landing();
+    const input = {
+      ...landing(),
+      net_portfolio_value: undefined,
+    } as unknown as LandingPageResponse;
     expect(transformToWalletPortfolioData(input, null).balance).toBe(0);
     expect(extractBalanceData(input).balance).toBe(0);
   });
