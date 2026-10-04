@@ -79,7 +79,7 @@ describe('visual subject catalog', () => {
 
   it('repairs bounded LLM shape drift before strict validation', () => {
     const evidenceSceneIds = Array.from(
-      { length: 70 },
+      { length: 160 },
       (_, index) => `scene-${String(index + 1).padStart(2, '0')}`,
     );
     const catalog = parseVisualSubjectCatalog({
@@ -113,7 +113,7 @@ describe('visual subject catalog', () => {
         'Coinbase crypto news',
       ],
     });
-    expect(catalog.subjects[0]?.evidenceSceneIds).toHaveLength(64);
+    expect(catalog.subjects[0]?.evidenceSceneIds).toHaveLength(150);
     expect(catalog.subjects[1]?.storyRole).toBe('supporting');
   });
 

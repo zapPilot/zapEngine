@@ -101,8 +101,8 @@ describe('subject catalog coverage edges', () => {
     ]);
   });
 
-  it('deduplicates repaired scene cues and enforces the 64-cue cap', () => {
-    const sceneCues = Array.from({ length: 65 }, (_, index) => ({
+  it('deduplicates repaired scene cues and enforces the 150-cue cap', () => {
+    const sceneCues = Array.from({ length: 151 }, (_, index) => ({
       sceneId: `scene-${String(index + 1).padStart(2, '0')}`,
       visualCue: `cue ${index + 1}`,
     }));
@@ -117,7 +117,7 @@ describe('subject catalog coverage edges', () => {
       sceneCues,
     }) as { sceneCues: unknown[] };
 
-    expect(repaired.sceneCues).toHaveLength(64);
+    expect(repaired.sceneCues).toHaveLength(150);
   });
 
   it('covers empty assignments, missing IDs, and an empty prefixed phrase', () => {

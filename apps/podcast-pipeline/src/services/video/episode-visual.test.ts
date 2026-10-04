@@ -395,3 +395,37 @@ describe('episode visual payload', () => {
     expect(second).not.toBe(first);
   });
 });
+
+describe('expanded episode visual schema', () => {
+  it('round trips a 150-scene plan with three-digit asset IDs', () => {
+    const expanded = {
+      ...storyboard,
+      draft: {
+        scenes: Array.from({ length: 150 }, (_, index) => ({
+          ...storyboard.draft.scenes[0]!,
+          sceneId: `scene-${String(index + 1).padStart(2, '0')}`,
+          startSentenceId: `s${String(index + 1).padStart(4, '0')}`,
+          endSentenceId: `s${String(index + 1).padStart(4, '0')}`,
+        })),
+      },
+    };
+    const payload = buildEpisodeVisualPayload({
+      visualVersion: 'v11',
+      searchIntentModel: null,
+      visualHash: 'a'.repeat(64),
+      episodeId,
+      canonicalLocalizationId: localizationId,
+      manifestUrl: 'https://cdn.example.test/manifest.json',
+      storyboard: expanded,
+      selectedScenes: expanded.draft.scenes.map((scene) => ({
+        sceneId: scene.sceneId,
+        assetId: 'image-150',
+      })),
+      assets: [{ ...assets[0]!, assetId: 'image-150' }],
+      r2ImageUrls: { 'image-150': 'https://cdn.example.test/image.jpg' },
+    });
+    expect(parseEpisodeVisualPayload(payload).visualPlan.scenes).toHaveLength(
+      150,
+    );
+  });
+});

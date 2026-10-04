@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { MAX_STORYBOARD_SLIDES } from './storyboard/draft.js';
 import {
   remoteImageAssetSchema,
   type VisualSource,
@@ -364,7 +365,7 @@ const verticalManifestFields = {
   audio: verticalAudioSchema,
   bgm: bgmSchema,
   outro: outroSchema,
-  slides: z.array(imageSlideSchema).min(1).max(64),
+  slides: z.array(imageSlideSchema).min(1).max(MAX_STORYBOARD_SLIDES),
   captions: z.array(captionSchema).min(1),
 } as const;
 

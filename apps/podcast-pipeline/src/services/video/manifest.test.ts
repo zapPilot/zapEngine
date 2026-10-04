@@ -266,3 +266,32 @@ describe('vertical news video manifest (v4)', () => {
     ).toBe(false);
   });
 });
+
+describe('expanded render manifest', () => {
+  it('parses 150 contiguous slides and rejects 151', () => {
+    const manifest = createVerticalManifest();
+    const slide = manifest.slides[0]!;
+    manifest.slides = Array.from({ length: 150 }, (_, index) => ({
+      ...slide,
+      id: `scene-${String(index + 1).padStart(2, '0')}`,
+      startMs: index * 6_000,
+      endMs: (index + 1) * 6_000,
+    }));
+    manifest.audio.narrationDurationMs = 900_000;
+    manifest.clip.durationMs = 900_000 + OUTRO_TAIL_MS;
+    manifest.outro.startMs = 900_000;
+    manifest.captions = manifest.slides.map((scene) => ({
+      startMs: scene.startMs,
+      endMs: scene.endMs,
+      text: 'Narration',
+    }));
+    expect(parseVerticalVideoManifest(manifest).slides).toHaveLength(150);
+    manifest.slides.push({
+      ...slide,
+      id: 'scene-151',
+      startMs: 900_000,
+      endMs: 906_000,
+    });
+    expect(verticalVideoManifestSchema.safeParse(manifest).success).toBe(false);
+  });
+});

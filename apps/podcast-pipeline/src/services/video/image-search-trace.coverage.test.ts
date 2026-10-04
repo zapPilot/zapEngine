@@ -55,12 +55,12 @@ describe('image search trace coverage', () => {
   it('caps retained scene selections after the trace reaches its scene limit', () => {
     const trace = createImageSearchTrace({ primary: 0, targeted: 0, max: 100 });
 
-    for (let index = 1; index <= 65; index += 1) {
+    for (let index = 1; index <= 151; index += 1) {
       appendImageSearchProgress(trace, { selection: selection(index) });
     }
 
-    expect(trace.scenes).toHaveLength(64);
-    expect(trace.scenes.at(-1)?.sceneId).toBe('scene-64');
+    expect(trace.scenes).toHaveLength(150);
+    expect(trace.scenes.at(-1)?.sceneId).toBe('scene-150');
   });
 
   it('sorts equal drop counts by cause name', () => {

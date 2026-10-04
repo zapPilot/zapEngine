@@ -1,7 +1,11 @@
 import { z } from 'zod';
 
 import type { ImageCandidate } from '../../types.js';
-import { MAX_VISUAL_CUE_CHARACTERS } from './storyboard/draft.js';
+import {
+  MAX_STORYBOARD_SLIDES,
+  MAX_VISUAL_CUE_CHARACTERS,
+  SCENE_ID_PATTERN,
+} from './storyboard/draft.js';
 
 /**
  * Why an episode ended up with the images it has. Every Brave request and every
@@ -12,7 +16,7 @@ import { MAX_VISUAL_CUE_CHARACTERS } from './storyboard/draft.js';
  * same shape from progress events so a failed attempt is explainable too.
  */
 const MAX_TRACE_REQUESTS = 16;
-const MAX_TRACE_SCENES = 64;
+const MAX_TRACE_SCENES = MAX_STORYBOARD_SLIDES;
 const MAX_TRACE_PRIMARY_SUBJECTS = 8;
 const MAX_TRACE_DROP_ENTRIES = 16;
 const MAX_TRACE_REJECTION_ENTRIES = 32;
@@ -81,10 +85,7 @@ const visualImageSearchRequestSchema = z
     query: z.string().min(1).max(200),
     // Primary requests build the episode pool before any scene owns them, so
     // only a targeted retry can name the scene that asked for it.
-    sceneId: z
-      .string()
-      .regex(/^scene-\d{2}$/)
-      .nullable(),
+    sceneId: z.string().regex(SCENE_ID_PATTERN).nullable(),
     returned: z.number().int().nonnegative(),
     viable: z.number().int().nonnegative(),
     drops: z.array(countedReasonSchema).max(MAX_TRACE_DROP_ENTRIES),
@@ -103,7 +104,7 @@ const visualImageSearchRequestSchema = z
 
 const visualSceneSelectionSchema = z
   .object({
-    sceneId: z.string().regex(/^scene-\d{2}$/),
+    sceneId: z.string().regex(SCENE_ID_PATTERN),
     subjectKey: z.string().min(1).max(320).nullable(),
     matchedSubjectKey: z.string().min(1).max(320).nullable(),
     selection: z.enum(VISUAL_SCENE_SELECTIONS),

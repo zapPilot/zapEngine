@@ -93,6 +93,7 @@ export interface EpisodeVideoVisualSource {
   script: string;
   englishTitle: string;
   englishScript: string;
+  japaneseScript?: string;
   hlsUrl: string;
   sourceUrl: string;
   sourceTitle: string | null;
@@ -700,6 +701,12 @@ async function loadVisualSource(
     'en',
     'English',
   );
+  const japanese = await maybeOne<EpisodeVideoSourceLocalizationRow>(
+    localizationBaseQuery(supabase)
+      .eq('episode_id', episodeId)
+      .eq('language_code', 'ja')
+      .maybeSingle<EpisodeVideoSourceLocalizationRow>(),
+  );
   const episode = await loadEpisode(supabase, episodeId);
   return {
     episodeId: episode.id,
@@ -708,6 +715,7 @@ async function loadVisualSource(
     script: canonical.script!,
     englishTitle: english.title,
     englishScript: english.script!,
+    ...(japanese?.script ? { japaneseScript: japanese.script } : {}),
     hlsUrl: canonical.hls_url,
     sourceUrl: episode.source_url,
     sourceTitle: episode.source_title,

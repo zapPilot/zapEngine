@@ -60,6 +60,7 @@ export async function generateStoryboard(input: {
   signal?: AbortSignal;
   sentences?: readonly import('./sentences.js').CanonicalSentence[];
   isPackaged?: boolean;
+  contentSceneBounds?: import('../../podcast-packaging.js').ContentSceneBounds;
 }): Promise<StoryboardGenerationResult> {
   const sentences = input.sentences ?? splitCanonicalSentences(input.script);
   if (sentences.length === 0) {
@@ -71,11 +72,13 @@ export async function generateStoryboard(input: {
           input.durationMs,
           sentences.length,
           input.isPackaged,
+          input.contentSceneBounds,
         )
       : podcastContentSceneCountRange(
           input.durationMs,
           sentences.length,
           input.script,
+          input.contentSceneBounds,
         );
 
   const attempts: StoryboardAttemptReport[] = [];
@@ -90,6 +93,7 @@ export async function generateStoryboard(input: {
           script: input.script,
           durationMs: input.durationMs,
           sentences,
+          sceneCountRange,
         },
         {
           ...(input.signal ? { signal: input.signal } : {}),
@@ -140,6 +144,7 @@ export async function generateStoryboard(input: {
     script: input.script,
     durationMs: input.durationMs,
     sentences,
+    sceneCountRange,
     ...(input.isPackaged !== undefined ? { isPackaged: input.isPackaged } : {}),
   });
   const fallbackValidation = validateStoryboardDraft(fallback, {
