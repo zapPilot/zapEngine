@@ -115,7 +115,7 @@ describe('buildOpsIncidentContext', () => {
     expect(result.correlation.service).toEqual({
       workspace: '@zapengine/podcast-pipeline',
       impact: 'social-media',
-      githubWorkflows: ['distribution-snapshot.yml'],
+      githubWorkflows: ['distribution-snapshot.yml', 'podcast-artifact-gc.yml'],
       flyApp: 'from-fed-to-chain-api',
       sentryProject: 'podcast-pipeline',
     });
