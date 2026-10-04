@@ -186,6 +186,7 @@ function growth(): SocialGrowthResponse {
         arms: [],
       },
     ],
+    audience: { days: [], series: [] },
     attribution: [
       {
         platform: 'x',

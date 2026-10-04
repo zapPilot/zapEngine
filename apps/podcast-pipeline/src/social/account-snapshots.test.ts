@@ -155,8 +155,8 @@ function rednoteLine(log: ReturnType<typeof vi.fn>): string {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  // The operator has not re-consented to `youtube.readonly` yet, which is the
-  // state every case below runs in unless it says otherwise.
+  vi.stubEnv('YOUTUBE_CHANNEL_ID', 'test-channel');
+  // Account snapshot tests fail locally unless they explicitly supply a session.
   mocks.assertYouTubeSessionReady.mockRejectedValue(YOUTUBE_SCOPE_MISSING);
   mocks.readPublishState.mockResolvedValue({
     'episode-1': {
@@ -344,7 +344,7 @@ describe('captureDueAccountSnapshots', () => {
       }),
     ).resolves.toEqual([]);
     expect(insert).not.toHaveBeenCalled();
-    expect(log).toHaveBeenCalledTimes(3);
+    expect(log).toHaveBeenCalledTimes(4);
     expect(rednoteLine(log)).toEqual(
       expect.stringContaining(
         `Rednote profile ${REDNOTE_PROFILE_URL} exposed no follower count`,
@@ -495,5 +495,147 @@ describe('capturePrePublishAccountSnapshots', () => {
     expect(insert).toHaveBeenCalledWith(
       expect.objectContaining({ platform: 'x', followers: 8096 }),
     );
+  });
+});
+
+describe('YouTube account audience snapshots', () => {
+  const recent = { captured_at: NOW.toISOString() };
+  function capture(
+    fetchImpl: typeof fetch,
+    latest = { rednote: recent, x: recent, threads: recent },
+  ) {
+    const insert = vi.fn().mockResolvedValue(undefined);
+    const log = vi.fn();
+    const openBrowser = vi.fn(() => {
+      throw new Error('Browser must stay closed');
+    });
+    return {
+      insert,
+      log,
+      openBrowser,
+      run: () =>
+        captureDueAccountSnapshots({
+          now: NOW,
+          latest: vi.fn().mockResolvedValue(latest),
+          fetchImpl,
+          insert,
+          log,
+          openBrowser,
+        }),
+    };
+  }
+  function youtubeFetch(payload: unknown, status = 200) {
+    return vi.fn().mockResolvedValue({
+      ok: status < 300,
+      status,
+      json: async () => payload,
+    }) as unknown as typeof fetch;
+  }
+  const channel = (statistics: unknown) => ({
+    items: [{ id: 'test-channel', statistics }],
+  });
+
+  it('requests own channel statistics with readonly bearer and inserts the count', async () => {
+    mocks.assertYouTubeSessionReady.mockResolvedValue({
+      accessToken: 'yt-token',
+    });
+    const fetchImpl = youtubeFetch(channel({ subscriberCount: '1234' }));
+    const check = capture(fetchImpl);
+    await expect(check.run()).resolves.toEqual(['youtube']);
+    expect(check.insert).toHaveBeenCalledWith({
+      platform: 'youtube',
+      followers: 1234,
+      details: {},
+    });
+    const [url, init] = vi.mocked(fetchImpl).mock.calls[0]!;
+    expect(String(url)).toContain('part=statistics');
+    expect(String(url)).toContain('mine=true');
+    expect(init?.headers).toEqual({ Authorization: 'Bearer yt-token' });
+    expect(init?.signal).toBeInstanceOf(AbortSignal);
+    expect(mocks.assertYouTubeSessionReady).toHaveBeenCalledWith({
+      additionalScopes: ['https://www.googleapis.com/auth/youtube.readonly'],
+      fetchImpl,
+    });
+    expect(check.openBrowser).not.toHaveBeenCalled();
+  });
+  it.each(['env', 'scope'])(
+    'rejects missing %s before any fetch or insert',
+    async (missing) => {
+      if (missing === 'env') vi.stubEnv('YOUTUBE_CHANNEL_ID', '');
+      const fetchImpl = youtubeFetch({});
+      const check = capture(fetchImpl);
+      await expect(check.run()).resolves.toEqual([]);
+      expect(fetchImpl).not.toHaveBeenCalled();
+      expect(check.insert).not.toHaveBeenCalled();
+    },
+  );
+  it.each([
+    [
+      403,
+      { error: { errors: [{ reason: 'quotaExceeded' }] } },
+      'quotaExceeded',
+    ],
+    [500, { error: { errors: [{ reason: 'backendError' }] } }, 'backendError'],
+    [200, { items: [] }, 'no channel'],
+    [200, null, 'no channel'],
+    [200, { items: [{ id: 'secret-other' }] }, 'does not match'],
+    [200, channel(null), 'no subscriber statistics'],
+    [
+      200,
+      channel({ hiddenSubscriberCount: true, subscriberCount: '99' }),
+      'hidden',
+    ],
+    [200, channel({ subscriberCount: 'bad' }), 'readable'],
+    [200, channel({}), 'readable'],
+  ])(
+    'fails closed for HTTP %s payload %j',
+    async (status, payload, message) => {
+      mocks.assertYouTubeSessionReady.mockResolvedValue({
+        accessToken: 'yt-token',
+      });
+      const check = capture(youtubeFetch(payload, status));
+      await expect(check.run()).resolves.toEqual([]);
+      expect(check.insert).not.toHaveBeenCalled();
+      expect(check.log).toHaveBeenCalledWith(expect.stringContaining(message));
+      expect(check.log.mock.calls.flat().join(' ')).not.toContain(
+        'secret-other',
+      );
+      expect(check.log.mock.calls.flat().join(' ')).not.toContain(
+        'test-channel',
+      );
+    },
+  );
+  it('skips fresh YouTube snapshots without checking auth', async () => {
+    const check = capture(youtubeFetch({}), {
+      rednote: recent,
+      x: recent,
+      threads: recent,
+      youtube: recent,
+    } as never);
+    await expect(check.run()).resolves.toEqual([]);
+    expect(mocks.assertYouTubeSessionReady).not.toHaveBeenCalled();
+  });
+  it('keeps YouTube when every other collector fails', async () => {
+    mocks.assertYouTubeSessionReady.mockResolvedValue({
+      accessToken: 'yt-token',
+    });
+    mocks.assertThreadsSessionReady.mockRejectedValue(new Error('expired'));
+    const insert = vi.fn();
+    await expect(
+      captureDueAccountSnapshots({
+        now: NOW,
+        latest: vi.fn().mockResolvedValue({}),
+        openBrowser: () => {
+          throw new Error('expired');
+        },
+        fetchImpl: youtubeFetch(channel({ subscriberCount: '0' })),
+        insert,
+      }),
+    ).resolves.toEqual(['youtube']);
+    expect(insert).toHaveBeenCalledWith({
+      platform: 'youtube',
+      followers: 0,
+      details: {},
+    });
   });
 });

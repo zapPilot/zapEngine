@@ -194,6 +194,7 @@ function socialGrowth(
     ],
     experiments: [],
     waitlist: unavailableWaitlist('Not collected'),
+    audience: { days: [], series: [] },
     attribution: [],
     ...overrides,
   };

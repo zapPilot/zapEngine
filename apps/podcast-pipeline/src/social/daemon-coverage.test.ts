@@ -1,3 +1,8 @@
+vi.mock('./account-snapshots.js', () => ({
+  captureDueAccountSnapshots: vi.fn().mockResolvedValue([]),
+  capturePrePublishAccountSnapshots: vi.fn().mockResolvedValue([]),
+}));
+
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('./daemon-tick-telemetry.js', () => ({

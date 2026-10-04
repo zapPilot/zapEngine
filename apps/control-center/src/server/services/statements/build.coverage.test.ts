@@ -143,6 +143,7 @@ function inputs(overrides: Partial<StatementInputs> = {}): StatementInputs {
       ],
       experiments: [],
       waitlist: unavailableWaitlist('Not collected'),
+      audience: { days: [], series: [] },
       attribution: [],
     } satisfies SocialGrowthResponse,
     customers: {

@@ -150,6 +150,7 @@ function stubs() {
       platforms: [],
       experiments: [],
       waitlist: unavailableWaitlist('Not collected'),
+      audience: { days: [], series: [] },
       attribution: [],
     });
   const getPipeline = vi

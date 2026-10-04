@@ -197,13 +197,9 @@ export async function collectThreadsMetrics(
 }
 
 /**
- * The public counters are read with an API key rather than the session's bearer
- * token. `videos.list` only honours `youtube.readonly` and wider scopes, while
- * the session deliberately carries just `youtube.upload` + `yt-analytics.readonly`
- * so no metrics snapshot can widen the grant to full read access over the
- * account's channels — the same reason the channel guard proves identity through
- * Analytics instead of `channels.list` (see ./README.md, "Channel guard").
- * Daemon uploads are always public, so an API key can read these counters.
+ * Public video counters still use an API key; daemon uploads are public.
+ * The session also carries youtube.readonly for account subscriber snapshots,
+ * alongside youtube.upload and yt-analytics.readonly.
  */
 export async function collectYouTubeMetrics(
   post: SocialPostRow,
@@ -272,7 +268,7 @@ export async function collectYouTubeMetrics(
  * session never had: both answer 403. Google names the cause in the body, so the
  * reason travels with the thrown error instead of being parsed and dropped.
  */
-function describeGoogleApiError(payload: unknown): string {
+export function describeGoogleApiError(payload: unknown): string {
   if (!isRecord(payload) || !isRecord(payload['error'])) return '';
   const error = payload['error'];
   const errors = error['errors'];

@@ -64,6 +64,7 @@ vi.mock('./metric-collectors.js', async (importOriginal) => ({
 vi.mock('./account-snapshots.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./account-snapshots.js')>()),
   captureDueAccountSnapshots: mocks.captureDueAccountSnapshots,
+  capturePrePublishAccountSnapshots: vi.fn().mockResolvedValue([]),
 }));
 
 import type { SocialPostRow } from '../types.js';

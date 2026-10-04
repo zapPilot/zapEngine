@@ -1,3 +1,4 @@
+import { signedCount } from '../../../shared/format.js';
 import { describe, expect, it, vi } from 'vitest';
 import {
   count,
@@ -6,7 +7,6 @@ import {
   percent,
   plural,
   seriesAndDelta,
-  signedCount,
   signedPercent,
 } from './format.js';
 

@@ -1,5 +1,6 @@
 import type {
   SocialEpisodeSummary,
+  SocialMetricWindow,
   SocialPerformanceResponse,
   SocialPlatformPerformance,
 } from '../../shared/types.js';
@@ -104,7 +105,7 @@ export async function loadSocialPerformance(input: {
       window,
       generatedAt: now.toISOString(),
       accounts: latestAccounts((accountResult.data ?? []) as AccountRow[]),
-      episodes: buildEpisodes(posts, metrics, window),
+      episodes: buildEpisodes(posts, metrics, window, now),
     };
   } catch {
     return {
@@ -150,6 +151,7 @@ export function buildEpisodes(
   posts: SocialPostRow[],
   metrics: SocialMetricRow[],
   window: SocialWindow,
+  now: Date,
 ): SocialEpisodeSummary[] {
   const filteredMetrics = metrics.filter(
     (metric) => (metric.collection_status ?? 'collected') !== 'unavailable',
@@ -192,6 +194,12 @@ export function buildEpisodes(
       publishedAt: episode.publishedAt,
       summary: {
         episodeId,
+        publishedAt: episode.publishedAt,
+        // Mirrors daemon METRIC_WINDOWS plus one hour of collection grace.
+        windowReached:
+          window === 'latest' ||
+          now.getTime() - Date.parse(episode.publishedAt) >=
+            (METRIC_WINDOW_HOURS[window] + 1) * 3_600_000,
         title: episode.title,
         platforms: episode.platforms,
       },
@@ -232,6 +240,8 @@ function toPerformance(
     return {
       platform: post.platform,
       postUrl: post.post_url,
+      measurementWindow: null,
+      ageHours: null,
       views: null,
       engagementRate: null,
       likes: null,
@@ -253,6 +263,10 @@ function toPerformance(
   return {
     platform: post.platform,
     postUrl: post.post_url,
+    measurementWindow: isSocialMetricWindow(metric.measurement_window)
+      ? metric.measurement_window
+      : null,
+    ageHours: metric.age_hours,
     views: metric.views,
     engagementRate:
       engagements !== null && denominator !== null && denominator > 0
@@ -276,4 +290,17 @@ export function postTitle(
     post.published_body.split('\n')[0]?.slice(0, 80) ||
     'Untitled episode'
   );
+}
+
+const METRIC_WINDOW_HOURS: Record<SocialMetricWindow, number> = {
+  '1h': 1,
+  '6h': 6,
+  '24h': 24,
+  '72h': 72,
+  '7d': 168,
+};
+function isSocialMetricWindow(
+  value: string | null,
+): value is SocialMetricWindow {
+  return value !== null && Object.hasOwn(METRIC_WINDOW_HOURS, value);
 }

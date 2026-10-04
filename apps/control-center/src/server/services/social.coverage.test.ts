@@ -188,7 +188,12 @@ describe('social coverage', () => {
       metric('b', 7, { impressions: 70 }),
       metric('c', null),
     ];
-    const episodes = buildEpisodes(posts as never, metrics as never, 'latest');
+    const episodes = buildEpisodes(
+      posts as never,
+      metrics as never,
+      'latest',
+      new Date('2026-08-30T12:00:00.000Z'),
+    );
     expect(episodes.find((e) => e.episodeId === 'ep')?.title).toBe('繁中');
     expect(episodes[0]?.episodeId).toBe('ep2');
   });
@@ -198,7 +203,12 @@ describe('social coverage', () => {
       post('t1', { published_title: '  ', published_body: 'First line\nrest' }),
       post('t2', { published_title: '  ', published_body: '' }),
     ];
-    const episodes = buildEpisodes(posts as never, [] as never, 'latest');
+    const episodes = buildEpisodes(
+      posts as never,
+      [] as never,
+      'latest',
+      new Date('2026-08-30T12:00:00.000Z'),
+    );
     expect(episodes.find((e) => e.episodeId === 'episode-t1')?.title).toBe(
       'First line',
     );
@@ -212,6 +222,7 @@ describe('social coverage', () => {
       [post('e1')] as never,
       [metric('e1', null, { likes: 1 })] as never,
       'latest',
+      new Date('2026-08-30T12:00:00.000Z'),
     );
     expect(episodes[0]?.platforms[0]).toMatchObject({
       views: null,

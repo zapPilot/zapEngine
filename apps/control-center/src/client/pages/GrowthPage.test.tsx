@@ -35,6 +35,8 @@ const social = {
   episodes: [
     {
       episodeId: 'ep-1',
+      publishedAt: '2026-08-28T12:00:00Z',
+      windowReached: true,
       platforms: [
         {
           averageViewDurationSec: null,
@@ -45,6 +47,8 @@ const social = {
           likes: null,
           platform: 'youtube',
           postUrl: null,
+          measurementWindow: '24h',
+          ageHours: 24,
           saves: null,
           shares: null,
           views: 0,
@@ -71,6 +75,7 @@ const emptyWaitlist = {
 } as const;
 
 const growth = {
+  audience: { days: [], series: [] },
   attribution: [],
   experiments: [],
   generatedAt: '2026-09-10T01:00:00Z',
@@ -163,7 +168,9 @@ describe('Growth drop-off reading', () => {
 
   it('surfaces published posts that were never seen', () => {
     renderGrowth();
-    expect(screen.getByText('1 篇貼文的觀看數是 0')).toBeVisible();
+    expect(
+      screen.getByText('1 篇貼文的 ≥24h 最新快照 觀看數是 0'),
+    ).toBeVisible();
   });
 
   it('says nothing when analytics is unavailable', () => {
@@ -220,4 +227,77 @@ describe('Growth decision clarity', () => {
     expect(screen.getByText('貼文連結未取得')).toBeVisible();
     expect(screen.getByText('近期內容表現')).toBeVisible();
   });
+});
+
+it('compares the latest three eligible episodes and marks missing or late measurements', () => {
+  const episodes = Array.from({ length: 6 }, (_, index) => ({
+    ...social.episodes[0]!,
+    episodeId: `episode-${index}`,
+    title: `Release ${index}`,
+    windowReached: index >= 2,
+    platforms: [
+      {
+        ...social.episodes[0]!.platforms[0]!,
+        views: index === 2 ? null : 0,
+        measurementWindow: '24h' as const,
+        ageHours: 31,
+      },
+    ],
+  }));
+  const view = renderGrowth({ data: { ...social, window: '24h', episodes } });
+  expect(
+    screen.getByText('較新的 2 集尚未滿 24h，暫不列入比較'),
+  ).toBeInTheDocument();
+  expect(screen.queryByText('Release 0')).toBeNull();
+  expect(screen.queryByText('Release 5')).toBeNull();
+  expect(screen.getByText('未取得')).toBeInTheDocument();
+  expect(screen.getAllByText(/量於 31h/)).toHaveLength(3);
+  view.rerender(
+    <GrowthPage
+      acquisition={null}
+      journey={journey}
+      growth={growth}
+      data={{ ...social, window: 'latest', episodes: [episodes[2]!] }}
+      onWindowChange={vi.fn()}
+    />,
+  );
+  expect(screen.getByText('尚無快照')).toBeInTheDocument();
+});
+it('shows an empty comparison when all episodes are younger than the window', () => {
+  renderGrowth({
+    data: {
+      ...social,
+      window: '24h',
+      episodes: [{ ...social.episodes[0]!, windowReached: false }],
+    },
+  });
+  expect(
+    screen.getByText('較新的 1 集尚未滿 24h，暫不列入比較'),
+  ).toBeInTheDocument();
+  expect(screen.getByText('No release yet')).toBeInTheDocument();
+});
+it('counts only mature windows for zero-view diagnostics and places audience before content', () => {
+  const platforms = ['1h', '6h', '24h', '72h', '7d'].map((window) => ({
+    ...social.episodes[0]!.platforms[0]!,
+    platform: window,
+    measurementWindow:
+      window as import('../../shared/types.js').SocialMetricWindow,
+    ageHours: 1,
+  }));
+  renderGrowth({
+    data: { ...social, episodes: [{ ...social.episodes[0]!, platforms }] },
+  });
+  expect(
+    screen.getByText('3 篇貼文的 ≥24h 最新快照 觀看數是 0'),
+  ).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: '最新快照' })).toHaveAttribute(
+    'title',
+    '每篇最新一筆，量測時間各不相同，不能直接比較',
+  );
+  const audience = screen.getByText('受眾成長 · 30 天');
+  const content = screen.getByText('近期內容表現');
+  expect(
+    audience.compareDocumentPosition(content) &
+      Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
 });

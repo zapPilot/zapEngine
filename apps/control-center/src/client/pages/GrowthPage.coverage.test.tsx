@@ -42,6 +42,7 @@ const emptyWaitlist = {
 } as const;
 
 const growth = {
+  audience: { days: [], series: [] },
   attribution: [],
   experiments: [],
   generatedAt: '2026-09-10T01:00:00Z',
@@ -83,16 +84,16 @@ describe('GrowthPage coverage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '7d' }));
     expect(onWindowChange).toHaveBeenCalledWith('7d');
-    expect(screen.getByRole('button', { name: 'latest' })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: '最新快照' })).toHaveAttribute(
       'aria-pressed',
       'true',
     );
   });
 
-  it('falls back to the latest window when no telemetry has arrived', () => {
+  it('defaults to the 24h window when no telemetry has arrived', () => {
     renderGrowth({ data: null });
 
-    expect(screen.getByRole('button', { name: 'latest' })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: '24h' })).toHaveAttribute(
       'aria-pressed',
       'true',
     );
@@ -156,6 +157,8 @@ describe('GrowthPage coverage', () => {
         episodes: [
           {
             episodeId: 'ep-1',
+            publishedAt: '2026-08-28T12:00:00Z',
+            windowReached: true,
             platforms: [
               {
                 averageViewDurationSec: null,
@@ -166,6 +169,8 @@ describe('GrowthPage coverage', () => {
                 likes: null,
                 platform: 'x',
                 postUrl: 'https://x.example/1',
+                measurementWindow: '24h',
+                ageHours: 24,
                 saves: null,
                 shares: null,
                 views: null,

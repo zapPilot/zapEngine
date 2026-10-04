@@ -88,6 +88,7 @@ describe('social coverage round 3', () => {
       [post('e-null')] as never,
       [metric('e-null', null, { impressions: null })] as never,
       'latest',
+      new Date('2026-08-30T12:00:00.000Z'),
     );
     expect(episodes[0]?.platforms[0]).toMatchObject({ views: null });
   });

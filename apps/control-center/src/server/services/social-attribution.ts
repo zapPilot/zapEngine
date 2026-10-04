@@ -60,7 +60,10 @@ export function pairSnapshotIntervals(
 ): SnapshotInterval[] {
   const grouped = new Map<string, AttributionSnapshot[]>();
   for (const snapshot of snapshots) {
-    if (!Number.isFinite(Date.parse(snapshot.captured_at))) {
+    if (
+      snapshot.platform === 'youtube' ||
+      !Number.isFinite(Date.parse(snapshot.captured_at))
+    ) {
       continue;
     }
     const rows = grouped.get(snapshot.platform) ?? [];

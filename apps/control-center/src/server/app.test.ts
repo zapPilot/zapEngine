@@ -109,6 +109,7 @@ const socialGrowth: SocialGrowthResponse = {
   platforms: [],
   experiments: [],
   waitlist: unavailableWaitlist('Not collected'),
+  audience: { days: [], series: [] },
   attribution: [],
 };
 

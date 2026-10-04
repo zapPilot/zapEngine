@@ -191,11 +191,15 @@ describe('TodayPage coverage2', () => {
         episodes: [
           {
             episodeId: 'episode-9',
+            publishedAt: '2026-08-28T12:00:00Z',
+            windowReached: true,
             title: 'Telemetry only',
             platforms: [
               {
                 platform: 'x',
                 postUrl: null,
+                measurementWindow: '24h',
+                ageHours: 24,
                 views: null,
                 engagementRate: null,
                 likes: null,
@@ -225,6 +229,8 @@ describe('TodayPage coverage2', () => {
         episodes: [
           {
             episodeId: 'episode-10',
+            publishedAt: '2026-08-28T12:00:00Z',
+            windowReached: true,
             title: null,
             platforms: undefined,
           },
@@ -244,11 +250,15 @@ describe('TodayPage coverage2', () => {
         episodes: [
           {
             episodeId: 'episode-11',
+            publishedAt: '2026-08-28T12:00:00Z',
+            windowReached: true,
             title: null,
             platforms: [
               {
                 platform: 'threads',
                 postUrl: null,
+                measurementWindow: '24h',
+                ageHours: 24,
                 views: 5,
                 engagementRate: null,
                 likes: null,

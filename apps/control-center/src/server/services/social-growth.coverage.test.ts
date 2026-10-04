@@ -24,6 +24,11 @@ function chainFor(result: QueryResult, calls?: string[]) {
     gte: () => chain,
     lte: () => chain,
     order: () => chain,
+    range: (from: number, to: number) =>
+      Promise.resolve({
+        ...result,
+        data: result.data?.slice(from, to + 1) ?? null,
+      }),
     limit: (v: number) => {
       calls?.push(`limit:${v}`);
       return Promise.resolve(result);
@@ -31,7 +36,6 @@ function chainFor(result: QueryResult, calls?: string[]) {
     not: () => chain,
     eq: () => chain,
     in: () => chain,
-    range: () => Promise.resolve(result),
   };
   return chain;
 }
@@ -134,7 +138,7 @@ describe('social growth coverage', () => {
   it('keeps only the most recent intervals per platform', async () => {
     const snapshots = Array.from({ length: 12 }, (_, i) => ({
       platform: 'x',
-      captured_at: `2026-08-${String(i + 1).padStart(2, '0')}T12:00:00.000Z`,
+      captured_at: `2026-08-${String(i + 18).padStart(2, '0')}T12:00:00.000Z`,
       followers: 100 + i,
     }));
     const posts = [
@@ -162,7 +166,7 @@ describe('social growth coverage', () => {
     const xIntervals = response.attribution.filter(
       (row) => row.platform === 'x',
     );
-    expect(xIntervals.length).toBeLessThanOrEqual(10);
+    expect(xIntervals).toHaveLength(10);
   });
 
   it('ignores packaging experiments with malformed shapes', async () => {
