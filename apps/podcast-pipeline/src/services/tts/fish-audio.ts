@@ -598,7 +598,7 @@ function getMaxCharsPerRequest(): number {
   });
 }
 
-function getRequestDelayMs(): number {
+export function getRequestDelayMs(): number {
   return getIntEnv('FISH_AUDIO_REQUEST_DELAY_MS', {
     default: DEFAULT_REQUEST_DELAY_MS,
     min: 0,

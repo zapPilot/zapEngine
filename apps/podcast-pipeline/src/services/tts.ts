@@ -4,6 +4,8 @@ import {
   getMetadata as getFishAudioMetadata,
   synthesize as synthesizeWithFishAudio,
 } from './tts/fish-audio.js';
+import { buildMixedLanguagePlan } from './tts/mixed-language-text.js';
+import { synthesizeMixedLanguage } from './tts/mixed-language-tts.js';
 import { type FishAudioTtsConfig, getTtsConfig } from './tts/tts-config.js';
 import { applyFishAudioPricing } from './tts-pricing.js';
 
@@ -43,7 +45,14 @@ export async function textToSpeech(
     costLabel?: string;
   },
 ): Promise<TtsSynthesisResult> {
-  const result = await synthesizeWithFishAudio(text, normalizeTtsOptions(opts));
+  const options = normalizeTtsOptions(opts);
+  const plan =
+    opts.languageCode === 'en'
+      ? null
+      : buildMixedLanguagePlan(text, opts.languageCode);
+  const result = plan
+    ? await synthesizeMixedLanguage(plan, options)
+    : await synthesizeWithFishAudio(text, options);
   return {
     ...result,
     cost: applyFishAudioPricing(result.cost),
