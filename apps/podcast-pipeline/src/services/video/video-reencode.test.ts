@@ -427,3 +427,36 @@ it('fails rollback if original artifacts are already gone', async () => {
   ).rejects.toThrow('NoSuchKey');
   expect(mocks.append).not.toHaveBeenCalled();
 });
+
+it('excludes already-compressed videos before enforcing candidate sidecar ownership', async () => {
+  query([
+    [
+      {
+        ...row,
+        duration_seconds: 100,
+        thumbnail_url: 'https://cdn.test/episodes/ep/covers/shared.png',
+      },
+    ],
+    [],
+  ]);
+  await runVideoReencodeCli(['plan', '--work-dir', '/workspace/backup']);
+  expect(mocks.write).toHaveBeenCalledWith(
+    '/workspace/backup/plan.json',
+    '[]',
+    { flag: 'wx' },
+  );
+});
+it('still refuses high-bitrate candidates whose sidecar belongs to another prefix', async () => {
+  query([
+    [
+      {
+        ...row,
+        thumbnail_url: 'https://cdn.test/episodes/ep/covers/shared.png',
+      },
+    ],
+  ]);
+  await expect(
+    runVideoReencodeCli(['plan', '--work-dir', '/workspace/backup']),
+  ).rejects.toThrow('Video URLs do not belong');
+  expect(mocks.write).not.toHaveBeenCalled();
+});
