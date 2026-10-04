@@ -46,6 +46,16 @@ function candidate(
   };
 }
 
+function panewsCandidate(
+  id: string,
+  origin: ImageCandidate['origin'] = 'article',
+): ImageCandidate {
+  return {
+    ...candidate(id, origin),
+    sourceUrl: 'https://www.panewslab.com/zh/articles/example-story',
+  };
+}
+
 function acquired(id: string): AcquiredRemoteImage {
   return {
     path: `/work/${id}.image`,
@@ -76,8 +86,8 @@ describe('planVisualAssets', () => {
       acquired(new URL(url).pathname.split('/').at(-1)!.replace('.jpg', '')),
     );
     const searchImages = vi.fn();
-    const article = candidate('article-a');
-    const figure = candidate('article-b', 'figure');
+    const article = panewsCandidate('article-a');
+    const figure = panewsCandidate('article-b', 'figure');
 
     const result = await planVisualAssets({
       scenes: scenes.slice(0, 2),
@@ -384,10 +394,10 @@ describe('planVisualAssets', () => {
 
   it('keeps thumbnail-like publisher body URLs when the image can be acquired', async () => {
     const thumbnail = {
-      ...candidate('story-thumbnail'),
+      ...panewsCandidate('story-thumbnail'),
       imageUrl: 'https://images.example.test/thumbnail/story.jpg',
     };
-    const fullSize = candidate('story-full');
+    const fullSize = panewsCandidate('story-full');
     const acquireImage = vi.fn(async () => acquired('story-thumbnail'));
     const searchImages = vi.fn();
 
@@ -409,6 +419,33 @@ describe('planVisualAssets', () => {
       expect.objectContaining({ allowSmallDimensions: true }),
     );
     expect(result.assets[0]?.originalImageUrl).toBe(thumbnail.imageUrl);
+  });
+
+  it('keeps the existing decorative filter for non-PANews article images', async () => {
+    const thumbnail = {
+      ...candidate('story-thumbnail'),
+      imageUrl: 'https://images.example.test/thumbnail/story.jpg',
+    };
+    const fullSize = candidate('story-full');
+    const acquireImage = vi.fn(async () => acquired('story-full'));
+
+    const result = await planVisualAssets({
+      scenes: scenes.slice(0, 1),
+      articleImages: [thumbnail, fullSize],
+      workingDirectory: '/work/visual-assets',
+      dependencies: {
+        acquireImage,
+        searchProviders: braveProviders(vi.fn()),
+        fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
+      },
+    });
+
+    expect(acquireImage).toHaveBeenCalledOnce();
+    expect(acquireImage).toHaveBeenCalledWith(
+      fullSize.imageUrl,
+      expect.any(Object),
+    );
+    expect(result.assets[0]?.originalImageUrl).toBe(fullSize.imageUrl);
   });
 
   it('skips text-heavy Brave cards before downloading photographic results', async () => {
