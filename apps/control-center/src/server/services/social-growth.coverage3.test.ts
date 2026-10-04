@@ -42,6 +42,11 @@ function chainFor(result: QueryResult) {
     gte: () => chain,
     lte: () => chain,
     order: () => chain,
+    range: (from: number, to: number) =>
+      Promise.resolve({
+        ...result,
+        data: result.data?.slice(from, to + 1) ?? null,
+      }),
     limit: () => Promise.resolve(result),
     not: () => chain,
     eq: () => chain,

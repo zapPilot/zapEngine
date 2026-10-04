@@ -20,6 +20,13 @@ vi.mock('./threads-auth.js', () => ({
   assertThreadsSessionReady: mocks.assertThreadsSessionReady,
 }));
 
+vi.mock('./youtube-auth.js', () => ({
+  YOUTUBE_READONLY_SCOPE: 'https://www.googleapis.com/auth/youtube.readonly',
+  assertYouTubeSessionReady: vi
+    .fn()
+    .mockRejectedValue(new Error('No test session')),
+}));
+
 import {
   captureDueAccountSnapshots,
   capturePrePublishAccountSnapshots,
@@ -201,6 +208,7 @@ describe('account snapshot coverage edges', () => {
       rednote: recent,
       x: recent,
       threads: recent,
+      youtube: recent,
     });
     const openBrowser = vi.fn(() => rednoteJsonFailureSession());
 

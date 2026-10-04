@@ -172,7 +172,12 @@ export interface SocialAccountSummary {
   capturedAt: string;
 }
 
+export type SocialMetricWindow = '1h' | '6h' | '24h' | '72h' | '7d';
+export const DEFAULT_SOCIAL_COMPARISON_WINDOW = '24h';
+
 export interface SocialPlatformPerformance {
+  measurementWindow: SocialMetricWindow | null;
+  ageHours: number | null;
   platform: string;
   postUrl: string | null;
   views: number | null;
@@ -187,6 +192,8 @@ export interface SocialPlatformPerformance {
 }
 
 export interface SocialEpisodeSummary {
+  publishedAt: string;
+  windowReached: boolean;
   episodeId: string;
   title: string;
   platforms: SocialPlatformPerformance[];
@@ -264,7 +271,23 @@ export interface SocialGrowthInterval {
   basis: 'estimated';
 }
 
+export interface SocialAudienceSeries {
+  platform: string;
+  followersNow: number | null;
+  capturedAt: string | null;
+  delta7d: number | null;
+  delta30d: number | null;
+  followersByDay: (number | null)[];
+}
+
+export interface SocialAudienceHistory {
+  /** Thirty JST YYYY-MM-DD dates, oldest first. */
+  days: string[];
+  series: SocialAudienceSeries[];
+}
+
 export interface SocialGrowthResponse {
+  audience: SocialAudienceHistory;
   waitlist: SocialWaitlistSummary;
   status: ProviderStatus;
   message: string | null;

@@ -1,3 +1,4 @@
+import { signedCount } from '../../../shared/format.js';
 import {
   count,
   elapsedFromMinutes,
@@ -5,7 +6,6 @@ import {
   percent,
   plural,
   seriesAndDelta,
-  signedCount,
   signedPercent,
 } from './format.js';
 import type { RuleFinding, StatementInputs } from './types.js';
@@ -277,9 +277,14 @@ export function ruleR4(input: StatementInputs): RuleFinding {
   const platforms = socialGrowth.platforms;
   const totalDelta7d = sumKnown(platforms.map((p) => p.followersDelta7d));
   const totalFollowers = sumKnown(platforms.map((p) => p.followersNow));
+  const knownFollowers = sumKnown(
+    platforms
+      .filter((p) => p.followersDelta7d !== null)
+      .map((p) => p.followersNow),
+  );
   const priorTotal =
-    totalDelta7d !== null && totalFollowers !== null
-      ? totalFollowers - totalDelta7d
+    totalDelta7d !== null && knownFollowers !== null
+      ? knownFollowers - totalDelta7d
       : null;
   const pctChange =
     totalDelta7d !== null && priorTotal !== null && priorTotal > 0

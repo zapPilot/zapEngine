@@ -1,3 +1,4 @@
+import { MeasuredViews } from '../components/ui/MeasuredViews.js';
 import {
   Bell,
   CircleDollarSign,
@@ -336,11 +337,11 @@ function LatestRelease(props: {
                   <Pill tone={PUBLISH_TONE[lane.status] ?? 'neutral'}>
                     {lane.status}
                   </Pill>
-                  <span className="today-release-views">
-                    {metric?.views === null || metric?.views === undefined
-                      ? '—'
-                      : integer(metric.views)}
-                  </span>
+                  <MeasuredViews
+                    className="today-release-views"
+                    metric={metric}
+                    missing="—"
+                  />
                   <ProviderLink
                     label="查看"
                     title={`${release.title} on ${lane.platform}`}
@@ -355,9 +356,11 @@ function LatestRelease(props: {
                 key={metric.platform}
               >
                 <PlatformIdentity platform={metric.platform} />
-                <span className="today-release-views">
-                  {metric.views === null ? '—' : integer(metric.views)}
-                </span>
+                <MeasuredViews
+                  className="today-release-views"
+                  metric={metric}
+                  missing="—"
+                />
                 <ProviderLink
                   label="查看"
                   title={`${measured?.title ?? ''} on ${metric.platform}`}

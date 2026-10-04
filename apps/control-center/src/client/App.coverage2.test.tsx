@@ -291,7 +291,7 @@ describe('App coverage2', () => {
     fireEvent.click(screen.getByRole('button', { name: 'go-growth' }));
     await waitFor(() =>
       expect(api.getJson).toHaveBeenCalledWith(
-        '/api/social-performance?window=latest',
+        '/api/social-performance?window=24h',
       ),
     );
     releaseHome(overview);

@@ -68,11 +68,15 @@ const overview = {
     episodes: [
       {
         episodeId: 'episode-1',
+        publishedAt: '2026-08-28T12:00:00Z',
+        windowReached: true,
         title: 'The latest release',
         platforms: [
           {
             platform: 'threads',
             postUrl: 'https://example.com/threads',
+            measurementWindow: '24h',
+            ageHours: 24,
             views: 120,
             engagementRate: 0.04,
             likes: null,

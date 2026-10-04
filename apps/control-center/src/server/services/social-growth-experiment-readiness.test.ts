@@ -118,6 +118,12 @@ function clientFactory(input: {
         order() {
           return chain;
         },
+        range(from: number, to: number) {
+          return Promise.resolve({
+            ...result(),
+            data: result().data?.slice(from, to + 1) ?? null,
+          });
+        },
         limit() {
           return Promise.resolve(result());
         },

@@ -71,10 +71,13 @@ vi.mock('./pages/ReliabilityPage.js', () => ({
   ReliabilityPage: () => <div>reliability-ready</div>,
 }));
 vi.mock('./pages/GrowthPage.js', () => ({
-  GrowthPage: (props: { onWindowChange: (window: string) => void }) => (
+  GrowthPage: (props: {
+    data: { window: string };
+    onWindowChange: (window: string) => void;
+  }) => (
     <div>
-      growth-ready
-      <button onClick={() => props.onWindowChange('30d')}>window-30d</button>
+      growth-ready <span data-testid="growth-window">{props.data.window}</span>
+      <button onClick={() => props.onWindowChange('72h')}>window-72h</button>
     </div>
   ),
 }));
@@ -177,7 +180,10 @@ function installSuccessfulReads() {
   api.getJson.mockImplementation(async (url: string) => {
     const clean = url.replace('?force=1', '');
     if (clean.startsWith('/api/social-performance')) {
-      return { ...overview.social, window: '30d' };
+      return {
+        generatedAt: 'content-performance-at',
+        window: new URL(url, 'http://localhost').searchParams.get('window'),
+      };
     }
     if (clean === '/api/social-growth') {
       return socialGrowth;
@@ -337,7 +343,7 @@ describe('App orchestration', () => {
 
     await navigate('growth');
     expect(screen.getByTestId('shell')).toHaveTextContent(
-      'social-from-overview',
+      'content-performance-at',
     );
 
     await navigate('reliability');
@@ -366,7 +372,7 @@ describe('App orchestration', () => {
     fireEvent.click(screen.getByRole('button', { name: 'refresh' }));
     await navigate('growth');
     fireEvent.click(screen.getByRole('button', { name: 'refresh' }));
-    fireEvent.click(screen.getByRole('button', { name: 'window-30d' }));
+    fireEvent.click(screen.getByRole('button', { name: 'window-72h' }));
     await navigate('reliability');
     fireEvent.click(screen.getByRole('button', { name: 'refresh' }));
     await navigate('product');
@@ -378,7 +384,7 @@ describe('App orchestration', () => {
       expect(api.getJson).toHaveBeenCalledWith('/api/operations?force=1');
       expect(api.getJson).toHaveBeenCalledWith('/api/customers?force=1');
       expect(api.getJson).toHaveBeenCalledWith(
-        '/api/social-performance?window=30d',
+        '/api/social-performance?window=72h',
       );
     });
     // mutation target — routing refresh through another loader changes the asserted URLs.
@@ -457,4 +463,28 @@ describe('App orchestration', () => {
     expect(screen.getByText('pipeline-summary')).toBeVisible();
     // mutation target — inventing a header for an absent statement renders forbidden copy.
   });
+});
+
+it('preserves Growth comparison window and timestamp through Home refresh and only reloads content on window changes', async () => {
+  await renderReadyHome();
+  await navigate('growth');
+  expect(screen.getByTestId('growth-window')).toHaveTextContent('24h');
+  api.getJson.mockClear();
+  fireEvent.click(screen.getByRole('button', { name: 'window-72h' }));
+  await waitFor(() =>
+    expect(screen.getByTestId('growth-window')).toHaveTextContent('72h'),
+  );
+  expect(api.getJson.mock.calls).toEqual([
+    ['/api/social-performance?window=72h'],
+  ]);
+  await navigate('home');
+  fireEvent.click(screen.getByRole('button', { name: 'refresh' }));
+  await waitFor(() =>
+    expect(screen.getByTestId('shell')).toHaveTextContent('overview-at'),
+  );
+  await navigate('growth');
+  expect(screen.getByTestId('growth-window')).toHaveTextContent('72h');
+  expect(screen.getByTestId('shell')).toHaveTextContent(
+    'content-performance-at',
+  );
 });

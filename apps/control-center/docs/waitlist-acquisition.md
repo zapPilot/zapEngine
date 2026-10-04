@@ -130,3 +130,13 @@ do not assume that a particular member count or invite lifetime remains constant
 ## Platform downloads
 
 Hero now offers available platform downloads alongside waitlist signup; Navbar and Closing retain waitlist signup. `download_cta_clicked` records location, detected platform and download target with beacon transport. The v2 web app remains private. Mac and Google Play availability remain disabled until their release acceptance steps complete. Growth funnel consumption of this event is a follow-up.
+
+## Growth 頁指標層級與比較視窗
+
+決策先看註冊、CTA 與到站的轉換，再看受眾與分發是否累積，最後才用同一視窗的內容表現比較包裝。觀看與訂閱數是輔助診斷，不是頂層成功指標，也不是因果證據。
+
+近期內容預設比較 24h；以該集最晚發佈時間加上 1h 收集寬限判斷是否可列入。尚未滿視窗的集數會略過；缺量測顯示「未取得」。標籤會帶出實際快照視窗；量測比視窗晚超過 6h 時另註「量於 31h」等實際年齡。
+
+「最新快照」選每篇最新一筆，各篇可能在不同年齡量測，不能直接比較。0 觀看診斷只計 24h、72h、7d 快照；到站與轉換固定看 30 天。
+
+受眾成長卡呈現 30 天及 7 天淨變化，固定平台順序並共用刻度。缺資料日斷線，不回填；無歷史不等於 0。受眾成長只代表分發累積，不代表轉換或註冊。Rednote 沒有外連 CTA，以受眾成長判讀分發。

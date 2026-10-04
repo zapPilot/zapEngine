@@ -507,8 +507,19 @@ to the same final Rednote transport truncation.
 
 The daemon samples account-level follower/subscriber counts on a best-effort
 three-hour cadence. Immediately before a due publish it also attempts a fresh
-baseline for affected platforms. Snapshot or rolling-metric failures are
-observational and cannot block a release.
+baseline for affected platforms except YouTube. Snapshot or rolling-metric failures
+are observational and cannot block a release.
+
+All four platforms (Rednote, X, Threads, YouTube) have account snapshots.
+YouTube checks the configured channel locally before requesting statistics and
+rejects a mismatched channel, hidden subscriber counts or unreadable counts;
+failed reads never insert zero. The Data API rounds subscriber counts above
+1,000 to three significant digits. Older sessions missing `youtube.readonly`
+need `pnpm social:login` again.
+
+YouTube account snapshots serve audience history only. Attribution still uses
+exact per-video subscriber gains: no interval attribution, rolling observations
+or pre-publish baseline for YouTube.
 
 ## Safe smoke test after publisher changes
 

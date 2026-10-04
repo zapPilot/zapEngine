@@ -1036,3 +1036,29 @@ describe('history and freshness boundaries', () => {
     expect(text).not.toContain('for');
   });
 });
+
+it('R4 calculates growth percentage only against platforms with known deltas', () => {
+  const finding = ruleR4({
+    socialGrowth: {
+      platforms: [
+        {
+          platform: 'x',
+          followersNow: 100,
+          followersDelta7d: 10,
+          followersDelta24h: 2,
+        },
+        {
+          platform: 'youtube',
+          followersNow: 1000,
+          followersDelta7d: null,
+          followersDelta24h: null,
+        },
+      ],
+    },
+    metricSeries: new Map(),
+  } as unknown as StatementInputs);
+  expect(sentence(finding)).toBe(
+    'Audience +10 this week (+11.1%), 100% of it on X.',
+  );
+  expect(finding.value).toBe('1,100');
+});

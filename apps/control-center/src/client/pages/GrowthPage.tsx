@@ -1,12 +1,15 @@
+import { AudienceGrowthCard } from '../components/AudienceGrowthCard.js';
+import { MeasuredViews } from '../components/ui/MeasuredViews.js';
 import { ContentPackagingCard } from '../components/ContentPackagingCard.js';
 import { TrendingDown, UserPlus, Video } from 'lucide-react';
 
 import type { OperationsGrowthResponse } from '../../shared/growth.js';
 import { GrowthLaneTable } from '../components/GrowthLaneTable.js';
 import type { SocialGrowthJourney } from '../../shared/growth-journey.js';
-import type {
-  SocialGrowthResponse,
-  SocialPerformanceResponse,
+import {
+  DEFAULT_SOCIAL_COMPARISON_WINDOW,
+  type SocialGrowthResponse,
+  type SocialPerformanceResponse,
 } from '../../shared/types.js';
 import { GrowthJourneyPanel } from '../components/GrowthJourneyPanel.js';
 import { Card } from '../components/ui/Card.js';
@@ -40,9 +43,11 @@ export function GrowthPage(props: {
       <DecisionBrief journey={props.journey} growth={props.growth} />
 
       <div className="growth-toolbar">
-        <span>貼文量測時間（到站與轉換固定為 30 天）</span>
+        <span>
+          貼文量測視窗：用於 0 觀看判讀與近期內容表現；到站與轉換固定為 30 天
+        </span>
         <WindowPicker
-          active={props.data?.window ?? 'latest'}
+          active={props.data?.window ?? DEFAULT_SOCIAL_COMPARISON_WINDOW}
           onChange={props.onWindowChange}
         />
       </div>
@@ -92,6 +97,8 @@ export function GrowthPage(props: {
           <GrowthLaneTable acquisition={props.acquisition} />
         </Card>
       </details>
+
+      <AudienceGrowthCard growth={props.growth} />
 
       <div className="cc-grid rel-main">
         <Card
@@ -183,9 +190,14 @@ function WindowPicker(props: {
           className={props.active === window ? 'active' : undefined}
           key={window}
           onClick={() => void props.onChange(window)}
+          title={
+            window === 'latest'
+              ? '每篇最新一筆，量測時間各不相同，不能直接比較'
+              : undefined
+          }
           type="button"
         >
-          {window}
+          {window === 'latest' ? '最新快照' : window}
         </button>
       ))}
     </div>
@@ -278,7 +290,12 @@ function leakItems(
   }
   const silent = (data?.episodes ?? []).flatMap((episode) =>
     episode.platforms
-      .filter((platform) => platform.views === 0)
+      .filter(
+        (platform) =>
+          platform.views === 0 &&
+          platform.measurementWindow !== null &&
+          ['24h', '72h', '7d'].includes(platform.measurementWindow),
+      )
       .map((platform) => ({
         episode: episode.title,
         platform: platform.platform,
@@ -286,12 +303,14 @@ function leakItems(
   );
   if (silent.length > 0) {
     items.push({
-      detail: silent
-        .map((entry) => `${platformLabel(entry.platform)}／${entry.episode}`)
-        .slice(0, 3)
-        .join('、'),
+      detail:
+        (data?.window === 'latest' ? '只計 ≥24h 的列。' : '') +
+        silent
+          .map((entry) => `${platformLabel(entry.platform)}／${entry.episode}`)
+          .slice(0, 3)
+          .join('、'),
       id: 'zero-view-posts',
-      title: `${integer(silent.length)} 篇貼文的觀看數是 0`,
+      title: `${integer(silent.length)} 篇貼文的 ${data?.window === 'latest' ? '≥24h 最新快照' : data?.window} 觀看數是 0`,
       tone: 'warning',
     });
   }
@@ -356,25 +375,43 @@ function WaitlistCard(props: { growth: SocialGrowthResponse | null }) {
 }
 
 function ContentPerformance(props: { data: SocialPerformanceResponse | null }) {
-  const episodes = props.data?.episodes ?? [];
+  const all = props.data?.episodes ?? [];
+  const latest = props.data?.window === 'latest';
+  const episodes = latest
+    ? all
+    : all.filter((episode) => episode.windowReached);
+  const skipped = all.length - episodes.length;
   if (episodes.length === 0) {
     return (
-      <EmptyState detail="這個視窗內沒有發佈紀錄。" title="No release yet" />
+      <EmptyState
+        detail={
+          skipped > 0
+            ? `較新的 ${skipped} 集尚未滿 ${props.data?.window}，暫不列入比較`
+            : '這個視窗內尚無已滿量測視窗的發佈紀錄。'
+        }
+        title="No release yet"
+      />
     );
   }
   return (
     <div className="growth-content">
+      {skipped > 0 && (
+        <p>
+          較新的 {skipped} 集尚未滿 {props.data?.window}，暫不列入比較
+        </p>
+      )}
       {episodes.slice(0, 3).map((episode) => (
         <div className="growth-content-block" key={episode.episodeId}>
           <strong className="growth-content-title">{episode.title}</strong>
           {episode.platforms.map((platform) => (
             <div className="growth-content-row" key={platform.platform}>
               <PlatformIdentity platform={platform.platform} />
-              <span className="growth-content-metric">
-                {platform.views === null
-                  ? '—'
-                  : `${integer(platform.views)} views`}
-              </span>
+              <MeasuredViews
+                className="growth-content-metric"
+                metric={platform}
+                missing={latest ? '尚無快照' : '未取得'}
+                suffix=" views"
+              />
               <span className="growth-content-metric">
                 {platform.engagementRate === null
                   ? '—'

@@ -49,7 +49,12 @@ describe('social coverage round 2', () => {
       post('a', { episode_id: 'ep', published_at: '2026-08-20T00:00:00Z' }),
       post('b', { episode_id: 'ep', published_at: '2026-08-22T00:00:00Z' }),
     ];
-    const episodes = buildEpisodes(posts as never, [] as never, 'latest');
+    const episodes = buildEpisodes(
+      posts as never,
+      [] as never,
+      'latest',
+      new Date('2026-08-30T12:00:00.000Z'),
+    );
     expect(episodes).toHaveLength(1);
     // newest date wins; episodes sorted desc puts it first trivially with one row
     expect(episodes[0]?.platforms).toHaveLength(2);
@@ -64,6 +69,7 @@ describe('social coverage round 2', () => {
         metric('w', 99, { captured_at: '2026-08-22T00:00:00.000Z' }),
       ] as never,
       'latest',
+      new Date('2026-08-30T12:00:00.000Z'),
     );
     expect(result[0]?.platforms[0]?.views).toBe(99);
   });

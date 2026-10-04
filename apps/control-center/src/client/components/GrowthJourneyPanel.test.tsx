@@ -50,6 +50,7 @@ const GROWTH = {
   generatedAt: '2026-09-09T06:00:00.000Z',
   platforms: [],
   experiments: [],
+  audience: { days: [], series: [] },
   attribution: [],
   waitlist: {
     status: 'ok',
