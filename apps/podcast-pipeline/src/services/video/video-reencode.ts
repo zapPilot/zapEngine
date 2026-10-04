@@ -319,7 +319,6 @@ async function readReencodePlan(
     if (!data.length) break;
     for (const value of data) {
       const row = rowSchema.parse(value);
-      validateReencodeCandidate(row, base);
       const head = await r2.send(
         new HeadObjectCommand({
           Bucket: getRequiredEnv('R2_BUCKET_NAME'),
@@ -329,7 +328,10 @@ async function readReencodePlan(
       const bytes = head.ContentLength;
       if (!bytes || bytes <= 0) throw new Error('Invalid source size');
       const kbps = (bytes * 8) / row.duration_seconds / 1000;
-      if (kbps > min) candidates.push({ ...row, bytes, kbps });
+      if (kbps > min) {
+        validateReencodeCandidate(row, base);
+        candidates.push({ ...row, bytes, kbps });
+      }
     }
     const next = rowSchema.parse(data.at(-1)).episode_localization_id;
     if (cursor && next <= cursor) throw new Error('Invalid video cursor');
