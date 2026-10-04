@@ -1,5 +1,6 @@
+import type { DesktopUpdateState } from '@zapengine/types/shared';
 import { router } from 'expo-router';
-import { type ReactElement, useEffect } from 'react';
+import { type ReactElement, useEffect, useState } from 'react';
 
 import { useAccount } from '@/integration/useAccount';
 
@@ -20,6 +21,15 @@ type Unsubscribe = () => void;
 
 type ZapDesktopBridge = {
   platform: 'electron';
+  updates: {
+    getState: () => Promise<DesktopUpdateState>;
+    check: () => void;
+    download: () => void;
+    install: () => void;
+    onStateChange: (
+      callback: (state: DesktopUpdateState) => void,
+    ) => Unsubscribe;
+  };
   onRebalanceProposal(
     callback: (proposal: DesktopRebalanceProposal) => void,
   ): Unsubscribe;
@@ -89,4 +99,35 @@ export function DesktopSchedulerContextSync(): ReactElement | null {
   }, [userId, address]);
 
   return null;
+}
+
+export function useDesktopUpdate() {
+  const [state, setState] = useState<DesktopUpdateState>();
+  const bridge = getBridge();
+  useEffect(() => {
+    if (!bridge) return;
+    let active = true,
+      received = false;
+    const off = bridge.updates.onStateChange((next) => {
+      received = true;
+      if (active) setState(next);
+    });
+    void bridge.updates
+      .getState()
+      .then((next) => {
+        if (active && !received) setState(next);
+      })
+      .catch(() => {});
+    bridge.updates.check();
+    return () => {
+      active = false;
+      off();
+    };
+  }, [bridge]);
+  return {
+    state,
+    update: () => bridge?.updates.download(),
+    install: () => bridge?.updates.install(),
+    retry: () => bridge?.updates.check(),
+  };
 }

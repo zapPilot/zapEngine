@@ -113,3 +113,16 @@ describe('landing analytics events', () => {
     );
   });
 });
+
+it('sends platform download clicks as beacons', async () => {
+  vi.resetModules();
+  vi.stubEnv('NEXT_PUBLIC_POSTHOG_KEY', 'phc_test');
+  const { trackDownloadCtaClicked } = await importEvents();
+  trackDownloadCtaClicked({ location: 'hero', platform: 'mac', target: 'mac' });
+  expect(posthogMocks.capture).toHaveBeenCalledWith(
+    'download_cta_clicked',
+    { location: 'hero', platform: 'mac', target: 'mac' },
+    { transport: 'sendBeacon' },
+  );
+  vi.unstubAllEnvs();
+});

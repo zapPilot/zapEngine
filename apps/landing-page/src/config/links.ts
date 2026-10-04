@@ -6,6 +6,12 @@ const ACCOUNT_ENGINE_ORIGIN =
 // Centralized external links. The public marketing site intentionally exposes no
 // route to the unfinished v2 app; local/direct app development remains separate.
 export const LINKS = {
+  downloads: {
+    mac: 'https://github.com/zapPilot/zapEngine/releases/latest/download/Zap-Pilot-mac-arm64.dmg',
+    appStore: 'https://apps.apple.com/app/id6749248542',
+    googlePlay:
+      'https://play.google.com/store/apps/details?id=com.fromfedtochain.app',
+  },
   waitlistApi: `${ACCOUNT_ENGINE_ORIGIN}/waitlist`,
   telegramBot: 'https://t.me/zap_pilot_bot',
   social: {
@@ -14,4 +20,10 @@ export const LINKS = {
     x: 'https://x.com/fromfedtochain',
   },
   support: { contactUs: 'mailto:zap-pilot.org@ud.me' },
+} as const;
+
+export const DOWNLOAD_AVAILABILITY = {
+  mac: false,
+  appStore: true,
+  googlePlay: false,
 } as const;

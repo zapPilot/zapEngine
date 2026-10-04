@@ -6,6 +6,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthenticatedActionProvider } from '@/providers/AuthenticatedActionProvider';
 import { AccountScreen } from '@/screens/AccountScreen';
+vi.mock('@/components/account/AppVersionCard', () => ({
+  AppVersionCard: () => null,
+}));
 
 const mocks = vi.hoisted(() => ({
   connectWallet: vi.fn(),

@@ -6,7 +6,7 @@
     "dev": "node scripts/env/run.mjs -- bash scripts/dev.sh",
     "build": "node scripts/env/run.mjs -- bash scripts/build.sh",
     "desktop:package": "node scripts/env/run.mjs --environment prod --client-target desktop -- turbo run package --filter=@zapengine/desktop",
-    "desktop:mac": "pnpm run desktop:package && open \"apps/desktop/release/mac-arm64/Zap Pilot.app\"",
+    "desktop:mac": "pnpm run desktop:release && open \"apps/desktop/release/mac-arm64/Zap Pilot.app\"",
     "type-check": "turbo run type-check",
     "test": "bash scripts/test.sh",
     "lint": "bash scripts/lint.sh",
@@ -34,7 +34,8 @@
     "track-record:publish": "tsx --tsconfig apps/landing-page/tsconfig.json scripts/track-record/publish-daily-snapshot.ts",
     "track-record:verify": "tsx --tsconfig apps/landing-page/tsconfig.json scripts/track-record/verify-track-record.ts",
     "clean": "turbo run clean && rm -rf node_modules",
-    "prepare": "husky"
+    "prepare": "husky",
+    "desktop:release": "node scripts/desktop-release.mjs build"
   },
   "devDependencies": {
     "@types/node": "catalog:",
@@ -44,7 +45,9 @@
     "prettier": "^3.8.4",
     "tsx": "catalog:",
     "turbo": "^2.9.18",
-    "viem": "catalog:"
+    "viem": "catalog:",
+    "yaml": "^2.9.1",
+    "zod": "catalog:"
   },
   "engines": {
     "node": "24.x",

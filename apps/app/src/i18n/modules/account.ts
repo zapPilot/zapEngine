@@ -1,4 +1,17 @@
 export const en = {
+  'account.updateBrand': 'Zap Pilot',
+  'account.updateVersion': 'Version',
+  'account.updateAvailable': 'New version available',
+  'account.updateDownloading': 'Downloading',
+  'account.updateCurrent': '✓ Up to date',
+  'account.updateMove': 'Move Zap Pilot to Applications to enable updates.',
+  'account.updateError': 'Update failed. Please try again.',
+  'account.updateChecking': 'Checking for updates…',
+  'account.updateInstalling': 'Installing…',
+  'account.updateAction': 'Update',
+  'account.updateRestart': 'Restart and Update',
+  'account.updateRetry': 'Retry',
+
   'account.deleteTitle': 'Delete account',
   'account.deleteBody':
     'Permanently deletes your Zap Pilot account, linked wallets, and associated metadata. Your on-chain assets are never touched. Linked wallets can be added to another Zap Pilot account.',
@@ -38,6 +51,19 @@ export const en = {
 } as const;
 
 export const zhHant = {
+  'account.updateBrand': 'Zap Pilot',
+  'account.updateVersion': '版本',
+  'account.updateAvailable': '有新版本可用',
+  'account.updateDownloading': '下載中',
+  'account.updateCurrent': '✓ 已是最新版本',
+  'account.updateMove': '請將 Zap Pilot 移至 Applications 以啟用更新。',
+  'account.updateError': '更新失敗，請重試。',
+  'account.updateChecking': '檢查更新中…',
+  'account.updateInstalling': '安裝中…',
+  'account.updateAction': '更新',
+  'account.updateRestart': '重新啟動並更新',
+  'account.updateRetry': '重試',
+
   'account.deleteTitle': '刪除帳號',
   'account.deleteBody':
     '永久刪除 Zap Pilot 帳號、已連結的錢包與相關資料。鏈上資產不受影響，錢包可重新連結至其他 Zap Pilot 帳號。',
@@ -75,6 +101,20 @@ export const zhHant = {
 } satisfies Record<keyof typeof en, string>;
 
 export const ja = {
+  'account.updateBrand': 'Zap Pilot',
+  'account.updateVersion': 'バージョン',
+  'account.updateAvailable': '新しいバージョンがあります',
+  'account.updateDownloading': 'ダウンロード中',
+  'account.updateCurrent': '✓ 最新です',
+  'account.updateMove':
+    '更新するには Zap Pilot を Applications に移動してください。',
+  'account.updateError': '更新に失敗しました。再試行してください。',
+  'account.updateChecking': '更新を確認中…',
+  'account.updateInstalling': 'インストール中…',
+  'account.updateAction': '更新',
+  'account.updateRestart': '再起動して更新',
+  'account.updateRetry': '再試行',
+
   'account.deleteTitle': 'アカウントを削除',
   'account.deleteBody':
     'Zap Pilot アカウント、連携ウォレットと関連データを完全に削除します。オンチェーンの資産には影響しません。ウォレットは別の Zap Pilot アカウントに連携できます。',

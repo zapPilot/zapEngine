@@ -20,10 +20,9 @@ import styles from './AppCtaLink.module.css';
 import { DiscordLink } from './DiscordLink';
 
 /**
- * The single public-product CTA used across marketing surfaces.
+ * Waitlist signup used across marketing surfaces.
  *
- * Production acquisition is deliberately waitlist-only while the v2 app is
- * unfinished. Direct/local access to the app remains a separate development
+ * Hero also offers available platform downloads. The v2 web app remains private. Direct/local access to the app remains a separate development
  * concern and is never exposed by this component.
  */
 export function AppCtaLink({

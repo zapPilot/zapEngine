@@ -1,5 +1,6 @@
 import '@sentry/electron/preload';
 
+import type { DesktopUpdateState } from '@zapengine/types/shared';
 import { contextBridge, ipcRenderer } from 'electron';
 
 import {
@@ -8,6 +9,16 @@ import {
   type SchedulerContext,
 } from '../shared/ipc';
 
+function subscribe<T>(
+  channel: string,
+  callback: (value: T) => void,
+): () => void {
+  const listener = (_event: Electron.IpcRendererEvent, value: T) =>
+    callback(value);
+  ipcRenderer.on(channel, listener);
+  return () => ipcRenderer.removeListener(channel, listener);
+}
+
 /**
  * Minimal typed bridge exposed to the renderer as `window.zapDesktop`.
  * The app web bundle detects it to switch APP_RUNTIME to 'desktop'
@@ -15,26 +26,18 @@ import {
  */
 const zapDesktop = {
   platform: 'electron' as const,
-  onRebalanceProposal(
-    callback: (proposal: RebalanceProposal) => void,
-  ): () => void {
-    const listener = (
-      _event: Electron.IpcRendererEvent,
-      proposal: RebalanceProposal,
-    ) => callback(proposal);
-    ipcRenderer.on(IPC_CHANNELS.rebalanceProposal, listener);
-    return () => {
-      ipcRenderer.removeListener(IPC_CHANNELS.rebalanceProposal, listener);
-    };
-  },
-
-  onDeepLink(callback: (url: string) => void): () => void {
-    const listener = (_event: Electron.IpcRendererEvent, url: string) =>
-      callback(url);
-    ipcRenderer.on(IPC_CHANNELS.deepLink, listener);
-    return () => {
-      ipcRenderer.removeListener(IPC_CHANNELS.deepLink, listener);
-    };
+  onRebalanceProposal: (callback: (proposal: RebalanceProposal) => void) =>
+    subscribe(IPC_CHANNELS.rebalanceProposal, callback),
+  onDeepLink: (callback: (url: string) => void) =>
+    subscribe(IPC_CHANNELS.deepLink, callback),
+  updates: {
+    getState: (): Promise<DesktopUpdateState> =>
+      ipcRenderer.invoke(IPC_CHANNELS.updateGetState),
+    check: () => ipcRenderer.send(IPC_CHANNELS.updateCheck),
+    download: () => ipcRenderer.send(IPC_CHANNELS.updateDownload),
+    install: () => ipcRenderer.send(IPC_CHANNELS.updateInstall),
+    onStateChange: (callback: (state: DesktopUpdateState) => void) =>
+      subscribe(IPC_CHANNELS.updateState, callback),
   },
 
   registerSchedulerContext(context: SchedulerContext): void {

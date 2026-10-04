@@ -6,7 +6,7 @@ The public marketing acquisition path is:
 
 This integrates PR #418 (persisted waitlist and social attribution) and PR #419
 (PostHog demand reporting). The landing site remains a static export. Direct v2
-access remains available for development; marketing CTAs open the waitlist.
+access remains available for development. Hero offers available platform downloads alongside waitlist signup; Navbar and Closing open the waitlist.
 
 ## Persistence and attribution
 
@@ -94,7 +94,7 @@ PostHog. `location` is `closing`, `footer`, `waitlist_success`, or `redirect`.
 `post_waitlist: false` means unknown, not evidence of no signup. This event proves
 click intent, never membership. The static `/discord/` client hop sends a beacon
 before navigating after 600 ms, with an untracked fallback link and noindex metadata.
-Hero remains waitlist-only; podcast publishing copy is unchanged.
+Hero offers platform downloads plus waitlist signup. Podcast publishing copy is unchanged.
 
 Journey uses separate ordered one-day funnels for landing → waitlist CTA and
 landing → Discord CTA over 30 days. Audience reporting also counts distinct Discord
@@ -126,3 +126,7 @@ the env manifest/destination rail. Verify live invite availability and expiry;
 do not assume that a particular member count or invite lifetime remains constant.
 
 `ops_growth.packaging` shares the Growth read model and cache: universal title/cover associations, Rednote 24h primary, lane-normalized confirmations. Never use ranks or features to infer topics or choose articles for platform audiences. Distribution gates are separate from packaging and reliability.
+
+## Platform downloads
+
+Hero now offers available platform downloads alongside waitlist signup; Navbar and Closing retain waitlist signup. `download_cta_clicked` records location, detected platform and download target with beacon transport. The v2 web app remains private. Mac and Google Play availability remain disabled until their release acceptance steps complete. Growth funnel consumption of this event is a follow-up.

@@ -1,3 +1,4 @@
+import { AppVersionCard } from '@/components/account/AppVersionCard';
 import { usePrivy } from '@privy-io/expo';
 import { useEffect, useState } from 'react';
 import { Text, TextInput, View } from 'react-native';
@@ -76,6 +77,7 @@ export function AccountScreen() {
         </Card>
 
         <LanguageSettingsCard />
+        <AppVersionCard />
 
         <Card className="mt-4 p-5">
           <Text className="font-sans-semibold text-[15px] text-ink">

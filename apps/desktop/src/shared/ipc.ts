@@ -5,6 +5,11 @@
  */
 
 export const IPC_CHANNELS = {
+  updateGetState: 'update-get-state',
+  updateCheck: 'update-check',
+  updateDownload: 'update-download',
+  updateInstall: 'update-install',
+  updateState: 'update-state',
   /** main → renderer: a rebalance proposal is ready (background scheduler). */
   rebalanceProposal: 'zap:rebalance-proposal',
   /** renderer → main: push the logged-in scheduler context after Privy auth. */

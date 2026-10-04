@@ -8,3 +8,4 @@ export * from './string.js';
 export * from './tokens.js';
 export * from './wallet.js';
 export * from './ops.js';
+export * from './desktop-updates.js';

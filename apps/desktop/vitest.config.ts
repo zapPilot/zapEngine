@@ -11,6 +11,9 @@ export default defineConfig({
       // wiring (main/window/tray) is exercised by the manual package gate.
       include: [
         'src/shared/**',
+        'src/main/updater.ts',
+        'src/main/trayMenu.ts',
+        'src/preload/**',
         'src/main/appProtocol.ts',
         'src/main/config.ts',
         'src/main/scheduler/**',
