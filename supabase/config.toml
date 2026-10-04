@@ -4,3 +4,9 @@ project_id = "zapengine"
 
 [db]
 major_version = 15
+
+[api]
+schemas = ["public", "graphql_public", "review_web", "from_fed_to_chain", "kokode_ai"]
+
+[functions.genba-lead]
+verify_jwt = false

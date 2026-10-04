@@ -6,6 +6,7 @@ on:
     paths:
       - 'supabase/migrations/**'
       - 'supabase/config.toml'
+      - 'supabase/tests/**'
       - '.github/workflows/supabase-migrations.yml'
 
 permissions:
@@ -88,6 +89,11 @@ jobs:
           end
           $$;
           SQL
+
+      - name: Verify Kokode adoption replay preserves leads and grants
+        env:
+          LOCAL_DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: psql "$LOCAL_DB_URL" --no-psqlrc -f supabase/tests/kokode_adoption.sql
 
       - name: Stop local Supabase
         if: always()
