@@ -440,17 +440,34 @@ function mandatoryLeadCoverError(reason: string): Error {
   );
 }
 
-const ARTICLE_IMAGE_ORIGINS = ['openGraph', 'article', 'figure'] as const;
+const OPEN_GRAPH_IMAGE_ORIGINS = ['openGraph'] as const;
+
+function isPublisherBodyImage(candidate: ImageCandidate): boolean {
+  return candidate.origin === 'article' || candidate.origin === 'figure';
+}
+
+function publisherBodyImages(
+  candidates: readonly ImageCandidate[],
+): ImageCandidate[] {
+  return candidates.filter(
+    (candidate) =>
+      isPublisherBodyImage(candidate) &&
+      canonicalCandidateUrl(candidate.imageUrl) !== null,
+  );
+}
 
 /**
  * The publisher's own `og:image` is what every share card, feed preview and
  * video cover already shows, so the first content scene has to render that same
- * image rather than an independently searched one. Hoisting it to the front of
- * the cursor is all that takes: scene 0 draws first.
+ * image rather than an independently searched one.
  *
- * The decorative filter still judges it. An `og:image` served from a path the
- * filter reads as an icon or a thumbnail is worse than no lead image at all, so
- * a rejected one falls through to the ordinary ladder under its named reason.
+ * PANews/article body images follow a stronger rule: every valid body image is
+ * kept in publisher order and offered to content scenes before Brave may run.
+ * They deliberately bypass the decorative URL filter; if the publisher put an
+ * image in the article body and we can acquire/render it, the video must use it.
+ *
+ * The cover rule stays unchanged: the decorative filter still judges
+ * `og:image`, because a thumbnail/icon is not a valid lead cover.
  */
 function leadCoverOrderedArticleImages(
   candidates: readonly ImageCandidate[],
@@ -458,39 +475,39 @@ function leadCoverOrderedArticleImages(
   VisualAssetPlannerState,
   'articleImages' | 'leadCoverCandidateUrl' | 'leadCoverFallbackReason'
 > {
-  const { candidates: viable, dropReasons } = partitionViableCandidates(
-    candidates,
-    ARTICLE_IMAGE_ORIGINS,
-  );
+  const bodyImages = publisherBodyImages(candidates);
   const openGraph = candidates.find(
     (candidate) => candidate.origin === 'openGraph',
   );
   if (!openGraph) {
     return {
-      articleImages: viable,
+      articleImages: bodyImages,
       leadCoverCandidateUrl: null,
       leadCoverFallbackReason: 'missing-open-graph-image',
     };
   }
 
-  const canonicalUrl = canonicalCandidateUrl(openGraph.imageUrl);
-  const leadIndex = viable.findIndex(
-    (candidate) => canonicalCandidateUrl(candidate.imageUrl) === canonicalUrl,
+  const { candidates: viableCover, dropReasons } = partitionViableCandidates(
+    [openGraph],
+    OPEN_GRAPH_IMAGE_ORIGINS,
   );
-  if (leadIndex === -1) {
+  const lead = viableCover[0];
+  if (!lead) {
     return {
-      articleImages: viable,
+      articleImages: bodyImages,
       leadCoverCandidateUrl: null,
       leadCoverFallbackReason: dropReasons.get(openGraph.imageUrl)!,
     };
   }
 
-  const lead = viable[leadIndex]!;
+  const leadCanonicalUrl = canonicalCandidateUrl(lead.imageUrl);
   return {
     articleImages: [
       lead,
-      ...viable.slice(0, leadIndex),
-      ...viable.slice(leadIndex + 1),
+      ...bodyImages.filter(
+        (candidate) =>
+          canonicalCandidateUrl(candidate.imageUrl) !== leadCanonicalUrl,
+      ),
     ],
     leadCoverCandidateUrl: lead.imageUrl,
     leadCoverFallbackReason: null,
@@ -1028,6 +1045,7 @@ async function acquireNextArticleImage(
       state.leadCoverCandidateUrl !== null &&
       canonicalCandidateUrl(candidate.imageUrl) ===
         canonicalCandidateUrl(state.leadCoverCandidateUrl);
+    const isRequiredBodyImage = isPublisherBodyImage(candidate);
     const acquired = await tryAcquireUniqueImage({
       candidate,
       provider: 'article',
@@ -1037,7 +1055,8 @@ async function acquireNextArticleImage(
       assets: state.assets,
       attemptedUrls: state.attemptedUrls,
       rejections,
-      allowSmallDimensions: isMandatoryLead,
+      allowSmallDimensions: isMandatoryLead || isRequiredBodyImage,
+      allowPerceptualDuplicate: isRequiredBodyImage,
     });
     if (acquired) return acquired;
     if (isMandatoryLead) {
@@ -1254,6 +1273,7 @@ async function tryAcquireUniqueImage(input: {
   attemptedUrls: Set<string>;
   rejections: CandidateRejections;
   allowSmallDimensions?: boolean;
+  allowPerceptualDuplicate?: boolean;
 }): Promise<PlannedVisualImage | null> {
   const canonicalUrl = canonicalCandidateUrl(input.candidate.imageUrl)!;
   if (input.attemptedUrls.has(canonicalUrl)) {
@@ -1301,12 +1321,14 @@ async function tryAcquireUniqueImage(input: {
     );
     return null;
   }
-  const duplicate = input.assets.some(
-    (asset) =>
-      asset.sha256 === acquired.sha256 ||
-      perceptualHashDistance(asset.perceptualHash, perceptualHash) <=
-        PERCEPTUAL_HASH_DISTANCE_LIMIT,
-  );
+  const duplicate =
+    !input.allowPerceptualDuplicate &&
+    input.assets.some(
+      (asset) =>
+        asset.sha256 === acquired.sha256 ||
+        perceptualHashDistance(asset.perceptualHash, perceptualHash) <=
+          PERCEPTUAL_HASH_DISTANCE_LIMIT,
+    );
   if (duplicate) {
     await rm(acquired.path, { force: true });
     recordCandidateRejection(input.rejections, 'duplicate-image');
