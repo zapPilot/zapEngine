@@ -45,6 +45,25 @@ const WEB_TARGETS = ['web', 'desktop'];
 const APP_TARGETS = ['web', 'expo', 'desktop'];
 
 export const ENV_MANIFEST = {
+  CSC_LINK: host(['env-tooling'], { documented: false, sensitive: true }),
+  CSC_KEY_PASSWORD: host(['env-tooling'], {
+    documented: false,
+    sensitive: true,
+  }),
+  APPLE_API_KEY: host(['env-tooling'], { documented: false, sensitive: true }),
+  APPLE_API_KEY_ID: host(['env-tooling'], {
+    documented: false,
+    sensitive: true,
+  }),
+  APPLE_API_ISSUER: host(['env-tooling'], {
+    documented: false,
+    sensitive: true,
+  }),
+  APPLE_KEYCHAIN_PROFILE: host(['env-tooling'], {
+    documented: false,
+    sensitive: true,
+  }),
+
   // Separate product configuration: no credentials or new writers in Zap stores.
   KOKODE_SUPABASE_URL: client(['kokode-ai'], { vite: 'VITE_SUPABASE_URL' }),
   KOKODE_SALES_EMAIL: client(['kokode-ai'], { vite: 'VITE_SALES_EMAIL' }),

@@ -106,11 +106,14 @@ describe('LandingPage', () => {
   });
 
   describe('interactive elements', () => {
-    it('renders waitlist buttons without public app links', () => {
+    it('renders waitlist buttons and available store downloads without public web app links', () => {
       render(<LandingPage />);
       expect(
         screen.getAllByRole('button', { name: 'Join waitlist' }),
       ).toHaveLength(3);
+      expect(
+        screen.getByRole('link', { name: 'Download on the App Store' }),
+      ).toHaveAttribute('href', 'https://apps.apple.com/app/id6749248542');
       expect(document.querySelector('a[href*="v2.zap-pilot.org"]')).toBeNull();
     });
   });

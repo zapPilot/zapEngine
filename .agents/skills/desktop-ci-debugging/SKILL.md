@@ -34,7 +34,7 @@ pnpm --filter @zapengine/desktop format:check
 For package/build changes:
 
 ```bash
-pnpm turbo run package --filter=@zapengine/desktop
+pnpm desktop:package
 ```
 
 Run it through Turbo (not `pnpm --filter ... package`): the `package` task
@@ -89,3 +89,5 @@ code.
 Before handoff, run the **Correct desktop gates** above. If the change touches
 Electron main/preload/builder/package config, also run the package command shown
 there.
+
+Unsigned validation uses electron-builder.unsigned.yml and `--publish never`. Signed releases use `pnpm desktop:release` and apps/desktop/docs/release.md. GitHub Latest is reserved for desktop updates and landing downloads.

@@ -144,8 +144,11 @@ pnpm dev landing
 # Run the desktop shell (Electron; loads the app web export)
 pnpm --filter @zapengine/desktop dev
 
-# Build the macOS DMG
-pnpm --filter @zapengine/desktop package
+# Build an unsigned macOS validation package
+pnpm desktop:package
+
+# Build a signed, notarized release (credentials required)
+pnpm desktop:release
 
 # Static web export of the universal app (Vercel output / Electron renderer)
 pnpm --filter @zapengine/app build:web
@@ -187,5 +190,7 @@ After linking, Turbo checks remote cache on local misses — `pnpm verify` stays
 - **Universal app (iOS / Android)** → EAS Build + Submit via GitHub Actions,
   triggered manually from the Actions tab
   ([runbook](./apps/app/docs/android-release.md#ci-release))
-- **Desktop** → local/manual macOS DMG build from `apps/desktop`
+- **Desktop** → signed macOS DMG + zip via `desktop-v*` tags; manual main dispatch builds and verifies without publishing ([runbook](apps/desktop/docs/release.md))
 - CI triggers on push to `main` and PRs; deploys only on `main`
+
+Desktop validation packages use `pnpm desktop:package`. Signed, notarized releases use `pnpm desktop:release`; `pnpm desktop:mac` opens the verified release and requires credentials. See [desktop release runbook](apps/desktop/docs/release.md).

@@ -1,4 +1,4 @@
-import { AppCtaLink } from './AppCtaLink';
+import { DownloadCta } from './DownloadCta';
 import { HeroCockpit } from './HeroCockpit';
 
 const HERO_CHIPS = ['No custody', 'No discretion', 'No standing approvals'];
@@ -33,9 +33,7 @@ export function Hero() {
           id="waitlist"
           aria-label="Primary actions"
         >
-          <AppCtaLink className="zp-btn zp-btn-primary" location="hero">
-            Join waitlist <span aria-hidden>→</span>
-          </AppCtaLink>
+          <DownloadCta />
           <a className="zp-btn zp-btn-ghost" href="#proof">
             See the backtest
           </a>

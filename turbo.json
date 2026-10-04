@@ -189,6 +189,19 @@
       "inputs": ["$TURBO_DEFAULT$", "!**/*.md"],
       "outputs": [],
       "cache": true
+    },
+    "package:bundle": {
+      "dependsOn": ["^build", "@zapengine/app#build:web"],
+      "cache": false,
+      "outputs": ["dist/**"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*", "!**/*.md"],
+      "env": [
+        "EXPO_PUBLIC_*",
+        "VITE_*",
+        "SENTRY_DESKTOP_DSN",
+        "APP_COMMIT_SHA",
+        "ZAP_ENV_CLIENT_TARGET"
+      ]
     }
   }
 }

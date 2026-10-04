@@ -6,6 +6,14 @@ import {
 } from '@/data/backtest-stats';
 
 export const MESSAGES = {
+  download: {
+    mac: 'Download for Mac',
+    macRequirement: 'Apple Silicon (M1+)',
+    appStore: 'Download on the App Store',
+    googlePlay: 'Get it on Google Play',
+    all: 'All available downloads',
+    waitlist: 'Join waitlist',
+  },
   // Common / Brand info
   common: {
     brandName: 'Zap Pilot',

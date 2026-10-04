@@ -1,3 +1,4 @@
+import { AppVersionCard } from '@/components/account/AppVersionCard';
 import { useRouter } from 'expo-router';
 import { ChevronRight } from 'lucide-react-native';
 import { Text, View } from 'react-native';
@@ -47,6 +48,7 @@ export function AccountScreen() {
           </Card>
         </Tap>
         <LanguageSettingsCard />
+        <AppVersionCard />
         <TelegramCard />
         <View className="mt-4">
           <Callout

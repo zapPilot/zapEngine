@@ -45,7 +45,7 @@ while read -r local_ref local_sha remote_ref remote_sha; do
 
   for path in $changed_files; do
     case "$path" in
-      apps/desktop/src/main/*|apps/desktop/src/preload/*|apps/desktop/scripts/build.mjs|apps/desktop/electron-builder.yml)
+      apps/desktop/src/main/*|apps/desktop/src/preload/*|apps/desktop/scripts/build.mjs|apps/desktop/build/*|apps/desktop/electron-builder*.yml|apps/desktop/package.json)
         desktop_changed=1
         ;;
     esac
@@ -60,9 +60,9 @@ if [ "$desktop_changed" = "1" ]; then
     # Run through Turbo so workspace dependencies (app-core, types) build
     # first via the package task's ^build ordering. A direct
     # `pnpm --filter @zapengine/desktop package` bypasses that graph and fails
-    # on a fresh worktree with missing dist output. --env-mode=loose matches
-    # scripts/dev.sh so the Expo export and electron-builder see the full env.
-    run_with_workspace_pnpm env CI=true pnpm exec turbo run package --filter=@zapengine/desktop --env-mode=loose --no-update-notifier
+    # on a fresh worktree with missing dist output. The root command also
+    # enforces the desktop client environment boundary.
+    run_with_workspace_pnpm env CI=true pnpm desktop:package
     printf '\nDesktop package gate passed\n'
   fi
 fi

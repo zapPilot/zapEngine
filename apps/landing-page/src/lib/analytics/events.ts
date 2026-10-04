@@ -80,3 +80,11 @@ export function trackDiscordCtaClicked(
     options,
   );
 }
+
+export function trackDownloadCtaClicked(props: {
+  location: CtaLocation;
+  platform: string;
+  target: string;
+}) {
+  fireEvent('download_cta_clicked', props, { beacon: true });
+}

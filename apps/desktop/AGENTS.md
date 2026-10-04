@@ -22,23 +22,25 @@ See @../AGENTS.md for shared application guidelines.
 
 ## Packaging
 
-From the repository root, use the one-command Mac package flow:
+From the repository root:
 
-\`\`\`bash
-pnpm desktop:mac
-\`\`\`
+```bash
+pnpm desktop:package  # unsigned validation package, no credentials
+pnpm desktop:release  # signed, notarized and verified release, credentials required
+pnpm desktop:mac      # release build, then open the app
+```
 
-This rebuilds the desktop package and then opens the packaged app at
-\`apps/desktop/release/mac-arm64/Zap Pilot.app\`. The DMG is also written under
-\`apps/desktop/release/\`.
+`desktop:package` uses the unsigned overlay and always disables publishing.
+`desktop:release` runs preflight → client-boundary bundle → allowlisted signing
+→ verification. See [docs/release.md](docs/release.md) for credentials and rollout.
+Signing secrets stay outside the client build and are never stored in Infisical.
+The renderer build uses the canonical production environment with
+`scripts/env/run.mjs --client-target desktop`.
 
-The script resolves the canonical production environment, then starts the
-desktop package command through the env runner's `--client-target desktop`
-boundary. Only desktop-targeted client values, desktop/all host metadata, a
-small non-secret OS environment allowlist, and public bundler projections reach
-the package process; manifest-managed server secrets and unrelated parent-shell
-credentials are stripped even if they already exist before the build starts.
-An outer `infisical run --env=prod --` wrapper is unnecessary.
+The GitHub Latest release is reserved for desktop. The updater uses its
+`latest-mac.yml`; the landing download uses the same release. Unsigned packages
+have no updater config. Updates are supported on macOS only inside Applications.
+Downloads and installation require explicit user actions in Settings or the tray.
 
 Packaged apps serve the renderer at `http://127.0.0.1:3105/` because Privy's
 embedded wallet rejects `app://bundle/` even when Electron marks it secure.
@@ -83,5 +85,4 @@ Use that script rather than invoking Turbo directly. Turbo forwards
 started it, so a bare `turbo run package` bakes the developer's own
 environment into `release/`. `desktop:package` routes the build through
 `scripts/env/run.mjs --client-target desktop`, which is what restricts it to
-desktop-targeted values. `pnpm desktop:mac` is the same build plus opening the
-result.
+desktop-targeted values. `pnpm desktop:mac` requires release credentials and opens the verified result.

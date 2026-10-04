@@ -1,6 +1,13 @@
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { app, BrowserWindow, ipcMain, Notification } from 'electron';
+import {
+  app,
+  autoUpdater as nativeUpdater,
+  BrowserWindow,
+  ipcMain,
+  Notification,
+} from 'electron';
 
 import {
   IPC_CHANNELS,
@@ -19,10 +26,13 @@ import {
 import { createSuggestionDriftReader } from './scheduler/suggestionDriftReader';
 import { captureDesktopException, flushSentry } from './sentry';
 import { createTray } from './tray';
+import { createDesktopUpdater, isUpdateSupported } from './updater';
 import { createMainWindow } from './window';
 
 let mainWindow: BrowserWindow | undefined;
 let isQuitting = false;
+let installingUpdate = false;
+let updater: ReturnType<typeof createDesktopUpdater> | undefined;
 let pendingDeepLink: string | undefined;
 let sentryFlushed = false;
 
@@ -98,13 +108,65 @@ async function initializeApp(): Promise<void> {
     mainWindow = undefined;
   });
 
-  createTray({
+  const reason = isUpdateSupported({
+    isPackaged: app.isPackaged,
+    platform: process.platform,
+    hasUpdateConfig: existsSync(join(process.resourcesPath, 'app-update.yml')),
+    inApplicationsFolder:
+      process.platform === 'darwin' && app.isInApplicationsFolder(),
+  });
+  const engine = reason
+    ? undefined
+    : (await import('electron-updater')).autoUpdater;
+  const tray = createTray({
+    download: () => {
+      void updater?.download();
+    },
+    install: () => updater?.install(),
     onShow: showMainWindow,
     onQuit: () => {
       isQuitting = true;
       app.quit();
     },
   });
+
+  updater = createDesktopUpdater({
+    engine,
+    currentVersion: app.getVersion(),
+    reason,
+    publish: (state) => {
+      if (state.status === 'error') {
+        installingUpdate = false;
+        isQuitting = false;
+      }
+      mainWindow?.webContents.send(IPC_CHANNELS.updateState, state);
+      tray.setUpdateState(state);
+    },
+    onError: (error) => {
+      installingUpdate = false;
+      isQuitting = false;
+      captureDesktopException(error, { component: 'updater', level: 'error' });
+    },
+  });
+  tray.setUpdateState(updater.getState());
+  updater.start();
+  nativeUpdater.on('before-quit-for-update', () => {
+    installingUpdate = true;
+    isQuitting = true;
+  });
+  ipcMain.handle(IPC_CHANNELS.updateGetState, (event) => {
+    if (event.sender !== mainWindow?.webContents)
+      throw new Error('Invalid update sender');
+    return updater?.getState();
+  });
+  for (const [channel, action] of [
+    [IPC_CHANNELS.updateCheck, () => updater?.check()],
+    [IPC_CHANNELS.updateDownload, () => updater?.download()],
+    [IPC_CHANNELS.updateInstall, () => updater?.install()],
+  ] as const)
+    ipcMain.on(channel, (event) => {
+      if (event.sender === mainWindow?.webContents) void action();
+    });
 
   const coldStartLink = pendingDeepLink ?? extractDeepLink(process.argv);
   if (coldStartLink) {
@@ -151,7 +213,7 @@ function bootstrap(): void {
   void initializeAppSafely();
 
   app.on('before-quit', (event) => {
-    if (sentryFlushed) {
+    if (installingUpdate || sentryFlushed) {
       return;
     }
     isQuitting = true;
@@ -163,7 +225,7 @@ function bootstrap(): void {
 
   // Tray-resident: do not exit when the window closes.
   app.on('window-all-closed', () => {
-    if (isQuitting) {
+    if (isQuitting && !installingUpdate) {
       app.quit();
     }
   });
