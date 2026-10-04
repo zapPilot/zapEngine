@@ -2,10 +2,12 @@ import type { ShotSet } from '../captures/types';
 import type { Storyboard } from '../timeline/types';
 import { shots as calculatorShots } from './calculator-pitch/shots';
 import { storyboard as calculatorStoryboard } from './calculator-pitch/storyboard';
+import { storyboard as kokodeStoryboard } from './kokode-clinic/storyboard';
 
 interface VideoEntry {
   readonly storyboard: Storyboard;
-  readonly shots: ShotSet;
+  /** What `pnpm capture` photographs; absent when a video has no captures. */
+  readonly shots?: ShotSet;
 }
 
 /**
@@ -17,6 +19,8 @@ const catalog: Readonly<Record<string, VideoEntry>> = {
     storyboard: calculatorStoryboard,
     shots: calculatorShots,
   },
+  // Kokode is a separate product; its film is drawn, not captured.
+  'kokode-clinic': { storyboard: kokodeStoryboard },
 };
 
 export const videoIds = Object.keys(catalog);
@@ -27,4 +31,13 @@ export function getVideo(id: string): VideoEntry {
     throw new Error(`Unknown video "${id}". Known: ${videoIds.join(', ')}`);
   }
   return entry;
+}
+
+/** The shot list `pnpm capture` runs for a video. */
+export function getShots(id: string): ShotSet {
+  const { shots } = getVideo(id);
+  if (shots === undefined) {
+    throw new Error(`Video "${id}" has no shots to capture.`);
+  }
+  return shots;
 }

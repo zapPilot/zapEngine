@@ -16,6 +16,38 @@ pnpm --filter @zapengine/kokode-ai dev:live
 pnpm --filter @zapengine/kokode-ai ops check
 ```
 
+## Pages and copy
+
+| Path              | What                                          |
+| ----------------- | --------------------------------------------- |
+| `/`               | Landing page with the pilot form (`#contact`) |
+| `/pitch/`         | Deck for doctors, 12 slides, noindex          |
+| `/pitch/partner/` | Deck for sales partners, 13 slides, noindex   |
+| `/privacy.html`   | Privacy policy, hand-written                  |
+
+Every word on the first three, and in the apps/video `kokode-clinic` film,
+comes from `src/story/` (beats, the four sequences in `narrative.ts`, demos,
+disclaimers, form, meta). A Vite plugin (`src/site/plugin.ts`) replaces the
+`<!--kokode:<page>:<head|body>-->` markers in the HTML shells at build and dev
+time; the dev server restarts when a story file changes. Tests fence the
+claims (`src/story/story.test.ts`) and the rendered structure
+(`src/site/site.test.ts`).
+
+The decks page with arrow keys, PageUp/PageDown, Space, Home and End, and
+keep the slide in the URL hash. Their contact links carry
+`utm_source=pitch&utm_medium=deck&utm_campaign=<deck>` (partner deck also
+`interest=partner`), which the lead stores through `getAttribution()`.
+
+```sh
+pnpm --filter @zapengine/kokode-ai pitch:pdf
+```
+
+builds the site and writes `output/kokode-pitch.pdf` and
+`output/kokode-pitch-partner.pdf` (one 13.333 x 7.5 in page per slide, links
+absolute with `utm_medium=pdf`). It refuses to write when a slide count,
+overflow, demo disclaimer or page count check fails. Run it on macOS so the
+Japanese text is set in Hiragino.
+
 Default dev queues leads locally; dev:live writes to production. The browser posts
 without keys to genba-lead; only the backend can insert into kokode_ai.leads.
 Transient failures stay in genba-ai-lead-queue-v2 and retry on load, online, and

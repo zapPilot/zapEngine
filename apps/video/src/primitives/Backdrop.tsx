@@ -3,13 +3,20 @@ import { AbsoluteFill, useCurrentFrame, useVideoConfig } from 'remotion';
 
 import { color } from '../brand/tokens';
 
-// landing.css `.shell-root`: a warm glow top right, a cool one at left, on
-// near-black. The glow drifts a few percent over the whole video so held
-// frames never look frozen.
-export const Backdrop: React.FC = () => {
+/**
+ * 0 → 1 across the whole video, for backdrops that drift a few percent so
+ * held frames never look frozen.
+ */
+export function useDrift(): number {
   const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
-  const drift = frame / Math.max(1, durationInFrames);
+  return frame / Math.max(1, durationInFrames);
+}
+
+// landing.css `.shell-root`: a warm glow top right, a cool one at left, on
+// near-black, drifting over the whole video.
+export const Backdrop: React.FC = () => {
+  const drift = useDrift();
   return (
     <AbsoluteFill
       style={{

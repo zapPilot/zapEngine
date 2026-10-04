@@ -13,3 +13,20 @@ read-only from Zap Pilot. Local dev:live submissions reach production.
 
 Run build, type-check and test through Turbo with --filter=@zapengine/kokode-ai.
 The workspace tests also cover the canonical root Edge Function handler.
+
+# Copy
+
+All copy lives in `src/story/`: the landing page, `/pitch/`, `/pitch/partner/`
+and the apps/video `kokode-clinic` film render from it, each in the order of
+its own sequence in `src/story/narrative.ts`. `src/site/` only renders.
+
+- Never write copy in `src/site/`, page scripts or the HTML shells;
+  `src/site/site.test.ts` fails on Japanese anywhere else.
+- A failing guardrail in `src/story/story.test.ts` means change the copy,
+  never widen the guardrail. No revenue-share numbers or wording: the repo is
+  public.
+- Every demo figure prints its `DEMOS[…].disclaimers`. Keep the `#contact`
+  anchor and the ids in `src/dom-ids.ts`.
+- A story edit also changes the film, and `--affected` cannot see that link:
+  run `pnpm turbo run type-check test --filter=@zapengine/video` too. Editing
+  an English `en` film line means paying to synthesise its narration again.

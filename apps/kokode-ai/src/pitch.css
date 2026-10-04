@@ -1,0 +1,313 @@
+@import './styles/base.css';
+@import './styles/figures.css';
+
+/* 16:9 slides that fill the viewport, snap one per screen and print one per
+   page. Everything inside a slide is sized in cqi of the slide canvas, so the
+   layout is identical at any window size and in the PDF (1280 x 720 px). */
+html {
+  scroll-snap-type: y mandatory;
+}
+body.pitch-page {
+  background: #1c1c1e;
+}
+.deck {
+  display: grid;
+}
+.slide {
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  scroll-snap-align: start;
+}
+.slide-canvas {
+  container-type: inline-size;
+  position: relative;
+  width: min(100vw, 100svh * 16 / 9);
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  display: grid;
+  padding: 5cqi 6cqi 6.5cqi;
+  background: var(--bg);
+  font-size: 1.45cqi;
+}
+.slide-content {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.slide .eyebrow {
+  font-size: 1.2cqi;
+}
+.slide .beat-title {
+  margin: 1cqi 0 1.8cqi;
+}
+.slide h1.beat-title {
+  font-size: 6.2cqi;
+  line-height: 1.15;
+  letter-spacing: -0.05em;
+}
+.slide h2.beat-title {
+  font-size: 3.9cqi;
+}
+.slide .beat-body {
+  max-width: 64cqi;
+  font-size: 1.45cqi;
+  margin-bottom: 1cqi;
+}
+.slide .note,
+.slide .source {
+  font-size: 0.95cqi;
+  margin-top: 0.8cqi;
+}
+.slide .fig {
+  --fig-bg: var(--bg);
+}
+.slide .fig-body {
+  font-size: 2.6cqi;
+}
+.slide .fig figcaption {
+  margin-top: 0.8em;
+  font-size: 2cqi;
+}
+.slide .fig-note {
+  font-size: 1.8cqi;
+}
+.slide .points {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 2.4cqi;
+  margin-top: 2cqi;
+}
+.slide .point {
+  grid-template-columns: 2.8cqi 1fr;
+  column-gap: 1cqi;
+}
+.slide .point-num {
+  width: 2.8cqi;
+  height: 2.8cqi;
+}
+.slide .price {
+  align-self: flex-start;
+  padding: 1.6cqi 2.2cqi;
+  border-radius: 1.6cqi;
+}
+.slide .price-label,
+.slide .price-note {
+  font-size: 1.05cqi;
+}
+.slide .price-amount {
+  font-size: 3cqi;
+}
+
+.slide-foot {
+  position: absolute;
+  left: 6cqi;
+  right: 6cqi;
+  bottom: 2.4cqi;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 1cqi;
+  color: var(--muted);
+}
+.slide-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6cqi;
+  font-weight: 800;
+  color: var(--ink);
+}
+.slide-brand .brand-mark {
+  width: 1.7cqi;
+  height: 1.7cqi;
+}
+.slide-num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Layouts */
+.slide-cover .slide-canvas {
+  background:
+    radial-gradient(
+      circle at 82% 24%,
+      rgba(0, 113, 227, 0.12),
+      rgba(245, 245, 247, 0) 46%
+    ),
+    var(--bg);
+}
+.slide-cover .eyebrow {
+  font-size: 1.6cqi;
+}
+.slide-cover .beat-body {
+  font-size: 1.7cqi;
+}
+.slide-deck-name {
+  margin: 2.4cqi 0 0;
+  font-size: 1.1cqi;
+  font-weight: 700;
+  color: var(--muted);
+}
+.slide-statement .slide-content {
+  max-width: 78cqi;
+}
+.slide-statement h2.beat-title {
+  font-size: 4.8cqi;
+}
+.slide-statement .beat-body {
+  max-width: 70cqi;
+  font-size: 1.75cqi;
+}
+.slide .split {
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+  align-items: center;
+  gap: 5cqi;
+}
+.slide .split h2.beat-title {
+  font-size: 3.4cqi;
+}
+.slide .duo {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4cqi;
+  align-items: start;
+}
+.slide .duo h2.beat-title {
+  font-size: 2.5cqi;
+  margin: 0.6cqi 0 1cqi;
+}
+.slide .duo .beat-body {
+  font-size: 1.1cqi;
+  line-height: 1.7;
+}
+.slide .duo .fig {
+  margin-top: 1.2cqi;
+}
+.slide .duo .fig-body {
+  font-size: 2.3cqi;
+}
+.slide-closing .slide-content {
+  align-items: center;
+  text-align: center;
+}
+.slide-closing .beat-body {
+  margin-left: auto;
+  margin-right: auto;
+}
+.slide-cta {
+  margin-top: 2cqi;
+  min-height: 0;
+  padding: 1.2cqi 3cqi;
+  font-size: 1.5cqi;
+}
+
+/* Phones held upright: slides become a readable column. */
+@media (orientation: portrait) and (max-width: 760px) {
+  html {
+    scroll-snap-type: y proximity;
+  }
+  .slide {
+    min-height: 0;
+  }
+  .slide-canvas {
+    container-type: normal;
+    width: 100vw;
+    aspect-ratio: auto;
+    min-height: 100svh;
+    padding: 48px 20px 64px;
+    font-size: 15px;
+  }
+  .slide .eyebrow {
+    font-size: 13px;
+  }
+  .slide h1.beat-title {
+    font-size: 38px;
+  }
+  .slide h2.beat-title,
+  .slide .split h2.beat-title {
+    font-size: 27px;
+  }
+  .slide .duo h2.beat-title {
+    font-size: 22px;
+  }
+  .slide .beat-body,
+  .slide .duo .beat-body,
+  .slide-cover .beat-body {
+    max-width: none;
+    font-size: 15px;
+  }
+  .slide .note,
+  .slide .source,
+  .slide-foot,
+  .slide-deck-name,
+  .slide .price-label,
+  .slide .price-note {
+    font-size: 12px;
+  }
+  .slide .fig-body,
+  .slide .duo .fig-body {
+    font-size: clamp(11px, 2.7cqi, 17px);
+  }
+  .slide .fig figcaption,
+  .slide .fig-note {
+    font-size: 11px;
+  }
+  .slide .split,
+  .slide .duo,
+  .slide .points {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 28px;
+  }
+  .slide .point {
+    grid-template-columns: 32px 1fr;
+    column-gap: 12px;
+  }
+  .slide .point-num {
+    width: 32px;
+    height: 32px;
+  }
+  .slide .price-amount {
+    font-size: 28px;
+  }
+  .slide-foot {
+    left: 20px;
+    right: 20px;
+    bottom: 20px;
+  }
+  .slide-brand .brand-mark {
+    width: 18px;
+    height: 18px;
+  }
+  .slide-cta {
+    font-size: 15px;
+    padding: 12px 22px;
+  }
+}
+
+@page {
+  size: 13.333in 7.5in;
+  margin: 0;
+}
+@media print {
+  html {
+    scroll-snap-type: none;
+  }
+  body.pitch-page {
+    background: none;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .slide {
+    display: block;
+    min-height: 0;
+    break-after: page;
+  }
+  .slide:last-child {
+    break-after: auto;
+  }
+  .slide-canvas {
+    width: 13.333in;
+    height: 7.5in;
+    aspect-ratio: auto;
+  }
+}

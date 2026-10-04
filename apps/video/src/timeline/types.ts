@@ -24,6 +24,16 @@ export interface VoiceSettings {
   readonly speed: number;
 }
 
+/**
+ * What the burned-in captions are. A `transcript` shows the narrated words
+ * (`text`, spoken as `say ?? text`). A `translation` shows `text` in `lang`
+ * while the narration says `say`, so cue phrases are matched in what is heard.
+ */
+export interface CaptionSettings {
+  readonly lang: 'en' | 'ja';
+  readonly relation: 'transcript' | 'translation';
+}
+
 export interface Storyboard<Scene extends SceneSpec = SceneSpec> {
   /** Composition id, output file stem and voiceover folder name. */
   readonly id: string;
@@ -38,5 +48,7 @@ export interface Storyboard<Scene extends SceneSpec = SceneSpec> {
   /** Frames between consecutive lines inside one scene. */
   readonly gap: number;
   readonly voice: VoiceSettings;
+  /** Absent: English captions that transcribe the narration. */
+  readonly captions?: CaptionSettings;
   readonly scenes: readonly Scene[];
 }

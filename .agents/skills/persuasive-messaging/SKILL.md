@@ -10,6 +10,7 @@ description: Use for ZapEngine marketing copy, positioning, /pitch decks, promo 
 - Landing: `apps/landing-page/src/config/messages.ts` (`MESSAGES`).
 - Pitch: `apps/landing-page/src/config/pitch.ts` and `apps/landing-page/src/app/pitch/`; the cover reuses `MESSAGES.hero`.
 - Promo video: `apps/video/src/videos/<id>/storyboard.ts`; numbers come only from `facts.ts`.
+- Kokode (separate medical product): `apps/kokode-ai/src/story/` is the only copy source for its landing, `/pitch/`, `/pitch/partner/` and the `kokode-clinic` film. `src/story/story.test.ts` fences claims (no absolute, regulatory or medical-device wording outside disclaimers, one price, no revenue-share figures, demos keep their disclaimers); when it fails, change the copy.
 - Titles: `apps/podcast-pipeline/prompts/title-system-prompt.txt`. Runtime reads that prompt, never this skill; deliberately synchronize packaging changes.
 - Transport truncation: `apps/podcast-pipeline/src/social/compose.ts`.
 - Podcast cover and first content scene use the publisher's `og:image`, subject to the existing decorative rejection and fallback rules. Preserve that invariant.

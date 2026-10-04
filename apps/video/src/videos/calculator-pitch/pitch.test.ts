@@ -5,8 +5,9 @@ import { describe, expect, it } from 'vitest';
 
 import { staleLines } from '../../../scripts/lib/vo-cache';
 import { parseCaptureManifest } from '../../captures/manifest';
+import { unspokenCues } from '../../timeline/beats';
 import { parseVoManifest } from '../../timeline/manifest';
-import { getVideo, videoIds } from '../catalog';
+import { getShots, getVideo, videoIds } from '../catalog';
 import { recorded, shot, timeline } from './assets';
 import capturesJson from './captures.json';
 import { facts, shortHex } from './facts';
@@ -15,18 +16,6 @@ import { storyboard } from './storyboard';
 import voJson from './vo.manifest.json';
 
 const publicDir = path.resolve(import.meta.dirname, '../../../public');
-
-/** Every `…Cue` prop (and nested `cue`) of a scene, which must be spoken in it. */
-function cuesOf(props: unknown): string[] {
-  if (typeof props !== 'object' || props === null) return [];
-  return Object.entries(props).flatMap(([key, value]) =>
-    typeof value === 'string'
-      ? key === 'cue' || key.endsWith('Cue')
-        ? [value]
-        : []
-      : cuesOf(value),
-  );
-}
 
 describe('calculator-pitch narration', () => {
   const manifest = parseVoManifest(voJson);
@@ -49,13 +38,8 @@ describe('calculator-pitch narration', () => {
     );
   });
 
-  it('keys every visual cue to a phrase that is actually narrated', () => {
-    for (const scene of storyboard.scenes) {
-      const spoken = scene.vo.map((line) => line.text).join(' ');
-      for (const cue of cuesOf(scene.props)) {
-        expect(spoken, `${scene.id}: ${cue}`).toContain(cue);
-      }
-    }
+  it('keys every visual cue to a phrase narrated in exactly one line', () => {
+    expect(unspokenCues(storyboard)).toEqual([]);
   });
 });
 
@@ -114,6 +98,7 @@ describe('catalog', () => {
   it('registers the pitch and rejects unknown ids', () => {
     expect(videoIds).toContain(storyboard.id);
     expect(getVideo(storyboard.id).shots).toBe(shots);
+    expect(getShots(storyboard.id)).toBe(shots);
     expect(() => getVideo('nope')).toThrow('Unknown video "nope"');
   });
 });

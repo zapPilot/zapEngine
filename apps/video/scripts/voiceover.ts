@@ -15,12 +15,17 @@ import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
+import { JA_MAX_CPS, JA_TARGET_CPS } from '../src/timeline/cjk';
 import {
   parseVoManifest,
   type VoClip,
   type VoManifest,
 } from '../src/timeline/manifest';
-import { buildTimeline } from '../src/timeline/timeline';
+import {
+  buildTimeline,
+  readingRates,
+  type Timeline,
+} from '../src/timeline/timeline';
 import type { VoLine } from '../src/timeline/types';
 import { getVideo, videoIds } from '../src/videos/catalog';
 import { cliArgs, requireVideoId } from './lib/args';
@@ -97,6 +102,26 @@ async function master(raw: string, target: string): Promise<void> {
   ]);
 }
 
+/** Japanese captions only: how fast each line asks the viewer to read. */
+function printReadingRates(timeline: Timeline): void {
+  const rates = readingRates(storyboard, timeline);
+  if (rates.length === 0) return;
+  console.log(
+    `  reading speed (target ≤ ${JA_TARGET_CPS} cps, limit ${JA_MAX_CPS} cps)`,
+  );
+  for (const rate of rates) {
+    const flag =
+      rate.cps > JA_MAX_CPS
+        ? '  over limit'
+        : rate.cps > JA_TARGET_CPS
+          ? '  dense'
+          : '';
+    console.log(
+      `  ${rate.lineId.padEnd(18)} ${rate.units} units / ${rate.seconds.toFixed(2)}s = ${rate.cps.toFixed(1)} cps${flag}`,
+    );
+  }
+}
+
 async function main() {
   const previous = await readManifest();
   const stale = new Set(staleLines(storyboard, previous));
@@ -104,7 +129,20 @@ async function main() {
   console.log(
     `${videoId}: ${stale.size} line(s) to synthesise${stale.size ? ` (${[...stale].join(', ')})` : ''}, ${dropped.length} dropped`,
   );
-  if (values['dry-run']) return;
+  if (values['dry-run']) {
+    // Current clips keep their measured length; stale and missing lines are
+    // estimated, as they will be re-synthesised.
+    const current = Object.entries(previous.lines).filter(
+      ([id]) => !stale.has(id),
+    );
+    printReadingRates(
+      buildTimeline(storyboard, {
+        ...previous,
+        lines: Object.fromEntries(current),
+      }),
+    );
+    return;
+  }
 
   const apiKey = process.env['FISH_AUDIO_API_KEY']?.trim();
   const referenceId = process.env['FISH_AUDIO_REFERENCE_ID']?.trim();
@@ -173,6 +211,7 @@ async function main() {
       `  ${scene.spec.id.padEnd(10)} ${(scene.durationInFrames / storyboard.fps).toFixed(2)}s`,
     );
   }
+  printReadingRates(timeline);
   if (seconds > storyboard.maxSeconds) {
     throw new Error(
       `Over the ${storyboard.maxSeconds}s limit; shorten the script.`,

@@ -1,4 +1,5 @@
 import type React from 'react';
+import type { CSSProperties } from 'react';
 import { AbsoluteFill, useCurrentFrame } from 'remotion';
 
 import { font } from '../brand/fonts';
@@ -8,10 +9,12 @@ import { rise } from './motion';
 
 /**
  * Burned-in captions. Always on: judges and social feeds mostly watch muted.
+ * `style` overrides the caption box, e.g. a font for another script.
  */
-export const Captions: React.FC<{ readonly cues: readonly CaptionCue[] }> = ({
-  cues,
-}) => {
+export const Captions: React.FC<{
+  readonly cues: readonly CaptionCue[];
+  readonly style?: CSSProperties;
+}> = ({ cues, style }) => {
   const frame = useCurrentFrame();
   const cue = cues.find(
     (candidate) => frame >= candidate.from && frame < candidate.to,
@@ -40,6 +43,7 @@ export const Captions: React.FC<{ readonly cues: readonly CaptionCue[] }> = ({
           lineHeight: 1.25,
           textAlign: 'center',
           opacity: rise(frame, cue.from, 4),
+          ...style,
         }}
       >
         {cue.text}

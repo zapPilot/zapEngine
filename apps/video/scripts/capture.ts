@@ -18,7 +18,7 @@ import {
   parseCaptureManifest,
 } from '../src/captures/manifest';
 import type { ShotSet, ShotSpec } from '../src/captures/types';
-import { getVideo, videoIds } from '../src/videos/catalog';
+import { getShots, videoIds } from '../src/videos/catalog';
 import { cliArgs, requireVideoId } from './lib/args';
 import { evaluateCheck } from './lib/capture-checks';
 import { publicDir, videoPaths } from './lib/paths';
@@ -37,7 +37,7 @@ const { values, positionals } = cliArgs(process.argv.slice(2), {
   only: { type: 'string' },
 });
 const videoId = requireVideoId(positionals, videoIds);
-const set = getVideo(videoId).shots;
+const set = getShots(videoId);
 const paths = videoPaths(videoId);
 const url = new URL(set.path, values['base-url']).toString();
 const only = values.only?.split(',').map((id) => id.trim());
