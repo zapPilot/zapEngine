@@ -446,12 +446,27 @@ function isPublisherBodyImage(candidate: ImageCandidate): boolean {
   return candidate.origin === 'article' || candidate.origin === 'figure';
 }
 
-function publisherBodyImages(
+function isPanewsPublisherImage(candidate: ImageCandidate): boolean {
+  try {
+    const hostname = new URL(candidate.sourceUrl).hostname.toLowerCase();
+    return (
+      hostname === 'panews.io' ||
+      hostname.endsWith('.panews.io') ||
+      hostname === 'panewslab.com' ||
+      hostname.endsWith('.panewslab.com')
+    );
+  } catch {
+    return false;
+  }
+}
+
+function requiredPanewsBodyImages(
   candidates: readonly ImageCandidate[],
 ): ImageCandidate[] {
   return candidates.filter(
     (candidate) =>
       isPublisherBodyImage(candidate) &&
+      isPanewsPublisherImage(candidate) &&
       canonicalCandidateUrl(candidate.imageUrl) !== null,
   );
 }
@@ -461,10 +476,11 @@ function publisherBodyImages(
  * video cover already shows, so the first content scene has to render that same
  * image rather than an independently searched one.
  *
- * PANews/article body images follow a stronger rule: every valid body image is
- * kept in publisher order and offered to content scenes before Brave may run.
- * They deliberately bypass the decorative URL filter; if the publisher put an
- * image in the article body and we can acquire/render it, the video must use it.
+ * PANews body images follow a stronger rule: every valid body image is kept in
+ * publisher order and offered to content scenes before Brave may run. They
+ * deliberately bypass the decorative URL filter; if PANews put an image in the
+ * article body and we can acquire/render it, the video must use it. Other
+ * publishers keep the existing viability filter.
  *
  * The cover rule stays unchanged: the decorative filter still judges
  * `og:image`, because a thumbnail/icon is not a valid lead cover.
@@ -475,10 +491,22 @@ function leadCoverOrderedArticleImages(
   VisualAssetPlannerState,
   'articleImages' | 'leadCoverCandidateUrl' | 'leadCoverFallbackReason'
 > {
-  const bodyImages = publisherBodyImages(candidates);
+  const panewsBodyImages = requiredPanewsBodyImages(candidates);
+  const { candidates: ordinaryViable, dropReasons } =
+    partitionViableCandidates(candidates, [
+      'openGraph',
+      'article',
+      'figure',
+    ] as const);
   const openGraph = candidates.find(
     (candidate) => candidate.origin === 'openGraph',
   );
+  const bodyImages =
+    panewsBodyImages.length > 0
+      ? panewsBodyImages
+      : ordinaryViable.filter(
+          (candidate) => candidate.origin !== 'openGraph',
+        );
   if (!openGraph) {
     return {
       articleImages: bodyImages,
@@ -487,7 +515,7 @@ function leadCoverOrderedArticleImages(
     };
   }
 
-  const { candidates: viableCover, dropReasons } = partitionViableCandidates(
+  const { candidates: viableCover } = partitionViableCandidates(
     [openGraph],
     OPEN_GRAPH_IMAGE_ORIGINS,
   );
@@ -1045,7 +1073,8 @@ async function acquireNextArticleImage(
       state.leadCoverCandidateUrl !== null &&
       canonicalCandidateUrl(candidate.imageUrl) ===
         canonicalCandidateUrl(state.leadCoverCandidateUrl);
-    const isRequiredBodyImage = isPublisherBodyImage(candidate);
+    const isRequiredBodyImage =
+      isPublisherBodyImage(candidate) && isPanewsPublisherImage(candidate);
     const acquired = await tryAcquireUniqueImage({
       candidate,
       provider: 'article',
