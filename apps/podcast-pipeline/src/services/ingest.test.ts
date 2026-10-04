@@ -113,9 +113,32 @@ vi.mock('./podcast/classroom-audio.js', () => ({
   synthesizeClassroomAudio: mockSynthesizeClassroomAudio,
 }));
 
+const clipScope = vi.hoisted(() => ({
+  active: false,
+  calls: [] as boolean[],
+  enter: vi.fn(),
+}));
+vi.mock('./tts/mixed-language-tts.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./tts/mixed-language-tts.js')>()),
+  withEnglishTermClipReuse: async (fn: () => Promise<unknown>) => {
+    clipScope.enter();
+    clipScope.active = true;
+    try {
+      return await fn();
+    } finally {
+      clipScope.active = false;
+    }
+  },
+}));
+
 vi.mock('./tts.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./tts.js')>()),
-  textToSpeech: mockTextToSpeech,
+  textToSpeech: (
+    ...args: Parameters<typeof import('./tts.js').textToSpeech>
+  ) => {
+    clipScope.calls.push(clipScope.active);
+    return mockTextToSpeech(...args);
+  },
 }));
 
 vi.mock('./translate.js', () => ({
@@ -1584,10 +1607,16 @@ describe('performIngest failure paths', () => {
       },
     );
 
+    clipScope.calls = [];
+    clipScope.enter.mockClear();
     const result = await performMultilingualIngest(
       'https://example.com/article',
       'en',
     );
+    expect(clipScope.enter).toHaveBeenCalledTimes(1);
+    expect(clipScope.calls.length).toBeGreaterThanOrEqual(3);
+    expect(clipScope.calls.every(Boolean)).toBe(true);
+    expect(clipScope.active).toBe(false);
 
     expect(result.episode.languageCode).toBe('en');
     expect(mockGenerateScriptWithLLM).toHaveBeenCalledTimes(1);
