@@ -12,6 +12,7 @@ on:
       - Environment drift
       - Ops Cost Sync
       - Ops Operator
+      - Podcast Artifact GC
       - Strategy Change Broadcast
       - Telegram Token Cleanup
       - Track Record Snapshot

@@ -13,7 +13,7 @@
 
 集數的建立日期不是刪除依據。不得在 `episodes/` 設 age-based lifecycle。
 既有 checkpoint 可能被 `thumbnail_url` 引用，因此不遷移、不批次刪除舊路徑。
-舊 Threads 副本也不在本次 GC 範圍。既有 slides 隨已退役的影片 prefix 一起 GC；目前影片的舊 slides 保留。
+歷史 slides、HLS `input.mp3` 與 `social/threads/{sha256}/{v}/video.mp4` 由一次性 purge 處理。仍有 slides 的影片 prefix 視為 malformed，整個 prefix 保留。
 
 ## HLS 替換
 
@@ -21,7 +21,7 @@
 新片段使用每次上傳獨立的 UUID 名稱，先全部上傳，再用 `If-Match`（首次發布為 `If-None-Match: *`）切換 playlist。
 失敗或競態導致條件寫入被拒絕時，不刪除既有播放物件。網路中斷若發生在伺服器已接受 playlist 後，重試可能得到 412；已成功發布的 playlist 仍可播放，後續 ingest 重試會重新完成 checkpoint。
 
-成功切換後，只清理替換前 snapshot 裡同層的舊 `.ts` 與歷史 `input.mp3`，不碰 classroom 子目錄或未知檔案。
+成功切換後，只清理替換前 snapshot 裡同層的舊 `.ts`，不碰 classroom 子目錄或未知檔案。
 清理失敗會記錄 `hls:cleanup-failed`；下一次成功替換會再次清理。未完成替換留下的片段亦在下次成功替換時回收。
 playlist 要求重新驗證快取。已經載入舊 playlist 的播放器可能需要重新載入；首次上線前若 CDN 有舊 playlist 快取，應先清除 playlist 快取。不要快取 playlist 為 immutable。
 
@@ -84,12 +84,18 @@ node scripts/env/run.mjs --environment prod -- pnpm --filter @zapengine/podcast-
 
 `--apply` 使用 DB fence；任何 `processing` row（包含過期 lease）都使取得失敗。fence 存續時影片與 visual 表的 INSERT/UPDATE/DELETE/TRUNCATE 均被拒絕，阻止檢查引用與 R2 刪除間的新發布競態。API 讀取、已發布媒體播放繼續正常。不要在繁忙的 render 階段排程。
 
-JSON 日誌：`gc:candidate`（prefix、decision、物件數、bytes）、`gc:deleted`、`gc:failure`、`gc:summary`。退出碼 1 表示失敗；已刪除 prefix 可安全重跑，R2 批次錯誤仍保留退役記錄供重試。可把同一命令接到未來的排程；本次不新增常駐程序。
+JSON 日誌：`gc:candidate`（prefix、decision、物件數、bytes）、`gc:deleted`、`gc:failure`、`gc:summary`。退出碼 1 表示失敗；已刪除 prefix 可安全重跑，R2 批次錯誤仍保留退役記錄供重試。每週一 03:23 JST 由 `podcast-artifact-gc.yml` 執行 apply；手動 workflow_dispatch 預設 dry-run。忙碌僅限 acquire 的 `processing jobs remain`（55000）或 55P03，會記錄 `gc:skipped` 並以 warning 成功退出；already owned 等錯誤仍失敗。
 
 ### 程序中斷後恢復
 
 fence 沒有自動過期，避免舊 GC 還在刪除時新 worker 開始發布。正常完成（包含捕捉到的失敗）會釋放。
-若程序被強制終止，從 `artifact_gc_control` 或 `gc:acquire` 日誌找 owner，**先確認原 GC 程序已停止**，再以 service role 呼叫 `release_artifact_gc(p_owner)`。不可直接 UPDATE control 表，亦不可在原程序仍運作時解除。
+若程序被強制終止，從 `artifact_gc_control` 或 `gc:acquire` 日誌找 owner，**先確認原 GC 程序已停止**，再執行：
+
+```sh
+node scripts/env/run.mjs --environment prod -- pnpm --filter @zapengine/podcast-pipeline artifacts:gc --release-owner <uuid>
+```
+
+owner mismatch 表示該 owner 已未持有 fence，善後視為成功；其他 release 錯誤以退避重試。不可直接 UPDATE control 表，亦不可在原程序仍運作時解除。
 
 ## SQL 本機驗證
 
@@ -100,3 +106,30 @@ fence 沒有自動過期，避免舊 GC 還在刪除時新 worker 開始發布�
 
 已透過 Cloudflare 插件核對 production bucket `from-fed-to-chain-mono` 的公開網域，並加入上述兩條 14 天規則，GET 回讀確認啟用，保留預設 7 天 multipart abort。加入時 `transient/` 為空，沒有手動刪除 production 物件。
 DB migration 依 [CONTRIBUTING](../../../CONTRIBUTING.md#adding-a-database-migration) 交由 main CI 部署；本機不直接改 production schema。程式碼仍需走既有部署流程，新的 transient 上傳路徑才會生效。
+
+## 每週 GC 與 CI 善後
+
+先完成全 bucket listing，再 acquire fence、讀取引用與退役狀態。刪除前在 fence 內重新列出 `${prefix}/` 並重新規劃，任何未知新增物件都阻止該 prefix 刪除。`--max-minutes` 在 prefix 之間停止，不會中斷一批刪除；finally 釋放有界重試。
+Workflow 產生唯一 `--owner`、GC step 上限 20 分鐘（工作預算 18 分鐘）、job 上限 30 分鐘，最後 `if: always()` 以同一 owner 釋放。concurrency 不取消進行中的 run。若 CI 強制終止連善後也未執行，依上節手動釋放；不要靠 signal handler，env runner 不轉送 signal。
+
+## 2026-10 清理與重壓操作紀錄
+
+本次程式變更提供一次性工具；正式刪除與 URL 切換尚未執行，數字為待核對預期：purge 22,151 個物件／17.65 GB；reencode 9 支／5.29 GB。保留既有 `artifact-retention-dry-run.json` 作為歷史紀錄。
+
+```sh
+node scripts/env/run.mjs --environment prod -- pnpm --filter @zapengine/podcast-pipeline artifacts:purge-legacy --dry-run
+# 確認唯讀盤點後，由操作人員執行，N 必須使用實測數量：
+node scripts/env/run.mjs --environment prod -- pnpm --filter @zapengine/podcast-pipeline artifacts:purge-legacy --apply --max-objects N
+
+# 必須使用含 libx264/libvmaf 的 Homebrew ffmpeg，並保留整個 work-dir：
+VIDEO_FFMPEG_PATH=/opt/homebrew/bin/ffmpeg VIDEO_FFPROBE_PATH=/opt/homebrew/bin/ffprobe node scripts/env/run.mjs --environment prod -- pnpm --filter @zapengine/podcast-pipeline videos:reencode plan --min-kbps 2000 --work-dir /absolute/backup-dir
+VIDEO_FFMPEG_PATH=/opt/homebrew/bin/ffmpeg VIDEO_FFPROBE_PATH=/opt/homebrew/bin/ffprobe node scripts/env/run.mjs --environment prod -- pnpm --filter @zapengine/podcast-pipeline videos:reencode encode --work-dir /absolute/backup-dir
+# 由操作人員執行 apply，同樣指定兩個 binary 環境變數：
+node scripts/env/run.mjs --environment prod -- pnpm --filter @zapengine/podcast-pipeline videos:reencode apply --work-dir /absolute/backup-dir
+```
+
+plan 的 kbps 由 R2 ContentLength 與 DB duration_seconds 計算；encode 再以 ffprobe 驗證真實媒體。plan.json 不覆蓋，encode 原檔與 sidecar 以 exclusive create 下載；不自動刪除備份。四個 URL 必須精確位於原 prefix。重壓使用 production CRF、720 短邊、原 fps、音訊 copy，長度誤差 ≤0.1 秒、恰好一條影像與音訊、VMAF ≥93、大小 ≤50%。apply 再次驗證，不修改 status；55000 立即停止，等 GC 完成再重跑。
+
+`journal.jsonl` 在 DB UPDATE 前寫入 `reencode:prepared`（old/next），成功後寫 `reencode:applied`。若回應遺失，先查 DB URL 判斷是否完成，勿盲目重試。一鍵回滾：`node scripts/env/run.mjs --environment prod -- pnpm --filter @zapengine/podcast-pipeline videos:reencode rollback --work-dir /absolute/backup-dir`。工具先確認四個原物件仍存在，已 rollback 的 journal row 不重複處理。回滾取 journal 的 old 四個 URL 與 r2_prefix，以 episode_localization_id、status=completed、next.r2_prefix、next.mp4_url 為條件 UPDATE 回 old 並更新 updated_at，select 必須恰好一筆；55000 等 GC 結束後重試。不要更新 status。舊 prefix 經 trigger 退役，30 天內可切回；30 天後原檔可能被 GC，本機備份由操作人員確認後刪除。
+
+正式 purge 後重跑盤點應為 0，並抽查 main/classroom playlist、R2 storage 下降及 GC malformed。apply 後檢查新 URL 720p 與 app 播放、九個舊 prefix 應在 grace。合併後經同意才 dispatch 首次 dry-run；第一次排程確認 gc:summary/gc:skipped，30 天後另開 PR 移除一次性 CLI 與暫時 exports。

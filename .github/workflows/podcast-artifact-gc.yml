@@ -1,0 +1,52 @@
+name: Podcast Artifact GC
+on:
+  schedule:
+    # Monday 03:23 JST
+    - cron: '23 18 * * 0'
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: Permanently delete eligible retired artifacts
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: podcast-artifact-gc
+  cancel-in-progress: false
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      INFISICAL_UNIVERSAL_AUTH_CLIENT_ID: ${{ secrets.INFISICAL_UNIVERSAL_AUTH_CLIENT_ID }}
+      INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET: ${{ secrets.INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET }}
+      INFISICAL_PROJECT_ID: ${{ secrets.INFISICAL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-workspace
+        with:
+          uv: 'false'
+      - uses: ./.github/actions/setup-env-tooling
+        with:
+          fly: 'false'
+          expo: 'false'
+          vercel: 'false'
+      - run: pnpm turbo run build --filter=@zapengine/types
+      - name: Allocate GC owner
+        id: owner
+        run: echo "uuid=$(node -e 'console.log(require("node:crypto").randomUUID())')" >> "$GITHUB_OUTPUT"
+      - name: Collect retired artifacts
+        timeout-minutes: 20
+        env:
+          GC_OWNER: ${{ steps.owner.outputs.uuid }}
+          GC_APPLY: ${{ github.event_name == 'schedule' || inputs.apply }}
+        run: |
+          mode=--dry-run
+          if [ "$GC_APPLY" = true ]; then mode=--apply; fi
+          node scripts/env/run.mjs --environment prod -- pnpm --filter @zapengine/podcast-pipeline artifacts:gc "$mode" --owner "$GC_OWNER" --max-minutes 18
+      - name: Release GC fence
+        if: always() && steps.owner.outputs.uuid != ''
+        env:
+          GC_OWNER: ${{ steps.owner.outputs.uuid }}
+        run: node scripts/env/run.mjs --environment prod -- pnpm --filter @zapengine/podcast-pipeline artifacts:gc --release-owner "$GC_OWNER"

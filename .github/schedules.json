@@ -220,5 +220,16 @@
     "runtime": "electron",
     "workspace": "@zapengine/desktop",
     "entrypoint": "apps/desktop/src/main/scheduler/rebalanceScheduler.ts"
+  },
+  {
+    "name": "podcast-artifact-gc",
+    "purpose": "Reclaim unreferenced retired podcast video and visual artifacts after 30 days.",
+    "schedule_kind": "cron",
+    "schedule": "23 18 * * 0",
+    "schedule_source": "workflow",
+    "runtime": "github-actions",
+    "workspace": "@zapengine/podcast-pipeline",
+    "entrypoint": ".github/workflows/podcast-artifact-gc.yml",
+    "docs": "apps/podcast-pipeline/docs/artifact-retention.md"
   }
 ]

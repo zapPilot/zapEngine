@@ -21,9 +21,7 @@ export function classifyArtifactKey(key: string): {
   const video = VIDEO.exec(key);
   if (
     video &&
-    /^(video\.mp4|thumbnail\.png|manifest\.json|captions\.ass|slides\/[a-zA-Z0-9._-]+\.png)$/.test(
-      video[2]!,
-    )
+    /^(video\.mp4|thumbnail\.png|manifest\.json|captions\.ass)$/.test(video[2]!)
   )
     return { kind: 'video', prefix: video[1]! };
   const visual = VISUAL.exec(key);

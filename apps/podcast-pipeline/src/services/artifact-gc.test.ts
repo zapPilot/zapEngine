@@ -158,7 +158,7 @@ describe('reference-aware GC', () => {
     await expect(runArtifactGc(deps, { apply: true, now })).rejects.toThrow(
       'processing',
     );
-    expect(deps.list).not.toHaveBeenCalled();
+    expect(deps.list).toHaveBeenCalledOnce();
     expect(deps.release).not.toHaveBeenCalled();
   });
   it('reports failed deletions and preserves retirement for retry', async () => {
@@ -177,4 +177,60 @@ describe('reference-aware GC', () => {
     await runArtifactGc(deps, { apply: true, now });
     expect(deps.remove).toHaveBeenCalledOnce();
   });
+});
+
+it('refuses a retired prefix that still contains slides', () => {
+  expect(
+    planArtifactGc({
+      objects: [object(video('old')), object(video('old'), 'slides/slide.png')],
+      references: new Set(),
+      retirements: new Map([[video('old'), old]]),
+      now,
+    })[0]?.decision,
+  ).toBe('malformed');
+});
+it('re-lists under the fence and rejects an unfamiliar new sibling', async () => {
+  const deps = fixture();
+  vi.mocked(deps.list)
+    .mockResolvedValueOnce([object(video('old'))])
+    .mockResolvedValueOnce([
+      object(video('old')),
+      object(video('old'), 'unexpected.bin'),
+    ]);
+  await runArtifactGc(deps, { apply: true, now });
+  expect(deps.remove).not.toHaveBeenCalled();
+  expect(deps.list).toHaveBeenLastCalledWith(`${video('old')}/`);
+});
+it('stops between prefixes at the time budget and releases', async () => {
+  const deps = fixture();
+  const clock = vi
+    .spyOn(Date, 'now')
+    .mockReturnValueOnce(0)
+    .mockReturnValue(60_000);
+  try {
+    await runArtifactGc(deps, { apply: true, now, maxMinutes: 1 });
+    expect(deps.remove).not.toHaveBeenCalled();
+    expect(deps.release).toHaveBeenCalledOnce();
+  } finally {
+    clock.mockRestore();
+  }
+});
+it('uses the current deletion clock when no override is provided', async () => {
+  const deps = fixture();
+  await runArtifactGc(deps, { apply: true });
+  expect(deps.remove).toHaveBeenCalledOnce();
+});
+
+it('reports confirmed deletions even if clearing the retirement fails', async () => {
+  const deps = fixture();
+  vi.mocked(deps.clearObservation).mockImplementation(async (prefix) => {
+    if (prefix === video('old'))
+      throw new Error('DB unavailable after deletion');
+  });
+  expect(await runArtifactGc(deps, { apply: true, now })).toMatchObject({
+    deletedObjects: 1,
+    deletedBytes: 100,
+    failures: 1,
+  });
+  expect(deps.release).toHaveBeenCalledOnce();
 });

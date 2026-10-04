@@ -1,8 +1,15 @@
+import { createWriteStream } from 'node:fs';
+import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
+
 import {
   DeleteObjectsCommand,
+  GetObjectCommand,
   ListObjectsV2Command,
-  type S3Client,
+  S3Client,
 } from '@aws-sdk/client-s3';
+
+import { getRequiredEnv } from '../lib/env.js';
 
 export interface StoredObject {
   key: string;
@@ -64,4 +71,30 @@ export async function deleteR2Objects(
     if (keys.slice(offset, offset + 1000).some((key) => !deleted.has(key)))
       throw new Error('R2 did not confirm every deletion');
   }
+}
+
+export function createR2ClientFromEnv(): S3Client {
+  return new S3Client({
+    region: 'auto',
+    endpoint: getRequiredEnv('R2_ENDPOINT'),
+    forcePathStyle: true,
+    credentials: {
+      accessKeyId: getRequiredEnv('R2_ACCESS_KEY_ID'),
+      secretAccessKey: getRequiredEnv('R2_SECRET_ACCESS_KEY'),
+    },
+  });
+}
+
+export async function downloadR2Object(
+  r2: S3Client,
+  bucket: string,
+  key: string,
+  path: string,
+): Promise<void> {
+  const result = await r2.send(
+    new GetObjectCommand({ Bucket: bucket, Key: key }),
+  );
+  if (!(result.Body instanceof Readable))
+    throw new Error('Missing R2 response stream');
+  await pipeline(result.Body, createWriteStream(path, { flags: 'wx' }));
 }

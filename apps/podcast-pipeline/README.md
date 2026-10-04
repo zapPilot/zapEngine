@@ -374,6 +374,8 @@ pnpm --filter @zapengine/podcast-pipeline dev:worker   # video renders only
 
 Current published media remains durable. See [artifact retention and GC](docs/artifact-retention.md) for transient lifecycle rules, safe HLS replacement, and the reference-aware `artifacts:gc` dry-run / maintenance command.
 
+GitHub Actions reclaims eligible retired video and visual prefixes every Monday at 03:23 JST after a 30-day grace period; manual dispatch defaults to dry-run. The runbook includes fence recovery and one-time purge/reencode/rollback commands.
+
 ### Database incident evidence
 
 The always-on API starts an independent observational collector every minute.
