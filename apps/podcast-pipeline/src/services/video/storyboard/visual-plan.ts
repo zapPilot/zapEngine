@@ -3,6 +3,7 @@ import { z } from 'zod';
 import {
   MAX_STORYBOARD_SLIDES,
   MAX_VISUAL_CUE_CHARACTERS,
+  SCENE_ID_PATTERN,
   type StoryboardDraft,
 } from './draft.js';
 
@@ -50,7 +51,7 @@ export const remoteImageAssetSchema = z
 
 export const materializedVisualSceneSchema = z
   .object({
-    sceneId: z.string().regex(/^scene-\d{2}$/),
+    sceneId: z.string().regex(SCENE_ID_PATTERN),
     startSentenceId: z.string().regex(/^s\d{4}$/),
     endSentenceId: z.string().regex(/^s\d{4}$/),
     imageSearchIntent: z.array(z.string().min(2).max(80)).min(1).max(3),

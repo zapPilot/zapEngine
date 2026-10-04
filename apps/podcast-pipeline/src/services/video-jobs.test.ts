@@ -734,6 +734,7 @@ describe('createVideoVisualJobRepository', () => {
     supabase.query.maybeSingle
       .mockResolvedValueOnce({ data: localizationRow(), error: null })
       .mockResolvedValueOnce({ data: englishLocalizationRow(), error: null })
+      .mockResolvedValueOnce({ data: null, error: null })
       .mockResolvedValueOnce({ data: episodeRow(), error: null });
 
     await expect(
@@ -964,5 +965,28 @@ describe('retryEpisodeVideoGeneration', () => {
     await expect(retryEpisodeVideoGeneration('episode-1')).rejects.toThrow(
       '[P0001] unexpected failure',
     );
+  });
+});
+
+describe('Japanese visual alignment source', () => {
+  it('loads an available Japanese script without changing the source hash contract', async () => {
+    const supabase = makeSupabase();
+    supabase.query.maybeSingle
+      .mockResolvedValueOnce({ data: localizationRow(), error: null })
+      .mockResolvedValueOnce({ data: englishLocalizationRow(), error: null })
+      .mockResolvedValueOnce({
+        data: {
+          ...englishLocalizationRow(),
+          language_code: 'ja',
+          script: '日本語の文。次の文。',
+        },
+        error: null,
+      })
+      .mockResolvedValueOnce({ data: episodeRow(), error: null });
+    const source = await createVideoVisualJobRepository(
+      supabase as never,
+    ).loadSource('episode-1');
+    expect(source.japaneseScript).toBe('日本語の文。次の文。');
+    expect(supabase.query.eq).toHaveBeenCalledWith('language_code', 'ja');
   });
 });

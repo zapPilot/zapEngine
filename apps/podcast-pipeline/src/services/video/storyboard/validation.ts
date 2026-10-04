@@ -37,8 +37,8 @@ function zodIssues(error: z.ZodError): StoryboardValidationIssue[] {
 
 // Shared with the semantic storyboard planner so the safety envelope and the
 // cut selection cannot drift apart.
-export const MIN_SCENE_DURATION_MS = 4_000;
-export const MAX_SCENE_DURATION_MS = 18_000;
+export const MIN_SCENE_DURATION_MS = 2_500;
+export const MAX_SCENE_DURATION_MS = 6_000;
 
 export function storyboardSceneCountRange(
   durationMs: number,

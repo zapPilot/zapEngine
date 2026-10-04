@@ -11,6 +11,7 @@ function storyboard(input: {
   title: string;
   script: string;
   durationMs?: number;
+  sceneCountRange?: { min: number; max: number };
   searchTitle?: string;
   searchScript?: string;
 }) {
@@ -20,6 +21,9 @@ function storyboard(input: {
     script: input.script,
     durationMs: input.durationMs ?? Math.max(9_000, sentences.length * 10_000),
     sentences,
+    ...(input.sceneCountRange
+      ? { sceneCountRange: input.sceneCountRange }
+      : {}),
     ...(input.searchTitle === undefined
       ? {}
       : { searchTitle: input.searchTitle }),
@@ -250,6 +254,7 @@ describe('createDeterministicStoryboard', () => {
     const result = storyboard({
       title: 'AI infrastructure financing',
       script,
+      sceneCountRange: { min: 3, max: 3 },
       durationMs: 24_000,
     });
 
@@ -313,6 +318,7 @@ describe('createDeterministicStoryboard', () => {
     const result = storyboard({
       title: 'Residual group sorting',
       script,
+      sceneCountRange: { min: 3, max: 6 },
       durationMs: 40_000,
     });
     expect(result.scenes).toHaveLength(3);
@@ -329,6 +335,7 @@ describe('createDeterministicStoryboard', () => {
     const result = storyboard({
       title: 'Plain inventory notes',
       script,
+      sceneCountRange: { min: 3, max: 6 },
       durationMs: 40_000,
     });
 
@@ -363,6 +370,7 @@ describe('createDeterministicStoryboard', () => {
       durationMs: 10_000,
       sentences,
       isPackaged: false,
+      sceneCountRange: { min: 1, max: 1 },
     });
     expect(result.scenes).toHaveLength(1);
     expect(result.scenes[0]?.imageSearchIntent.length).toBeGreaterThan(0);

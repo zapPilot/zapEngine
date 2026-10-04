@@ -997,7 +997,7 @@ describe('shared visual plan and locale manifest materialization', () => {
 
   it('rejects a scene index below zero', () => {
     expect(() => stableSceneId(-1)).toThrow(
-      'Scene index must be an integer from 0 to 63',
+      'Scene index must be an integer from 0 to 149',
     );
   });
 
@@ -1071,5 +1071,25 @@ describe('shared visual plan and locale manifest materialization', () => {
         ],
       }),
     ).toThrow('Materialized image is missing for scene-02');
+  });
+});
+
+describe('bounded storyboard provider contract', () => {
+  it('uses the same range in provider requests and deterministic fallback', async () => {
+    const generate = vi.fn().mockRejectedValue(new Error('provider offline'));
+    const result = await generateStoryboard({
+      title: 'News',
+      script: 'First news sentence. Second news sentence. Third news sentence.',
+      durationMs: 120_000,
+      contentSceneBounds: { min: 10, max: 2 },
+      provider: { name: 'fixture', model: 'fixture', generate },
+    });
+    expect(generate).toHaveBeenCalledTimes(2);
+    expect(generate.mock.calls[0]![0].sceneCountRange).toEqual({
+      min: 2,
+      max: 2,
+    });
+    expect(result.usedFallback).toBe(true);
+    expect(result.draft.scenes).toHaveLength(2);
   });
 });

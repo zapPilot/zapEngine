@@ -1,6 +1,8 @@
 import { z } from 'zod';
 
-export const MAX_STORYBOARD_SLIDES = 64;
+export const MAX_STORYBOARD_SLIDES = 150;
+
+export const SCENE_ID_PATTERN = /^scene-\d{2,3}$/;
 
 // Every producer of search intents — the deterministic table and the LLM
 // enrichment pass — has to fit the same shape this schema accepts.
@@ -15,7 +17,7 @@ const sentenceIdSchema = z.string().regex(/^s\d{4}$/);
 
 export const storyboardDraftSceneSchema = z
   .object({
-    sceneId: z.string().regex(/^scene-\d{2}$/),
+    sceneId: z.string().regex(SCENE_ID_PATTERN),
     startSentenceId: sentenceIdSchema,
     endSentenceId: sentenceIdSchema,
     imageSearchIntent: z

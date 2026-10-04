@@ -1387,13 +1387,15 @@ export function createDeterministicStoryboard(input: {
   searchTitle?: string;
   searchScript?: string;
   isPackaged?: boolean;
+  sceneCountRange?: { min: number; max: number };
 }): StoryboardDraft {
   if (input.sentences.length === 0) {
     throw new Error('Cannot build a storyboard from an empty canonical script');
   }
 
   const range =
-    input.isPackaged !== undefined
+    input.sceneCountRange ??
+    (input.isPackaged !== undefined
       ? podcastEditorialSceneCountRange(
           input.durationMs,
           input.sentences.length,
@@ -1403,7 +1405,7 @@ export function createDeterministicStoryboard(input: {
           input.durationMs,
           input.sentences.length,
           input.script,
-        );
+        ));
   const groups = chooseSemanticGroups(
     input.sentences,
     range.min,

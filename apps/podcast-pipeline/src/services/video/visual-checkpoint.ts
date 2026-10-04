@@ -5,7 +5,11 @@ import { z } from 'zod';
 
 import { contentTypeExtension } from '../../lib/content-type.js';
 import { generatedSlideMetadataSchema } from './episode-visual.js';
-import { storyboardDraftSchema } from './storyboard/draft.js';
+import {
+  MAX_STORYBOARD_SLIDES,
+  SCENE_ID_PATTERN,
+  storyboardDraftSchema,
+} from './storyboard/draft.js';
 import type {
   StoryboardAttemptReport,
   StoryboardGenerationResult,
@@ -18,7 +22,10 @@ import type {
   PlannedVisualImage,
   VisualAssetPlan,
 } from './visual-asset-planner.js';
-import { visualAssetIdentityFields } from './visual-asset-shared.js';
+import {
+  VISUAL_ASSET_ID_PATTERN,
+  visualAssetIdentityFields,
+} from './visual-asset-shared.js';
 
 /**
  * Intra-job checkpoint for the visual planner. Storyboard + search intents are
@@ -32,7 +39,7 @@ export const VISUAL_CHECKPOINT_SCHEMA_VERSION =
 
 const checkpointAssetSchema = z
   .object({
-    assetId: z.string().regex(/^image-\d{2}$/),
+    assetId: z.string().regex(VISUAL_ASSET_ID_PATTERN),
     r2Url: z.string().url(),
     contentType: z.enum([
       'image/jpeg',
@@ -86,18 +93,20 @@ export const visualCheckpointSchema = z
      * the field existed still parses and its job resumes instead of replanning;
      * absent otherwise, because a retry that reports no reason is misleading. */
     subjectCatalogFailure: z.string().min(1).optional(),
-    sceneAssignments: z.array(visualSceneSubjectAssignmentSchema).max(64),
+    sceneAssignments: z
+      .array(visualSceneSubjectAssignmentSchema)
+      .max(MAX_STORYBOARD_SLIDES),
     scenes: z
       .array(
         z
           .object({
-            sceneId: z.string().regex(/^scene-\d{2}$/),
-            assetId: z.string().regex(/^image-\d{2}$/),
+            sceneId: z.string().regex(SCENE_ID_PATTERN),
+            assetId: z.string().regex(VISUAL_ASSET_ID_PATTERN),
           })
           .strict(),
       )
-      .max(64),
-    assets: z.array(checkpointAssetSchema).max(64),
+      .max(MAX_STORYBOARD_SLIDES),
+    assets: z.array(checkpointAssetSchema).max(MAX_STORYBOARD_SLIDES),
   })
   .strict();
 

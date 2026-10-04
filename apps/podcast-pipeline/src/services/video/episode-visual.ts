@@ -7,7 +7,11 @@ import {
   type VisualImageSearch,
   visualImageSearchSchema,
 } from './image-search-trace.js';
-import type { StoryboardDraft } from './storyboard/draft.js';
+import {
+  MAX_STORYBOARD_SLIDES,
+  SCENE_ID_PATTERN,
+  type StoryboardDraft,
+} from './storyboard/draft.js';
 import type { StoryboardGenerationResult } from './storyboard/orchestrator.js';
 import {
   canonicalSentenceRangeText,
@@ -29,7 +33,10 @@ import type {
   PlannedVisualScene,
   VisualAssetLeadCover,
 } from './visual-asset-planner.js';
-import { visualAssetIdentityFields } from './visual-asset-shared.js';
+import {
+  VISUAL_ASSET_ID_PATTERN,
+  visualAssetIdentityFields,
+} from './visual-asset-shared.js';
 
 export const EPISODE_VISUAL_PAYLOAD_SCHEMA_VERSION =
   'podcast-episode-visual.v1' as const;
@@ -58,7 +65,7 @@ export const generatedSlideMetadataSchema = z
 
 const visualAssetMetadataSchema = z
   .object({
-    assetId: z.string().regex(/^image-\d{2}$/),
+    assetId: z.string().regex(VISUAL_ASSET_ID_PATTERN),
     r2Url: z.string().url(),
     originalImageUrl: z.string().url(),
     sourcePageUrl: z.string().url(),
@@ -93,7 +100,7 @@ const visualAssetMetadataSchema = z
  * the providers it names are retired. */
 const visualSearchTraceEntrySchema = z
   .object({
-    sceneId: z.string().regex(/^scene-\d{2}$/),
+    sceneId: z.string().regex(SCENE_ID_PATTERN),
     provider: z.string().min(1).max(40),
     intent: z.string().min(1).max(200),
     subjectKey: z.string().min(1).max(320).nullable(),
@@ -148,17 +155,17 @@ export const episodeVisualPayloadSchema = z
           .array(
             z
               .object({
-                sceneId: z.string().regex(/^scene-\d{2}$/),
+                sceneId: z.string().regex(SCENE_ID_PATTERN),
                 text: z.string().min(1).max(400),
               })
               .strict(),
           )
-          .max(64)
+          .max(MAX_STORYBOARD_SLIDES)
           .optional(),
         generatedSlideCount: z.number().int().nonnegative().optional(),
         generatedSlideSceneIds: z
-          .array(z.string().regex(/^scene-\d{2}$/))
-          .max(64)
+          .array(z.string().regex(SCENE_ID_PATTERN))
+          .max(MAX_STORYBOARD_SLIDES)
           .optional(),
         // v11 records which publisher `og:image` the lead content scene
         // rendered, so the render job dresses the cover from the plan instead

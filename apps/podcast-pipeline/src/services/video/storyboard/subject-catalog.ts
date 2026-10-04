@@ -1,6 +1,10 @@
 import { z } from 'zod';
 
-import { MAX_VISUAL_CUE_CHARACTERS } from './draft.js';
+import {
+  MAX_STORYBOARD_SLIDES,
+  MAX_VISUAL_CUE_CHARACTERS,
+  SCENE_ID_PATTERN,
+} from './draft.js';
 
 export const VISUAL_SUBJECT_TYPES = [
   'company',
@@ -31,16 +35,16 @@ export const VISUAL_SELECTION_REASONS = [
 ] as const;
 
 const subjectIdSchema = z.string().regex(/^subject-[a-z0-9]+(?:-[a-z0-9]+)*$/);
-const sceneIdSchema = z.string().regex(/^scene-\d{2}$/);
+const sceneIdSchema = z.string().regex(SCENE_ID_PATTERN);
 const shortTextSchema = z.string().min(2).max(80);
 const SUBJECT_LIMITS = {
   aliases: 6,
-  evidenceSceneIds: 64,
+  evidenceSceneIds: MAX_STORYBOARD_SLIDES,
   searchQueries: 3,
   identityHints: 8,
   negativeHints: 8,
   officialDomains: 4,
-  sceneCues: 64,
+  sceneCues: MAX_STORYBOARD_SLIDES,
 } as const;
 
 export const visualSubjectSchema = z
@@ -315,7 +319,7 @@ function repairedSceneCues(value: unknown): unknown[] | undefined {
     if (!isRecord(entry)) continue;
     const sceneId = entry['sceneId'];
     const cue = entry['visualCue'];
-    if (typeof sceneId !== 'string' || !/^scene-\d{2}$/u.test(sceneId)) {
+    if (typeof sceneId !== 'string' || !SCENE_ID_PATTERN.test(sceneId)) {
       continue;
     }
     if (seenSceneIds.has(sceneId)) continue;

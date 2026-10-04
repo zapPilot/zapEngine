@@ -10,8 +10,11 @@ import {
   PODCAST_INTRO_VISUAL_INTENT,
   PODCAST_OUTRO_VISUAL_INTENT,
   PODCAST_PACKAGING_VERSION,
+  podcastContentSceneCountRange,
+  podcastEditorialSceneCountRange,
   splitPodcastVisualSections,
   stripKnownPodcastPackaging,
+  validatePodcastStoryboardDraft,
   ZAP_PILOT_OUTRO,
 } from './podcast-packaging.js';
 import type { StoryboardDraft } from './video/storyboard/draft.js';
@@ -153,9 +156,8 @@ describe('applyPodcastBrandingToStoryboard', () => {
       90_000,
     );
 
-    // Twelve evenly weighted sentences with no subject change, so the planner
-    // merges adjacent pairs until each scene fits under the 18s ceiling.
-    expect(content.scenes).toHaveLength(6);
+    // The sentence ceiling wins when a short script cannot satisfy the time floor.
+    expect(content.scenes).toHaveLength(11);
     expect(branded.scenes).toHaveLength(content.scenes.length + 1);
     expect(branded.scenes.at(-1)?.endSentenceId).toBe(
       splitCanonicalSentences(script).at(-1)?.id,
@@ -172,10 +174,10 @@ describe('applyPodcastBrandingToStoryboard', () => {
     ]);
   });
 
-  it('reserves one of 64 storyboard slots for the packaged outro', () => {
+  it('reserves one of 150 storyboard slots for the packaged outro', () => {
     const script = packagePodcastScript(
       Array.from(
-        { length: 100 },
+        { length: 200 },
         (_, index) => `長篇正文第${index + 1}句。`,
       ).join(''),
     );
@@ -195,10 +197,63 @@ describe('applyPodcastBrandingToStoryboard', () => {
       20 * 60_000,
     );
 
-    expect(content.scenes).toHaveLength(63);
-    expect(branded.scenes).toHaveLength(64);
+    expect(content.scenes).toHaveLength(149);
+    expect(branded.scenes).toHaveLength(150);
     expect(branded.scenes.at(-1)?.imageSearchIntent).toEqual([
       PODCAST_OUTRO_VISUAL_INTENT,
     ]);
+  });
+});
+
+describe('content scene bounds', () => {
+  it('lets translation caps override time floors and clips publisher floors at duration maxima', () => {
+    expect(
+      podcastContentSceneCountRange(600_000, 200, 'ordinary', { max: 30 }),
+    ).toEqual({ min: 30, max: 30 });
+    expect(
+      podcastEditorialSceneCountRange(60_000, 100, false, { min: 15 }),
+    ).toEqual({ min: 15, max: 24 });
+    expect(
+      podcastEditorialSceneCountRange(60_000, 100, false, { min: 100 }),
+    ).toEqual({ min: 24, max: 24 });
+    expect(
+      podcastContentSceneCountRange(
+        60_000,
+        100,
+        packagePodcastScript('正文。'),
+        { min: 100 },
+      ),
+    ).toEqual({ min: 23, max: 23 });
+  });
+
+  it('uses the same bounded range for generation and branded validation', () => {
+    const script = packagePodcastScript(
+      Array.from({ length: 30 }, (_, i) => `正文第${i}句。`).join(''),
+    );
+    const bounds = { min: 20, max: 12 };
+    const draft = createDeterministicStoryboard({
+      title: 'News',
+      script: getPodcastEditorialScript(script),
+      sentences: getPodcastEditorialSentences(script),
+      durationMs: 120_000,
+      isPackaged: true,
+      sceneCountRange: podcastEditorialSceneCountRange(
+        120_000,
+        30,
+        true,
+        bounds,
+      ),
+    });
+    const branded = applyAndValidatePodcastBrandingToStoryboard(
+      script,
+      draft,
+      120_000,
+      bounds,
+    );
+    expect(draft.scenes).toHaveLength(12);
+    expect(branded.scenes).toHaveLength(13);
+    expect(
+      validatePodcastStoryboardDraft(script, branded, 120_000, bounds).success,
+    ).toBe(true);
   });
 });
