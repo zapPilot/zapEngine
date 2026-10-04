@@ -28,6 +28,38 @@ async function tempDirectory(): Promise<string> {
 }
 
 describe('prepareThreadsVideoUrl', () => {
+  it.each([120, 200, 300])(
+    'publishes the full %s-second video without preparing or reusing a teaser',
+    async (durationSeconds) => {
+      const fetchImpl = vi.fn();
+      const processRunner = vi.fn();
+      const uploadVideo = vi.fn<UploadVideo>();
+      const sourceUrl = 'https://media.example.com/full.mp4';
+      expect(
+        await prepareThreadsVideoUrl(sourceUrl, {
+          durationSeconds,
+          preparedVideoPath: '/unused/x-teaser.mp4',
+          fetchImpl,
+          processRunner,
+          uploadVideo,
+        }),
+      ).toBe(sourceUrl);
+      expect(fetchImpl).not.toHaveBeenCalled();
+      expect(processRunner).not.toHaveBeenCalled();
+      expect(uploadVideo).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([0, -1, NaN, Infinity])(
+    'rejects invalid duration %s',
+    async (durationSeconds) => {
+      await expect(
+        prepareThreadsVideoUrl('https://media.example.com/video.mp4', {
+          durationSeconds,
+        }),
+      ).rejects.toThrow('positive finite number');
+    },
+  );
   it('reuses an already prepared X teaser and publishes it under an immutable R2 key', async () => {
     const directory = await tempDirectory();
     const teaserPath = join(directory, 'x-teaser.mp4');
@@ -37,6 +69,7 @@ describe('prepareThreadsVideoUrl', () => {
     const url = await prepareThreadsVideoUrl(
       'https://media.example.com/episodes/episode-1/video.mp4',
       {
+        durationSeconds: 301,
         preparedVideoPath: teaserPath,
         tempDir: directory,
         uploadVideo,
@@ -69,6 +102,7 @@ describe('prepareThreadsVideoUrl', () => {
     const first = await prepareThreadsVideoUrl(
       'https://media.example.com/episodes/episode-2/video.mp4',
       {
+        durationSeconds: 301,
         tempDir: directory,
         fetchImpl,
         processRunner,
@@ -80,6 +114,7 @@ describe('prepareThreadsVideoUrl', () => {
     const second = await prepareThreadsVideoUrl(
       'https://media.example.com/episodes/episode-2/video.mp4',
       {
+        durationSeconds: 301,
         tempDir: directory,
         fetchImpl,
         processRunner,
@@ -105,6 +140,7 @@ describe('prepareThreadsVideoUrl', () => {
   it('rejects non-HTTPS source URLs before touching the network', async () => {
     await expect(
       prepareThreadsVideoUrl('http://media.example.com/video.mp4', {
+        durationSeconds: 301,
         publicBaseUrl: 'https://cdn.example.com',
         uploadVideo: async () => undefined,
       }),
@@ -114,6 +150,7 @@ describe('prepareThreadsVideoUrl', () => {
   it('rejects malformed source URLs before touching the network', async () => {
     await expect(
       prepareThreadsVideoUrl('not a url', {
+        durationSeconds: 301,
         publicBaseUrl: 'https://cdn.example.com',
         uploadVideo: async () => undefined,
       }),
@@ -129,6 +166,7 @@ describe('prepareThreadsVideoUrl', () => {
       prepareThreadsVideoUrl(
         'https://media.example.com/episodes/episode-empty/video.mp4',
         {
+          durationSeconds: 301,
           preparedVideoPath: emptyPath,
           tempDir: directory,
           uploadVideo: async () => undefined,
@@ -146,6 +184,7 @@ describe('prepareThreadsVideoUrl', () => {
       prepareThreadsVideoUrl(
         'https://media.example.com/episodes/episode-download/video.mp4',
         {
+          durationSeconds: 301,
           tempDir: directory,
           fetchImpl: vi.fn(async () => new Response(null, { status: 502 })),
           processRunner,
@@ -167,6 +206,7 @@ describe('prepareThreadsVideoUrl', () => {
       prepareThreadsVideoUrl(
         'https://media.example.com/episodes/episode-render/video.mp4',
         {
+          durationSeconds: 301,
           tempDir: directory,
           fetchImpl: vi.fn(
             async () =>
@@ -198,7 +238,10 @@ describe('prepareThreadsVideoUrl', () => {
     const uploadVideo = vi.fn<UploadVideo>().mockResolvedValue(undefined);
 
     try {
-      const result = await prepareThreadsVideoUrl(sourceUrl, { uploadVideo });
+      const result = await prepareThreadsVideoUrl(sourceUrl, {
+        uploadVideo,
+        durationSeconds: 301,
+      });
       expect(result).toMatch(
         /^https:\/\/cdn-default\.example\.com\/transient\/social\/threads\/[^/]+\/v1\/video\.mp4$/,
       );

@@ -103,6 +103,7 @@ describe('createSocialPublishJobs', () => {
         copy: attributedCopy,
         episode: localized,
         videoUrl: VIDEO_URL,
+        videoDurationSeconds: 301,
         thumbnailUrl: THUMBNAIL_URL,
         videoPath: VIDEO_PATH,
         xVideoPath: X_VIDEO_PATH,
@@ -154,6 +155,7 @@ describe('createSocialPublishJobs', () => {
       copy,
       episode,
       videoUrl: VIDEO_URL,
+      videoDurationSeconds: 301,
       xVideoPath: X_VIDEO_PATH,
     });
 
@@ -171,12 +173,36 @@ describe('createSocialPublishJobs', () => {
     });
   });
 
+  it('keeps X teaser selection separate from Threads full-video selection for a 200-second episode', async () => {
+    const jobs = createSocialPublishJobs({
+      platforms: ['x', 'threads'],
+      copy,
+      episode,
+      videoUrl: VIDEO_URL,
+      videoDurationSeconds: 200,
+      videoPath: '/full.mp4',
+      xVideoPath: X_VIDEO_PATH,
+    });
+    await jobs[0]?.publish();
+    expect(mocks.publishX).toHaveBeenCalledWith(
+      expect.objectContaining({ videoPath: X_VIDEO_PATH }),
+    );
+    const prepare =
+      mocks.createThreadsPublisher.mock.calls[0]?.[0]?.prepareVideoUrl;
+    await prepare?.(VIDEO_URL);
+    expect(mocks.prepareThreadsVideoUrl).toHaveBeenCalledWith(VIDEO_URL, {
+      durationSeconds: 200,
+      preparedVideoPath: X_VIDEO_PATH,
+    });
+  });
+
   it('prepares Threads video with and without a reusable X teaser', async () => {
     createSocialPublishJobs({
       platforms: ['threads'],
       copy,
       episode,
       videoUrl: VIDEO_URL,
+      videoDurationSeconds: 301,
       xVideoPath: X_VIDEO_PATH,
     });
     const withTeaser =
@@ -192,6 +218,7 @@ describe('createSocialPublishJobs', () => {
       copy,
       episode,
       videoUrl: VIDEO_URL,
+      videoDurationSeconds: 301,
     });
     const withoutTeaser =
       mocks.createThreadsPublisher.mock.calls[0]?.[0]?.prepareVideoUrl;
@@ -206,6 +233,7 @@ describe('createSocialPublishJobs', () => {
       copy,
       episode,
       videoUrl: VIDEO_URL,
+      videoDurationSeconds: 301,
     });
 
     expect(mocks.createPlaywrightXPublisher).not.toHaveBeenCalled();
@@ -218,6 +246,7 @@ describe('createSocialPublishJobs', () => {
         copy,
         episode,
         videoUrl: VIDEO_URL,
+        videoDurationSeconds: 301,
       }),
     ).toThrow('X publishing requires a prepared teaser video.');
     expect(mocks.createPlaywrightXPublisher).not.toHaveBeenCalled();
@@ -229,6 +258,7 @@ describe('createSocialPublishJobs', () => {
       copy,
       episode,
       videoUrl: VIDEO_URL,
+      videoDurationSeconds: 301,
       thumbnailUrl: THUMBNAIL_URL,
       videoPath: VIDEO_PATH,
     });
@@ -250,6 +280,7 @@ describe('createSocialPublishJobs', () => {
       copy,
       episode,
       videoUrl: VIDEO_URL,
+      videoDurationSeconds: 301,
       thumbnailUrl: THUMBNAIL_URL,
       videoPath: VIDEO_PATH,
       youtubePrivacyStatus: 'unlisted',
@@ -268,6 +299,7 @@ describe('createSocialPublishJobs', () => {
         copy,
         episode,
         videoUrl: VIDEO_URL,
+        videoDurationSeconds: 301,
         thumbnailUrl: THUMBNAIL_URL,
       }),
     ).toThrow('YouTube publishing requires a prepared video.');
@@ -278,6 +310,7 @@ describe('createSocialPublishJobs', () => {
         copy,
         episode,
         videoUrl: VIDEO_URL,
+        videoDurationSeconds: 301,
         videoPath: VIDEO_PATH,
       }),
     ).toThrow('YouTube publishing requires the canonical video thumbnail.');
@@ -295,6 +328,7 @@ describe('createSocialPublishJobs', () => {
           copy: blank.copy,
           episode: blank.episode,
           videoUrl: VIDEO_URL,
+          videoDurationSeconds: 301,
           thumbnailUrl: THUMBNAIL_URL,
           videoPath: VIDEO_PATH,
         }),
@@ -308,6 +342,7 @@ describe('createSocialPublishJobs', () => {
       copy,
       episode,
       videoUrl: VIDEO_URL,
+      videoDurationSeconds: 301,
       videoPath: VIDEO_PATH,
     });
 
@@ -328,6 +363,7 @@ describe('createSocialPublishJobs', () => {
         title: '這是一個已渲染但超過二十字的舊 canonical episode title',
       },
       videoUrl: VIDEO_URL,
+      videoDurationSeconds: 301,
       videoPath: VIDEO_PATH,
       titleOverrideByPlatform: { rednote: '舊佇列短標題' },
     });
@@ -353,6 +389,7 @@ describe('createSocialPublishJobs', () => {
       copy,
       episode: { ...episode, title },
       videoUrl: VIDEO_URL,
+      videoDurationSeconds: 301,
       videoPath: VIDEO_PATH,
     });
 
@@ -372,6 +409,7 @@ describe('createSocialPublishJobs', () => {
         copy,
         episode: { ...episode, title: '   ' },
         videoUrl: VIDEO_URL,
+        videoDurationSeconds: 301,
         videoPath: VIDEO_PATH,
       }),
     ).toThrow('Rednote publishing requires the canonical episode title.');
@@ -386,6 +424,7 @@ describe('createSocialPublishJobs', () => {
         copy,
         episode,
         videoUrl: VIDEO_URL,
+        videoDurationSeconds: 301,
       }),
     ).toThrow('Unsupported social platform: mastodon');
   });
@@ -405,6 +444,7 @@ describe('createSocialPublishJobs', () => {
         },
         episode,
         videoUrl: VIDEO_URL,
+        videoDurationSeconds: 301,
         videoPath: VIDEO_PATH,
       }),
     ).toThrow(/moderation-risk wording/);
@@ -419,6 +459,7 @@ describe('createSocialPublishJobs', () => {
         copy,
         episode,
         videoUrl: VIDEO_URL,
+        videoDurationSeconds: 301,
       }),
     ).toThrow('Rednote publishing requires a prepared video.');
 

@@ -442,13 +442,17 @@ Current media shape is owned by `platforms.ts`:
 | Platform | Local MP4 required | Published media                                      |
 | -------- | ------------------ | ---------------------------------------------------- |
 | X        | yes                | Japanese teaser, or full video within X duration cap |
-| Threads  | no                 | teaser prepared/reused from the `zh-Hant` video      |
+| Threads  | no                 | full `zh-Hant` video within 300s, otherwise teaser   |
 | Rednote  | yes                | local `zh-Hant` full video                           |
 | YouTube  | yes                | English full video                                   |
 
-X and Threads share the deterministic teaser path where possible. Rednote always
-publishes the main Chinese full video, and Threads publishes its teaser. New
-Chinese videos and Threads teasers have Simplified subtitles (an accepted
+X keeps its 140-second cap. Threads independently uses a 300-second cap, per
+[Meta Threads API Media Specifications](https://developers.facebook.com/documentation/threads/posts#video-specifications)
+(verified 2026-10-04). Each publishes the full video at or below its own cap;
+over-limit videos use the first 130 seconds plus the final 2.8-second brand outro.
+An existing X teaser may be reused only when Threads also needs a teaser.
+Rednote always publishes the main Chinese full video. New
+Chinese videos and Threads videos have Simplified subtitles (an accepted
 trade-off); older videos retain their original script. X publishes Japanese and
 YouTube publishes English under the fixed language policy.
 

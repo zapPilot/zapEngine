@@ -168,6 +168,7 @@ export async function publishSocialBatch(input: {
     copy: snapshot.published,
     episode,
     videoUrl: episode.videoUrl,
+    videoDurationSeconds: episode.videoDurationSeconds,
     thumbnailUrl: episode.videoThumbnailUrl,
     destinationUrlByPlatform,
     titleOverrideByPlatform,

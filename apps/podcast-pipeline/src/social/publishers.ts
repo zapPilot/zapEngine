@@ -22,6 +22,7 @@ interface SocialPublishJobsInput {
   copy: GeneratedSocialCopy;
   episode: SocialComposeEpisode;
   videoUrl: string;
+  videoDurationSeconds: number;
   /** Canonical renderer poster (first scene + brand frame). */
   thumbnailUrl?: string;
   videoPath?: string;
@@ -90,6 +91,7 @@ function createThreadsJob(input: SocialPublishJobsInput): SocialPublishJob {
     onLog: input.onLog,
     prepareVideoUrl: (videoUrl: string) =>
       prepareThreadsVideoUrl(videoUrl, {
+        durationSeconds: input.videoDurationSeconds,
         ...(input.xVideoPath ? { preparedVideoPath: input.xVideoPath } : {}),
       }),
   });
