@@ -11,7 +11,14 @@
  *   node scripts/env/run.mjs -- pnpm --filter @zapengine/video voiceover calculator-pitch
  */
 import { existsSync } from 'node:fs';
-import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -156,6 +163,7 @@ async function main() {
 
   const key = voiceKey(engine, referenceId);
   const lines: Record<string, VoClip> = {};
+  await mkdir(path.join(publicDir, paths.voPublic), { recursive: true });
   const scratch = await mkdtemp(path.join(tmpdir(), 'zap-vo-'));
   try {
     for (const line of storyboard.scenes.flatMap(

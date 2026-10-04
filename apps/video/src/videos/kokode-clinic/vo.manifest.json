@@ -1,6 +1,67 @@
 {
   "videoId": "kokode-clinic",
-  "engine": "",
-  "voiceKey": "",
-  "lines": {}
+  "engine": "s2.1-pro-free",
+  "voiceKey": "cb4225f9e356",
+  "lines": {
+    "hook-patient": {
+      "file": "vo/kokode-clinic/51b384a492aab0e9.mp3",
+      "fingerprint": "b4269adb69c2a601",
+      "durationSeconds": 5.16
+    },
+    "hook-content": {
+      "file": "vo/kokode-clinic/f02eeafba25db69e.mp3",
+      "fingerprint": "2b13eeb9a3ea8522",
+      "durationSeconds": 4.848
+    },
+    "turn-desire": {
+      "file": "vo/kokode-clinic/d052cbc2503d7ae1.mp3",
+      "fingerprint": "808831060959200b",
+      "durationSeconds": 5.496
+    },
+    "turn-solution": {
+      "file": "vo/kokode-clinic/2863418d51308690.mp3",
+      "fingerprint": "a9e3e3cc3e0d320e",
+      "durationSeconds": 5.112
+    },
+    "turn-experience": {
+      "file": "vo/kokode-clinic/28519668bc380d0d.mp3",
+      "fingerprint": "efde4d1e5016532f",
+      "durationSeconds": 5.328
+    },
+    "demo-patient-flow": {
+      "file": "vo/kokode-clinic/be34df0f831fa603.mp3",
+      "fingerprint": "aa18b9ef61c9a146",
+      "durationSeconds": 3.84
+    },
+    "demo-patient-draft": {
+      "file": "vo/kokode-clinic/839f6bad66ba5839.mp3",
+      "fingerprint": "e7ca164cda7254ac",
+      "durationSeconds": 4.8
+    },
+    "demo-image": {
+      "file": "vo/kokode-clinic/c0649cc6f712b22d.mp3",
+      "fingerprint": "0f78bd692ba4dae5",
+      "durationSeconds": 4.944
+    },
+    "reveal": {
+      "file": "vo/kokode-clinic/1e04c724d186c460.mp3",
+      "fingerprint": "407164ac7a5a461c",
+      "durationSeconds": 6.024
+    },
+    "boundary": {
+      "file": "vo/kokode-clinic/220296d5ebf694d4.mp3",
+      "fingerprint": "df42d8796e005cfb",
+      "durationSeconds": 6.936
+    },
+    "cta-ask": {
+      "file": "vo/kokode-clinic/2c6687d5609ec27a.mp3",
+      "fingerprint": "b9a4eb004e0d3112",
+      "durationSeconds": 6.36
+    },
+    "cta-brand": {
+      "file": "vo/kokode-clinic/83c83201494eae64.mp3",
+      "fingerprint": "413c973ffecd9057",
+      "durationSeconds": 2.16
+    }
+  }
 }
