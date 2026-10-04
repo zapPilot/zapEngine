@@ -71,29 +71,36 @@ describe('planVisualAssets', () => {
     ).rejects.toThrow('requires at least one scene');
   });
 
-  it('uses qualified article images before invoking Brave search', async () => {
+  it('uses every downloadable publisher body image before invoking Brave search', async () => {
     const acquireImage = vi.fn<typeof acquireRemoteImage>(async (url: string) =>
       acquired(new URL(url).pathname.split('/').at(-1)!.replace('.jpg', '')),
     );
     const searchImages = vi.fn();
+    const article = candidate('article-a');
+    const figure = candidate('article-b', 'figure');
 
     const result = await planVisualAssets({
       scenes: scenes.slice(0, 2),
-      articleImages: [candidate('article-a'), candidate('article-b')],
+      articleImages: [article, figure],
       workingDirectory: '/work/visual-assets',
       dependencies: {
         acquireImage,
         searchProviders: braveProviders(searchImages),
-        fingerprintImage: vi
-          .fn()
-          .mockResolvedValueOnce('0000000000000000')
-          .mockResolvedValueOnce('ffffffffffffffff'),
+        // Body images are publisher-owned inputs, so even visually similar
+        // images must both survive instead of being treated like search dupes.
+        fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
       },
     });
 
     expect(searchImages).not.toHaveBeenCalled();
+    expect(acquireImage.mock.calls.map(([url]) => url)).toEqual([
+      article.imageUrl,
+      figure.imageUrl,
+    ]);
     for (const [, options] of acquireImage.mock.calls) {
-      expect(options).not.toHaveProperty('allowSmallDimensions');
+      expect(options).toEqual(
+        expect.objectContaining({ allowSmallDimensions: true }),
+      );
     }
     expect(result.scenes).toEqual([
       { sceneId: 'scene-01', assetId: 'image-01' },
@@ -375,13 +382,14 @@ describe('planVisualAssets', () => {
     expect(result.assets[0]?.originalImageUrl).toBe(fallback.imageUrl);
   });
 
-  it('excludes thumbnail-like article URLs before downloading candidates', async () => {
+  it('keeps thumbnail-like publisher body URLs when the image can be acquired', async () => {
     const thumbnail = {
       ...candidate('story-thumbnail'),
       imageUrl: 'https://images.example.test/thumbnail/story.jpg',
     };
     const fullSize = candidate('story-full');
-    const acquireImage = vi.fn(async () => acquired('story-full'));
+    const acquireImage = vi.fn(async () => acquired('story-thumbnail'));
+    const searchImages = vi.fn();
 
     const result = await planVisualAssets({
       scenes: scenes.slice(0, 1),
@@ -389,17 +397,18 @@ describe('planVisualAssets', () => {
       workingDirectory: '/work/visual-assets',
       dependencies: {
         acquireImage,
-        searchProviders: braveProviders(vi.fn()),
+        searchProviders: braveProviders(searchImages),
         fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
       },
     });
 
+    expect(searchImages).not.toHaveBeenCalled();
     expect(acquireImage).toHaveBeenCalledOnce();
     expect(acquireImage).toHaveBeenCalledWith(
-      fullSize.imageUrl,
-      expect.any(Object),
+      thumbnail.imageUrl,
+      expect.objectContaining({ allowSmallDimensions: true }),
     );
-    expect(result.assets[0]?.originalImageUrl).toBe(fullSize.imageUrl);
+    expect(result.assets[0]?.originalImageUrl).toBe(thumbnail.imageUrl);
   });
 
   it('skips text-heavy Brave cards before downloading photographic results', async () => {
