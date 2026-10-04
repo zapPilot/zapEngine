@@ -26,13 +26,13 @@ describe('script system prompt contract', () => {
   });
 });
 describe('title system prompt contract', () => {
-  it('pins minimal source title edits', () => {
+  it('pins source-grounded desire-led titles with entity and investment boundaries', () => {
     const prompt = readPrompt('title');
     for (const anchor of [
-      '最小必要改写',
-      '优先只改 1–2 个词',
       '20 个 Unicode',
-      '超过 20 字时才',
+      '只选一个',
+      '只能来自来源标题',
+      '不替读者做投资决定',
       '人名、公司名、产品名、协议名、资产名、必要数字和核心 claim',
       '具名实体',
       '不得捏造',
@@ -42,5 +42,6 @@ describe('title system prompt contract', () => {
       '只输出标题这一行',
     ])
       expect(prompt).toContain(anchor);
+    expect(prompt).not.toContain('不是重新选角度');
   });
 });

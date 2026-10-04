@@ -341,11 +341,17 @@ describe('createSocialPublishJobs', () => {
     });
   });
 
-  it('hard-truncates a long canonical title at the Rednote publish boundary', async () => {
+  it.each([
+    ['標'.repeat(21), '標'.repeat(20)],
+    [
+      '这是一个关于科技公司未来的押注OpenAI新故事',
+      '这是一个关于科技公司未来的押注',
+    ],
+  ])('fits %s at the Rednote publish boundary', async (title, expected) => {
     const [job] = createSocialPublishJobs({
       platforms: ['rednote'],
       copy,
-      episode: { ...episode, title: '標'.repeat(21) },
+      episode: { ...episode, title },
       videoUrl: VIDEO_URL,
       videoPath: VIDEO_PATH,
     });
@@ -353,7 +359,7 @@ describe('createSocialPublishJobs', () => {
     await job?.publish();
 
     expect(mocks.publishRednote).toHaveBeenCalledWith({
-      title: '標'.repeat(20),
+      title: expected,
       hashtags: copy.rednote!.hashtags,
       videoPath: VIDEO_PATH,
     });

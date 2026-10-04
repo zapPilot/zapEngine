@@ -489,8 +489,8 @@ preference rather than an ingest gate. If the model returns a longer valid
 title, it is persisted unchanged.
 
 Platform limits are enforced only at the final transport projection: Rednote
-hard-truncates the canonical title to 20 Unicode characters and YouTube
-hard-truncates it to 100. X and Threads have no separate title field. Secondary
+truncates the canonical title at word or clause boundaries within 20 Unicode
+characters and YouTube within 100, hard-cutting only a single oversized token. X and Threads have no separate title field. Secondary
 language localization titles remain translations of the canonical title, not
 platform-written headlines.
 

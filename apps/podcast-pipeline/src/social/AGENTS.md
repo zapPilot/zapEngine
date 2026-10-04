@@ -133,8 +133,8 @@ insert against a legacy cohort.
 - `episode_localizations.title` is the only normal visible title authority.
   The independent title call (`prompts/title-system-prompt.txt`) is asked to keep it within 20 Unicode characters, but
   an over-limit title must never fail ingest. Rednote and YouTube deterministically
-  truncate that same canonical title only at their final transport boundaries
-  (20 and 100 Unicode characters respectively); X and Threads generate no title.
+  truncate that same canonical title at word or clause boundaries within their final transport budgets
+  (20 and 100 Unicode characters respectively), hard-cutting only a single oversized token; X and Threads generate no title.
   Never reintroduce a platform headline prompt, experiment, or title field in
   `GeneratedSocialCopy`.
 - `social_publish_jobs.legacy_title_override` is migration-only for the finite
@@ -158,6 +158,7 @@ eligibility owns the version policy.
 **NON-NEGOTIABLE PRODUCT CONTRACT: one universal packaging strategy, never a strategy per platform.**
 
 - Topics and article selection are decided solely by the owner's interest. Platform audiences cannot change which articles publish. Every platform expresses the same episode thesis and topic. Only transport constraints (language, length, native fields, moderation, API format) may vary; these are not content strategies.
+- Canonical-title packaging lives in `prompts/title-system-prompt.txt`. The title runtime reads that file, never the persuasive-messaging skill; deliberately synchronize both when changing packaging. Packaging never participates in topic selection.
 - Improve the same packaging across all lanes to direct attention to Kokode AI and Zap Pilot. Kokode AI has no canonical destination yet: never invent a URL.
 - Prioritize cover image → title → video opening. Platform hashtag/hook details cannot outrank those priorities or become learned platform preferences.
 - Never infer which topic suits a platform, choose different articles per platform, or create platform-specific best topic, headline, hook, or publishing-slot strategies. Never inject learned per-platform copy guidance. `social_posts.topic` and `social_posts.hook_type` are descriptive labels, never inputs to platform preference learning. Neither global nor platform best/worst lists may guide topic selection.
