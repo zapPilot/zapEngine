@@ -1,6 +1,6 @@
 import { createReadStream } from 'node:fs';
 
-import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { PutObjectCommand, type S3Client } from '@aws-sdk/client-s3';
 
 import { mapWithConcurrency } from '../lib/concurrency.js';
 import { contentTypeExtension } from '../lib/content-type.js';
@@ -10,6 +10,7 @@ import { sleep } from '../lib/sleep.js';
 import type { LanguageClassroomLanguageCode } from '../types.js';
 import type { HlsFile } from './hls.js';
 import { logPipelineEvent } from './ingest/step.js';
+import { createR2ClientFromEnv } from './r2-objects.js';
 import { replaceHls } from './storage-hls.js';
 
 export interface HlsUploadResult {
@@ -124,15 +125,7 @@ let bucket: string | null = null;
 let publicBase: string | null = null;
 
 function getR2Client(): S3Client {
-  client ??= new S3Client({
-    region: 'auto',
-    endpoint: getRequiredEnv('R2_ENDPOINT'),
-    credentials: {
-      accessKeyId: getRequiredEnv('R2_ACCESS_KEY_ID'),
-      secretAccessKey: getRequiredEnv('R2_SECRET_ACCESS_KEY'),
-    },
-    forcePathStyle: true,
-  });
+  client ??= createR2ClientFromEnv();
 
   return client;
 }

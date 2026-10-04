@@ -639,10 +639,10 @@ function stillImageInputs(paths: readonly string[]): string[] {
 }
 
 const X264_PRESET = 'veryfast';
-const X264_CRF = '20';
+export const X264_CRF = '20';
 const INTERMEDIATE_X264_CRF = '18';
 
-function videoCodecArgs(fps: number, crf: string): string[] {
+export function videoCodecArgs(fps: number, crf: string): string[] {
   return [
     '-c:v',
     'libx264',

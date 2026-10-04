@@ -108,7 +108,7 @@ export async function replaceHls(input: {
     // Classroom's target-language children are independent HLS publications.
     const stale = previousObjects.filter((object) => {
       const name = object.key.slice(prefix.length + 1);
-      return /^(?:[a-zA-Z0-9_-]+\.ts|input\.mp3)$/.test(name);
+      return /^[a-zA-Z0-9_-]+\.ts$/.test(name);
     });
     try {
       await deleteR2Objects(

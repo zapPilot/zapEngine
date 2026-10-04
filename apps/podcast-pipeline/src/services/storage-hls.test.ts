@@ -190,8 +190,10 @@ describe('safe HLS replacement', () => {
 
   it('publishes a shorter playlist last and removes stale segments while retaining current objects', async () => {
     const h = await setup();
+    h.store.set(`${h.prefix}/input.mp3`, 'legacy backup');
     await h.run();
-    expect(h.store.size).toBe(2);
+    expect(h.store.size).toBe(3);
+    expect(h.store.has(`${h.prefix}/input.mp3`)).toBe(true);
     const text = h.store.get(h.playlistKey)!;
     const segment = text
       .split('\n')

@@ -35,6 +35,10 @@ vi.mock('../lib/env.js', () => ({
 }));
 
 vi.mock('./r2-objects.js', () => ({
+  createR2ClientFromEnv: () => {
+    mocks.s3Configs.push({});
+    return {};
+  },
   listR2Objects: mocks.listR2Objects,
   deleteR2Objects: mocks.deleteR2Objects,
 }));
@@ -47,10 +51,12 @@ vi.mock('./supabase-client.js', () => ({
 }));
 
 import {
+  ArtifactGcBusyError,
   createArtifactGcDependencies,
   type GcDependencies,
   readArtifactReferences,
   readArtifactReferenceState,
+  releaseArtifactGcOwner,
   runArtifactGc,
 } from './artifact-gc.js';
 import { ARTIFACT_GRACE_MS } from './artifact-retention.js';
@@ -243,7 +249,7 @@ describe('artifact GC remaining branches', () => {
 describe('createArtifactGcDependencies', () => {
   function dependencyDb(
     options: {
-      rpcError?: Error;
+      rpcError?: Error | { code: string; message: string };
       upsertError?: Error;
       deleteError?: Error;
     } = {},
@@ -284,6 +290,12 @@ describe('createArtifactGcDependencies', () => {
     const deps = createArtifactGcDependencies();
 
     await expect(deps.list()).resolves.toHaveLength(1);
+    await deps.list(`${video('listed')}/`);
+    expect(mocks.listR2Objects).toHaveBeenLastCalledWith(
+      expect.anything(),
+      'bucket',
+      `${video('listed')}/`,
+    );
     await expect(deps.readState()).resolves.toEqual({
       references: new Set(),
       retirements: new Map(),
@@ -332,3 +344,55 @@ describe('createArtifactGcDependencies', () => {
     ).rejects.toThrow('delete');
   });
 });
+
+it('retries release with bounded backoff and propagates exhaustion', async () => {
+  vi.useFakeTimers();
+  const release = vi
+    .fn()
+    .mockRejectedValueOnce(new Error('transient'))
+    .mockResolvedValue(undefined);
+  const pending = releaseArtifactGcOwner({ release }, 'owner');
+  await vi.runAllTimersAsync();
+  await pending;
+  expect(release).toHaveBeenCalledTimes(2);
+  release.mockRejectedValue(new Error('permanent'));
+  const exhausted = expect(
+    releaseArtifactGcOwner({ release }, 'owner'),
+  ).rejects.toThrow('permanent');
+  await vi.runAllTimersAsync();
+  await exhausted;
+  vi.useRealTimers();
+});
+it('skips typed busy acquisitions with a warning but propagates other errors', async () => {
+  const deps = gcDeps([]);
+  vi.mocked(deps.acquire).mockRejectedValue(new ArtifactGcBusyError('busy'));
+  const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  expect(
+    await runArtifactGc(deps, { apply: true, owner: 'owner' }),
+  ).toMatchObject({ failures: 0 });
+  expect(warning).toHaveBeenCalledWith('::warning::busy');
+  expect(deps.release).not.toHaveBeenCalled();
+});
+it.each([
+  ['acquire_artifact_gc', '55000', 'processing jobs remain', true],
+  ['acquire_artifact_gc', '55P03', 'lock busy', true],
+  ['acquire_artifact_gc', '55000', 'already owned', false],
+  ['release_artifact_gc', '55000', 'Artifact GC owner mismatch', false],
+  ['release_artifact_gc', '55P03', 'lock busy', false],
+  ['release_artifact_gc', '55000', 'other', false],
+])(
+  'classifies original RPC error %s %s %s',
+  async (name, code, message, busy) => {
+    mocks.db = { rpc: vi.fn().mockResolvedValue({ error: { code, message } }) };
+    const deps = createArtifactGcDependencies();
+    const pending =
+      name === 'acquire_artifact_gc'
+        ? deps.acquire('owner')
+        : deps.release('owner');
+    if (message.includes('owner mismatch'))
+      await expect(pending).resolves.toBeUndefined();
+    else if (busy)
+      await expect(pending).rejects.toBeInstanceOf(ArtifactGcBusyError);
+    else await expect(pending).rejects.toThrow();
+  },
+);
