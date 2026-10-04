@@ -1,0 +1,30 @@
+{
+  "name": "@zapengine/kokode-ai",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:live": "bash scripts/supabase-ops.sh dev",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run --config vitest.config.ts",
+    "ops": "bash scripts/supabase-ops.sh",
+    "type-check": "tsc --noEmit",
+    "test:ci": "vitest run --config vitest.config.ts",
+    "lint": "prettier --check . ../../supabase/functions/genba-lead",
+    "format": "prettier --write . ../../supabase/functions/genba-lead",
+    "format:check": "prettier --check . ../../supabase/functions/genba-lead",
+    "test:coverage": "vitest run --config vitest.config.ts --coverage",
+    "test:watch": "vitest --config vitest.config.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.2",
+    "happy-dom": "^20.14.5",
+    "typescript": "^5.8.0",
+    "vite": "^7.0.0",
+    "vitest": "^5.0.1",
+    "prettier": "catalog:",
+    "@vitest/coverage-v8": "^5.0.1"
+  }
+}

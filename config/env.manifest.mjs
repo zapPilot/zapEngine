@@ -45,6 +45,14 @@ const WEB_TARGETS = ['web', 'desktop'];
 const APP_TARGETS = ['web', 'expo', 'desktop'];
 
 export const ENV_MANIFEST = {
+  // Separate product configuration: no credentials or new writers in Zap stores.
+  KOKODE_SUPABASE_URL: client(['kokode-ai'], { vite: 'VITE_SUPABASE_URL' }),
+  KOKODE_SALES_EMAIL: client(['kokode-ai'], { vite: 'VITE_SALES_EMAIL' }),
+  KOKODE_SUPPORT_EMAIL: client(['kokode-ai'], { vite: 'VITE_SUPPORT_EMAIL' }),
+  KOKODE_ANALYTICS_ENDPOINT: client(['kokode-ai'], {
+    vite: 'VITE_ANALYTICS_ENDPOINT',
+  }),
+
   ACCOUNT_API_URL: client(APP_TARGETS, {
     vite: 'VITE_ACCOUNT_API_URL',
     expo: 'EXPO_PUBLIC_ACCOUNT_API_URL',
@@ -549,6 +557,7 @@ export const ENV_MANIFEST = {
 };
 
 export const ENV_TARGETS = [
+  'kokode-ai',
   ...new Set(
     Object.values(ENV_MANIFEST)
       .flatMap((entry) => entry.targets)
