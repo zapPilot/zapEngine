@@ -67,8 +67,8 @@ catalogs:
       specifier: ^0.523.0
       version: 0.523.0
     nodemailer:
-      specifier: ^9.0.1
-      version: 9.0.1
+      specifier: ^10.0.9
+      version: 10.0.14
     prettier:
       specifier: ^3.8.3
       version: 3.8.4
@@ -213,7 +213,7 @@ importers:
         version: 4.13.2
       nodemailer:
         specifier: 'catalog:'
-        version: 9.0.1
+        version: 10.0.14
       telegraf:
         specifier: 'catalog:'
         version: 4.16.3
@@ -10558,9 +10558,9 @@ packages:
     resolution: {integrity: sha512-IWqZF6u0EI/07HTBm+zZ+MgXgWl09dnSJRGaDCPBSlOqilDcx6pj3Mpb3HvPN8V2Gr+ISw7ZrMsL7STWs1F++w==}
     engines: {node: '>=20'}
 
-  nodemailer@9.0.1:
-    resolution: {integrity: sha512-Gwv8SQewT616ZM/URn0H54b8PWo/Wum7md3EW2aWy1lO27+WZCX+Xyak3J+NlmHUjDh5ME+uesJUDRbR3Ye8Bw==}
-    engines: {node: '>=6.0.0'}
+  nodemailer@10.0.14:
+    resolution: {integrity: sha512-eJoLFKg55fesSlzUekmfOv/SBXh4KUYT8oiQc2RLP0tfG0rbNMJBK7wgHJwXTJwqyKlSJMz9UzDZ4v+aHEvo8g==}
+    engines: {node: '>=20.0.0'}
 
   nopt@9.0.0:
     resolution: {integrity: sha512-Zhq3a+yFKrYwSBluL4H9XP3m3y5uvQkB/09CwDruCiRmR/UJYnn9W4R48ry0uGC70aeTPKLynBtscP9efFFcPw==}
@@ -28799,7 +28799,7 @@ snapshots:
       '@types/sarif': 2.1.7
       fs-extra: 11.4.0
 
-  nodemailer@9.0.1: {}
+  nodemailer@10.0.14: {}
 
   nopt@9.0.0:
     dependencies:
