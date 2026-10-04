@@ -89,6 +89,7 @@ describe('Threads default R2 upload coverage', () => {
     const url = await prepareThreadsVideoUrl(
       'https://media.example.test/video.mp4',
       {
+        durationSeconds: 301,
         preparedVideoPath: teaserPath,
         tempDir: directory,
         publicBaseUrl: 'https://cdn.example.test/',
