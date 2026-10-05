@@ -39,13 +39,24 @@ function jsonResponse(body: unknown): Response {
   } as Response;
 }
 
+// Match Alchemy hosts by parsed hostname, never by substring: a URL merely
+// containing 'arb-mainnet.g.alchemy.com' anywhere (path, query) must not be
+// treated as that network (CodeQL js/incomplete-url-substring-sanitization).
+function requestHostname(urlInput: string): string {
+  try {
+    return new URL(String(urlInput)).hostname;
+  } catch {
+    return '';
+  }
+}
+
 function findJsonRpcCall(method: string, network: string): FetchCall {
   for (const call of fetchMock.mock.calls) {
     const fetchCall = {
       url: String(call[0]),
       init: call[1] as RequestInit,
     };
-    if (!fetchCall.url.includes(`${network}.g.alchemy.com`)) {
+    if (requestHostname(fetchCall.url) !== `${network}.g.alchemy.com`) {
       continue;
     }
     try {
@@ -203,6 +214,16 @@ describe('Alchemy wallet service', () => {
     ).toBe(false);
   });
 
+  it('matches Alchemy hosts by hostname, not substring', () => {
+    expect(requestHostname('https://eth-mainnet.g.alchemy.com/v2/key')).toBe(
+      'eth-mainnet.g.alchemy.com',
+    );
+    expect(
+      requestHostname('https://evil.example/?x=arb-mainnet.g.alchemy.com'),
+    ).toBe('evil.example');
+    expect(requestHostname('not a url')).toBe('');
+  });
+
   it('keeps balances from healthy chains when one Alchemy network fails', async () => {
     fetchMock.mockImplementation(
       async (urlInput: string, init: RequestInit) => {
@@ -210,7 +231,7 @@ describe('Alchemy wallet service', () => {
         if (url.includes('/tokens/by-')) {
           return jsonResponse({ data: [] });
         }
-        if (url.includes('arb-mainnet.g.alchemy.com')) {
+        if (requestHostname(url) === 'arb-mainnet.g.alchemy.com') {
           return { ok: false, status: 503, json: async () => ({}) } as Response;
         }
 
