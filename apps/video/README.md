@@ -28,14 +28,28 @@ eligibility for Remotion's free license.
 
 Run from the repository root.
 
+Normal sales artifact refresh (humans):
+
 ```bash
-pnpm --filter @zapengine/video dev                         # Remotion Studio
+pnpm sales:render kokode       # all Kokode PDFs + all kokode-clinic languages
+pnpm sales:render zap-pilot    # calculator-pitch, from existing assets only
+```
+
+`sales:render` rebuilds PDFs and videos from existing assets without calling
+paid generation APIs. Missing or stale narration/music fails closed with a
+pointer to the paid command; it is never run automatically. The granular
+`video:*` commands below are for media development, debugging and explicit
+regeneration of voice/music.
+
+```bash
+pnpm video:dev                         # Remotion Studio
 pnpm --filter @zapengine/video capture calculator-pitch    # re-photograph the live product
-node scripts/env/run.mjs -- pnpm --filter @zapengine/video voiceover calculator-pitch
-pnpm --filter @zapengine/video stills calculator-pitch     # out/<id>/en/contact-sheet.png
-pnpm --filter @zapengine/video render calculator-pitch     # out/<id>.en.mp4, −16 LUFS
-node scripts/env/run.mjs -- pnpm --filter @zapengine/video voiceover kokode-clinic --dry-run
-pnpm --filter @zapengine/video stills kokode-clinic        # three language contact sheets
+pnpm video:voiceover calculator-pitch
+pnpm video:stills calculator-pitch     # out/<id>/en/contact-sheet.png
+pnpm video:render calculator-pitch     # out/<id>.en.mp4, −16 LUFS
+pnpm video:voiceover kokode-clinic --dry-run
+pnpm video:stills kokode-clinic        # three language contact sheets
+pnpm video:make kokode-clinic          # refresh narration, then render all versions
 ```
 
 - `capture` defaults to `https://www.zap-pilot.org`; pass `--base-url` for a
@@ -49,6 +63,11 @@ pnpm --filter @zapengine/video stills kokode-clinic        # three language cont
   `--frames 120,480`.
 - `render` refuses while any narration line is still an estimate, then prints
   duration, size and loudness.
+- `video:make <id>` runs `voiceover` and then `render`, stopping if either fails.
+  It uses the env runner and only synthesises missing or stale narration.
+  Music generation stays separate because every take costs $0.08.
+  `video:voiceover`, `video:music` and `video:make` require an authenticated
+  Infisical workspace; `video:render`, `video:stills` and `video:dev` need no keys.
 
 ## Layout
 
@@ -92,9 +111,9 @@ composition with its own scenes, not a fork of the primitives.
 ## Languages and voices
 
 ```bash
-pnpm --filter @zapengine/video stills kokode-clinic
-pnpm --filter @zapengine/video render kokode-clinic
-pnpm --filter @zapengine/video render kokode-clinic --lang zh-Hant
+pnpm video:stills kokode-clinic
+pnpm video:render kokode-clinic
+pnpm video:render kokode-clinic --lang zh-Hant
 ```
 
 One render command bundles once and produces
@@ -124,8 +143,8 @@ for generation dates, exact prompts, SynthID and copyright limitations. Human
 listening is required before sending to a customer.
 
 ```bash
-node scripts/env/run.mjs -- pnpm --filter @zapengine/video music kokode-clinic --takes 2
-pnpm --filter @zapengine/video music kokode-clinic --pick 2
+pnpm video:music kokode-clinic --takes 2
+pnpm video:music kokode-clinic --pick 2
 ```
 
 Generation uses `OPENROUTER_API_KEY`, one billed request per take, at most six

@@ -1,16 +1,25 @@
 See @README.md for the videos, commands and layout.
 
+# Sales refresh (humans)
+
+Normal sales artifact refresh is `pnpm sales:render <product>` from the repo
+root (`kokode`, `zap-pilot`): it rebuilds every PDF and video from existing
+assets and never calls paid generation APIs. The granular `video:*` commands
+in the loop below are for agent/developer media iteration and debugging.
+
 # Iteration loop
 
 1. Change copy, narration, cue phrases or scene order in
    `src/videos/<id>/storyboard.ts`; change visuals in `scenes/` or
    `src/primitives/`. Numbers and claims come only from `facts.ts`.
-2. Narration changed → `node scripts/env/run.mjs -- pnpm --filter @zapengine/video voiceover <id>`
+2. Narration changed → `pnpm video:voiceover <id>`
    from the repo root. It prints every scene's length and fails over the
    storyboard's `maxSeconds`.
-3. Look before you render: `pnpm --filter @zapengine/video stills <id>`, read
+3. Look before you render: `pnpm video:stills <id>`, read
    `out/<id>/<lang>/contact-sheet.png`, then single files in `out/<id>/<lang>/stills/`.
-4. Render the MP4 only when asked: `pnpm --filter @zapengine/video render <id>`.
+4. Render the MP4 only when asked: `pnpm video:render <id>`.
+   `pnpm video:make <id>` refreshes narration before rendering every language;
+   it uses the env runner. Music generation remains a separate paid command.
 
 # Gotchas
 
@@ -113,9 +122,9 @@ See @README.md for the videos, commands and layout.
 - Selected `public/music/*.mp3` and JSON are source assets and must be committed
   with their documentation. Generated music cannot be reproduced exactly;
   this differs from the ignored, regenerable `public/vo/` clips.
-- From the repo root, use `node scripts/env/run.mjs -- pnpm --filter
-@zapengine/video music <id> --takes 2`. Audition the takes, then run
-  `pnpm --filter @zapengine/video music <id> --pick N` (no key or cost).
+- From the repo root, use `pnpm video:music <id> --takes 2`. Audition the takes, then run
+  `pnpm video:music <id> --pick N` (no API call or cost; the root alias
+  still loads the environment).
   The ignored `out/music-budget.json` reserves $0.08 per attempt, including
   failures; never reset it to bypass the $1 generation budget. At most six
   takes per invocation. Provider errors stop generation for operator review.

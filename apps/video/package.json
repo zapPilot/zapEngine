@@ -6,6 +6,7 @@
   "scripts": {
     "build": "remotion bundle src/index.ts",
     "capture": "tsx scripts/capture.ts",
+    "check": "tsx scripts/check-narration.ts",
     "clean": "rm -rf build out coverage",
     "deadcode": "knip",
     "deadcode:fix": "knip --fix",
@@ -23,7 +24,8 @@
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "type-check": "tsc --noEmit -p tsconfig.json",
-    "voiceover": "tsx scripts/voiceover.ts"
+    "voiceover": "tsx scripts/voiceover.ts",
+    "make": "tsx scripts/make.ts"
   },
   "dependencies": {
     "@remotion/google-fonts": "4.0.532",
