@@ -84,6 +84,18 @@ describe('Ops MCP repository wiring', () => {
     expect(launcher).toContain("'apps/control-center/src/server/mcp/stdio.ts'");
   });
 
+  it('fails fast with actionable fresh-checkout hints', async () => {
+    const launcher = await readFile(
+      path.join(repoRoot, 'scripts/ops-mcp.mjs'),
+      'utf8',
+    );
+
+    expect(launcher).toContain('node_modules/.bin/tsx');
+    expect(launcher).toContain('pnpm install --frozen-lockfile');
+    expect(launcher).toContain('packages/types/dist/shared/index.js');
+    expect(launcher).toContain("build --filter='./packages/*'");
+  });
+
   it('keeps production ops runbooks on the merged environment runner', async () => {
     const runbooks = [
       'apps/control-center/AGENTS.md',
