@@ -110,9 +110,11 @@ describe('music acceptance', () => {
       'outside targets',
     );
   });
+  // Real-tools acceptance: ~10 Remotion ffmpeg runs including two full
+  // encodes of the 86s asset (~32s locally, ~10x slower on CI + coverage).
   it(
     'uses the real bundled media tools by default',
-    { timeout: 120000 },
+    { timeout: 300000 },
     async () => {
       const dir = await mkdtemp(path.join(tmpdir(), 'music-check-'));
       try {
