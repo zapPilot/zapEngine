@@ -307,6 +307,26 @@ describe('translateCanonicalScript', () => {
     );
   });
 
+  it('fails open on the final overlong English title and retains both attempt costs', async () => {
+    vi.useFakeTimers();
+    mocks.createOpenRouterChatCompletion.mockResolvedValue(
+      completion(
+        JSON.stringify({ title: '😀'.repeat(101), script: 'Translated body' }),
+      ),
+    );
+    const promise = translateCanonicalScript({
+      title: '标题',
+      script: '正文',
+      targetLanguageCode: 'en',
+    });
+    await vi.advanceTimersByTimeAsync(500);
+    const result = await promise;
+    expect(result.title).toBe('😀'.repeat(100));
+    expect(result.script).toBe('Translated body');
+    expect(result.cost).toHaveLength(2);
+    expect(mocks.createOpenRouterChatCompletion).toHaveBeenCalledTimes(2);
+  });
+
   it('keeps a 2,000-character script in one request with its title', async () => {
     const script = '字'.repeat(2_000);
     mockEchoedTranslation();

@@ -33,7 +33,12 @@ describe('title system prompt contract', () => {
   it('pins source-grounded desire-led titles with entity and investment boundaries', () => {
     const prompt = readPrompt('title');
     for (const anchor of [
-      '20 个 Unicode',
+      '不设字数目标',
+      '可以原样保留',
+      '不要为了改写而改写',
+      '读者视角',
+      '不得扩大或泛化来源 claim 的范围',
+      'USDT',
       '只选一个',
       '只能来自来源标题',
       '不替读者做投资决定',
@@ -46,6 +51,23 @@ describe('title system prompt contract', () => {
       '只输出标题这一行',
     ])
       expect(prompt).toContain(anchor);
-    expect(prompt).not.toContain('不是重新选角度');
+    expect(prompt).not.toContain('20 个');
+    expect(prompt).not.toContain('不要逐字照抄');
+  });
+});
+
+describe('compression system prompt contract', () => {
+  it('preserves claims and has no platform strategy', () => {
+    const prompt = readPrompt('title-compression');
+    for (const anchor of [
+      'Best Title',
+      'Unicode',
+      '读者视角',
+      '不得扩大或泛化来源 claim 的范围',
+      'USDT',
+      '输出语言和 Best Title 一致',
+    ])
+      expect(prompt).toContain(anchor);
+    expect(prompt).not.toMatch(/rednote|youtube|threads|小红书/iu);
   });
 });

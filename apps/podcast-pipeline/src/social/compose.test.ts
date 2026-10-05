@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { composeSocialContent, fitRednoteTitle } from './compose.js';
+import { fitTitleToBudget } from '../services/title-variants.js';
+import { composeSocialContent, rednoteTransportTitle } from './compose.js';
 import { applyPlatformCta } from './platforms.js';
 import type { GeneratedSocialCopy, SocialEpisode } from './types.js';
 
@@ -47,6 +48,52 @@ describe('composeSocialContent', () => {
     });
   });
 
+  it('uses the frozen budget variant without deriving a new headline', () => {
+    const frozen = {
+      ...episode,
+      title: '标'.repeat(30),
+      titleVariants: {
+        '20': { title: '你用USDT买到什么？', method: 'llm' },
+        '100': { title: 'English budget variant', method: 'truncate' },
+      },
+    };
+    expect(
+      composeSocialContent('rednote', { copy, episode: frozen }).title,
+    ).toBe('你用USDT买到什么？');
+    expect(rednoteTransportTitle(frozen)).toBe('你用USDT买到什么？');
+    expect(
+      composeSocialContent('youtube', { copy, episode: frozen }).title,
+    ).toBe('English budget variant');
+    expect(
+      composeSocialContent('youtube', {
+        copy,
+        episode: {
+          ...episode,
+          title: 'A faithful English title',
+          titleVariants: {},
+        },
+      }).title,
+    ).toBe('A faithful English title');
+  });
+  it('preserves deterministic legacy fitting for empty or invalid variants', () => {
+    for (const title of [
+      'Dan Koe 最新長文：要想成功，你就得活在幻想中',
+      '駁以太坊「拋棄」ETH論：不用ETH支付Gas，究竟意味著什麼？',
+    ]) {
+      for (const titleVariants of [
+        {},
+        { '20': { title: '标'.repeat(21), method: 'llm' } },
+      ]) {
+        expect(
+          composeSocialContent('rednote', {
+            copy,
+            episode: { ...episode, title, titleVariants },
+          }).title,
+        ).toBe(fitTitleToBudget(title, 20));
+      }
+    }
+  });
+
   it('fits an over-limit Rednote title only at the transport projection', () => {
     const composed = composeSocialContent('rednote', {
       copy,
@@ -83,12 +130,12 @@ describe('composeSocialContent', () => {
   ])(
     'fits %s without splitting words or leaving punctuation',
     (title, expected) => {
-      expect(fitRednoteTitle(title)).toBe(expected);
+      expect(fitTitleToBudget(title, 20)).toBe(expected);
     },
   );
 
   it('preserves an in-budget title including its hook punctuation', () => {
-    expect(fitRednoteTitle('Fomo为何挑战Vector？')).toBe(
+    expect(fitTitleToBudget('Fomo为何挑战Vector？', 20)).toBe(
       'Fomo为何挑战Vector？',
     );
   });

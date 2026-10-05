@@ -819,7 +819,8 @@ type LLMCompletionOperation =
   | 'buildVisualSubjectCatalog'
   | 'generateLanguageClassrooms'
   | 'writeConceptCard'
-  | 'generateEditorialTitle';
+  | 'generateEditorialTitle'
+  | 'compressEditorialTitle';
 
 export async function createCompletionWithRetry(
   openai: OpenAI,

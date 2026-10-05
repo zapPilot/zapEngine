@@ -147,7 +147,7 @@ a few minutes apart. That is one release cycle, not staggered scheduling.
 
 Reach optimization may change article-level frequency, candidate article slots,
 or body copy. It must not derive a separate publish budget, time, or title from
-each platform. Changing the fixed language mapping is now a product-contract
+each platform. Character-budget compression is generated and frozen in ingest. Changing the fixed language mapping is now a product-contract
 change rather than an active optimization arm.
 
 The long-lived daemon is constrained to the code-owned 09:00–23:00 JST watch
@@ -213,7 +213,7 @@ before returning. Threads and Rednote share the zh-Hant row. Ordinary daemon
 retries (including `ops --social-once`) reuse that row even after transport
 failure or partial publication; they never overwrite
 or automatically regenerate it. Missing platform blocks and database read/write
-failures stop the release. Canonical titles still come from the localization,
+failures stop the release. Best Title and frozen budget variants come from the localization; the Rednote judge evaluates the actual transport title while Episode title remains Best Title,
 and `social_posts` still records only successful publication. Snapshot invalidation
 and the interactive break-glass CLI's explicit edit/regenerate workflow are
 separate from this daemon retry contract. Deploy the root migration before
@@ -487,17 +487,16 @@ No lane receives learned guidance. Historical strategy rows remain readable and 
 Platform-specific packaging experiments are currently disabled.
 `packaging-experiments.ts` deliberately returns no assignments.
 
-Visible titles have one source of truth: the selected
-`episode_localizations.title`. The independent title call (`prompts/title-system-prompt.txt`) is instructed to keep the
-canonical title within 20 Unicode characters, but that is a generation
-preference rather than an ingest gate. If the model returns a longer valid
-title, it is persisted unchanged.
-
-Platform limits are enforced only at the final transport projection: Rednote
-truncates the canonical title at word or clause boundaries within 20 Unicode
-characters and YouTube within 100, hard-cutting only a single oversized token. X and Threads have no separate title field. Secondary
-language localization titles remain translations of the canonical title, not
-platform-written headlines.
+`episode_localizations.title` is the Best Title and editorial source of truth.
+It has no 20-character target; valid generated titles retain the 4..60 code-point
+guard and may preserve the source verbatim after Simplified Chinese conversion.
+Semantically equivalent compression variants are generated in ingest by character
+budget and persisted atomically in `title_variants`; they are never recomputed
+by social or after resume. Social never generates titles or calls a title LLM.
+Transport reads a stored budget variant, otherwise deterministic fitting at word
+or clause boundaries (Rednote 20, YouTube 100); X and Threads have no title field.
+Platform audience, per-platform hook, thesis, and learned headline strategies
+are forbidden. Never add a title field to `GeneratedSocialCopy`.
 
 `social_publish_jobs.legacy_title_override` exists only for the finite set of
 already-queued Rednote jobs that predate the canonical-title migration. New jobs

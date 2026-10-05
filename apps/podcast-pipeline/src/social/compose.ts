@@ -1,5 +1,10 @@
 import { youtubeDescriptionCtaFor } from '../brand/cta.js';
+import {
+  fitTitleToBudget,
+  readTitleVariant,
+} from '../services/title-variants.js';
 import { applyPlatformCta, SOCIAL_PLATFORM_CONFIG } from './platforms.js';
+import { SOCIAL_TITLE_MAX_CHARACTERS } from './policy.js';
 import type {
   GeneratedSocialCopy,
   SocialEpisode,
@@ -11,7 +16,7 @@ import type {
 export type SocialComposeEpisode = Pick<
   SocialEpisode,
   'title' | 'summary' | 'description'
-> & { languageCode?: SocialEpisode['languageCode'] };
+> & { languageCode?: SocialEpisode['languageCode']; titleVariants?: unknown };
 
 export interface ComposedSocialContent {
   /** `null` on platforms that have no title field of their own. */
@@ -21,11 +26,7 @@ export interface ComposedSocialContent {
   hookType: SocialHookType;
 }
 
-export const REDNOTE_TITLE_MAX_CHARACTERS = 20;
-export const YOUTUBE_TITLE_MAX_CHARACTERS = 100;
 const YOUTUBE_DESCRIPTION_MAX_CHARACTERS = 4500;
-const DANGLING_TITLE_TAIL = /[\s，、：；,:;—–\-·「『“‘《〈（([]$/u;
-const titleSegmenter = new Intl.Segmenter('zh', { granularity: 'word' });
 
 /**
  * The single mapping from one generated copy to what a platform actually
@@ -92,7 +93,7 @@ function composePlatformContent(
     case 'rednote': {
       const rednote = requireCopyBlock(input.copy.rednote, 'rednote');
       return {
-        title: fitRednoteTitle(input.episode.title),
+        title: rednoteTransportTitle(input.episode),
         body: rednote.body,
         hashtags: [...rednote.hashtags],
         hookType: rednote.hookType,
@@ -101,7 +102,10 @@ function composePlatformContent(
     case 'youtube': {
       const youtube = requireCopyBlock(input.copy.youtube, 'youtube');
       return {
-        title: fitYouTubeTitle(input.episode.title),
+        title: fitTransportTitle(
+          input.episode,
+          SOCIAL_TITLE_MAX_CHARACTERS.youtube,
+        ),
         body: composeYouTubeDescription(input.episode, input.destinationUrl),
         hashtags: [],
         hookType: youtube.hookType,
@@ -117,62 +121,22 @@ function requireCopyBlock<T>(block: T | undefined, name: string): T {
   throw new Error(`Generated social copy is missing the ${name} block.`);
 }
 
-// Titles remain episode-derived. Enforce transport budgets at word or clause
-// boundaries, with a hard cut only for an oversized first token. Segmentation
-// is best-effort for Chinese; the canonical prompt owns concise packaging.
-// Preserve sentence endings and %, cleaning only dangling separators or openers.
-function fitTitleToTransportLimit(
-  title: string,
-  maxCharacters: number,
-): string {
-  const normalized = title.trim();
-  if (Array.from(normalized).length <= maxCharacters) return normalized;
-
-  let fitted = '';
-  let length = 0;
-  let clauseEnd = 0;
-  let hasHan = false;
-  for (const { segment, isWordLike } of titleSegmenter.segment(normalized)) {
-    const segmentLength = Array.from(segment).length;
-    if (length + segmentLength > maxCharacters) break;
-    for (const character of segment) {
-      if (
-        !isWordLike &&
-        (/[，、；,;]/u.test(character) ||
-          (hasHan && /[:：\s]/u.test(character))) &&
-        length >= maxCharacters * 0.6
-      ) {
-        clauseEnd = fitted.length;
-      }
-      fitted += character;
-      length += 1;
-      hasHan ||= /\p{Script=Han}/u.test(character);
-      if (
-        !isWordLike &&
-        /[！？。!?]/u.test(character) &&
-        length >= maxCharacters * 0.6
-      ) {
-        clauseEnd = fitted.length;
-      }
-    }
-  }
-  const characters = Array.from(
-    clauseEnd ? fitted.slice(0, clauseEnd) : fitted,
-  );
-  while (characters.length && DANGLING_TITLE_TAIL.test(characters.at(-1)!)) {
-    characters.pop();
-  }
-  return characters.length
-    ? characters.join('')
-    : Array.from(normalized).slice(0, maxCharacters).join('').trimEnd();
-}
-
 export function fitRednoteTitle(title: string): string {
-  return fitTitleToTransportLimit(title, REDNOTE_TITLE_MAX_CHARACTERS);
+  return fitTitleToBudget(title, SOCIAL_TITLE_MAX_CHARACTERS.rednote);
 }
 
-function fitYouTubeTitle(title: string): string {
-  return fitTitleToTransportLimit(title, YOUTUBE_TITLE_MAX_CHARACTERS);
+export function fitTransportTitle(
+  episode: SocialComposeEpisode,
+  budget: number,
+): string {
+  return (
+    readTitleVariant(episode.titleVariants, budget) ??
+    fitTitleToBudget(episode.title, budget)
+  );
+}
+
+export function rednoteTransportTitle(episode: SocialComposeEpisode): string {
+  return fitTransportTitle(episode, SOCIAL_TITLE_MAX_CHARACTERS.rednote);
 }
 
 export function composeYouTubeDescription(

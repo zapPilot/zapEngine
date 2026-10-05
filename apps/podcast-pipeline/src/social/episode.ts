@@ -20,6 +20,7 @@ interface LocalizationProjection {
   episode_id: string;
   language_code: string;
   title: string;
+  title_variants?: unknown;
   raw_text: string | null;
   script: string | null;
   status: string;
@@ -94,6 +95,7 @@ export function buildSocialEpisode(input: {
     id: input.episode.id,
     languageCode,
     title: input.localization.title.trim() || sourceTitle || '',
+    titleVariants: input.localization.title_variants,
     description,
     summary: summarize(summarySource),
     transcript,

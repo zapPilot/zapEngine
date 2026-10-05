@@ -12,6 +12,7 @@ import {
   unwrapNestedJsonPayload,
 } from '../services/llm.js';
 import { convertTextToZhCN, convertTextToZhTW } from '../services/opencc.js';
+import { rednoteTransportTitle } from './compose.js';
 import {
   describeSensitiveMatches,
   findSensitiveTerms,
@@ -462,7 +463,7 @@ export async function generateSocialCopy(input: {
       if (languageCode === 'zh-Hant' && parsed.rednote) {
         await assertRednoteSemanticRisk({
           rednote: {
-            title: input.episode.title,
+            title: rednoteTransportTitle(input.episode),
             body: parsed.rednote.body,
             hashtags: parsed.rednote.hashtags,
           },

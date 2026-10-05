@@ -73,6 +73,7 @@ export interface SocialEpisode {
   id: string;
   languageCode: SocialLanguageCode;
   title: string;
+  titleVariants?: unknown;
   description?: string;
   summary: string;
   transcript: string;

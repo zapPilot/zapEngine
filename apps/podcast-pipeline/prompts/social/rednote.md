@@ -2,9 +2,7 @@
 
 Write for a consumer feed, not as a research report. The episode title is
 already finalized upstream; do not generate, rewrite, shorten, or optimize
-another Rednote-specific title here. If the canonical title exceeds Rednote's
-transport limit, the publisher truncates it deterministically at the final
-platform boundary.
+another Rednote-specific title here. The publisher uses the ingest-frozen character-budget variant when present, otherwise deterministic fitting at the final transport boundary. Social never generates titles.
 
 Output fields:
 

@@ -217,6 +217,24 @@ describe('generateSocialCopy', () => {
     expect(prompt).not.toContain('Publisher headline');
   });
 
+  it('judges the stored transport title while keeping Best Title as episode context', async () => {
+    llmMocks.createOpenRouterChatCompletion.mockResolvedValue(
+      socialCompletion(socialCopyJson('正文')),
+    );
+    const episode = {
+      ...ZH_EPISODE,
+      title: '标'.repeat(30),
+      titleVariants: { '20': { title: '你用USDT买到什么？', method: 'llm' } },
+    };
+    await generateSocialCopy({ episode });
+    expect(riskMocks.assertRednoteSemanticRisk).toHaveBeenCalledWith(
+      expect.objectContaining({
+        rednote: expect.objectContaining({ title: '你用USDT买到什么？' }),
+        episode: expect.objectContaining({ title: '标'.repeat(30) }),
+      }),
+    );
+  });
+
   it('never injects learned performance guidance', async () => {
     llmMocks.createOpenRouterChatCompletion.mockResolvedValue(
       socialCompletion(socialCopyJson('策略文案')),

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const root = process.cwd();
@@ -255,6 +255,38 @@ for (const file of [
     read(`apps/landing-page/src/components/distribution/${file}`),
     /publishing strategy|strategyVersions/,
   );
+}
+
+// Titles are frozen during ingest, never generated in social.
+function checkSocialTitleImports(directory) {
+  for (const entry of readdirSync(resolve(root, directory), {
+    withFileTypes: true,
+  })) {
+    const path = `${directory}/${entry.name}`;
+    if (entry.isDirectory()) checkSocialTitleImports(path);
+    else if (/\.[cm]?tsx?$/.test(entry.name) && !/\.test\./.test(entry.name)) {
+      forbidMatch(
+        path,
+        read(path),
+        /generateEditorialTitleWithLLM|compressEditorialTitleWithLLM|title-[\w-]*system-prompt/,
+      );
+    }
+  }
+}
+checkSocialTitleImports('apps/podcast-pipeline/src/social');
+forbidMatch(
+  'compression prompt platform names',
+  read('apps/podcast-pipeline/prompts/title-compression-system-prompt.txt'),
+  /rednote|youtube|threads|小红书|小紅書|twitter|\bx\b|\bplatform\b/iu,
+);
+for (const anchor of [
+  /Best Title and editorial source of truth/,
+  /generated in ingest by character/,
+  /never recomputed/,
+  /Social never generates titles/,
+  /per-platform hook, thesis, and learned headline/,
+]) {
+  requireMatch('frozen budget title contract', socialAgents, anchor);
 }
 
 if (failures.length > 0) {

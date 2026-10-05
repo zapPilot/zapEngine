@@ -130,15 +130,18 @@ insert against a legacy cohort.
   interchangeable.
 - Platform-specific packaging experiments are disabled.
   `packaging-experiments.ts` intentionally returns no assignments.
-- `episode_localizations.title` is the only normal visible title authority.
-  The independent title call (`prompts/title-system-prompt.txt`) is asked to keep it within 20 Unicode characters, but
-  an over-limit title must never fail ingest. Rednote and YouTube deterministically
-  truncate that same canonical title at word or clause boundaries within their final transport budgets
-  (20 and 100 Unicode characters respectively), hard-cutting only a single oversized token; X and Threads generate no title.
-  Never reintroduce a platform headline prompt, experiment, or title field in
-  `GeneratedSocialCopy`.
+- `episode_localizations.title` is the Best Title and editorial source of truth.
+  It has no 20-character target; valid generated titles retain the 4..60 code-point
+  guard and may preserve the source verbatim after Simplified Chinese conversion.
+  Semantically equivalent compression variants are generated in ingest by character
+  budget and persisted atomically in `title_variants`; they are never recomputed
+  by social or after resume. Social never generates titles or calls a title LLM.
+  Transport reads a stored budget variant, otherwise deterministic fitting at word
+  or clause boundaries (Rednote 20, YouTube 100); X and Threads have no title field.
+  Platform audience, per-platform hook, thesis, and learned headline strategies
+  are forbidden. Never add a title field to `GeneratedSocialCopy`.
 - `social_publish_jobs.legacy_title_override` is migration-only for the finite
-  queue that predated the 20-character canonical-title contract. New enqueue
+  legacy queue. New enqueue
   paths must never populate it.
 - No lane receives learned guidance.
 
@@ -158,7 +161,7 @@ eligibility owns the version policy.
 **NON-NEGOTIABLE PRODUCT CONTRACT: one universal packaging strategy, never a strategy per platform.**
 
 - Topics and article selection are decided solely by the owner's interest. Platform audiences cannot change which articles publish. Every platform expresses the same episode thesis and topic. Only transport constraints (language, length, native fields, moderation, API format) may vary; these are not content strategies.
-- Canonical-title packaging lives in `prompts/title-system-prompt.txt`. The title runtime reads that file, never the persuasive-messaging skill; deliberately synchronize both when changing packaging. Packaging never participates in topic selection.
+- Best Title packaging lives in `prompts/title-system-prompt.txt`. Budget compression lives in `prompts/title-compression-system-prompt.txt`. The title runtime reads those files, never the persuasive-messaging skill; deliberately synchronize both when changing packaging. Packaging never participates in topic selection.
 - Improve the same packaging across all lanes to direct attention to Kokode AI and Zap Pilot. Kokode AI has no canonical destination yet: never invent a URL.
 - Prioritize cover image → title → video opening. Platform hashtag/hook details cannot outrank those priorities or become learned platform preferences.
 - Never infer which topic suits a platform, choose different articles per platform, or create platform-specific best topic, headline, hook, or publishing-slot strategies. Never inject learned per-platform copy guidance. `social_posts.topic` and `social_posts.hook_type` are descriptive labels, never inputs to platform preference learning. Neither global nor platform best/worst lists may guide topic selection.

@@ -83,6 +83,7 @@ describe('buildSocialEpisode', () => {
     episode_id: 'episode-1',
     language_code: 'zh-Hant',
     title: '真正的標題',
+    title_variants: { '20': { title: '已存簡短標題', method: 'llm' } },
     raw_text: '來源文章內容',
     script: '完整 podcast 講稿',
     status: 'completed',
@@ -104,6 +105,7 @@ describe('buildSocialEpisode', () => {
     expect(result).toMatchObject({
       id: EPISODE_ID,
       title: '真正的標題',
+      titleVariants: localization.title_variants,
       description: '來源文章內容',
       transcript: '完整 podcast 講稿',
       videoDurationSeconds: 173,

@@ -12,7 +12,8 @@ description: Use for ZapEngine marketing copy, positioning, /pitch decks, promo 
 - Promo video: `apps/video/src/videos/<id>/storyboard.ts`; numbers come only from `facts.ts`.
 - Kokode (separate medical product): `apps/kokode-ai/src/story/` is the only copy source for its landing, `/pitch/`, `/pitch/partner/` and the `kokode-clinic` film. `src/story/story.test.ts` fences claims (no absolute, regulatory or medical-device wording outside disclaimers, one price, no revenue-share figures, demos keep their disclaimers); when it fails, change the copy.
 - Titles: `apps/podcast-pipeline/prompts/title-system-prompt.txt`. Runtime reads that prompt, never this skill; deliberately synchronize packaging changes.
-- Transport truncation: `apps/podcast-pipeline/src/social/compose.ts`.
+- Budget compression: `apps/podcast-pipeline/prompts/title-compression-system-prompt.txt`, generated and persisted in ingest.
+- Budget policy: `apps/podcast-pipeline/src/social/policy.ts`; deterministic fitting: `apps/podcast-pipeline/src/services/title-variants.ts`.
 - Podcast cover and first content scene use the publisher's `og:image`, subject to the existing decorative rejection and fallback rules. Preserve that invariant.
 - Evidence: `docs/operations/rednote-distribution-diagnosis.md` and Control Center's `ops_growth.packaging` read model.
 
@@ -47,8 +48,7 @@ subjects: preserve named entities and core claims before improving a hook.
 
 ### Titles
 
-Preserve entities and core claims first, the 20-code-point target second, and
-reader motivation third. Keep source consequences, contrasts and questions;
+Best Title has no character target (4..60 generation guard) and may preserve the source verbatim after Simplified Chinese conversion. Preserve entities, core claims and reader perspective. Never expand a USDT claim into generic crypto. Generate semantically equivalent variants in ingest only when a character budget is exceeded; freeze them with title and script. Social never calls a title LLM or derives audience-specific hooks/theses. Keep source consequences, contrasts and questions;
 never invent them or hide the subject to manufacture suspense.
 
 ### Landing
@@ -96,7 +96,7 @@ Keep cover, title and opening coherent with one thesis across platform lanes.
 Run from the repository root for title prompt or transport changes:
 
 ```bash
-pnpm --filter @zapengine/podcast-pipeline exec vitest run src/services/script-system-prompt.strict.test.ts src/services/editorial-title.test.ts src/social/compose.test.ts src/social/publishers.test.ts src/social/rednote-title-policy.test.ts
+pnpm --filter @zapengine/podcast-pipeline exec vitest run src/services/script-system-prompt.strict.test.ts src/services/editorial-title.test.ts src/services/title-variants.test.ts src/services/ingest/script-stage.test.ts src/services/translate.test.ts src/social/compose.test.ts src/social/copy.test.ts src/social/publishers.test.ts src/social/rednote-title-policy.test.ts
 pnpm turbo run test lint type-check --filter=@zapengine/podcast-pipeline
 node scripts/check-social-release-contract.mjs
 pnpm lint config
@@ -109,4 +109,4 @@ For landing or promo code, run `pnpm turbo run test lint type-check` with
 Group observations by episode `created_at` relative to deployment, because
 backlog delays publication. Among distributed Rednote notes compare 24h average
 views, best and like rate; report the ≤20-view distribution gate separately.
-Track canonical titles over 20 code points and actual transport truncation too.
+Track over-budget Best Titles and the persisted `llm` versus `truncate` variant proportions.

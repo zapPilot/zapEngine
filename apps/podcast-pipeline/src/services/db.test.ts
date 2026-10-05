@@ -1989,6 +1989,7 @@ describe('updates', () => {
     expect(state.query!.update).toHaveBeenCalledWith(
       expect.objectContaining({
         title: '軟體更新',
+        title_variants: {},
         raw_text: '滑鼠',
       }),
     );
@@ -2007,6 +2008,24 @@ describe('updates', () => {
         text: 'Text',
       }),
     ).rejects.toThrow('update localization failed');
+  });
+
+  it('persists title and budget variants in the same script status update', async () => {
+    const row = localizationRow();
+    state.query!.maybeSingle.mockResolvedValue({ data: row, error: null });
+    const variants = { '20': { title: '来源短标题', method: 'llm' as const } };
+    await updateEpisodeLocalizationStatus(row.id, 'script_generated', {
+      title: '来源完整标题',
+      titleVariants: variants,
+      script: '正文',
+    });
+    expect(state.query!.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: '来源完整标题',
+        title_variants: variants,
+        script: '正文',
+      }),
+    );
   });
 
   it('updates localized status and generated media fields', async () => {

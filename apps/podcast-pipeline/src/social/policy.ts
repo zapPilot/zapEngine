@@ -64,3 +64,23 @@ export const SOCIAL_RELEASE_SLOTS = [
  * publish safety/backoff fence.
  */
 export const SOCIAL_PUBLISH_WINDOW_JST = { startHour: 9, endHour: 23 };
+
+export const SOCIAL_TITLE_MAX_CHARACTERS = {
+  rednote: 20,
+  youtube: 100,
+} as const;
+
+export function socialTitleBudgetsFor(language: SocialLanguageCode): number[] {
+  return [
+    ...new Set(
+      Object.entries(SOCIAL_TITLE_MAX_CHARACTERS)
+        .filter(
+          ([platform]) =>
+            SOCIAL_LANGUAGE_BY_PLATFORM[
+              platform as keyof typeof SOCIAL_TITLE_MAX_CHARACTERS
+            ] === language,
+        )
+        .map(([, budget]) => budget),
+    ),
+  ].sort((a, b) => a - b);
+}

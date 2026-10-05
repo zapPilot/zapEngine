@@ -16,7 +16,7 @@ describe('Rednote canonical title policy', () => {
       'The episode title is already finalized upstream; do not generate, rewrite, shorten, or optimize another Rednote-specific title here.',
     );
     expect(normalizedPrompt).toContain(
-      'the publisher truncates it deterministically at the final platform boundary',
+      'The publisher uses the ingest-frozen character-budget variant when present',
     );
     expect(prompt).not.toContain('`title`: a curiosity-driven consumer title');
   });

@@ -54,6 +54,10 @@ const {
 
 vi.mock('./editorial-title.js', () => ({
   generateEditorialTitleWithLLM: mockGenerateEditorialTitleWithLLM,
+  buildEditorialTitleVariants: vi.fn(async () => ({
+    titleVariants: {},
+    cost: [],
+  })),
 }));
 
 vi.mock('./db.js', () => ({
