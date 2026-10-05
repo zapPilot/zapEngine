@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
+import { deckFingerprint } from '../src/media/fingerprints.ts';
 import { access, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readFile } from 'node:fs/promises';
 import { chromium } from 'playwright-core';
 import { createServer, preview } from 'vite';
 
@@ -11,6 +13,9 @@ const languages = [
   { lang: 'en', prefix: '/en/' },
   { lang: 'zh-Hant', prefix: '/zh/' },
 ];
+const media = JSON.parse(
+  await readFile(path.join(root, 'src/media/published.json'), 'utf8'),
+);
 const surfaces = ['', 'pitch/', 'pitch/partner/'];
 for (const { prefix } of languages) {
   for (const surface of surfaces) {
@@ -58,6 +63,48 @@ try {
           );
         }
         await page.goto(new URL(prefix + surface, base).href);
+        if (!surface && media.artifacts[`film.${lang}`]) {
+          assert.equal(await page.locator('video source').count(), 1);
+          assert.equal(
+            await page.locator('video source').getAttribute('src'),
+            media.artifacts[`film.${lang}`].url,
+          );
+          assert.equal(
+            await page.locator('video').getAttribute('poster'),
+            media.artifacts[`poster.${lang}`].url,
+          );
+          assert.equal(
+            await page.locator('.hero-film figcaption a').getAttribute('href'),
+            media.artifacts[`doctorDeck.${lang}`].url,
+          );
+        }
+        if (surface)
+          assert.equal(
+            await page
+              .locator('meta[name="kokode-fingerprint"]')
+              .getAttribute('content'),
+            deckFingerprint(
+              surface.includes('partner') ? 'partner' : 'pitch',
+              lang,
+            ),
+          );
+        if (surface && media.artifacts[`doctorDeck.${lang}`]) {
+          const id = surface.includes('partner') ? 'partnerDeck' : 'doctorDeck';
+          assert.equal(await page.locator('.deck .deck-download').count(), 0);
+          assert.equal(
+            await page.locator('.deck-download a').getAttribute('href'),
+            media.artifacts[`${id}.${lang}`].url,
+          );
+          await page.emulateMedia({ media: 'print' });
+          assert.equal(await page.locator('.deck-download').isVisible(), false);
+          await page.emulateMedia({ media: 'screen' });
+          await page.locator('.deck-download a').scrollIntoViewIfNeeded();
+          await page.waitForFunction(() => {
+            const link = document.querySelector('.deck-download a');
+            const bounds = link?.getBoundingClientRect();
+            return bounds && bounds.top >= 0 && bounds.bottom <= innerHeight;
+          });
+        }
         const image = await page
           .locator('meta[property="og:image"]')
           .getAttribute('content');

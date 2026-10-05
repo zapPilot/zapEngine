@@ -1,0 +1,45 @@
+{
+  "id": "gentle-88",
+  "sha256": "d27de11eb73241941e851aadcbe478eaab676240d50270f4512411f4b678047a",
+  "sampleRate": 48000,
+  "fps": 30,
+  "periodSamples": 1022400,
+  "crossfadeSamples": 9600,
+  "rho": 0.00746063129310464,
+  "source": {
+    "file": "music/sources/kokode-clinic.mp3",
+    "sha256": "662a6f29028e1767b6ade221c768cfd6b07909d550bd05d9a092b4a86fc9cdb4",
+    "model": "google/lyria-3-pro-preview",
+    "prompt": "Instrumental only, absolutely no vocals, voices, humming or choir. Duration 85 seconds, clean ending. Underscore for a medical technology advertisement beneath English narration. 88 BPM, C major. Soft felt piano arpeggios, warm analog pads, gentle plucked bass, extremely light brushed percussion and fingerpicked pulses entering at 0:14. Sparse 1–4 kHz region for speech, no dominant lead melody. [0:00–0:14] sparse questioning suspenseful chords; [0:14–0:30] pulse enters, hopeful; [0:30–1:05] steady confident gradual layering; [1:05–1:25] warm rising resolution and clean cadence. No drops, risers, heavy bass, distortion, EDM or cinematic impacts. Begin audible music immediately, no silent intro.",
+    "commit": "a4c889f0f"
+  },
+  "cut": {
+    "startSeconds": 36.14037982241239,
+    "periodSeconds": 21.31578063550363,
+    "bpm": 90.0741114215654,
+    "bars": 8
+  },
+  "rate": 1.0007408749062736,
+  "cents": 1.2821529649867722,
+  "gainDb": -0.08999999999999986,
+  "seam": {
+    "levelDifferenceDb": 0.3795687036391082,
+    "spectralSimilarity": 0.9045386026794671,
+    "chromaSimilarity": 0.9587124645623017,
+    "score": 0.2992643202354388
+  },
+  "report": {
+    "durationSeconds": 21.552,
+    "leadingSilenceSeconds": 0,
+    "loudness": {
+      "i": -18.26,
+      "tp": -6.93,
+      "lra": 2,
+      "thresh": -28.26,
+      "offset": 0.39
+    }
+  },
+  "review": {
+    "status": "pending"
+  }
+}

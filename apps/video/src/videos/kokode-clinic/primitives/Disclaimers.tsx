@@ -37,7 +37,7 @@ export const Disclaimers: FC<{
       }}
     >
       {notes.map((note) => (
-        <span key={note}>{story.footnote(note)}</span>
+        <span key={note}>{story.FOOTNOTES[note]}</span>
       ))}
     </div>
   );

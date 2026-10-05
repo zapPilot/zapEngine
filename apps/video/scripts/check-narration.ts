@@ -1,15 +1,17 @@
 /**
- * pnpm check <video-id>
+ * pnpm --filter @zapengine/video check <video-id>
  *
  * Read-only freshness gate for `pnpm sales:render`. Exit 0 when the
  * narration manifest is fresh and complete and the declared BGM exists.
  * Exit 2 with an actionable message otherwise. No network, no paid APIs,
  * no Infisical: safe to run on a clean checkout with no credentials.
  */
+import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import { musicLoop } from '../src/music/library';
 import { parseVoManifest } from '../src/timeline/manifest';
 import { getVideo, videoIds } from '../src/videos/catalog';
 import { cliArgs, requireVideoId } from './lib/args';
@@ -35,7 +37,7 @@ async function main(): Promise<void> {
         `  ${relativeToRoot(paths.voManifest)}`,
         '',
         'Run:',
-        `  pnpm video:voiceover ${videoId}`,
+        `  pnpm --filter @zapengine/video voiceover ${videoId}`,
       ].join('\n'),
     );
     process.exit(2);
@@ -55,12 +57,13 @@ async function main(): Promise<void> {
         `✗ ${videoId}: narration is missing or stale for ${problems.join(', ')}.`,
         '',
         'Run:',
-        `  pnpm video:voiceover ${videoId}`,
+        `  pnpm --filter @zapengine/video voiceover ${videoId}`,
       ].join('\n'),
     );
     process.exit(2);
   }
-  const music = path.join(publicDir, storyboard.music.src);
+  const loop = musicLoop(storyboard.music.loop);
+  const music = path.join(publicDir, 'music', `${loop.id}.mp3`);
   if (!existsSync(music)) {
     console.error(
       [
@@ -70,12 +73,25 @@ async function main(): Promise<void> {
         `  ${relativeToRoot(music)}`,
         '',
         'Run:',
-        `  pnpm video:music ${videoId}`,
+        `  pnpm --filter @zapengine/video music ${videoId}`,
       ].join('\n'),
     );
     process.exit(2);
   }
-  console.log(`✓ ${videoId}: narration fresh, music present`);
+  const sha256 = createHash('sha256')
+    .update(await readFile(music))
+    .digest('hex');
+  if (
+    sha256 !== loop.sha256 ||
+    loop.review.status !== 'accepted' ||
+    loop.review.sha256 !== sha256
+  ) {
+    console.error(
+      `✗ ${videoId}: loop ${loop.id} is changed or awaits human listening. Review out/loops/${loop.id}/ previews, then pnpm --filter @zapengine/video loop accept ${loop.id}`,
+    );
+    process.exit(2);
+  }
+  console.log(`✓ ${videoId}: narration fresh, music accepted`);
 }
 
 try {

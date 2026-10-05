@@ -1,3 +1,4 @@
+import { heroFilm } from './media';
 import { LOCALE_INFO } from '../story/locales';
 import { languageSwitch } from './lang-switch';
 import { storyFor, type Story } from '../story/localized';
@@ -57,6 +58,7 @@ export function createLanding(story: Story) {
         ${action(beat.action)}
         <a class="btn secondary" href="#${HOW_IT_WORKS}">${SITE.howItWorks}</a>
       </div>
+      ${heroFilm(story)}
     </div>`;
   }
 

@@ -18,21 +18,21 @@ test('kokode plans PDF then check+render per video', () => {
   const steps = buildSteps('kokode');
   assert.deepEqual(
     steps.map((step) => step.kind),
-    ['pdf', 'video-check', 'video-render'],
+    ['package-build', 'pdf', 'video-check', 'video-render'],
   );
-  assert.deepEqual(steps[0].args, [
+  assert.deepEqual(steps[1].args, [
     '--filter',
     '@zapengine/kokode-ai',
     'pitch:pdf',
   ]);
-  assert.deepEqual(steps[1].args, [
+  assert.deepEqual(steps[2].args, [
     '--silent',
     '--filter',
     '@zapengine/video',
     'check',
     'kokode-clinic',
   ]);
-  assert.deepEqual(steps[2].args, [
+  assert.deepEqual(steps[3].args, [
     '--filter',
     '@zapengine/video',
     'render',
@@ -44,9 +44,9 @@ test('zap-pilot plans no PDF step', () => {
   const steps = buildSteps('zap-pilot');
   assert.deepEqual(
     steps.map((step) => step.kind),
-    ['video-check', 'video-render'],
+    ['package-build', 'video-check', 'video-render'],
   );
-  assert.deepEqual(steps[1].args, [
+  assert.deepEqual(steps[2].args, [
     '--filter',
     '@zapengine/video',
     'render',

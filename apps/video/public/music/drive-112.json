@@ -1,0 +1,45 @@
+{
+  "id": "drive-112",
+  "sha256": "5a49730b685cadb992c116f8cc7507112e75a8f61d299335f5891309f4790774",
+  "sampleRate": 48000,
+  "fps": 30,
+  "periodSamples": 836800,
+  "crossfadeSamples": 9600,
+  "rho": 0,
+  "source": {
+    "file": "music/sources/calculator-pitch.mp3",
+    "sha256": "2b8aaebb0d72419653ddcb51352b7e1f466edc56c1f6bcbdd4440fca405906e2",
+    "model": "google/lyria-3-pro-preview",
+    "prompt": "Instrumental only, absolutely no vocals, voices, humming or choir. Duration 70 seconds, clean ending. Underscore beneath English narration for a hackathon product pitch. 112 BPM, A minor resolving to C major. Crisp plucked synthesizer arpeggios, tight soft kick, light hi-hats, clean restrained sub bass, bright airy pads. Precise, forward-moving and optimistic. Sparse midrange for intelligible speech, no dominant lead melody. [0:00–0:12] restrained plucked motif; [0:12–0:30] light rhythmic momentum; [0:30–0:50] confident layered progression; [0:50–1:10] optimistic resolution into a clear final chord and clean cadence. No vocals or drops, no risers or cinematic impacts. Begin audible music immediately, no silent intro.",
+    "commit": "a4c889f0f"
+  },
+  "cut": {
+    "startSeconds": 32.2254853852091,
+    "periodSeconds": 17.442975124181217,
+    "bpm": 110.07296555381208,
+    "bars": 8
+  },
+  "rate": 1.0005530663966282,
+  "cents": 0.957222697776377,
+  "gainDb": 0.05000000000000071,
+  "seam": {
+    "levelDifferenceDb": 0.705602147974064,
+    "spectralSimilarity": 0.8287206393906873,
+    "chromaSimilarity": 0.9498332592821347,
+    "score": 0.43904645932285535
+  },
+  "report": {
+    "durationSeconds": 17.688000000000002,
+    "leadingSilenceSeconds": 0,
+    "loudness": {
+      "i": -18.26,
+      "tp": -6.5,
+      "lra": 0.4,
+      "thresh": -28.26,
+      "offset": 0.02
+    }
+  },
+  "review": {
+    "status": "pending"
+  }
+}

@@ -1,8 +1,8 @@
 import { BEATS } from './ja/beats';
 import { BEATS as ZH_BEATS } from './zh-Hant/beats';
 import type { DemoId } from './ja/demos';
-import type { FilmSceneId } from './narrative';
-import type { BeatId, DisclaimerId } from './types';
+import type { FilmSceneId, FilmBeatId } from './narrative';
+import type { DisclaimerId } from './types';
 
 /**
  * One narrated sentence: `ja` is the burned-in caption, `en` the narration.
@@ -23,7 +23,7 @@ export type FilmScreen = 'chat' | 'diagram' | 'title';
 export interface FilmScene {
   readonly lines: readonly FilmLine[];
   /** The scene's headline, one entry per line. */
-  readonly headline: BeatId;
+  readonly headline: FilmBeatId;
   readonly screen: FilmScreen;
   readonly demo?: DemoId;
   /** Footnotes burned into the scene. */

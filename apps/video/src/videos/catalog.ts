@@ -3,10 +3,12 @@ import type { CaptionLang, Storyboard } from '../timeline/types';
 import { captionLangs } from '../timeline/versions';
 import { shots as calculatorShots } from './calculator-pitch/shots';
 import { storyboard as calculatorStoryboard } from './calculator-pitch/storyboard';
+import { filmStory } from './kokode-clinic/story';
 import { storyboard as kokodeStoryboard } from './kokode-clinic/storyboard';
 
 interface VideoEntry {
   readonly storyboard: Storyboard;
+  readonly fingerprintSource?: (lang: CaptionLang) => unknown;
   readonly captionLangs: readonly CaptionLang[];
   /** What `pnpm capture` photographs; absent when a video has no captures. */
   readonly shots?: ShotSet;
@@ -25,6 +27,7 @@ const catalog: Readonly<Record<string, VideoEntry>> = {
   // Kokode is a separate product; its film is drawn, not captured.
   'kokode-clinic': {
     storyboard: kokodeStoryboard,
+    fingerprintSource: filmStory,
     captionLangs: captionLangs(kokodeStoryboard),
   },
 };

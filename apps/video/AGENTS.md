@@ -4,21 +4,24 @@ See @README.md for the videos, commands and layout.
 
 Normal sales artifact refresh is `pnpm sales:render <product>` from the repo
 root (`kokode`, `zap-pilot`): it rebuilds every PDF and video from existing
-assets and never calls paid generation APIs. The granular `video:*` commands
-in the loop below are for agent/developer media iteration and debugging.
+assets and never calls paid generation APIs. `pnpm sales:publish <product>`
+publishes them. The granular workspace commands in the loop below are for
+agent/developer media iteration and debugging — run them via
+`pnpm --filter @zapengine/video <cmd>` from the repo root, not via root
+`video:*` aliases.
 
 # Iteration loop
 
 1. Change copy, narration, cue phrases or scene order in
    `src/videos/<id>/storyboard.ts`; change visuals in `scenes/` or
    `src/primitives/`. Numbers and claims come only from `facts.ts`.
-2. Narration changed → `pnpm video:voiceover <id>`
+2. Narration changed → `pnpm --filter @zapengine/video voiceover <id>`
    from the repo root. It prints every scene's length and fails over the
    storyboard's `maxSeconds`.
-3. Look before you render: `pnpm video:stills <id>`, read
+3. Look before you render: `pnpm --filter @zapengine/video stills <id>`, read
    `out/<id>/<lang>/contact-sheet.png`, then single files in `out/<id>/<lang>/stills/`.
-4. Render the MP4 only when asked: `pnpm video:render <id>`.
-   `pnpm video:make <id>` refreshes narration before rendering every language;
+4. Render the MP4 only when asked: `pnpm --filter @zapengine/video render <id>`.
+   `pnpm --filter @zapengine/video make <id>` refreshes narration before rendering every language;
    it uses the env runner. Music generation remains a separate paid command.
 
 # Gotchas
@@ -79,7 +82,7 @@ in the loop below are for agent/developer media iteration and debugging.
   `Root.tsx`. Never import it from shared code.
 - `theme.ts` mirrors the site's `:root` and `public/brand/kokode-mark.svg` is
   a byte copy of its favicon; the test fails when either drifts.
-- No new dependencies (no QR library). The story feeds this workspace's
+- No new rendering dependencies (no QR library). The story feeds this workspace's
   type-check and tests (`turbo.json` inputs), but `--affected` cannot see that
   link: after a story edit run this workspace's gate as well.
 
@@ -115,33 +118,18 @@ in the loop below are for agent/developer media iteration and debugging.
 
 # Music
 
-- Advertisements require genuine arranged instrumental BGM. Declare each film's
-  `music.src` and exact generation prompt in its storyboard. Never use a pulse
-  oscillator as music, loop a short take or silently substitute a provider.
-- Source, terms, date, prompt and SynthID disclosure must be recorded in
-  `public/music/README.md` and the selected asset's provenance JSON. AI music
-  does not imply exclusive copyright or guaranteed non-infringement; disclose
-  this to the customer before delivery.
-- Selected `public/music/*.mp3` and JSON are source assets and must be committed
-  with their documentation. Generated music cannot be reproduced exactly;
-  this differs from the ignored, regenerable `public/vo/` clips.
-- From the repo root, use `pnpm video:music <id> --takes 2`. Audition the takes, then run
-  `pnpm video:music <id> --pick N` (no API call or cost; the root alias
-  still loads the environment).
-  The ignored `out/music-budget.json` reserves $0.08 per attempt, including
-  failures; never reset it to bypass the $1 generation budget. At most six
-  takes per invocation. Provider errors stop generation for operator review.
-- Acceptance requires duration ≥ film + 2s, initial silence ≤ 0.3s and an
-  approximately −18 LUFS / ≤ −2 dBTP stereo 48 kHz master. Music uses dynamic loudnorm with LRA target 3 to lift quiet passages; narration retains its own linear master. Use loudnorm for
-  measurement because bundled ffmpeg lacks ebur128. Human listening must
-  confirm no vocals and judge musical quality; spectra cannot prove either.
-- The default mix uses base 0.5, ducked 0.17, 0.25s attack, 0.8s release,
-  30-frame fade-in and 60-frame fade-out. Override base/ducked per storyboard
-  after measuring music and voice stems: audible gaps ≥ −30 LUFS and music
-  at least 12 dB below narration. Final delivery remains −16 LUFS / ≤ −1.5 dBTP.
+- Advertisements require genuine arranged instrumental BGM. Storyboards reference a registered loop id and optional base/ducked mix levels. Allow loops cut from real arrangements and played with crossfade overlap. Never use a pulse oscillator as music or silently substitute providers.
+- The real-song spike found frame-step crossfade residuals, so this implementation uses the approved fallback: sample-accurate precomputed PCM beds. `prepare-music.ts` runs before Studio, bundling and rendering. Beds are ignored and regenerable; selected short MP3s and provenance JSON stay committed. Full paid originals remain in `music/sources/`, outside the Remotion bundle.
+- Source/model/prompt/hash/original commit, cut/BPM/bars, period/crossfade samples, rho, rate/cents, linear gain, seam metrics and review status live in each loop JSON. Keep SynthID and provider terms disclosed in `public/music/README.md`. No exclusive copyright or non-infringement guarantee is asserted. Tell the customer these limits before delivery.
+- Free iteration: `pnpm --filter @zapengine/video loop cut <loop-id> --candidates` auditions only in `out/`; `cut` writes the selected clip and sets review pending. `--start`/`--bars` adjust the region. Listen to seam/bed previews and films before explicitly authorizing `pnpm --filter @zapengine/video loop accept <loop-id>`. Never mark accepted from objective metrics alone. `sales:render` fails closed for changed/unaccepted loops; workspace `render` is the development preview path.
+- Paid source generation remains separate: `pnpm --filter @zapengine/video music <loop-id> --takes 2`, then free `loop cut --take N`. Shared ledger reserves $0.08 before each attempt, including failures, with a $1 hard cap and at most six takes per invocation. Provider errors stop immediately; never reset the ledger or substitute another model. Do not run generation unless authorized.
+- Loops align their period to integer 30fps frames using ≤0.2% rate correction, stay ≤600 kB and cover P+X samples. Master with one linear gain to approximately −18 LUFS / ≤−2 dBTP; no dynamic loudnorm on a loop. CI recomputes encoded seam metrics. Human ears judge instrumentation, vocals and musical quality.
+- Preserve existing narration ducking and final mastering (−16 LUFS / ≤−1.5 dBTP). Measure voice/music stems after edits: music at least 12 dB below narration; audible gaps ≥−30 LUFS. Re-render and publish content after accepted music changes even though content fingerprints deliberately exclude audio.
+
+Film source fingerprints come from the same `filmStory` projection the composition reads. Preserve the `out/<id>/` layout; sidecars and posters live beside the MP4.
 
 # Brand pronunciation source assets
 
-- `pnpm video:brand-audio kokode --takes 3` generates immutable candidates only. Audition with `--audition`; `--pick N` is human-only and requires an explicit named take. The registry remains candidate until the listening decision.
+- `pnpm --filter @zapengine/video brand-audio kokode --takes 3` generates immutable candidates only. Audition with `--audition`; `--pick N` is human-only and requires an explicit named take. The registry remains candidate until the listening decision.
 - Selected `public/brand/audio/*.mp3` and provenance JSON are committed source assets like `public/music`. Voiceover never generates or selects a brand clip; approved assets must match the voice, engine, speed, reference ID and digest.
 - Keep English story/caption text unchanged. Splice the approved clip inside one VoLine; never create a separate brand VoLine. Internal edges use splice retention; whole-line mastering keeps its existing 60 ms retention. Punctuation supplies pauses, language switches do not.

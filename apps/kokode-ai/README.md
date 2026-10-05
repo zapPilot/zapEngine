@@ -181,3 +181,48 @@ honeypot, locale/page-URL persistence and privacy-policy alignment. These are
 outside this editorial consolidation; do not broaden CORS for HTTP instead of
 enforcing HTTPS. Provision deployment credentials, move Pages/domain ownership,
 validate the first release and then freeze the old deployment workflow.
+
+## Sales media release
+
+Run from the repository root:
+
+```sh
+pnpm sales:render kokode
+pnpm sales:publish kokode --dry-run
+pnpm sales:publish kokode
+pnpm --filter @zapengine/kokode-ai media:verify
+```
+
+The publisher runs outside Turbo, loads only Kokode Infisical `prod`, and needs
+`KOKODE_MEDIA_R2_ENDPOINT`, `KOKODE_MEDIA_R2_ACCESS_KEY_ID`, and
+`KOKODE_MEDIA_R2_SECRET_ACCESS_KEY`. Create `kokode-media-publisher` with Object
+Read & Write scoped only to `kokode-media`; never store these in Zap Pilot,
+the shared env registry, or GitHub secrets. Endpoint:
+`https://1352ed9cb1e236fe232f67ff3a8e9850.r2.cloudflarestorage.com`.
+
+R2 bucket `kokode-media` is APAC. `media.kokode.xyz` uses TLS ≥1.2; r2.dev stays
+disabled. CORS allows GET/HEAD from Kokode apex/www and the Range header.
+Artifacts use immutable `releases/<UTC timestamp>-<random suffix>/` keys,
+SHA-256 metadata and upload checksums. PDFs return attachment disposition.
+The manifest is replaced atomically only after every public object passes
+HEAD, MP4 Range, and full download checksum verification. Failed uploads may
+leave unreferenced immutable objects, never a partially published manifest.
+
+Only `src/media/published.ts` supplies website URLs. Missing releases hide the
+player during initial build, but tests reject incomplete or stale manifests.
+`--only film.ja,poster.ja` limits uploads while still requiring a complete
+current manifest. A valid newer local render with changed bytes uploads;
+a current publication otherwise stays in place. Repeating publication with
+unchanged local artifacts retains URLs. A 412 upload response is accepted only
+when the existing SHA metadata matches (unit-tested; verify live on first release).
+
+Film/poster fingerprints cover the pure `filmStory(locale)` projection;
+deck fingerprints cover the title and slide HTML. Landing form/nav copy does
+not trigger a rebuild. CSS, timing, audio and visuals require an explicit new
+render: they are intentionally outside content fingerprints. PDF sidecars
+read the build's fingerprint meta tag; video/poster sidecars come from the
+same story projection as the renderer. Sidecars are removed before rendering.
+
+The independent legacy repository still serves www.kokode.xyz. R2 media is
+public immediately; landing changes reach production after the separately
+tracked Pages cutover. This work does not perform that cutover.

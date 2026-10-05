@@ -205,3 +205,5 @@ After linking, Turbo checks remote cache on local misses — `pnpm verify` stays
 - CI triggers on push to `main` and PRs; deploys only on `main`
 
 Desktop validation packages use `pnpm desktop:package`. Signed, notarized releases use `pnpm desktop:release`; `pnpm desktop:mac` opens the verified release and requires credentials. See [desktop release runbook](apps/desktop/docs/release.md).
+
+Kokode sales media: `pnpm sales:render kokode` rebuilds PDFs, films and posters from existing assets. `pnpm sales:publish kokode --dry-run` plans without credentials; `pnpm sales:publish kokode` uploads immutable releases to R2 and updates the committed manifest after public verification. See [Kokode media release](apps/kokode-ai/README.md).

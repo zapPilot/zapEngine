@@ -731,6 +731,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^5.0.1
         version: 5.0.3(vitest@5.0.3)
+      '@zapengine/media-release':
+        specifier: workspace:*
+        version: link:../../packages/media-release
       happy-dom:
         specifier: ^20.14.5
         version: 20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6)
@@ -740,6 +743,9 @@ importers:
       prettier:
         specifier: 'catalog:'
         version: 3.8.4
+      tsx:
+        specifier: 'catalog:'
+        version: 4.22.4
       typescript:
         specifier: ^5.8.0
         version: 5.9.3
@@ -1010,6 +1016,9 @@ importers:
       '@zapengine/knip-config':
         specifier: workspace:*
         version: link:../../packages/knip-config
+      '@zapengine/media-release':
+        specifier: workspace:*
+        version: link:../../packages/media-release
       '@zapengine/tsconfig':
         specifier: workspace:*
         version: link:../../packages/tsconfig
@@ -1342,6 +1351,46 @@ importers:
         version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@22.19.21)(@vitest/coverage-v8@4.1.8)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@25.0.1(bufferutil@4.1.0)(utf-8-validate@6.0.6))(vite@7.3.5(@types/node@22.19.21)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.1))
 
   packages/knip-config: {}
+
+  packages/media-release:
+    dependencies:
+      '@aws-sdk/client-s3':
+        specifier: 3.1068.0
+        version: 3.1068.0
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 22.19.21
+      '@vitest/coverage-v8':
+        specifier: 'catalog:'
+        version: 4.1.8(vitest@4.1.8)
+      '@zapengine/eslint-config':
+        specifier: workspace:*
+        version: link:../eslint-config
+      '@zapengine/knip-config':
+        specifier: workspace:*
+        version: link:../knip-config
+      '@zapengine/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+      eslint:
+        specifier: 'catalog:'
+        version: 9.39.4(jiti@2.7.0)
+      knip:
+        specifier: 'catalog:'
+        version: 5.88.1(@types/node@22.19.21)(typescript@5.9.3)
+      prettier:
+        specifier: 'catalog:'
+        version: 3.8.4
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@22.19.21)(@vitest/coverage-v8@4.1.8)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@25.0.1(bufferutil@4.1.0)(utf-8-validate@6.0.6))(vite@7.3.5(@types/node@22.19.21)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.1))
 
   packages/tsconfig: {}
 

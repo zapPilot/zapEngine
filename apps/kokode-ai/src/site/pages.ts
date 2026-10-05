@@ -1,3 +1,6 @@
+import { deckFingerprint } from '../media/fingerprints';
+import { deckDownload } from './media';
+import { markup } from './markup';
 import { localeFromLang } from '../story/locales';
 import { storyFor } from '../story/localized';
 import type { PageId } from '../story/ja/site';
@@ -39,10 +42,10 @@ export function renderPage(html: string): string {
     if (!isPageId(page)) throw new Error(`Unknown Kokode page "${page}".`);
     return (
       slot === 'head'
-        ? renderHead(page, story)
+        ? markup`${renderHead(page, story)}${page === 'landing' ? null : markup`<meta name="kokode-fingerprint" content="${deckFingerprint(page, story.locale)}" />`}`
         : page === 'landing'
           ? renderLanding(story)
-          : renderDeck(page, story)
+          : markup`${renderDeck(page, story)}${deckDownload(page, story)}`
     ).html;
   });
   const leftover = ANY_MARKER.exec(rendered);

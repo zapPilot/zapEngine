@@ -1,5 +1,5 @@
 /**
- * pnpm video:voiceover <video-id> [--prune] [--dry-run]
+ * pnpm --filter @zapengine/video voiceover <video-id> [--prune] [--dry-run]
  *
  * Synthesises English narration with the declared Fish Official preset voice. Lines
  * are cached by content hash, so only edited lines cost a request. Each clip
@@ -8,7 +8,7 @@
  *
  * Needs FISH_AUDIO_API_KEY (FISH_AUDIO_ENGINE is
  * optional), so run it through the env runner from the repo root:
- *   pnpm video:voiceover calculator-pitch
+ *   node scripts/env/run.mjs -- pnpm --filter @zapengine/video voiceover calculator-pitch
  */
 import { existsSync } from 'node:fs';
 import {

@@ -5,6 +5,7 @@ import { ensureBrowser, selectComposition } from '@remotion/renderer';
 
 import type { CaptionLang } from '../../src/timeline/types';
 import { defaultVideoProps } from '../../src/videos/metadata';
+import { prepareMusic } from '../prepare-music';
 import { publicDir, workspaceRoot } from './paths';
 
 /** Bundles the Remotion entry once and resolves a composition's metadata. */
@@ -13,6 +14,7 @@ export async function prepare(
   lang: CaptionLang,
   existingServeUrl?: string,
 ) {
+  if (existingServeUrl === undefined) await prepareMusic(videoId);
   await ensureBrowser();
   const serveUrl =
     existingServeUrl ??

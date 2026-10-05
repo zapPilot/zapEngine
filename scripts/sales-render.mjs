@@ -43,7 +43,14 @@ export function parseProductName(argv) {
  */
 export function buildSteps(productName) {
   const entry = getProduct(productName);
-  const steps = [];
+  const steps = [
+    {
+      kind: 'package-build',
+      title: 'build media-release',
+      cmd: 'pnpm',
+      args: ['turbo', 'run', 'build', '--filter=@zapengine/media-release'],
+    },
+  ];
   if (entry.pdf !== null) {
     steps.push({
       kind: 'pdf',

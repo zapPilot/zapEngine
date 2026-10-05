@@ -42,8 +42,7 @@ export interface CaptionSettings {
 }
 
 export interface MusicSettings {
-  readonly src: string;
-  readonly prompt: string;
+  readonly loop: import('../music/library').LoopId;
   readonly base?: number;
   readonly ducked?: number;
 }
@@ -63,6 +62,7 @@ export interface Storyboard<Scene extends SceneSpec = SceneSpec> {
   readonly gap: number;
   readonly voice: VoiceSettings;
   readonly music: MusicSettings;
+  readonly poster?: { readonly scene: string; readonly at: number };
   /** Absent: English captions that transcribe the narration. */
   readonly captions?: CaptionSettings;
   readonly scenes: readonly Scene[];

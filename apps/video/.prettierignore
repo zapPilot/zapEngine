@@ -12,3 +12,6 @@ coverage
 # them by hand would make the next regeneration look like a content change.
 public/captures
 src/videos/*/vo.manifest.json
+
+public/music/*.json
+public/music/README.md

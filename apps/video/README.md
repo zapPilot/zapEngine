@@ -38,18 +38,19 @@ pnpm sales:render zap-pilot    # calculator-pitch, from existing assets only
 `sales:render` rebuilds PDFs and videos from existing assets without calling
 paid generation APIs. Missing or stale narration/music fails closed with a
 pointer to the paid command; it is never run automatically. The granular
-`video:*` commands below are for media development, debugging and explicit
-regeneration of voice/music.
+workspace commands below are for media development, debugging and explicit
+regeneration of voice/music — run them via `pnpm --filter @zapengine/video`
+(AI use); they have no root `video:*` aliases.
 
 ```bash
-pnpm video:dev                         # Remotion Studio
+pnpm --filter @zapengine/video dev                         # Remotion Studio
 pnpm --filter @zapengine/video capture calculator-pitch    # re-photograph the live product
-pnpm video:voiceover calculator-pitch
-pnpm video:stills calculator-pitch     # out/<id>/en/contact-sheet.png
-pnpm video:render calculator-pitch     # out/<id>/<id>.en.mp4, −16 LUFS
-pnpm video:voiceover kokode-clinic --dry-run
-pnpm video:stills kokode-clinic        # three language contact sheets
-pnpm video:make kokode-clinic          # refresh narration, then render all versions
+pnpm --filter @zapengine/video voiceover calculator-pitch
+pnpm --filter @zapengine/video stills calculator-pitch     # out/<id>/en/contact-sheet.png
+pnpm --filter @zapengine/video render calculator-pitch     # out/<id>/<id>.en.mp4, −16 LUFS
+pnpm --filter @zapengine/video voiceover kokode-clinic --dry-run
+pnpm --filter @zapengine/video stills kokode-clinic        # three language contact sheets
+pnpm --filter @zapengine/video make kokode-clinic          # refresh narration, then render all versions
 ```
 
 - `capture` defaults to `https://www.zap-pilot.org`; pass `--base-url` for a
@@ -63,11 +64,11 @@ pnpm video:make kokode-clinic          # refresh narration, then render all vers
   `--frames 120,480`.
 - `render` refuses while any narration line is still an estimate, then prints
   duration, size and loudness.
-- `video:make <id>` runs `voiceover` and then `render`, stopping if either fails.
+- `make <id>` runs `voiceover` and then `render`, stopping if either fails.
   It uses the env runner and only synthesises missing or stale narration.
   Music generation stays separate because every take costs $0.08.
-  `video:voiceover`, `video:music` and `video:make` require an authenticated
-  Infisical workspace; `video:render`, `video:stills` and `video:dev` need no keys.
+  `voiceover`, `music` and `make` require an authenticated
+  Infisical workspace; `render`, `stills` and `dev` need no keys.
 
 ## Layout
 
@@ -112,9 +113,9 @@ composition with its own scenes, not a fork of the primitives.
 ## Languages and voices
 
 ```bash
-pnpm video:stills kokode-clinic
-pnpm video:render kokode-clinic
-pnpm video:render kokode-clinic --lang zh-Hant
+pnpm --filter @zapengine/video stills kokode-clinic
+pnpm --filter @zapengine/video render kokode-clinic
+pnpm --filter @zapengine/video render kokode-clinic --lang zh-Hant
 ```
 
 One render command bundles once and produces
@@ -133,28 +134,12 @@ Generated `public/vo/` audio and `out/` are ignored. Keep `vo.manifest.json`
 committed and regenerate audio with `voiceover` after a clean checkout. TTS
 can change clip duration, so commit the regenerated manifest too. Caption-only
 changes reuse the audio; narration or voice changes need fresh synthesis.
-The licensed source BGM in `public/music/` remains tracked.
+Selected loops in `public/music/` and full paid sources in `music/sources/` remain tracked.
 
 ## Music
 
-Each storyboard declares an instrumental music source and prompt. Selected
-`public/music/<id>.mp3` and provenance JSON stay in Git; raw and alternate takes
-are ignored under `out/<id>/music/`. See [source and terms](public/music/README.md)
-for generation dates, exact prompts, SynthID and copyright limitations. Human
-listening is required before sending to a customer.
+Each storyboard references a shared loop id. Selected short clips and provenance stay in `public/music/`; full paid sources stay in `music/sources/`. See [source and terms](public/music/README.md) for provider/SynthID disclosure and the shared-loop workflow below.
 
-```bash
-pnpm video:music kokode-clinic --takes 2
-pnpm video:music kokode-clinic --pick 2
-```
-
-Generation uses `OPENROUTER_API_KEY`, one billed request per take, at most six
-requested takes and a shared persistent $1 cap in `out/music-budget.json`.
-Failures count toward the cap. `--pick` validates and selects an existing take
-without calling the API. Short or silent takes are rejected; provider failures
-stop immediately. Retry rejected takes with another invocation within budget.
-
-Music is mastered dynamically to approximately −18 LUFS / ≤ −2 dBTP, 48 kHz stereo, 192k (LRA target 3). This lifts quiet passages; natural rests and fades still require mix review.
 The default music volume is 0.5 in gaps and 0.17 under narration, with a 0.25s
 attack and 0.8s release. A storyboard can override `music.base` / `music.ducked`.
 Measure the actual stems after changing levels; the rendered MP4 is normalized
@@ -167,8 +152,20 @@ voice/music separation. Initial fades and natural musical rests remain quieter.
 
 ## Brand pronunciation auditions
 
-Run `pnpm video:brand-audio kokode --takes 3`, then `pnpm video:brand-audio kokode --audition`. Takes, raw fragment cache, baseline copies, variant MP3s and `CHECKLIST.md` live under ignored `out/brand-audio/kokode/`. Compare `--take 1 --keep 0.010,0.020,0.060 --pause-scale 0.6,1.3` before choosing.
+Run `pnpm --filter @zapengine/video brand-audio kokode --takes 3`, then `pnpm --filter @zapengine/video brand-audio kokode --audition`. Takes, raw fragment cache, baseline copies, variant MP3s and `CHECKLIST.md` live under ignored `out/brand-audio/kokode/`. Compare `--take 1 --keep 0.010,0.020,0.060 --pause-scale 0.6,1.3` before choosing.
 
-Only an explicit human choice permits `pnpm video:brand-audio kokode --pick N`. Pick copies exact take bytes to `public/brand/audio/kokode-adrian-ja.mp3` with a validated provenance sidecar; it needs no API key and does not approve the registry. An approved asset cannot be overwritten without `--replace`. Keep selected assets and provenance in Git. The synthesis lexicon substitutes the approved clip inside the English line; captions, story and timeline gaps keep their existing text and structure.
+Only an explicit human choice permits `pnpm --filter @zapengine/video brand-audio kokode --pick N`. Pick copies exact take bytes to `public/brand/audio/kokode-adrian-ja.mp3` with a validated provenance sidecar; it needs no API key and does not approve the registry. An approved asset cannot be overwritten without `--replace`. Keep selected assets and provenance in Git. The synthesis lexicon substitutes the approved clip inside the English line; captions, story and timeline gaps keep their existing text and structure.
 
 Fish Audio uses only free engines: the current configuration is `FISH_AUDIO_ENGINE=s2.1-pro-free`. Narration, brand takes and auditions reject any engine not ending with `free`, and never fall back to a paid model. Newer provider-supported free versions may be adopted by updating env/runtime defaults and tests together. Free Fish synthesis does not require payment approval; brand selection still requires a named human take. Music generation remains separately paid.
+
+Kokode renders also write SHA-256/fingerprint sidecars next to the MP4 and a caption-free JPEG poster. Poster selection is expressed as a named scene and fraction in the storyboard. `pnpm sales:publish kokode` publishes the outputs with the six deck PDFs; no generation APIs are called by either sales command.
+
+## Shared BGM loops
+
+`gentle-88` (Kokode) and `drive-112` (Zap Pilot) reuse the existing paid arranged sources for $0. Original files/provenance are preserved in `music/sources/` and excluded from the Remotion bundle. Cut with `pnpm --filter @zapengine/video loop cut <id> [--candidates] [--start seconds] [--bars 4]`; auditions live in `out/loops/<id>/`. Candidate ranking uses prompt-guided comb ACF tempo, spectral flux beat phase, stable RMS regions, spectral/chroma/level comparisons and beat-aligned bar periods. Automated candidates remain drafts pending listening.
+
+The spike measured identical 1105-sample decoder delay for three MP3 copies and unity steady gain, but a real-song render showed high-frequency envelope residuals around −40 to −43 dB. The selected fallback precomputes smooth sample-accurate full PCM beds before Studio/bundle/render. Runtime keeps one bed Audio track and existing narration ducking; no loop prop is used. Beds are disposable local output and not committed.
+
+Selected clips are linearly mastered, frame-period corrected by ≤0.2%, SHA checked, bounded to 600 kB and accompanied by source/seam/rate/review metadata. CI decodes the committed clips and recomputes seam metrics. Workspace `render` permits review previews; `sales:render` requires explicit human acceptance (`pnpm --filter @zapengine/video loop accept <id>`). No acceptance is inferred from objective tests.
+
+Paid music remains `pnpm --filter @zapengine/video music <loop-id> --takes 2`, storing raw source takes in `out/<loop-id>/music/`; free `loop cut <loop-id> --take N` selects one. The shared $1 ledger and provider-error stop rules remain. This implementation did not call a paid API.

@@ -1,0 +1,53 @@
+{
+  "name": "@zapengine/media-release",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./r2": {
+      "types": "./dist/r2.d.ts",
+      "import": "./dist/r2.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist coverage",
+    "deadcode": "knip --treat-config-hints-as-errors",
+    "deadcode:fix": "knip --fix",
+    "dup:check": "node ../../scripts/lint/run-jscpd.mjs src",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ci": "vitest run --coverage",
+    "test:coverage": "vitest run --coverage",
+    "type-check": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "zod": "catalog:",
+    "@aws-sdk/client-s3": "3.1068.0"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "@zapengine/eslint-config": "workspace:*",
+    "@zapengine/knip-config": "workspace:*",
+    "@zapengine/tsconfig": "workspace:*",
+    "eslint": "catalog:",
+    "knip": "catalog:",
+    "prettier": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": "24.x"
+  }
+}
