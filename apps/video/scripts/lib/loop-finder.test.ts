@@ -41,6 +41,8 @@ it('rejects silence, short regions and invalid inputs', () => {
   ])
     expect(() => findLoops(samples, sr, 120, options)).toThrow();
   expect(() => findLoops(samples, 0, 120)).toThrow();
+  expect(() => findLoops(samples, sr, 29)).toThrow();
+  expect(() => findLoops(samples, sr, 241)).toThrow();
   expect(findLoops(samples, 1000, 120, { start: 2, end: 22, bars: 1 })).toEqual(
     [],
   );

@@ -27,15 +27,31 @@ export function findLoops(
   options: { bars?: number; start?: number; end?: number } = {},
 ): LoopCandidate[] {
   const bars = options.bars ?? 8;
-  if (bars < 1 || !Number.isInteger(bars) || sampleRate < 1)
+  if (
+    bars < 1 ||
+    !Number.isInteger(bars) ||
+    sampleRate < 1 ||
+    bpm < 30 ||
+    bpm > 240
+  )
     throw new Error('Invalid loop options');
-  const timing = tempo(onsets(samples), sampleRate / 240, bpm);
-  const period = bars * 4 * timing.beatSeconds,
-    crossfade = 0.2;
   const min = options.start ?? 0,
     max = options.end ?? samples.length / sampleRate;
   if (min < 0 || max > samples.length / sampleRate || max <= min)
     throw new Error('Invalid loop region');
+  const crossfade = 0.2;
+  const onsetRate = sampleRate / 240;
+  const center = (60 * onsetRate) / bpm;
+  const low = Math.max(1, Math.floor(center * 0.96));
+  const minPeriod = ((low - 0.5) / onsetRate) * bars * 4;
+  if (max - min < minPeriod + crossfade) return [];
+  const regionSamples = samples.subarray(
+    Math.round(min * sampleRate),
+    Math.round(max * sampleRate),
+  );
+  if (rms(regionSamples) < 0.001) return [];
+  const timing = tempo(onsets(samples), onsetRate, bpm);
+  const period = bars * 4 * timing.beatSeconds;
   const seconds = Math.floor(max),
     levels = Array.from({ length: seconds }, (_, s) =>
       rms(samples.subarray(s * sampleRate, (s + 1) * sampleRate)),
