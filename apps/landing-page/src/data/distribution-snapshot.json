@@ -1,57 +1,57 @@
 {
-  "asOf": "2026-10-04T07:12:46.824+00:00",
+  "asOf": "2026-10-05T07:03:44.25+00:00",
   "coverage": {
     "firstEpisodeAt": "2026-04-26T13:24:28.506345+00:00",
-    "lastEpisodeAt": "2026-10-04T07:06:53.43924+00:00",
+    "lastEpisodeAt": "2026-10-05T05:19:42.448224+00:00",
     "firstPostAt": "2026-08-12T07:13:20.207+00:00",
-    "lastPostAt": "2026-10-04T07:12:46.824+00:00"
+    "lastPostAt": "2026-10-05T07:03:44.25+00:00"
   },
   "funnel": {
-    "articles": 421,
-    "localizations": 1192,
-    "videos": 589,
-    "posts": 535,
+    "articles": 423,
+    "localizations": 1198,
+    "videos": 598,
+    "posts": 551,
     "platforms": 4,
-    "reach": 26299
+    "reach": 29351
   },
   "languages": [
     {
       "code": "zh-Hant",
-      "localizations": 421,
-      "mainAudio": 418,
-      "classroomAudio": 366,
-      "posts": 294,
-      "reach": 20616
+      "localizations": 423,
+      "mainAudio": 420,
+      "classroomAudio": 368,
+      "posts": 302,
+      "reach": 23429
     },
     {
       "code": "ja",
-      "localizations": 387,
-      "mainAudio": 384,
+      "localizations": 389,
+      "mainAudio": 386,
       "classroomAudio": 25,
-      "posts": 121,
-      "reach": 3652
+      "posts": 125,
+      "reach": 3819
     },
     {
       "code": "en",
-      "localizations": 384,
-      "mainAudio": 378,
+      "localizations": 386,
+      "mainAudio": 380,
       "classroomAudio": 22,
-      "posts": 120,
-      "reach": 2031
+      "posts": 124,
+      "reach": 2103
     }
   ],
   "channels": [
     {
       "platform": "rednote",
       "language": "zh-Hant",
-      "posts": 119,
-      "postsWithMetrics": 118,
-      "reach": 9717,
-      "likes": 169,
-      "comments": 9,
-      "shares": 20,
+      "posts": 123,
+      "postsWithMetrics": 123,
+      "reach": 11894,
+      "likes": 282,
+      "comments": 13,
+      "shares": 27,
       "firstPostAt": "2026-08-12T08:18:27.658+00:00",
-      "lastPostAt": "2026-10-04T07:09:34.686+00:00"
+      "lastPostAt": "2026-10-05T07:02:10.747+00:00"
     },
     {
       "platform": "x",
@@ -68,26 +68,26 @@
     {
       "platform": "threads",
       "language": "zh-Hant",
-      "posts": 86,
-      "postsWithMetrics": 85,
-      "reach": 3747,
-      "likes": 9,
+      "posts": 90,
+      "postsWithMetrics": 90,
+      "reach": 4383,
+      "likes": 19,
       "comments": 0,
-      "shares": 4,
+      "shares": 26,
       "firstPostAt": "2026-08-15T14:15:16.306+00:00",
-      "lastPostAt": "2026-10-04T07:07:09.607+00:00"
+      "lastPostAt": "2026-10-05T07:01:49.383+00:00"
     },
     {
       "platform": "x",
       "language": "ja",
-      "posts": 61,
-      "postsWithMetrics": 60,
-      "reach": 2822,
+      "posts": 65,
+      "postsWithMetrics": 65,
+      "reach": 2989,
       "likes": 7,
       "comments": 1,
       "shares": 1,
       "firstPostAt": "2026-08-26T03:00:25.768+00:00",
-      "lastPostAt": "2026-10-04T07:12:46.824+00:00"
+      "lastPostAt": "2026-10-05T07:03:08.31+00:00"
     },
     {
       "platform": "x",
@@ -104,14 +104,14 @@
     {
       "platform": "youtube",
       "language": "en",
-      "posts": 77,
-      "postsWithMetrics": 76,
-      "reach": 617,
+      "posts": 81,
+      "postsWithMetrics": 81,
+      "reach": 689,
       "likes": 2,
       "comments": 0,
       "shares": 1,
       "firstPostAt": "2026-08-26T00:32:40.916+00:00",
-      "lastPostAt": "2026-10-04T07:10:23.723+00:00"
+      "lastPostAt": "2026-10-05T07:03:44.25+00:00"
     },
     {
       "platform": "youtube",
@@ -163,43 +163,43 @@
     }
   ],
   "reliability": {
-    "publishJobs": 650,
-    "publishJobsCompleted": 534,
+    "publishJobs": 666,
+    "publishJobsCompleted": 550,
     "publishJobsFailed": 0,
-    "metricSnapshots": 4292,
-    "metricSnapshotsCollected": 4182
+    "metricSnapshots": 4519,
+    "metricSnapshotsCollected": 4401
   },
   "example": {
-    "title": "当 Polymarket 们等走向「幕后」：预测市场的下半场，在交易所之外？",
-    "sourceUrl": "https://www.panewslab.com/zh/articles/01a07aab-3233-718e-af5d-1c5a9d53efe5",
-    "createdAt": "2026-09-12T10:55:28.765962+00:00",
+    "title": "Dan Koe 最新长文：要想成功，你就得活在幻想中",
+    "sourceUrl": "https://www.panewslab.com/zh/articles/01a09de7-2059-7527-90d0-9375692568b8",
+    "createdAt": "2026-09-21T07:00:23.512476+00:00",
     "localizations": 3,
     "videos": 3,
     "posts": 4,
     "channels": [
       {
+        "platform": "x",
+        "language": "ja",
+        "postUrl": "https://x.com/i/web/status/2106716823769190603",
+        "publishedAt": "2026-10-04T12:03:26.956+00:00"
+      },
+      {
         "platform": "rednote",
         "language": "zh-Hant",
-        "postUrl": "https://www.xiaohongshu.com/explore/6ab4cb4d000000000d020157",
-        "publishedAt": "2026-09-24T07:03:41.256+00:00"
+        "postUrl": "https://www.xiaohongshu.com/explore/6ac240c40000000019027dc1",
+        "publishedAt": "2026-10-04T12:04:20.4+00:00"
       },
       {
         "platform": "threads",
         "language": "zh-Hant",
-        "postUrl": null,
-        "publishedAt": "2026-09-24T07:04:18.546+00:00"
-      },
-      {
-        "platform": "x",
-        "language": "ja",
-        "postUrl": "https://x.com/i/web/status/2103017815334961305",
-        "publishedAt": "2026-09-24T07:04:54.484+00:00"
+        "postUrl": "https://www.threads.com/@davidtnfsh/post/DeEl71aiQTo",
+        "publishedAt": "2026-10-04T12:05:51.051+00:00"
       },
       {
         "platform": "youtube",
         "language": "en",
-        "postUrl": "https://www.youtube.com/watch?v=mYHOmt_k5o4",
-        "publishedAt": "2026-09-24T07:05:30.327+00:00"
+        "postUrl": "https://www.youtube.com/watch?v=4yCB2SdORv8",
+        "publishedAt": "2026-10-04T12:06:17.289+00:00"
       }
     ]
   }
