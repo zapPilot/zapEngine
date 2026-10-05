@@ -30,3 +30,6 @@ its own sequence in `src/story/narrative.ts`. `src/site/` only renders.
 - A story edit also changes the film, and `--affected` cannot see that link:
   run `pnpm turbo run type-check test --filter=@zapengine/video` too. Editing
   an English `en` film line means paying to synthesise its narration again.
+
+- After hero copy changes, run `pnpm --filter @zapengine/kokode-ai og:render`;
+  `og.test.ts` rejects stale sharing cards. Never reintroduce GENBA artwork.

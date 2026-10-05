@@ -37,7 +37,8 @@ export type DisclaimerId =
   | 'preview'
   | 'screenImage'
   | 'fictionalPatient'
-  | 'draftOnly';
+  | 'draftOnly'
+  | 'hardwareImage';
 
 /** Diagrams and demo screens; `src/site/figures.ts` and the film draw them. */
 export type FigureId =
@@ -47,7 +48,8 @@ export type FigureId =
   | 'demoPatient'
   | 'demoImage'
   | 'turnkey'
-  | 'partnerRoles';
+  | 'partnerRoles'
+  | 'hardware';
 
 export interface Source {
   readonly label: string;

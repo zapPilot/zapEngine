@@ -3,6 +3,7 @@ import type { DisclaimerId } from '../types';
 // The first four sentences carry over verbatim from the previous site. These
 // strings are the only place the claim guardrails allow regulated wording.
 export const DISCLAIMERS: { readonly [Id in DisclaimerId]: string } = {
+  hardwareImage: '※設備外觀與配置僅供示意',
   normalOperation: '正常運作時，設定為不將患者資料傳送至外部 LLM',
   clinicalJudgment:
     '可從資訊搜尋、摘要、文件撰寫與研究支援開始導入，而非診斷本身。最終確認與判斷由醫療人員執行。',

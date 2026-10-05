@@ -3,6 +3,26 @@ import type * as Japanese from '../ja/figures';
 // Labels of the diagrams. They are real text on every surface (HTML and
 // film), never baked into an image, so they stay searchable and reviewable.
 export const FIGURES: CopyShape<typeof Japanese.FIGURES> = {
+  hardware: {
+    caption: 'Illustrative equipment for facilities of different sizes',
+    sizes: [
+      {
+        label: 'Small clinic',
+        note: 'Start here',
+        alt: 'Illustration of a compact device installed inside',
+      },
+      {
+        label: 'Mid-sized facility',
+        note: 'Ask us',
+        alt: 'Illustration of rack-mounted server equipment',
+      },
+      {
+        label: 'Hospital or research institute',
+        note: 'Ask us',
+        alt: 'Illustration of a row of server cabinets',
+      },
+    ],
+  },
   beforeAfter: {
     caption: 'Where patient data goes: cloud AI and KOKODE',
     inside: 'Inside',

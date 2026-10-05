@@ -8,10 +8,10 @@ export function renderHead(
   page: PageId,
   story: Story = storyFor('ja'),
 ): Markup {
-  const { META, SITE, locale } = story;
+  const { META, SITE, BEATS, locale } = story;
   const meta = META[page];
   const url = `${SITE_URL}${pagePath(page, locale)}`;
-  // No Kokode OG image exists yet, hence the small card.
+  const image = `${SITE_URL}/og/${locale}.png`;
   return markup`<title>${meta.title}</title>
     <meta name="description" content="${meta.description}" />
     <meta name="robots" content="${meta.robots}" />
@@ -24,5 +24,10 @@ export function renderHead(
     <meta property="og:title" content="${meta.title}" />
     <meta property="og:description" content="${meta.description}" />
     <meta property="og:url" content="${url}" />
-    <meta name="twitter:card" content="summary" />`;
+    <meta property="og:image" content="${image}" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="${BEATS.hero.title.join(' ')}" />
+    <meta name="twitter:image" content="${image}" />
+    <meta name="twitter:card" content="summary_large_image" />`;
 }

@@ -3,6 +3,22 @@ import type * as Japanese from '../ja/figures';
 // Labels of the diagrams. They are real text on every surface (HTML and
 // film), never baked into an image, so they stay searchable and reviewable.
 export const FIGURES: CopyShape<typeof Japanese.FIGURES> = {
+  hardware: {
+    caption: '依設施規模配置的設備示意',
+    sizes: [
+      {
+        label: '小型診所',
+        note: '先從這裡開始',
+        alt: '設置於院內的小型設備示意',
+      },
+      { label: '中型設施', note: '個別洽談', alt: '機架式伺服器設備示意' },
+      {
+        label: '醫院與研究機構',
+        note: '個別洽談',
+        alt: '多台伺服器機櫃的配置示意',
+      },
+    ],
+  },
   beforeAfter: {
     caption: '患者資料的去向：雲端 AI 與 KOKODE',
     inside: '院內',

@@ -18,7 +18,8 @@
     "test:coverage": "vitest run --config vitest.config.ts --coverage",
     "test:watch": "vitest --config vitest.config.ts",
     "pitch:pdf": "pnpm run build && node scripts/export-pitch-pdf.mjs",
-    "site:smoke": "pnpm run build && node scripts/smoke-site.mjs"
+    "site:smoke": "pnpm run build && node scripts/smoke-site.mjs",
+    "og:render": "node scripts/render-og.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.6.2",

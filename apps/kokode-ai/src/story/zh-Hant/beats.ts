@@ -88,13 +88,19 @@ export const BEATS: { readonly [Id in BeatId]: Beat } = {
     title: ['由 KOKODE 導入，', '由院內團隊使用。'],
     body: [
       '設備、AI 模型、符合工作流程的代理，以及員工使用的聊天介面，由 KOKODE 整套導入並設定。',
+      '導入後，我們也提供模型與代理更新及維運諮詢。更新的交付方式依設施的網路政策決定。',
     ],
     figure: 'turnkey',
   },
   startSmall: {
     eyebrow: '開始方式',
     title: ['先從一台設備，', '一項工作開始。'],
-    body: ['不必一開始就準備 GPU 機架，可先用一台小型設備試行一項工作。'],
+    body: [
+      '不必一開始就準備 GPU 機架，可先用一台小型設備試行一項工作。',
+      '規模擴大時，可與我們討論符合設施需求的設備配置。',
+    ],
+    figure: 'hardware',
+    notes: ['hardwareImage'],
     price: {
       label: 'PoC',
       amount: '30 萬日圓起',
@@ -107,7 +113,7 @@ export const BEATS: { readonly [Id in BeatId]: Beat } = {
     points: [
       {
         title: '選擇一項工作',
-        text: '選一項無法送上雲端，但想交給 AI 的工作。',
+        text: '選一項無法送上雲端，但想交給 AI 的工作，例如轉診信撰寫、院內文件搜尋、說明資料製作，或將語音整理成文件。',
       },
       {
         title: '在院內設置一台設備',

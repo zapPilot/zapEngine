@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 // @vitest-environment-options {"settings":{"disableCSSFileLoading":true,"disableJavaScriptFileLoading":true,"handleDisabledFileLoadingAsSuccess":true}}
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
@@ -93,7 +93,7 @@ describe('structure', () => {
       landing
         .querySelector('meta[name="twitter:card"]')
         ?.getAttribute('content'),
-    ).toBe('summary');
+    ).toBe('summary_large_image');
   });
 });
 
@@ -356,6 +356,46 @@ describe.each(LOCALES)('%s pages', (locale) => {
           .forEach((el) => el.remove());
         expect(/[ぁ-ヿ一-鿿]/.test(body.textContent ?? '')).toBe(false);
       }
+    }
+  });
+});
+
+describe.each(LOCALES)('%s hardware and assets', (locale) => {
+  it('renders three accessible equipment images and its disclaimer on landing and doctor deck', () => {
+    for (const page of ['landing', 'pitch'] as const) {
+      const doc = build(pagePath(page, locale).slice(1) + 'index.html');
+      const figure = doc.querySelector('figure[data-figure="hardware"]');
+      expect(figure).not.toBeNull();
+      expect(doc.body.textContent).toContain(
+        storyFor(locale).footnote('hardwareImage'),
+      );
+      const images = Array.from(figure!.querySelectorAll('img'));
+      expect(images).toHaveLength(3);
+      for (const img of images) {
+        expect(img.alt.trim()).toBeTruthy();
+        expect(Number(img.getAttribute('width'))).toBeGreaterThan(0);
+        expect(Number(img.getAttribute('height'))).toBeGreaterThan(0);
+        expect(img.getAttribute('loading')).toBe('lazy');
+        expect(img.getAttribute('decoding')).toBe('async');
+      }
+    }
+  });
+  it('ships every referenced asset and the localized OG metadata', () => {
+    for (const page of ['landing', 'pitch', 'partner'] as const) {
+      const doc = build(pagePath(page, locale).slice(1) + 'index.html');
+      for (const el of doc.querySelectorAll('[src^="/assets/"]')) {
+        expect(
+          existsSync(path.join(appRoot, el.getAttribute('src')!.slice(1))),
+        ).toBe(true);
+      }
+      expect(
+        doc.querySelector('meta[property="og:image"]')?.getAttribute('content'),
+      ).toBe(`https://www.kokode.xyz/og/${locale}.png`);
+      expect(
+        doc
+          .querySelector('meta[name="twitter:image"]')
+          ?.getAttribute('content'),
+      ).toBe(`https://www.kokode.xyz/og/${locale}.png`);
     }
   });
 });

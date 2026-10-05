@@ -58,6 +58,15 @@ try {
           );
         }
         await page.goto(new URL(prefix + surface, base).href);
+        const image = await page
+          .locator('meta[property="og:image"]')
+          .getAttribute('content');
+        assert.equal(image, `https://www.kokode.xyz/og/${lang}.png`);
+        const response = await page.request.get(
+          new URL(new URL(image).pathname, base).href,
+        );
+        assert.equal(response.status(), 200);
+        assert.match(response.headers()['content-type'], /^image\/png/);
         const overflow = await page.evaluate(
           () => document.documentElement.scrollWidth > innerWidth + 1,
         );

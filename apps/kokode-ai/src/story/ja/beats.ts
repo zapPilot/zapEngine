@@ -92,6 +92,7 @@ export const BEATS: { readonly [Id in BeatId]: Beat } = {
     title: ['導入はKOKODE、', '使うのは院内のチーム。'],
     body: [
       '機器、AIモデル、業務に合わせたエージェント、スタッフが使うチャット画面。ひとそろいでKOKODEが導入し、設定します。',
+      '導入後も、モデルやエージェントの更新と運用のご相談に対応します。更新の届け方は、施設のネットワーク方針に合わせて決めます。',
     ],
     figure: 'turnkey',
   },
@@ -100,7 +101,10 @@ export const BEATS: { readonly [Id in BeatId]: Beat } = {
     title: ['まずは1台、', '1つの業務から。'],
     body: [
       'GPUラックは、最初から要りません。小さな機器1台で、1つの業務を試すところから始められます。',
+      '規模が大きくなったときは、機器の構成も施設に合わせてご相談いただけます。',
     ],
+    figure: 'hardware',
+    notes: ['hardwareImage'],
     price: {
       label: 'PoC',
       amount: '30万円〜',
@@ -113,7 +117,7 @@ export const BEATS: { readonly [Id in BeatId]: Beat } = {
     points: [
       {
         title: '業務を1つ選ぶ',
-        text: 'クラウドには出せないけれど、AIに任せたい業務を1つ。',
+        text: 'クラウドには出せないけれど、AIに任せたい業務を1つ。紹介状の作成、院内文書の検索、説明資料づくり、音声からの文書化などから選べます。',
       },
       {
         title: '院内に1台置く',

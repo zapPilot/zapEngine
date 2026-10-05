@@ -4,6 +4,12 @@ import type { FigureId } from '../story/types';
 import { ICONS, SKETCH } from './icons';
 import { markup, type Markup } from './markup';
 
+const HARDWARE_ASSETS = [
+  { name: 'studio', width: 420, height: 245 },
+  { name: 'rack', width: 460, height: 191 },
+  { name: 'infra', width: 640, height: 549 },
+] as const;
+
 export function createFigures(story: Story) {
   const { CHAT_UI, DEMO_FIGURES, DEMOS, footnote, FIGURES } = story;
   // Diagrams shared by the landing page and the decks. Sizes inside use
@@ -122,6 +128,13 @@ export function createFigures(story: Story) {
     )}</ol>`;
   }
 
+  function hardware(): Markup {
+    return markup`<ul class="hw">${HARDWARE_ASSETS.map((asset, index) => {
+      const size = FIGURES.hardware.sizes[index]!;
+      return markup`<li class="${index === 0 ? 'is-start' : ''}"><div class="hw-image"><img src="/assets/${asset.name}.webp" width="${asset.width}" height="${asset.height}" alt="${size.alt}" loading="lazy" decoding="async" /></div><strong>${size.label}</strong><span>${size.note}</span></li>`;
+    })}</ul>`;
+  }
+
   function partnerRoles(): Markup {
     const { client, partner, kokode } = FIGURES.partnerRoles;
     const node = (role: { readonly title: string; readonly text: string }) =>
@@ -141,14 +154,25 @@ export function createFigures(story: Story) {
     demoImage: imageDemo,
     turnkey,
     partnerRoles,
+    hardware,
   };
 
   function caption(id: FigureId, demo: DemoId | undefined): string {
     if (demo) return DEMOS[demo].caption;
-    if (id === 'beforeAfter') return FIGURES.beforeAfter.caption;
-    if (id === 'boundary') return FIGURES.boundary.caption;
-    if (id === 'turnkey') return FIGURES.turnkey.caption;
-    return FIGURES.partnerRoles.caption;
+    const captions: Record<
+      Exclude<FigureId, 'experience' | 'demoPatient' | 'demoImage'>,
+      string
+    > = {
+      beforeAfter: FIGURES.beforeAfter.caption,
+      boundary: FIGURES.boundary.caption,
+      turnkey: FIGURES.turnkey.caption,
+      partnerRoles: FIGURES.partnerRoles.caption,
+      hardware: FIGURES.hardware.caption,
+    };
+    if (id === 'experience' || id === 'demoPatient' || id === 'demoImage') {
+      throw new Error(`Missing demo caption for ${id}`);
+    }
+    return captions[id];
   }
 
   /**

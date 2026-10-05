@@ -48,7 +48,7 @@ export const META: { readonly [Id in PageId]: PageMeta } = {
     path: '/',
     title: `KOKODE | ${tagline}`,
     description:
-      '院内のネットワークの中だけで使える、医療機関のためのAI。機器の準備から設定までKOKODEが導入します。まずは1台、1つの業務から。',
+      '医療機関のためのオンプレミスAI。院内のネットワークの中だけで使え、機器の準備から設定までKOKODEが導入します。まずは1台、1つの業務から。',
     robots: 'index,follow',
   },
   pitch: {

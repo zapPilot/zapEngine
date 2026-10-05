@@ -1,6 +1,26 @@
 // Labels of the diagrams. They are real text on every surface (HTML and
 // film), never baked into an image, so they stay searchable and reviewable.
 export const FIGURES = {
+  hardware: {
+    caption: '施設の規模に合わせた機器のイメージ',
+    sizes: [
+      {
+        label: '小規模なクリニック',
+        note: 'まずはここから',
+        alt: '院内に置く小型の機器のイメージ',
+      },
+      {
+        label: '中規模の施設',
+        note: '個別にご相談',
+        alt: 'ラックに載せるサーバー機器のイメージ',
+      },
+      {
+        label: '病院・研究機関',
+        note: '個別にご相談',
+        alt: 'サーバーラックを並べた構成のイメージ',
+      },
+    ],
+  },
   beforeAfter: {
     caption: '患者データの行き先：これまでのクラウドのAIと、KOKODE',
     inside: '院内',

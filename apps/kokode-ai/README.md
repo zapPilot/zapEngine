@@ -18,12 +18,13 @@ pnpm --filter @zapengine/kokode-ai ops check
 
 ## Pages and copy
 
-| Path              | What                                          |
-| ----------------- | --------------------------------------------- |
-| `/`               | Landing page with the pilot form (`#contact`) |
-| `/pitch/`         | Deck for doctors, 12 slides, noindex          |
-| `/pitch/partner/` | Deck for sales partners, 13 slides, noindex   |
-| `/privacy.html`   | Privacy policy, hand-written                  |
+| Path                      | What                                          |
+| ------------------------- | --------------------------------------------- |
+| `/`                       | Landing page with the pilot form (`#contact`) |
+| `/pitch/`                 | Deck for doctors, 12 slides, noindex          |
+| `/pitch/partner/`         | Deck for sales partners, 13 slides, noindex   |
+| `/og/{ja,en,zh-Hant}.png` | Localized 1200×630 sharing cards              |
+| `/privacy.html`           | Privacy policy, hand-written                  |
 
 Each of the first three pages is prerendered in Japanese (the paths above),
 English (`/en/…`) and Traditional Chinese (`/zh/…`, `zh-Hant`). Language
@@ -116,3 +117,67 @@ new adoption migration is pending, then an empty post-push dry-run. Deployment
 ops check --strict requires that adoption version to be recorded. The monorepo
 site has not been published; verify www.kokode.xyz and its waitlist again after
 the Pages/Environment cutover before retiring the old repository.
+
+## Assets and sharing cards
+
+The single copy source and canonical lead flow remain in this workspace. The
+former site's hardware imagery is adapted into a scale figure; its branded logo
+and sharing card are retired. No GENBA artwork should be served.
+
+| Source asset  | Decision                        | Original SHA-256 (`f1359c1a9^`)                                    |
+| ------------- | ------------------------------- | ------------------------------------------------------------------ |
+| `studio.webp` | Keep, display at compact size   | `3ebb743b0c11049018f01542ec98c7e1e9b6e88dc348dd48b74db646aab6f371` |
+| `rack.webp`   | Restore; display at ≤320 CSS px | `c7ae29c332b466f065cc0a529772844b0b073e35156f6441aacd8680616ed404` |
+| `infra.webp`  | Restore, crop and optimize      | `ef1b2e06ab35342d3bfe3b528bef7dff800bc139f05cf8950e5936fd56f6b341` |
+| `logo.webp`   | Drop retired branding           | `0a15ecb6797999de6650baf2eb24af645c79379980934a8348ef44d02773c189` |
+| `og-card.png` | Replace with localized cards    | `448c348c1abe9d54d48d3114d68eb35edc7ca6a9baf101f9a5b3aef4ffbfbed9` |
+| `favicon.svg` | Keep canonical vector symbol    | `09e8bc58051c4cfc1f961594d790508d4d8bc7876fd6e6c6b5b5d2c1debbc896` |
+
+Restore rack/infra with `git show f1359c1a9^:apps/kokode-ai/assets/<name> > apps/kokode-ai/assets/<name>`.
+Infrastructure alpha includes faint noise: Pillow's alpha threshold >16 gives
+content bbox `(109, 167, 1147, 1056)`. Decode the original using `dwebp` then run
+`cwebp -q 82 -alpha_q 90 -crop 109 167 1038 889 -resize 640 0 original.png -o apps/kokode-ai/assets/infra.webp`.
+Studio remains unchanged; the compact rendering limits its visible generation artifacts.
+Image provenance/licensing and third-party-like appearance still need owner review.
+The larger configurations and ongoing update/support statements need commercial
+approval before publication; English/Traditional Chinese additions need native review.
+
+Run `pnpm --filter @zapengine/kokode-ai og:render` on macOS after changing hero
+copy, site name/tagline, the favicon or card layout. The generator uses cached
+Chromium with Hiragino/PingFang and writes committed PNGs and
+`scripts/og.manifest.json`. Tests fail when the exact render input changes.
+All nine pages share their language's card, including noindex decks; smoke checks
+that each card is available as `image/png`.
+
+At cutover, enforce HTTPS: the function allows HTTPS origins, so HTTP visitors
+cannot submit successfully. After validating the new site, freeze the standalone
+repo's `Build and deploy KOKODE` workflow (or archive it): every push there can
+redeploy the shared function and reset its CORS secret. Canonical publication is
+gated by the complete main CI run, including unrelated package failures.
+Restrict the production environment to main before provisioning project credentials.
+After the first successful release, run the self-cleaning lead E2E and verify
+aggregate lead counts against a fresh baseline.
+
+## Consolidation decisions (2026-10-05)
+
+| Area                           | Final decision                                                                                                                                                                |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Lead capture                   | Keep canonical browser queue, handler, migrations and workflow unchanged; strict production check and ten self-cleaning E2E assertions passed, aggregate count stayed at one. |
+| Hero, clinical demos and pilot | Keep canonical pain → demo → boundary → pilot sequence; add document-search and voice examples to match the form.                                                             |
+| Hardware scale                 | Combine canonical start-small story with three illustrative equipment sizes; no retired SKU names, extra prices or availability promises.                                     |
+| Updates and operations         | Restore consultation about updates/support; delivery follows facility network policy, without claiming offline updates already exist.                                         |
+| Pricing and CTA                | Keep one PoC price and consultation CTA; clarify English task ownership and select-based form wording.                                                                        |
+| SEO and sharing                | Add on-premises descriptions and localized cards generated only from story copy; retire GENBA artwork.                                                                        |
+
+Verification: Kokode 157 tests and video 223 tests passed, with type checks,
+build, formatting, nine-page mobile/desktop smoke, all six PDF overflow checks
+and the nonempty changed gate (nine tasks). The adoption SQL fixture was not run
+in this session because local Docker is unavailable; production schema checks
+and lead E2E are separate evidence, not a substitute for migration replay.
+
+Deferred concerns: form facility-size signal, mDNS across VLANs, native review,
+lead idempotency/rate limits/body limits, queue bounds/storage errors, unused
+honeypot, locale/page-URL persistence and privacy-policy alignment. These are
+outside this editorial consolidation; do not broaden CORS for HTTP instead of
+enforcing HTTPS. Provision deployment credentials, move Pages/domain ownership,
+validate the first release and then freeze the old deployment workflow.

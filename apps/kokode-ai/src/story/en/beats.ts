@@ -82,7 +82,7 @@ export const BEATS: { readonly [Id in BeatId]: Beat } = {
     eyebrow: 'Example: explanatory diagrams',
     title: ['Draft presentation diagrams', 'inside.'],
     body: [
-      'Ask for a gluteal anatomy diagram, then turn the line drawing draft into a presentation slide.',
+      'Ask for a gluteal anatomy diagram, and KOKODE drafts the line drawing and arranges it into a presentation slide.',
     ],
     figure: 'demoImage',
     action: { label: 'Try this workflow', interest: 'materials' },
@@ -92,6 +92,7 @@ export const BEATS: { readonly [Id in BeatId]: Beat } = {
     title: ['KOKODE sets it up.', 'Your team uses it.'],
     body: [
       'Equipment, AI models, agents tailored to your workflows and a staff chat interface. KOKODE installs and configures the whole set.',
+      'After installation, we keep models and agents up to date and help with operations. How updates arrive follows your facility’s network policy.',
     ],
     figure: 'turnkey',
   },
@@ -100,7 +101,10 @@ export const BEATS: { readonly [Id in BeatId]: Beat } = {
     title: ['One device.', 'One workflow.'],
     body: [
       'You do not need a GPU rack to start. Begin by trying one workflow on one small device.',
+      'If you outgrow one device, we will size the equipment to your facility with you.',
     ],
+    figure: 'hardware',
+    notes: ['hardwareImage'],
     price: {
       label: 'PoC',
       amount: 'JPY 300,000+',
@@ -113,7 +117,7 @@ export const BEATS: { readonly [Id in BeatId]: Beat } = {
     points: [
       {
         title: 'Choose one workflow',
-        text: 'One task you want AI to handle but cannot send to the cloud.',
+        text: 'One task you want AI to handle but cannot send to the cloud, such as referral letters, searching internal documents, explanatory materials or documents from audio.',
       },
       {
         title: 'Install one device inside',
@@ -127,9 +131,13 @@ export const BEATS: { readonly [Id in BeatId]: Beat } = {
   },
   cta: {
     eyebrow: 'Talk with us',
-    title: ['Bring one task', 'for AI that cannot', 'go to the cloud.'],
+    title: [
+      'Bring one task',
+      'you want AI to handle',
+      'but cannot send to the cloud.',
+    ],
     body: [
-      'Tell us the workflow you want to try. We will walk you through the pilot.',
+      'Choose the workflow you want to try. We will walk you through the pilot.',
     ],
     notes: ['notReplacement'],
     action: { label: 'Discuss your workflow' },
