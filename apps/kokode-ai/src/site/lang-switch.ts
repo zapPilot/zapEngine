@@ -20,4 +20,3 @@ export function languageSwitch(
     <ul class="lang-menu">${LOCALES.map((target) => markup`<li><a href="${pagePath(page, target)}" lang="${target}" hreflang="${target}"${target === locale ? markup` aria-current="true"` : null}>${LOCALE_INFO[target].label}</a></li>`)}</ul>
   </details>`;
 }
-

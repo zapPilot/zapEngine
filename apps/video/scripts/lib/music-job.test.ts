@@ -219,9 +219,10 @@ describe('music job', () => {
   });
 });
 
+// Real inspection via bundled ffmpeg (~5s locally, ~10x slower on CI).
 it(
   'uses real inspection operations for --pick',
-  { timeout: 30000 },
+  { timeout: 120000 },
   async () => {
     const job = await fixture();
     const dir = await existing(job);
