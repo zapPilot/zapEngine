@@ -43,10 +43,7 @@ export async function textToSpeech(
     costLabel?: string;
   },
 ): Promise<TtsSynthesisResult> {
-  const result = await synthesizeWithFishAudio(
-    text,
-    normalizeTtsOptions(opts),
-  );
+  const result = await synthesizeWithFishAudio(text, normalizeTtsOptions(opts));
   return {
     ...result,
     cost: applyFishAudioPricing(result.cost),
