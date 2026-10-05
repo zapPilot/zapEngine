@@ -289,6 +289,9 @@ body.pitch-page {
   margin: 0;
 }
 @media print {
+  .deck-download {
+    display: none;
+  }
   html {
     scroll-snap-type: none;
   }
@@ -310,6 +313,12 @@ body.pitch-page {
     height: 7.5in;
     aspect-ratio: auto;
   }
+}
+
+.deck-download {
+  text-align: center;
+  padding: 1rem;
+  scroll-snap-align: end;
 }
 
 .slide-foot-end {

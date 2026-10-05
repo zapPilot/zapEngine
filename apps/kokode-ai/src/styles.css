@@ -474,13 +474,7 @@ footer {
   aspect-ratio: 16 / 9;
   border-radius: 16px;
 }
-.hero-film figcaption,
-.deck-download {
+.hero-film figcaption {
   text-align: center;
   padding: 1rem;
-}
-@media print {
-  .deck-download {
-    display: none;
-  }
 }

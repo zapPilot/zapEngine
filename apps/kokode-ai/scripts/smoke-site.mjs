@@ -98,6 +98,12 @@ try {
           await page.emulateMedia({ media: 'print' });
           assert.equal(await page.locator('.deck-download').isVisible(), false);
           await page.emulateMedia({ media: 'screen' });
+          await page.locator('.deck-download a').scrollIntoViewIfNeeded();
+          await page.waitForFunction(() => {
+            const link = document.querySelector('.deck-download a');
+            const bounds = link?.getBoundingClientRect();
+            return bounds && bounds.top >= 0 && bounds.bottom <= innerHeight;
+          });
         }
         const image = await page
           .locator('meta[property="og:image"]')
