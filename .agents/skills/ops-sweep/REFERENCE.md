@@ -15,6 +15,9 @@
 | Lint warnings    | `pnpm turbo run lint --filter=<workspace>` where the lint script lacks `--max-warnings 0`             |                                                                                                                                                                                                                                             |
 | knip hints       | `pnpm --filter <workspace> exec knip --treat-config-hints-as-errors` where `deadcode` lacks that flag | Never run `deadcode:fix` blindly.                                                                                                                                                                                                           |
 | What green hides | [coverage review runbook](../../../docs/operations/coverage-review.md)                                | For when the other sources run dry.                                                                                                                                                                                                         |
+| Dependabot       | `gh api 'repos/zapPilot/zapEngine/dependabot/alerts?state=open&per_page=100' --paginate`              | Read package, `manifest_path`, `vulnerable_version_range`, `first_patched_version` and `scope`.                                                                                                                                             |
+| Code scanning    | `gh api 'repos/zapPilot/zapEngine/code-scanning/alerts?state=open&per_page=100' --paginate`           | Enumerate exact alert IDs and rules.                                                                                                                                                                                                        |
+| Audit            | `pnpm run security audit`; Python alone: `pnpm --filter @zapengine/analytics-engine security:audit`   | Read the final summary and exit status, not the job color.                                                                                                                                                                                  |
 
 When the MCP is unavailable (`Connection closed` usually means Infisical is not
 logged in or the checkout lacks `node_modules`), read the snapshot through the
@@ -58,7 +61,8 @@ PR prose alone does not define what already reported means across sessions:
 
 - a render on a superseded `EPISODE_VIDEO_VISUAL_VERSION`, or an abandoned
   episode: reviving one forces a new visual plan and search spend;
-- advisories without patched versions, and secret rotation: exact owner action;
+- advisories still unpatched after the security-audit repair/ignore workflow,
+  and secret rotation: exact owner action;
 - inactive priority accounts: a pricing decision;
 - a Sentry issue whose fix is on main but not yet deployed: the deploy clears it.
 
@@ -106,6 +110,29 @@ work, including an item previously left for the owner.
 If metadata persistence is unavailable or the migration has not deployed, list
 each assessment in the PR and mark persistence unverified; keep diagnosing and
 repairing engineering issues rather than treating missing tracking as healthy.
+
+## Security backlog mechanics
+
+- Order: critical, high runtime, then the rest; ties favor the most alerts cleared.
+  An ignored GHSA that now has a patched release is also a repair item.
+- Find every consumer with `pnpm why -r <pkg>` (for example,
+  `pnpm why -r @xmldom/xmldom`). Run per-item Turbo checks and `dup:check`
+  for each consumer workspace, then rerun the audit.
+- After two failed approaches, restore only the item's manifest/lockfile edits
+  with `git restore` (preserve pre-existing changes), then run
+  `HUSKY=0 pnpm install --frozen-lockfile --offline`. `uv run` automatically
+  resynchronizes analytics-engine; no separate Python install is needed.
+- For a `DIRTY` PR, merge main under the sweep contract. Resolve manifest and
+  override conflicts manually; take main's lockfile with
+  `git checkout --theirs -- <lockfile>`, then regenerate with `pnpm install`
+  or `uv lock`. Never hand-merge lockfile conflict fragments.
+- Revert the resolution constraint and regenerate its lockfile. Directly
+  reverting an older lockfile commit conflicts with later dependency repairs.
+- Across sessions, Dependabot's triage target is the manifest path: use it as a
+  lockfile-level claim. If another sweep has a valid `pr_open` for that lockfile,
+  choose another lockfile or aspect until its `reviewAfter` expires.
+- Actions trap: `run:` without explicit `shell: bash` uses `bash -e` without
+  pipefail; `cmd | tee` can swallow `cmd`'s failure.
 
 ## What merging does
 
@@ -198,10 +225,12 @@ A change that alters one of these is feature work and goes to the owner:
 ## Ops snapshot
 
 Date, non-healthy domains, main CI, Sentry unresolved count, open issues and PRs.
+Dependabot/code-scanning open counts and how many this PR repairs.
 
 ## Done
 
 - `<sha>` item: one line. Fixes #123
+- `<sha>` deps: <pkg> <old> → <new>, alerts <n>, <n> (bot PR #<n>)
 
 ## Decisions to review
 
