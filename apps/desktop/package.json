@@ -39,7 +39,7 @@
     "@zapengine/eslint-config": "workspace:*",
     "@zapengine/knip-config": "workspace:*",
     "@zapengine/tsconfig": "workspace:*",
-    "electron": "^39.8.5",
+    "electron": "^41.10.6",
     "electron-builder": "^26.0.12",
     "esbuild": "^0.28.1",
     "eslint": "catalog:",
