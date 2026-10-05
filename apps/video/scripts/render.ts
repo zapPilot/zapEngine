@@ -9,15 +9,24 @@
 import { mkdir, readFile, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 
-import { renderMedia } from '@remotion/renderer';
+import { renderMedia, renderStill } from '@remotion/renderer';
+import {
+  fingerprintOf,
+  readSourceCommit,
+  sha256File,
+  writeSidecar,
+} from '@zapengine/media-release';
 
 import { parseVoManifest } from '../src/timeline/manifest';
+import { buildTimeline } from '../src/timeline/timeline';
+import { captionVersion } from '../src/timeline/versions';
 import { getVideo, videoIds } from '../src/videos/catalog';
 import { cliArgs, requireVideoId, selectedLangs } from './lib/args';
 import { loudnormFilter, parseLoudnorm } from './lib/audio';
 import { prepare } from './lib/bundle';
 import { ffmpeg, mediaDuration } from './lib/media';
 import { publicDir, videoPaths } from './lib/paths';
+import { posterFrame } from './lib/poster';
 import { requireNarration } from './lib/vo-cache';
 
 const { values, positionals } = cliArgs(process.argv.slice(2), {
@@ -25,7 +34,7 @@ const { values, positionals } = cliArgs(process.argv.slice(2), {
 });
 const videoId = requireVideoId(positionals, videoIds);
 const paths = videoPaths(videoId);
-const { storyboard, captionLangs } = getVideo(videoId);
+const { storyboard, captionLangs, fingerprintSource } = getVideo(videoId);
 const langs = selectedLangs(captionLangs, values.lang);
 
 async function loudness(file: string) {
@@ -53,6 +62,9 @@ async function main() {
   for (const lang of langs) {
     const raw = path.join(paths.work, `raw.${lang}.mp4`);
     const video = paths.videoFile(lang);
+    const poster = video.replace(/\.mp4$/, '.poster.jpg');
+    await rm(`${video}.json`, { force: true });
+    await rm(`${poster}.json`, { force: true });
     const { serveUrl, composition, inputProps } = await prepare(
       videoId,
       lang,
@@ -124,6 +136,45 @@ async function main() {
     // its purpose (loudness measurement). A failed render keeps it for
     // debugging.
     await rm(raw, { force: true });
+    const fingerprint =
+      fingerprintSource === undefined
+        ? undefined
+        : fingerprintOf(fingerprintSource(lang));
+    const sourceCommit = readSourceCommit(process.cwd());
+    const renderedAt = new Date().toISOString();
+    await writeSidecar(`${video}.json`, {
+      fingerprint,
+      sha256: await sha256File(video),
+      bytes: size,
+      durationSeconds: seconds,
+      renderedAt,
+      sourceCommit,
+    });
+    if (storyboard.poster) {
+      const frame = posterFrame(
+        buildTimeline(captionVersion(storyboard, lang), manifest).scenes,
+        storyboard.poster,
+      );
+      await renderStill({
+        serveUrl,
+        composition: {
+          ...composition,
+          props: { ...composition.props, captions: false },
+        },
+        inputProps: { ...inputProps, captions: false },
+        frame,
+        imageFormat: 'jpeg',
+        jpegQuality: 95,
+        output: poster,
+      });
+      await writeSidecar(`${poster}.json`, {
+        fingerprint,
+        sha256: await sha256File(poster),
+        bytes: (await stat(poster)).size,
+        renderedAt,
+        sourceCommit,
+      });
+    }
   }
 }
 

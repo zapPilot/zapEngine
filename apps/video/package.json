@@ -4,13 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "remotion bundle src/index.ts",
+    "build": "tsx scripts/prepare-music.ts && remotion bundle src/index.ts",
     "capture": "tsx scripts/capture.ts",
     "check": "tsx scripts/check-narration.ts",
     "clean": "rm -rf build out coverage",
     "deadcode": "knip",
     "deadcode:fix": "knip --fix",
-    "dev": "remotion studio src/index.ts",
+    "dev": "tsx scripts/studio.ts",
     "dup:check": "node ../../scripts/lint/run-jscpd.mjs src",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -26,7 +26,8 @@
     "type-check": "tsc --noEmit -p tsconfig.json",
     "voiceover": "tsx scripts/voiceover.ts",
     "make": "tsx scripts/make.ts",
-    "brand-audio": "tsx scripts/brand-audio.ts"
+    "brand-audio": "tsx scripts/brand-audio.ts",
+    "loop": "tsx scripts/loop.ts"
   },
   "dependencies": {
     "@remotion/google-fonts": "4.0.532",
@@ -57,7 +58,8 @@
     "tsx": "catalog:",
     "typescript": "catalog:",
     "viem": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "@zapengine/media-release": "workspace:*"
   },
   "engines": {
     "node": "24.x"

@@ -32,7 +32,7 @@ const storyboard: Storyboard = {
   tail: 12,
   gap: 6,
   voice,
-  music: { src: 'music/test.mp3', prompt: 'Instrumental' },
+  music: { loop: 'gentle-88' },
   scenes: [
     {
       id: 's',
@@ -218,9 +218,7 @@ it('digests fresh file bytes each time and explains missing files', () => {
     const first = fileDigest(file);
     writeFileSync(file, 'two');
     expect(fileDigest(file)).not.toBe(first);
-    expect(() => fileDigest(path.join(dir, 'missing'))).toThrow(
-      'pnpm video:brand-audio',
-    );
+    expect(() => fileDigest(path.join(dir, 'missing'))).toThrow('brand-audio');
     expect(() => fileDigest(dir)).toThrow();
   } finally {
     rmSync(dir, { recursive: true, force: true });

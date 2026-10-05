@@ -37,7 +37,7 @@ export function fileDigest(file: string): string {
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT')
       throw new Error(
-        `Missing brand asset ${file}; run pnpm video:brand-audio kokode --pick N after human approval`,
+        `Missing brand asset ${file}; run pnpm --filter @zapengine/video brand-audio kokode --pick N after human approval`,
       );
     throw error;
   }

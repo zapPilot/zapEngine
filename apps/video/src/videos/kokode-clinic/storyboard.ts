@@ -1,8 +1,8 @@
 import type { SceneSpec, Storyboard } from '../../timeline/types';
 import {
-  type BeatId,
   FILM,
   FILM_ORDER,
+  type FilmBeatId,
   type FilmScene,
   type FilmSceneId,
   voLines,
@@ -15,7 +15,7 @@ import {
 
 /** The story copy a scene renders. */
 interface FilmProps {
-  readonly beats: readonly BeatId[];
+  readonly beats: readonly FilmBeatId[];
   readonly film: FilmScene;
 }
 
@@ -85,6 +85,7 @@ const vo = (id: FilmSceneId) => voLines(FILM[id].lines);
  */
 export const storyboard = {
   id: 'kokode-clinic',
+  poster: { scene: 'turn', at: 0.85 },
   fps: 30,
   width: 1920,
   height: 1080,
@@ -94,11 +95,9 @@ export const storyboard = {
   tail: 18,
   gap: 10,
   music: {
-    src: 'music/kokode-clinic.mp3',
+    loop: 'gentle-88',
     base: 1,
     ducked: 0.2,
-    prompt:
-      'Instrumental only, absolutely no vocals, voices, humming or choir. Duration 85 seconds, clean ending. Underscore for a medical technology advertisement beneath English narration. 88 BPM, C major. Soft felt piano arpeggios, warm analog pads, gentle plucked bass, extremely light brushed percussion and fingerpicked pulses entering at 0:14. Sparse 1–4 kHz region for speech, no dominant lead melody. [0:00–0:14] sparse questioning suspenseful chords; [0:14–0:30] pulse enters, hopeful; [0:30–1:05] steady confident gradual layering; [1:05–1:25] warm rising resolution and clean cadence. No drops, risers, heavy bass, distortion, EDM or cinematic impacts. Begin audible music immediately, no silent intro.',
   },
   voice: { speed: 1, voice: 'adrian' },
   captions: { lang: 'ja', relation: 'translation' },

@@ -462,3 +462,25 @@ footer {
     margin-left: auto;
   }
 }
+
+.hero-film {
+  margin: 2rem auto 0;
+  max-width: 960px;
+  width: 100%;
+}
+.hero-film video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 16px;
+}
+.hero-film figcaption,
+.deck-download {
+  text-align: center;
+  padding: 1rem;
+}
+@media print {
+  .deck-download {
+    display: none;
+  }
+}

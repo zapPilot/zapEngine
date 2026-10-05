@@ -110,11 +110,9 @@ export const storyboard = {
   tail: 14,
   gap: 9,
   music: {
-    src: 'music/calculator-pitch.mp3',
+    loop: 'drive-112',
     base: 1,
     ducked: 0.2,
-    prompt:
-      'Instrumental only, absolutely no vocals, voices, humming or choir. Duration 70 seconds, clean ending. Underscore beneath English narration for a hackathon product pitch. 112 BPM, A minor resolving to C major. Crisp plucked synthesizer arpeggios, tight soft kick, light hi-hats, clean restrained sub bass, bright airy pads. Precise, forward-moving and optimistic. Sparse midrange for intelligible speech, no dominant lead melody. [0:00–0:12] restrained plucked motif; [0:12–0:30] light rhythmic momentum; [0:30–0:50] confident layered progression; [0:50–1:10] optimistic resolution into a clear final chord and clean cadence. No vocals or drops, no risers or cinematic impacts. Begin audible music immediately, no silent intro.',
   },
   voice: { speed: 1.06, voice: 'hannah' },
   scenes: [

@@ -1,15 +1,18 @@
+import * as jaMedia from './ja/media';
 import * as jaBeats from './ja/beats';
 import * as jaDemos from './ja/demos';
 import * as jaNotes from './ja/disclaimers';
 import * as jaFigures from './ja/figures';
 import * as jaForm from './ja/form';
 import * as jaSite from './ja/site';
+import * as enMedia from './en/media';
 import * as enBeats from './en/beats';
 import * as enDemos from './en/demos';
 import * as enNotes from './en/disclaimers';
 import * as enFigures from './en/figures';
 import * as enForm from './en/form';
 import * as enSite from './en/site';
+import * as zhMedia from './zh-Hant/media';
 import * as zhBeats from './zh-Hant/beats';
 import * as zhDemos from './zh-Hant/demos';
 import * as zhNotes from './zh-Hant/disclaimers';
@@ -19,6 +22,7 @@ import * as zhSite from './zh-Hant/site';
 import type { Locale } from './locales';
 import type { CopyShape } from './types';
 const ja = {
+  ...jaMedia,
   ...jaBeats,
   ...jaDemos,
   ...jaNotes,
@@ -39,6 +43,7 @@ export type Story = Omit<
 const stories: Record<Locale, Story> = {
   ja: { ...ja, locale: 'ja' },
   en: {
+    ...enMedia,
     ...enBeats,
     ...enDemos,
     ...enNotes,
@@ -48,6 +53,7 @@ const stories: Record<Locale, Story> = {
     locale: 'en',
   },
   'zh-Hant': {
+    ...zhMedia,
     ...zhBeats,
     ...zhDemos,
     ...zhNotes,

@@ -54,6 +54,8 @@ export const FILM_ORDER = [
   { id: 'cta', beats: ['cta', 'hero'] },
 ] as const satisfies readonly Group[];
 
+export type FilmBeatId = (typeof FILM_ORDER)[number]['beats'][number];
+
 export type FilmSceneId = (typeof FILM_ORDER)[number]['id'];
 
 const PAINS: readonly BeatId[] = ['painPatient', 'painContent'];

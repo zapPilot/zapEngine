@@ -44,7 +44,7 @@ export function verifyBrandAsset(
   for (const [key, value] of Object.entries(expected)) {
     if (record[key as keyof typeof record] !== value)
       throw new Error(
-        `Brand asset ${clip.token}: ${key} mismatch; regenerate with pnpm video:brand-audio`,
+        `Brand asset ${clip.token}: ${key} mismatch; regenerate with pnpm --filter @zapengine/video brand-audio`,
       );
   }
 }

@@ -23,6 +23,8 @@ export {
   SITE,
   storyFor,
 } from '../../../../kokode-ai/src/story';
+export type { FilmBeatId } from '../../../../kokode-ai/src/story/film-story';
+export { filmStory } from '../../../../kokode-ai/src/story/film-story';
 
 /** A film line as narration: `ja` is the caption, `en` is what is spoken. */
 export function voLines(lines: readonly FilmLine[]): VoLine[] {

@@ -18,8 +18,10 @@
     "test:coverage": "vitest run --config vitest.config.ts --coverage",
     "test:watch": "vitest --config vitest.config.ts",
     "pitch:pdf": "pnpm run build && node scripts/export-pitch-pdf.mjs",
-    "site:smoke": "pnpm run build && node scripts/smoke-site.mjs",
-    "og:render": "node scripts/render-og.mjs"
+    "site:smoke": "pnpm run build && tsx scripts/smoke-site.mjs",
+    "og:render": "node scripts/render-og.mjs",
+    "media:publish": "tsx scripts/media.ts publish",
+    "media:verify": "tsx scripts/media.ts verify"
   },
   "devDependencies": {
     "@types/node": "^26.6.2",
@@ -29,6 +31,8 @@
     "vitest": "^5.0.1",
     "prettier": "catalog:",
     "@vitest/coverage-v8": "^5.0.1",
-    "playwright-core": "^1.60.0"
+    "playwright-core": "^1.60.0",
+    "@zapengine/media-release": "workspace:*",
+    "tsx": "catalog:"
   }
 }

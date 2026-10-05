@@ -1,11 +1,11 @@
 import { createContext, useContext } from 'react';
 
 import type { CaptionLang } from '../../timeline/types';
-import { storyFor } from './story';
+import { filmStory } from './story';
 
 export const KokodeContext = createContext({
   lang: 'ja' as CaptionLang,
-  story: storyFor('ja'),
+  story: filmStory('ja'),
   fontFamily: 'sans-serif',
 });
 export const useKokode = () => useContext(KokodeContext);

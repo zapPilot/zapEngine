@@ -17,7 +17,7 @@ import { DemoScene } from './scenes/DemoScene';
 import { HookScene } from './scenes/HookScene';
 import { RevealScene } from './scenes/RevealScene';
 import { TurnScene } from './scenes/TurnScene';
-import { storyFor } from './story';
+import { filmStory } from './story';
 import { type KokodeScene, storyboard } from './storyboard';
 import { theme } from './theme';
 
@@ -65,7 +65,9 @@ const LocalizedClinic: FC<VideoProps> = ({ captions, music, lang }) => {
     void load();
   }, [lang, handle]);
   return (
-    <KokodeContext.Provider value={{ lang, story: storyFor(lang), fontFamily }}>
+    <KokodeContext.Provider
+      value={{ lang, story: filmStory(lang), fontFamily }}
+    >
       <NarratedVideo
         storyboard={captionVersion(storyboard, lang)}
         timeline={timelines[lang]}

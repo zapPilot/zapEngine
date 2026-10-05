@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'apps/kokode-ai/**'
+      - 'packages/media-release/**'
       - 'supabase/functions/genba-lead/**'
       - 'supabase/migrations/*kokode*'
       - '.github/workflows/kokode-pages.yml'
@@ -69,6 +70,7 @@ jobs:
           filters: |
             kokode:
               - 'apps/kokode-ai/**'
+              - 'packages/media-release/**'
               - 'supabase/functions/genba-lead/**'
               - 'supabase/migrations/*kokode*'
               - '.github/workflows/kokode-pages.yml'
@@ -98,6 +100,8 @@ jobs:
           VITE_SALES_EMAIL: ${{ vars.VITE_SALES_EMAIL }}
           VITE_SUPPORT_EMAIL: ${{ vars.VITE_SUPPORT_EMAIL }}
           VITE_ANALYTICS_ENDPOINT: ${{ vars.VITE_ANALYTICS_ENDPOINT }}
+      - run: pnpm --filter @zapengine/kokode-ai media:verify
+        if: github.event_name == 'workflow_run'
       - uses: actions/upload-pages-artifact@v3
         if: github.event_name == 'workflow_run'
         with:

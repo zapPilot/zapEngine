@@ -27,28 +27,68 @@ describe('getShots', () => {
   });
 });
 
-it('ships every storyboard music source with matching provenance and README', () => {
-  const readme = readFileSync(path.join(publicDir, 'music/README.md'), 'utf8');
+it('ships bounded loops with matching SHA, mastering and frame-aligned overlap', async () => {
+  const { musicLibrary } = await import('../music/library');
+  const { bedCopies } = await import('../primitives/music-bed');
   for (const id of videoIds) {
     const { storyboard } = getVideo(id);
-    const src = path.join(publicDir, storyboard.music.src);
-    expect(existsSync(src)).toBe(true);
-    expect(readme).toContain(path.basename(src));
-    expect(readme).toContain(storyboard.music.prompt);
-    const metadata = JSON.parse(
-      readFileSync(src.replace('.mp3', '.json'), 'utf8'),
+    const loop = musicLibrary[storyboard.music.loop];
+    const file = path.join(publicDir, 'music', `${loop.id}.mp3`);
+    const bytes = readFileSync(file);
+    expect(createHash('sha256').update(bytes).digest('hex')).toBe(loop.sha256);
+    expect(bytes.length).toBeLessThanOrEqual(600 * 1024);
+    expect(loop.report.durationSeconds).toBeGreaterThanOrEqual(
+      (loop.periodSamples + loop.crossfadeSamples) / loop.sampleRate,
     );
-    expect(metadata.prompt).toBe(storyboard.music.prompt);
-    expect(metadata.sha256).toBe(
-      createHash('sha256').update(readFileSync(src)).digest('hex'),
-    );
+    expect(Math.abs(loop.report.loudness.i + 18)).toBeLessThanOrEqual(1);
+    expect(loop.report.loudness.tp).toBeLessThanOrEqual(-2);
     const manifest = parseVoManifest(
       JSON.parse(readFileSync(videoPaths(id).voManifest, 'utf8')),
     );
-    const seconds =
-      buildTimeline(storyboard, manifest).durationInFrames / storyboard.fps;
-    expect(metadata.report.durationSeconds).toBeGreaterThanOrEqual(seconds + 2);
-    expect(metadata.report.leadingSilenceSeconds).toBeLessThanOrEqual(0.3);
-    expect(metadata.report.loudness.tp).toBeLessThanOrEqual(-2);
+    const duration = buildTimeline(storyboard, manifest).durationInFrames;
+    expect(
+      bedCopies(
+        duration,
+        loop.periodSamples / 1600,
+        loop.crossfadeSamples / 1600,
+      ).at(-1)!.from,
+    ).toBeLessThan(duration);
+    const source = path.resolve(publicDir, '..', loop.source.file);
+    expect(existsSync(source)).toBe(true);
+    expect(
+      createHash('sha256').update(readFileSync(source)).digest('hex'),
+    ).toBe(loop.source.sha256);
   }
 });
+
+it('recomputes encoded loop seams in CI', async () => {
+  const { mkdtemp, rm } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { musicLibrary } = await import('../music/library');
+  const { decodePcm } = await import('../../scripts/lib/loop-job');
+  const { seamMetrics } = await import('../../scripts/lib/dsp');
+  const work = await mkdtemp(path.join(tmpdir(), 'loop-seams-'));
+  try {
+    for (const loop of Object.values(musicLibrary)) {
+      const pcm = await decodePcm(
+        path.join(publicDir, 'music', `${loop.id}.mp3`),
+        path.join(work, `${loop.id}.wav`),
+      );
+      const mono = Float64Array.from(
+        pcm.channels[0]!,
+        (x, i) => (x + pcm.channels[1]![i]!) / 2,
+      );
+      const { rho, ...metrics } = seamMetrics(
+        mono,
+        loop.periodSamples,
+        loop.crossfadeSamples,
+        loop.sampleRate,
+      );
+      expect(rho).toBeCloseTo(loop.rho, 8);
+      for (const key of Object.keys(metrics) as (keyof typeof metrics)[])
+        expect(metrics[key]).toBeCloseTo(loop.seam[key], 8);
+    }
+  } finally {
+    await rm(work, { recursive: true, force: true });
+  }
+}, 60000);

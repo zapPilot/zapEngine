@@ -116,3 +116,6 @@ google-service-account*.json
 *.p8
 *.p12
 *.mobileprovision
+
+# Sample-accurate free music beds, regenerated before Studio/bundling/rendering.
+apps/video/public/music/beds/

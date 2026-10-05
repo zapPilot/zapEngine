@@ -2,6 +2,7 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import gentle from '../../public/music/gentle-88.json';
 import { ffmpeg, mediaDuration } from './media';
 import { publicDir, videoPaths, workspaceRoot } from './paths';
 
@@ -12,7 +13,7 @@ describe('media helpers', { timeout: 30_000 }, () => {
   it('runs the bundled ffmpeg and returns its log', async () => {
     const log = await ffmpeg([
       '-i',
-      path.join(publicDir, 'music/kokode-clinic.mp3'),
+      path.join(publicDir, 'music/gentle-88.mp3'),
       '-f',
       'null',
       '-',
@@ -28,8 +29,8 @@ describe('media helpers', { timeout: 30_000 }, () => {
 
   it('measures media duration', async () => {
     await expect(
-      mediaDuration(path.join(publicDir, 'music/kokode-clinic.mp3')),
-    ).resolves.toBeGreaterThan(83.33);
+      mediaDuration(path.join(publicDir, 'music/gentle-88.mp3')),
+    ).resolves.toBeCloseTo(gentle.report.durationSeconds, 3);
   });
 });
 

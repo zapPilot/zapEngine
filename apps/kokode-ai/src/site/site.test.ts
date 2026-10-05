@@ -399,3 +399,75 @@ describe.each(LOCALES)('%s hardware and assets', (locale) => {
     }
   });
 });
+
+describe('media release markup', () => {
+  for (const locale of LOCALES) {
+    it(`${locale}: uses one manifest source and poster with the doctor PDF`, async () => {
+      const { published } = await import('../media/published');
+      const { heroFilm, deckDownload } = await import('./media');
+      const { deckFingerprint } = await import('../media/fingerprints');
+      const saved = { ...published.artifacts };
+      const entry = (id: string) => ({
+        url: `https://media.kokode.xyz/releases/20261005-000000-12345678/${id}`,
+        sha256: 'a'.repeat(64),
+        bytes: 1,
+        contentType: 'application/pdf' as const,
+        fingerprint: 'a'.repeat(64),
+        renderedAt: '2026-10-05T00:00:00.000Z',
+        sourceCommit: 'a'.repeat(40),
+      });
+      try {
+        for (const id of ['film', 'poster', 'doctorDeck', 'partnerDeck'])
+          published.artifacts[`${id}.${locale}`] = entry(`${id}.${locale}`);
+        const story = storyFor(locale);
+        const document = new DOMParser().parseFromString(
+          heroFilm(story).html,
+          'text/html',
+        );
+        const video = document.querySelector('video');
+        expect(document.querySelectorAll('source')).toHaveLength(1);
+        expect(video?.getAttribute('poster')).toBe(
+          published.artifacts[`poster.${locale}`]?.url,
+        );
+        expect(video?.hasAttribute('playsinline')).toBe(true);
+        expect(document.querySelector('source')?.getAttribute('src')).toBe(
+          published.artifacts[`film.${locale}`]?.url,
+        );
+        expect(
+          document.querySelector('figcaption a')?.getAttribute('href'),
+        ).toBe(published.artifacts[`doctorDeck.${locale}`]?.url);
+        for (const page of ['pitch', 'partner'] as const) {
+          const html = renderPage(
+            `<html lang="${locale}"><head><!--kokode:${page}:head--></head><body><!--kokode:${page}:body--></body></html>`,
+          );
+          const deck = new DOMParser().parseFromString(html, 'text/html');
+          expect(deck.querySelector('.deck .deck-download')).toBeNull();
+          expect(
+            deck.querySelector('.deck')?.nextElementSibling?.className,
+          ).toBe('deck-download');
+          expect(
+            deck.querySelector('.deck-download a')?.hasAttribute('data-cta'),
+          ).toBe(false);
+          expect(
+            deck
+              .querySelector('meta[name="kokode-fingerprint"]')
+              ?.getAttribute('content'),
+          ).toBe(deckFingerprint(page, locale));
+          expect(deckDownload(page, story).html).toContain(
+            published.artifacts[
+              `${page === 'pitch' ? 'doctorDeck' : 'partnerDeck'}.${locale}`
+            ]!.url,
+          );
+        }
+        delete published.artifacts[`poster.${locale}`];
+        expect(heroFilm(story).html).toBe('');
+        delete published.artifacts[`doctorDeck.${locale}`];
+        expect(deckDownload('pitch', story).html).toBe('');
+      } finally {
+        for (const id of Object.keys(published.artifacts))
+          delete published.artifacts[id];
+        Object.assign(published.artifacts, saved);
+      }
+    });
+  }
+});

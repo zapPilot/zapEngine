@@ -8,7 +8,12 @@
  * unless every check passes: slide count, no overflow, demo disclaimers and
  * the PDF's page count.
  */
-import { mkdir, writeFile } from 'node:fs/promises';
+import {
+  sha256File,
+  writeSidecar,
+  readSourceCommit,
+} from '@zapengine/media-release';
+import { mkdir, writeFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -99,6 +104,8 @@ function pdfPages(buffer) {
     .length;
 }
 
+for (const deck of DECKS)
+  await rm(path.join(outDir, `${deck.file}.json`), { force: true });
 const server = await preview({
   root: appRoot,
   logLevel: 'warn',
@@ -135,12 +142,23 @@ try {
         `${deck.path}: PDF has ${pages} pages for ${total} slides`,
       );
     }
-    results.push({ ...deck, pdf, pages });
+    const fingerprint = await page
+      .locator('meta[name="kokode-fingerprint"]')
+      .getAttribute('content');
+    if (!fingerprint) throw new Error('Missing deck fingerprint');
+    results.push({ ...deck, pdf, pages, fingerprint });
     await page.close();
   }
   await mkdir(outDir, { recursive: true });
-  for (const { file, pdf, pages } of results) {
+  for (const { file, pdf, pages, fingerprint } of results) {
     await writeFile(path.join(outDir, file), pdf);
+    await writeSidecar(path.join(outDir, `${file}.json`), {
+      fingerprint,
+      sha256: await sha256File(path.join(outDir, file)),
+      bytes: pdf.length,
+      renderedAt: new Date().toISOString(),
+      sourceCommit: readSourceCommit(appRoot),
+    });
     console.log(`✓ output/${file} (${pages} pages)`);
   }
 } finally {

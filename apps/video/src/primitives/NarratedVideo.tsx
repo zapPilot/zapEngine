@@ -9,7 +9,7 @@ import { color } from '../brand/tokens';
 import type { TimedScene, Timeline } from '../timeline/timeline';
 import type { SceneSpec, Storyboard } from '../timeline/types';
 import { Captions } from './Captions';
-import { musicVolume } from './mix';
+import { MusicBed } from './MusicBed';
 
 /**
  * One component per scene id. Exhaustive by type: a storyboard scene without
@@ -130,10 +130,10 @@ export function NarratedVideo<Scene extends SceneSpec>({
         />
       ))}
       {music ? (
-        <Audio
-          name="Music bed"
-          src={staticFile(storyboard.music.src)}
-          volume={(frame) => musicVolume(frame, timeline.voice, mix)}
+        <MusicBed
+          loop={storyboard.music.loop}
+          voice={timeline.voice}
+          mix={mix}
         />
       ) : null}
       {captions ? (

@@ -8,9 +8,13 @@ export default defineKnipConfig(
     // `project`, or knip can never report an unused file or export.
     entry: ['src/index.ts'],
     project: ['src/**/*.{ts,tsx}', 'scripts/**/*.ts'],
-    // Imported through its dist-backed `./tokens` subpath export, which knip
-    // cannot attribute back to the workspace dependency.
-    ignoreDependencies: ['@zapengine/design-tokens'],
+    // Imports resolve through dist-backed workspace exports; Knip cannot
+    // attribute them back to the direct dependencies (render.ts/loop.ts use
+    // media-release; brand imports design-tokens/tokens).
+    ignoreDependencies: [
+      '@zapengine/design-tokens',
+      '@zapengine/media-release',
+    ],
     vitest: {
       config: ['vitest.config.ts'],
       entry: ['src/**/*.test.ts', 'scripts/**/*.test.ts'],

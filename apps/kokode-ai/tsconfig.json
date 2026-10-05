@@ -19,6 +19,7 @@
     "src",
     "vite.config.ts",
     "vitest.config.ts",
-    "../../supabase/functions/genba-lead/handler.ts"
+    "../../supabase/functions/genba-lead/handler.ts",
+    "scripts"
   ]
 }

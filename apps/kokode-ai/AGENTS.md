@@ -33,3 +33,7 @@ its own sequence in `src/story/narrative.ts`. `src/site/` only renders.
 
 - After hero copy changes, run `pnpm --filter @zapengine/kokode-ai og:render`;
   `og.test.ts` rejects stale sharing cards. Never reintroduce GENBA artwork.
+
+# Published sales media
+
+Keep the manifest strict: copy changes affecting a film or deck require `pnpm sales:render kokode && pnpm sales:publish kokode`. Never bypass the media test during bootstrap. Website URLs come only from `src/media/published.ts`. Download controls belong after `</main>` on deck pages. Publisher credentials belong only to Kokode Infisical prod and are read only in `scripts/media.ts`. Keep release uploads outside Turbo.
