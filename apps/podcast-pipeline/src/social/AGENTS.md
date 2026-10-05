@@ -89,6 +89,17 @@ platform-lane assignment table. Once an episode has any durable publish job or
 social post, the waiting-media view stops representing it; durable release state
 owns recovery from that point onward.
 
+## Backlog-aware article cadence
+
+Normal daemon scheduling chooses one shared article cadence from the count of
+wholly unpublished durable episode cohorts: 0-9 queued articles use 4/day
+(09:30, 12:00, 16:00, 21:00 JST), 10-20 use 5/day (09:00, 12:00, 15:00,
+18:00, 21:00), and 21+ use 6/day (09:00, 11:30, 14:00, 16:30, 19:00,
+21:30). A partially published episode is recovery state, not fresh backlog: it
+still fences the queue but does not inflate the cadence tier. Reconciliation may
+move wholly unpublished future cohorts when the tier changes; it must never move
+a live `processing` cohort or reshape a partial release.
+
 ## Manual catch-up exception
 
 `pnpm ops --social-once` is an operator recovery command, not another timing

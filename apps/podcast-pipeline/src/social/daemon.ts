@@ -529,6 +529,7 @@ async function discoverAndEnqueue(input: {
     candidatesByEpisode.set(candidate.episode_id, list);
   }
   const scheduledArticles = releaseBudgetIndex(schedules);
+  let backlogArticles = releaseBacklogArticles(schedules);
   let newCohorts = 0;
   let deferredArticles = 0;
 
@@ -538,6 +539,7 @@ async function discoverAndEnqueue(input: {
       episodeCandidates: candidatesByEpisode.get(episodeId) ?? [],
       schedules,
       scheduledArticles,
+      backlogArticles,
       titleByEpisodeLanguage,
       now: input.now,
       log: input.log,
@@ -546,6 +548,7 @@ async function discoverAndEnqueue(input: {
     });
     if (result.inserted) {
       newCohorts += 1;
+      backlogArticles += 1;
       if (
         input.maxNewCohorts !== undefined &&
         newCohorts >= input.maxNewCohorts
@@ -565,6 +568,7 @@ async function discoverAndEnqueueEpisode(input: {
   episodeCandidates: readonly SocialPublishCandidate[];
   schedules: readonly PendingSocialPublishSchedule[];
   scheduledArticles: Date[];
+  backlogArticles: number;
   titleByEpisodeLanguage: ReadonlyMap<string, string | null>;
   now: Date;
   log: (message: string) => void;
@@ -602,6 +606,7 @@ async function discoverAndEnqueueEpisode(input: {
     title,
     episodeCandidates: input.episodeCandidates,
     scheduledArticles: input.scheduledArticles,
+    backlogArticles: input.backlogArticles,
     now: input.now,
     log: input.log,
     immediateScheduleAt: input.immediateScheduleAt,
@@ -735,6 +740,7 @@ async function enqueueNewCohort(input: {
   title: string | null;
   episodeCandidates: readonly SocialPublishCandidate[];
   scheduledArticles: Date[];
+  backlogArticles: number;
   now: Date;
   log: (message: string) => void;
   immediateScheduleAt?: Date;
@@ -769,6 +775,7 @@ async function enqueueNewCohort(input: {
     scheduledAt = nextReleaseSlot({
       after: new Date(Math.max(readyAt.getTime(), input.now.getTime())),
       scheduled: input.scheduledArticles,
+      backlogArticles: input.backlogArticles + 1,
     });
   }
   if (!scheduledAt) {
@@ -794,6 +801,28 @@ async function enqueueNewCohort(input: {
   });
   if (insertedAny) input.scheduledArticles.push(scheduledAt);
   return { inserted: insertedAny, deferred: false };
+}
+
+/** Number of wholly unpublished durable article cohorts still in the queue. */
+function releaseBacklogArticles(
+  schedules: readonly PendingSocialPublishSchedule[],
+): number {
+  const states = new Map<
+    string,
+    { hasPending: boolean; hasCompleted: boolean }
+  >();
+  for (const schedule of schedules) {
+    const state = states.get(schedule.episode_id) ?? {
+      hasPending: false,
+      hasCompleted: false,
+    };
+    if (schedule.status === 'completed') state.hasCompleted = true;
+    else state.hasPending = true;
+    states.set(schedule.episode_id, state);
+  }
+  return [...states.values()].filter(
+    (state) => state.hasPending && !state.hasCompleted,
+  ).length;
 }
 
 /** One budget entry per episode, never one per platform or language lane. */
@@ -1506,634 +1535,5 @@ function createEpisodeTitleIndex(): EpisodeTitleIndex {
         }
         for (const episodeId of unseen) loadedEpisodeIds.add(episodeId);
       }
-      return titleByEpisodeLanguage;
-    },
-  };
-}
 
-function episodeTitle(
-  titleByEpisodeLanguage: ReadonlyMap<string, string | null>,
-  episodeId: string,
-  languageCode: string,
-): string | null {
-  return (
-    titleByEpisodeLanguage.get(`${episodeId}|zh-Hant`) ??
-    titleByEpisodeLanguage.get(`${episodeId}|${languageCode}`) ??
-    null
-  );
-}
-
-function episodeLabel(title: string | null, episodeId: string): string {
-  return title ? `“${truncateTitle(title)}”` : `episode #${shortId(episodeId)}`;
-}
-
-function shortId(id: string): string {
-  return /^[0-9a-f]{8}-/i.test(id) ? id.slice(0, 8) : id;
-}
-
-function compactLaneLabel(
-  platform: SocialPlatform,
-  languageCode: string,
-): string {
-  return `${platformIcon(platform)}${languageCode}`;
-}
-
-const TERMINAL_METRIC_REVIEW_STATUSES = new Set<string>([
-  'rejected',
-  'self_only',
-]);
-
-export async function collectDueMetricWindows(
-  now: Date,
-  log: (message: string) => void = () => void 0,
-  titleIndex: EpisodeTitleIndex = createEpisodeTitleIndex(),
-  openBrowser?: () => ReturnType<typeof createMetricsBrowserSession>,
-): Promise<number> {
-  const cutoff = new Date(
-    now.getTime() - METRIC_LOOKBACK_DAYS * 24 * 60 * 60_000,
-  ).toISOString();
-  const posts = await listLearningSocialPosts(cutoff);
-  if (posts.length === 0) return 0;
-
-  const [recorded, titleByEpisodeLanguage] = await Promise.all([
-    listMetricWindowsForPosts(posts.map((post) => post.id)),
-    titleIndex.load(posts.map((post) => post.episode_id)),
-  ]);
-  const completed = new Set(
-    recorded.flatMap((row) =>
-      row.measurement_window
-        ? [`${row.social_post_id}:${row.measurement_window}`]
-        : [],
-    ),
-  );
-  const ownsBrowser = !openBrowser;
-  const browser = (openBrowser ?? createMetricsBrowserSession)();
-  const collectors = createMetricCollectors({
-    browser,
-    onThreadsIdentity: async ({ post, platformPostId, postUrl }) => {
-      await updateSocialPostIdentity({ id: post.id, platformPostId, postUrl });
-    },
-    onRednoteIdentity: async ({ post, platformPostId, postUrl }) => {
-      await updateSocialPostIdentity({ id: post.id, platformPostId, postUrl });
-    },
-    onRednoteReviewStatus: async ({ post, reviewStatus }) => {
-      await updateSocialPostReviewStatus({ id: post.id, reviewStatus });
-      log(
-        `⚠️ [social-daemon] ${platformLabel(post.platform)} · ${episodeLabel(episodeTitle(titleByEpisodeLanguage, post.episode_id, post.language_code ?? 'zh-Hant'), post.episode_id)} · review → ${reviewStatus}`,
-      );
-    },
-  });
-
-  let inserted = 0;
-  let unavailable = 0;
-  let retryable = 0;
-  const collectedByWindow = new Map<SocialMetricWindowLabel, number>();
-  try {
-    for (const post of posts) {
-      const window = earliestDueWindow(post, now, completed);
-      if (!window) continue;
-
-      try {
-        const result = await collectPostMetrics(
-          collectors[post.platform],
-          post,
-        );
-        if (result.status === 'retryable') {
-          retryable += 1;
-          continue;
-        }
-        if (result.status === 'unavailable') {
-          await insertSocialPostMetric(
-            buildSocialPostMetric({
-              post,
-              capturedAt: now,
-              counts: EMPTY_COUNTS,
-              details: {
-                platformMetrics: { unavailableReason: result.reason },
-              },
-              measurementWindow: window.label,
-              collectionStatus: 'unavailable',
-            }),
-          );
-          completed.add(`${post.id}:${window.label}`);
-          unavailable += 1;
-          log(
-            `⚠️ [social-daemon] ${platformLabel(post.platform)} · ${episodeLabel(episodeTitle(titleByEpisodeLanguage, post.episode_id, post.language_code ?? 'zh-Hant'), post.episode_id)} · ${window.label} metrics unavailable · ${result.reason}`,
-          );
-          continue;
-        }
-        const { details, ...counts } = result.metrics;
-        await insertSocialPostMetric(
-          buildSocialPostMetric({
-            post,
-            capturedAt: now,
-            counts,
-            details,
-            measurementWindow: window.label,
-            collectionStatus: 'collected',
-          }),
-        );
-        completed.add(`${post.id}:${window.label}`);
-        inserted += 1;
-        collectedByWindow.set(
-          window.label,
-          (collectedByWindow.get(window.label) ?? 0) + 1,
-        );
-      } catch (error) {
-        log(
-          `❌ [social-daemon] ${platformLabel(post.platform)} · ${episodeLabel(episodeTitle(titleByEpisodeLanguage, post.episode_id, post.language_code ?? 'zh-Hant'), post.episode_id)} · ${window.label} metrics failed · post=${post.id} · ${errorMessage(error)}`,
-        );
-      }
-    }
-    if (inserted + unavailable + retryable > 0) {
-      const parts = [] as string[];
-      if (inserted) parts.push(`${inserted} collected`);
-      if (unavailable) parts.push(`${unavailable} unavailable`);
-      if (retryable) parts.push(`${retryable} pending`);
-      const windows = METRIC_WINDOWS.flatMap(({ label }) => {
-        const count = collectedByWindow.get(label) ?? 0;
-        return count > 0 ? [`${label} ×${count}`] : [];
-      });
-      log(
-        `📊 [social-daemon] metrics · ${parts.join(' · ')}${windows.length > 0 ? ` · ${windows.join(' · ')}` : ''}`,
-      );
-    }
-  } finally {
-    if (ownsBrowser) await browser.close();
-  }
-  return inserted;
-}
-
-async function captureAccountSnapshots(
-  now: Date,
-  log: (message: string) => void,
-  openBrowser: () => ReturnType<typeof createMetricsBrowserSession>,
-): Promise<void> {
-  const captured = await captureDueAccountSnapshots({
-    now,
-    openBrowser,
-    closeBrowser: false,
-    log,
-  });
-  if (captured.length > 0) {
-    await collectRollingPostMetrics({
-      now,
-      platforms: captured,
-      browser: openBrowser(),
-      log,
-    });
-  }
-}
-
-export function earliestDueWindow(
-  post: SocialPostRow,
-  now: Date,
-  completed: ReadonlySet<string>,
-): (typeof METRIC_WINDOWS)[number] | null {
-  if (
-    post.review_status &&
-    TERMINAL_METRIC_REVIEW_STATUSES.has(post.review_status)
-  ) {
-    return null;
-  }
-  const publishedAt = Date.parse(post.published_at);
-  if (Number.isNaN(publishedAt)) return null;
-  const ageHours = (now.getTime() - publishedAt) / 3_600_000;
-  const currentWindow = [...METRIC_WINDOWS]
-    .reverse()
-    .find((window) => ageHours >= window.targetHours);
-  if (!currentWindow) return null;
-  return completed.has(`${post.id}:${currentWindow.label}`)
-    ? null
-    : currentWindow;
-}
-
-async function isolate(
-  label: string,
-  log: (message: string) => void,
-  task: () => Promise<void>,
-): Promise<void> {
-  try {
-    await task();
-  } catch (error) {
-    log(`❌ [social-daemon] ${label} failed · ${errorMessage(error)}`);
-    capturePipelineException(error, {
-      component: 'social-daemon',
-      tags: { operation: label },
-      level: 'warning',
-    });
-  }
-}
-
-function formatReleaseCohortRepair(
-  alignment: { alignedLanes: number; rescheduledEpisodes: number },
-  verbose: boolean,
-): string {
-  const laneLabelText = alignment.alignedLanes === 1 ? 'lane' : 'lanes';
-  const articleLabel =
-    alignment.rescheduledEpisodes === 1 ? 'article' : 'articles';
-  if (verbose) {
-    return `📥 [social-daemon] repaired release cohorts · ${alignment.alignedLanes} ${laneLabelText} aligned · ${alignment.rescheduledEpisodes} ${articleLabel} rescheduled`;
-  }
-  return `📋 [social-daemon] Queue repair · ${alignment.rescheduledEpisodes} ${articleLabel} rescheduled · ${alignment.alignedLanes} ${laneLabelText} aligned`;
-}
-
-function logCompactPublishingStart(
-  pendingByEpisodeLanguage: ReadonlyMap<string, SocialPublishJobRow[]>,
-  titleByEpisodeLanguage: ReadonlyMap<string, string | null>,
-  log: (message: string) => void,
-  verbose: boolean,
-): void {
-  if (verbose) return;
-  const firstPendingJob = pendingByEpisodeLanguage.values().next().value![0]!;
-
-  log('');
-  log('────────────────────────────────────────');
-  log(
-    `🚀 [social-daemon] Publishing now · ${formatJst(firstPendingJob.scheduled_at)}`,
-  );
-  log(
-    `   ${episodeLabel(
-      episodeTitle(
-        titleByEpisodeLanguage,
-        firstPendingJob.episode_id,
-        'zh-Hant',
-      ),
-      firstPendingJob.episode_id,
-    )}`,
-  );
-  log('   Preparing release…');
-}
-
-function logCompactPublishingPlatforms(
-  groups: readonly PreparedReleaseGroup[],
-  log: (message: string) => void,
-  verbose: boolean,
-): void {
-  if (verbose || groups.length === 0) return;
-  const platforms = groups
-    .flatMap((group) => group.jobs)
-    .map((job) => operatorPlatformLabel(job.platform))
-    .join(' · ');
-  log(`   Platforms · ${platforms}`);
-}
-
-function logCompactPublishingComplete(
-  groups: readonly PreparedReleaseGroup[],
-  publishStartedAt: number,
-  log: (message: string) => void,
-  verbose: boolean,
-): void {
-  if (verbose || groups.length === 0) return;
-  const durationSeconds = Math.max(
-    1,
-    Math.round((Date.now() - publishStartedAt) / 1_000),
-  );
-  log(
-    `✅ [social-daemon] Published · ${formatJst(new Date().toISOString())} · ${durationSeconds}s`,
-  );
-}
-
-function logPublishedOutcome(
-  job: SocialPublishJobRow,
-  postUrl: string | null,
-  titleByEpisodeLanguage: ReadonlyMap<string, string | null>,
-  log: (message: string) => void,
-  verbose: boolean,
-): void {
-  if (!verbose) {
-    log(`   ✓ ${operatorPlatformLabel(job.platform)} published`);
-    return;
-  }
-  const urlSuffix = postUrl ? ` · ${postUrl}` : '';
-  log(
-    `✅ [social-daemon] ${laneLabel(job.platform, jobLanguage(job))} · ${episodeLabel(episodeTitle(titleByEpisodeLanguage, job.episode_id, jobLanguage(job)), job.episode_id)} · published${urlSuffix}`,
-  );
-}
-
-function logCompactQueueSnapshot(
-  snapshot: Awaited<ReturnType<typeof getSocialQueueSnapshot>>,
-  now: Date,
-  log: (message: string) => void,
-  deferredArticles: number,
-): void {
-  const waitingVideos = snapshot.waitingVideos;
-  if (
-    snapshot.pendingCount === 0 &&
-    waitingVideos.length === 0 &&
-    deferredArticles === 0
-  ) {
-    log('📋 [social-daemon] Queue · clear');
-    return;
-  }
-
-  const scheduledCount = snapshot.episodeQueue.length;
-  const scheduledLabel =
-    scheduledCount === 1 ? 'scheduled article' : 'scheduled articles';
-  const laneLabelText = snapshot.pendingCount === 1 ? 'lane' : 'lanes';
-  log(
-    `📋 [social-daemon] Queue · ${scheduledCount} ${scheduledLabel} · ${snapshot.pendingCount} ${laneLabelText}`,
-  );
-
-  logCompactWaitingVideos(waitingVideos, log);
-  logCompactBacklog(deferredArticles, log);
-  logCompactUpcoming(snapshot.episodeQueue, now, log);
-  logCompactAttention(Object.values(snapshot.nextByLane), log);
-}
-
-function logCompactWaitingVideos(
-  waitingVideos: Awaited<
-    ReturnType<typeof getSocialQueueSnapshot>
-  >['waitingVideos'],
-  log: (message: string) => void,
-): void {
-  if (waitingVideos.length === 0) return;
-  const waitingLabel = waitingVideos.length === 1 ? 'article' : 'articles';
-  log(
-    `⚠️ [social-daemon] Waiting for media · ${waitingVideos.length} ${waitingLabel}`,
-  );
-  for (const item of waitingVideos.slice(0, 3)) {
-    const missingLanguages = item.languageCodes
-      .map((language) => operatorLanguageLabel(language))
-      .join(' · ');
-    log(
-      `   ${episodeLabel(item.title, item.episodeId)} · missing ${missingLanguages}`,
-    );
-  }
-  if (waitingVideos.length > 3) {
-    log(`   +${waitingVideos.length - 3} more`);
-  }
-}
-
-function logCompactBacklog(
-  deferredArticles: number,
-  log: (message: string) => void,
-): void {
-  if (deferredArticles === 0) return;
-  const backlogLabel = deferredArticles === 1 ? 'article' : 'articles';
-  log(
-    `   Backlog · ${deferredArticles} ${backlogLabel} beyond the ${SCHEDULING_HORIZON_DAYS}-day scheduling horizon`,
-  );
-}
-
-function logCompactUpcoming(
-  episodes: Awaited<ReturnType<typeof getSocialQueueSnapshot>>['episodeQueue'],
-  now: Date,
-  log: (message: string) => void,
-): void {
-  if (episodes.length === 0) return;
-  log('📅 [social-daemon] Upcoming');
-  for (const episode of episodes.slice(0, 3)) {
-    const title = episode.title ?? `episode #${shortId(episode.episodeId)}`;
-    const dueLabel =
-      Date.parse(episode.nextAt) <= now.getTime() ? ' · due now' : '';
-    log(`   ${formatJst(episode.nextAt)} · ${truncateTitle(title)}${dueLabel}`);
-  }
-  if (episodes.length > 3) {
-    log(`   +${episodes.length - 3} more scheduled`);
-  }
-}
-
-function logCompactAttention(
-  items: readonly SocialQueueLaneItem[],
-  log: (message: string) => void,
-): void {
-  const attention = items.filter(
-    (item) =>
-      item.status === 'failed' ||
-      item.status === 'processing' ||
-      item.attemptsExhausted,
-  );
-  if (attention.length === 0) return;
-
-  const attentionLabel = attention.length === 1 ? 'lane needs' : 'lanes need';
-  log(
-    `⚠️ [social-daemon] Attention · ${attention.length} ${attentionLabel} review`,
-  );
-  for (const item of attention.slice(0, 3)) {
-    const title = item.title ? `“${truncateTitle(item.title)}” · ` : '';
-    const state = item.attemptsExhausted
-      ? `blocked after ${item.attemptCount} attempts`
-      : item.status;
-    const platform = operatorPlatformLabel(item.platform);
-    const language = operatorLanguageLabel(item.languageCode);
-    log(`   ${platform} · ${language} · ${title}${state}`);
-  }
-  if (attention.length > 3) {
-    log(`   +${attention.length - 3} more`);
-  }
-}
-
-function logQueueSnapshot(
-  snapshot: Awaited<ReturnType<typeof getSocialQueueSnapshot>>,
-  now: Date,
-  log: (message: string) => void,
-  options: { verbose: boolean; deferredArticles: number },
-): void {
-  const waitingVideos = snapshot.waitingVideos;
-  if (!options.verbose) {
-    logCompactQueueSnapshot(snapshot, now, log, options.deferredArticles);
-    return;
-  }
-  if (snapshot.pendingCount === 0 && waitingVideos.length === 0) {
-    log('📥 [social-daemon] queue · 0 jobs · 0 articles');
-    return;
-  }
-
-  for (const item of waitingVideos) {
-    log(
-      `⏳ [social-daemon] ${episodeLabel(item.title, item.episodeId)} · waiting video · ${item.languageCodes.map((language) => languageLabel(language)).join(' · ')}`,
-    );
-  }
-  if (waitingVideos.length > 0) log('');
-
-  log(
-    `📥 [social-daemon] queue · ${snapshot.pendingCount} job${snapshot.pendingCount === 1 ? '' : 's'} · ${snapshot.episodeQueue.length} article${snapshot.episodeQueue.length === 1 ? '' : 's'}`,
-  );
-  snapshot.episodeQueue.forEach((episode, index) => {
-    const title = episode.title ?? `episode #${shortId(episode.episodeId)}`;
-    const laneCount = episode.laneCount;
-    log(
-      `📥 [social-daemon]   ${index + 1}. “${title}” · ${formatJst(episode.nextAt)} (${formatRelative(episode.nextAt, now)})`,
-    );
-    const lanes = formatQueueEpisodeLanes(episode.lanes);
-    log(
-      `📥 [social-daemon]      ↳ ${laneCount} lane${laneCount === 1 ? '' : 's'} · ${lanes}`,
-    );
-  });
-  const nextLanes = Object.values(snapshot.nextByLane).filter(
-    (item) =>
-      item.status === 'failed' ||
-      item.status === 'processing' ||
-      item.attemptsExhausted,
-  );
-  if (snapshot.episodeQueue.length > 0 && nextLanes.length > 0) log('');
-  for (const item of nextLanes) {
-    const title = item.title ? ` “${truncateTitle(item.title)}”` : '';
-    let timing = `${formatJst(item.nextAt)} (${formatRelative(item.nextAt, now)}; ${item.status})`;
-    if (item.attemptsExhausted) {
-      timing = `blocked (${item.attemptCount} attempts exhausted; ${item.status})`;
-    } else if (
-      item.leaseExpiresAt &&
-      Date.parse(item.leaseExpiresAt) > now.getTime()
-    ) {
-      timing = `leased until ${formatJst(item.leaseExpiresAt)}`;
-    }
-    log(
-      `⚠️ [social-daemon] ${laneLabel(item.platform, item.languageCode)}${item.experiment ? ` [${item.experiment}]` : ''} ·${title} · ${timing}`,
-    );
-  }
-}
-
-function warningsOnlyLog(
-  log: (message: string) => void,
-): (message: string) => void {
-  return (message) => {
-    if (message.startsWith('⚠️') || message.startsWith('❌')) log(message);
-  };
-}
-
-function operatorPlatformLabel(platform: SocialPlatform): string {
-  switch (platform) {
-    case 'rednote':
-      return '📕 Rednote';
-    case 'threads':
-      return '🧵 Threads';
-    case 'x':
-      return '𝕏 X';
-    case 'youtube':
-      return '▶️ YouTube';
-  }
-}
-
-function operatorLanguageLabel(language: string): string {
-  switch (language) {
-    case 'zh-Hant':
-      return '🇨🇳 Chinese';
-    case 'ja':
-      return '🇯🇵 Japanese';
-    case 'en':
-      return '🇺🇸 English';
-    default:
-      return languageLabel(language);
-  }
-}
-
-function formatQueueEpisodeLanes(
-  lanes: readonly { platform: SocialPlatform; languageCode: string }[],
-): string {
-  const platformOrder: SocialPlatform[] = [
-    'rednote',
-    'threads',
-    'x',
-    'youtube',
-  ];
-  return [...lanes]
-    .sort(
-      (left, right) =>
-        platformOrder.indexOf(left.platform) -
-          platformOrder.indexOf(right.platform) ||
-        left.languageCode.localeCompare(right.languageCode),
-    )
-    .map((lane) => laneLabel(lane.platform, lane.languageCode))
-    .join(' · ');
-}
-
-function truncateTitle(title: string): string {
-  const normalized = title.replace(/\s+/g, ' ').trim();
-  return normalized.length > 42 ? `${normalized.slice(0, 41)}…` : normalized;
-}
-
-function padTwoDigits(number: number): string {
-  return String(number).padStart(2, '0');
-}
-
-function formatJst(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  const jst = new Date(date.getTime() + JST_OFFSET_MS);
-  return `${padTwoDigits(jst.getUTCMonth() + 1)}/${padTwoDigits(jst.getUTCDate())} ${padTwoDigits(jst.getUTCHours())}:${padTwoDigits(jst.getUTCMinutes())} JST`;
-}
-
-function formatRelative(value: string, now: Date): string {
-  const milliseconds = Date.parse(value) - now.getTime();
-  if (!Number.isFinite(milliseconds) || milliseconds <= 0) return 'due now';
-  const minutes = Math.ceil(milliseconds / 60_000);
-  if (minutes < 60) return `in ${minutes}m`;
-  const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
-  return remainingMinutes
-    ? `in ${hours}h ${remainingMinutes}m`
-    : `in ${hours}h`;
-}
-
-export function fatalSummary(error: unknown): string {
-  if (error instanceof SocialReleaseFailureError) {
-    return `${error.platform}/${error.languageCode} for episode ${error.episodeId} (${error.phase}): ${errorMessage(error.cause)}`;
-  }
-  return errorMessage(error);
-}
-
-export function buildFatalReport(error: unknown): string {
-  const lines = [`❌ [social-daemon] FATAL: ${fatalSummary(error)}`];
-  if (error instanceof SocialReleaseFailureError) {
-    lines.push(
-      `  published before failure: ${error.publishedLanes.join(', ') || '(none)'}`,
-      `  untouched after failure: ${error.untouchedLanes.join(', ') || '(none)'}`,
-    );
-  }
-  return lines.join('\n');
-}
-
-export async function notifyFatalFailure(error: unknown): Promise<void> {
-  try {
-    const [chatId] = getAllowedTelegramUserIds();
-    if (!chatId) return;
-    await sendTelegramNotification(
-      chatId,
-      buildSocialReleaseFailedMessage(fatalSummary(error)),
-    );
-  } catch {
-    // A broken notification channel must never mask the original fatal error.
-  }
-}
-
-if (isMainModule(import.meta.url)) {
-  let lock: SocialDaemonLock;
-  try {
-    lock = await acquireSocialDaemonLock();
-  } catch (error) {
-    if (error instanceof SocialDaemonAlreadyRunningError) {
-      console.error(`🔒 [social-daemon] ${error.message}`);
-      process.exit(1);
-    }
-    throw error;
-  }
-  try {
-    const verbose = process.argv.includes('--verbose');
-    const once = process.argv.slice(2).includes('--once');
-    await recoverOrphanedSocialLeases();
-    await reportLocalPublicationHistory(
-      verbose ? console.log : warningsOnlyLog(console.log),
-    );
-    if (once) {
-      await runSocialCatchUpOnce({ verbose });
-      lock.release();
-    } else {
-      await runSocialDaemon({ verbose });
-    }
-  } catch (error) {
-    console.error(buildFatalReport(error));
-    capturePipelineException(error, {
-      component: 'social-daemon',
-      tags: {
-        operation:
-          error instanceof SocialReleaseFailureError ? error.phase : 'fatal',
-      },
-    });
-    await notifyFatalFailure(error);
-    lock.release();
-    await flushSentry();
-    process.exit(1);
-  }
-}
+[Showing lines 1-1537 of 2169 (50.0KB limit). Use offset=1538 to continue.]

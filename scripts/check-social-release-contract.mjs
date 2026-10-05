@@ -154,31 +154,47 @@ requireMatch(
   /into\s+seed_episode_id[\s\S]*limit\s+1/i,
 );
 
-const policySlotsBlock =
+const policyCadenceBlock =
   policy.match(
-    /export const SOCIAL_RELEASE_SLOTS = \[([\s\S]*?)\]\s+as const/,
+    /export const SOCIAL_RELEASE_CADENCES = \[([\s\S]*?)\]\s+as const/,
   )?.[1] ?? '';
-const policyReleaseSlots = [
-  ...policySlotsBlock.matchAll(/\{\s*hour:\s*(\d+),\s*minute:\s*(\d+)\s*\}/g),
-].map(
-  ([, hour, minute]) => `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`,
-);
-const growthSlotsBlock =
-  growthView.match(/CURRENT_RELEASE_SLOTS_JST = \[([^\]]+)\]/)?.[1] ?? '';
-const growthReleaseSlots = [
-  ...growthSlotsBlock.matchAll(/'(\d{2}:\d{2})'/g),
-].map(([, slot]) => slot);
-const dailyCap = Number(
-  policy.match(/SOCIAL_RELEASE_DAILY_CAP\s*=\s*(\d+)/)?.[1] ?? Number.NaN,
-);
-if (JSON.stringify(policyReleaseSlots) !== JSON.stringify(growthReleaseSlots)) {
+const growthCadenceBlock =
+  growthView.match(
+    /CURRENT_RELEASE_CADENCES_JST = \[([\s\S]*?)\]\s+as const/,
+  )?.[1] ?? '';
+const cadencePattern =
+  /\{\s*minBacklogArticles:\s*(\d+),\s*slots:\s*\[([\s\S]*?)\]\s*,?\s*\}/g;
+const parsePolicyCadences = (block) =>
+  [...block.matchAll(cadencePattern)].map(
+    ([, minBacklogArticles, slotsBlock]) => ({
+      minBacklogArticles: Number(minBacklogArticles),
+      slots: [
+        ...slotsBlock.matchAll(/\{\s*hour:\s*(\d+),\s*minute:\s*(\d+)\s*\}/g),
+      ].map(
+        ([, hour, minute]) =>
+          `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`,
+      ),
+    }),
+  );
+const parseGrowthCadences = (block) =>
+  [...block.matchAll(cadencePattern)].map(
+    ([, minBacklogArticles, slotsBlock]) => ({
+      minBacklogArticles: Number(minBacklogArticles),
+      slots: [...slotsBlock.matchAll(/'(\d{2}:\d{2})'/g)].map(
+        ([, slot]) => slot,
+      ),
+    }),
+  );
+const policyCadences = parsePolicyCadences(policyCadenceBlock);
+const growthCadences = parseGrowthCadences(growthCadenceBlock);
+if (JSON.stringify(policyCadences) !== JSON.stringify(growthCadences)) {
   failures.push(
-    `Control Center GrowthView release slots ${JSON.stringify(growthReleaseSlots)} do not match policy ${JSON.stringify(policyReleaseSlots)}`,
+    `Control Center GrowthView release cadences ${JSON.stringify(growthCadences)} do not match policy ${JSON.stringify(policyCadences)}`,
   );
 }
-if (dailyCap !== growthReleaseSlots.length) {
+if (policyCadences.length !== 3) {
   failures.push(
-    `Control Center GrowthView exposes ${growthReleaseSlots.length} slots but SOCIAL_RELEASE_DAILY_CAP is ${dailyCap}`,
+    `Expected 3 backlog-aware release cadences, found ${policyCadences.length}`,
   );
 }
 
