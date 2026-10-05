@@ -70,6 +70,7 @@ overrides:
   brace-expansion@<1.1.16: '>=1.1.16'
   brace-expansion@>=2.0.0 <5.0.11: '>=5.0.11'
   browserslist@<=4.28.6: '>=4.28.7'
+  dompurify@<3.4.16: '>=3.4.16'
   esbuild@>=0.17.0 <0.28.1: '>=0.28.1'
   expo-dev-client: 57.0.3
   expo-dev-launcher: 57.0.3
