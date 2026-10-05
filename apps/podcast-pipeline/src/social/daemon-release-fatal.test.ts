@@ -124,7 +124,6 @@ import {
   SocialCopyGenerationError,
   SocialReleaseFailureError,
 } from './publish-error.js';
-import { RednoteSemanticRiskError } from './rednote-semantic-risk.js';
 
 // 10:00 JST: inside the window `publishDueJobs` will claim in.
 const NOW = new Date('2026-08-16T01:00:00.000Z');
@@ -400,24 +399,19 @@ describe('social daemon release-shape stages are fatal', () => {
     expect(mocks.captureDueAccountSnapshots).toHaveBeenCalled();
   });
 
-  // A verdict against one note is decided and repeats on restart; a judge that
-  // cannot answer is an outage the next tick recovers from. Holding on the
-  // outage would burn all eight attempts of every zh-Hant article while the
-  // daemon stayed green -- the fail-open shape this gate exists to prevent.
-  it('still fatals when the Rednote judge is unavailable', async () => {
+  // Configuration/deployment errors must remain fatal rather than spending
+  // every article's attempts behind a healthy-looking daemon.
+  it('still fatals when copy preparation cannot read a prompt file', async () => {
     mocks.claimSocialPublishBatch.mockResolvedValue([
       job({ id: 'zh-rednote', platform: 'rednote', language_code: 'zh-Hant' }),
     ]);
     mocks.prepareSocialBatchCopy.mockRejectedValue(
-      new RednoteSemanticRiskError({
-        reason: 'unavailable',
-        message: 'Rednote semantic risk gate could not reach a verdict',
-      }),
+      new Error('Social prompt file missing'),
     );
 
     await expect(
       runSocialDaemonTick({ now: NOW, firstStartedAt: FIRST_STARTED_AT }),
-    ).rejects.toThrow('could not reach a verdict');
+    ).rejects.toThrow('Social prompt file missing');
 
     expect(mocks.failSocialPublishJob).not.toHaveBeenCalled();
   });

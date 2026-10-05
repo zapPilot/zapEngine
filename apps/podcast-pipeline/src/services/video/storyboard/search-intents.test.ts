@@ -1120,6 +1120,10 @@ describe('OpenRouter search intent provider', () => {
       ],
     });
 
+    expect(llmMocks.getOpenRouterConfig).toHaveBeenCalledWith({
+      model: 'openrouter/free',
+      thinkingModel: null,
+    });
     expect(provider.model).toBe('openrouter/free');
     const [, params, , operation] =
       llmMocks.createCompletionWithRetry.mock.calls.at(-1) as [

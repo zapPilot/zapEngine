@@ -607,7 +607,7 @@ describe('generateLanguageClassroomsWithLLM retries', () => {
     // Transport failover is one traversal of the shared chain: the timed-out
     // primary is not retried, the next candidate gets a fresh deadline.
     expect(mockCreate).toHaveBeenCalledTimes(2);
-    expect(requestModels).toEqual(['test/model', 'test/fallback']);
+    expect(requestModels).toEqual(['openrouter/free', 'test/fallback']);
     expect(requestSignals).toHaveLength(2);
     expect(requestSignals[0]).not.toBe(requestSignals[1]);
     expect(requestSignals[0]?.aborted).toBe(true);
@@ -615,7 +615,7 @@ describe('generateLanguageClassroomsWithLLM retries', () => {
     expect(ingestMocks.logIngestEvent).toHaveBeenCalledWith(
       'llm:model-fallback',
       expect.objectContaining({
-        model: 'test/model',
+        model: 'openrouter/free',
         nextModel: 'test/fallback',
         error: 'OpenRouter request timed out after 25ms',
       }),
@@ -809,7 +809,7 @@ describe('generateLanguageClassroomsWithLLM retries', () => {
     expect(ingestMocks.logIngestEvent).toHaveBeenCalledWith(
       'llm:model-fallback',
       expect.objectContaining({
-        model: 'test/model',
+        model: 'openrouter/free',
         nextModel: 'test/fallback',
       }),
     );

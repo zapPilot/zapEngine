@@ -408,7 +408,7 @@ describe('scene alignment', () => {
     ]);
   });
 
-  it('uses LLM_MODEL through the shared OpenRouter config', async () => {
+  it('uses the free router through the shared OpenRouter config', async () => {
     llmMocks.getOpenRouterConfig.mockReturnValue({
       openai: llmMocks.openai,
       model: 'test/llm-model',
@@ -430,6 +430,7 @@ describe('scene alignment', () => {
       endSentenceIds: ['s0001'],
     });
     expect(llmMocks.getOpenRouterConfig).toHaveBeenCalledWith({
+      model: 'openrouter/free',
       thinkingModel: null,
     });
     expect(llmMocks.createOpenRouterChatCompletion).toHaveBeenCalledWith(

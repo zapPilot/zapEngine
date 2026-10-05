@@ -79,9 +79,9 @@ The contract separates pre-scheduling readiness from lane creation:
    backoff) while every other episode still publishes.
 6. `holdCohortsMissingCopy()` generates every claimed language's copy before the
    first transport call. Copy is the last pre-transport step that can fail for
-   one language alone — the Rednote red-line judge runs on `zh-Hant` only — so
-   generating it inside the publish loop shipped `ja` and `en` before the verdict
-   on `zh-Hant` was known. A rejected note holds that whole article the same way
+   one language alone — Rednote lexicon validation runs on `zh-Hant` only — so
+   generating it inside the publish loop can ship `ja` and `en` before the
+   rejection on `zh-Hant` is known. A rejected note holds that whole article the same way
    missing media does.
 
 `social_waiting_media` is an episode-language readiness signal, not a future

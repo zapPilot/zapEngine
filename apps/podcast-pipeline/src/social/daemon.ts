@@ -1074,7 +1074,7 @@ interface PreparedReleaseGroup {
  * Copy generation is the last pre-transport step that can fail for one
  * language of an otherwise healthy article, so every claimed group is written
  * before the first group is published. Generating it inside the publish loop
- * instead meant a Rednote note rejected by the red-line judge arrived after
+ * instead meant a Rednote note rejected by validation arrived after
  * the article's `en` and `ja` lanes were already live -- a permanently partial
  * article, which the cohort contract forbids.
  *
@@ -1086,9 +1086,8 @@ interface PreparedReleaseGroup {
  * retry backoff, and moves the next tick's claim seed on.
  *
  * Everything that is not `SocialCopyGenerationError` is rethrown untouched --
- * a missing episode row, an unreadable prompt file, or a red-line judge that
- * could not answer at all are outages and deployment faults, and holding the
- * article on those would burn all eight attempts of every zh-Hant article
+ * a missing episode row or an unreadable prompt file is a deployment fault,
+ * and holding the article on those would burn all eight attempts
  * while the daemon reported green.
  */
 async function holdCohortsMissingCopy(

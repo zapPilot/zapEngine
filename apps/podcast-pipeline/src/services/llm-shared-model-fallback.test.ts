@@ -108,6 +108,52 @@ afterEach(() => {
 });
 
 describe('shared OpenRouter model fallback', () => {
+  it('omits reasoning for the free primary and preserves it for a paid fallback', async () => {
+    vi.stubEnv('LLM_FALLBACK_MODELS', 'paid/fallback');
+    const timeout = Object.assign(new Error('provider timed out'), {
+      name: 'TimeoutError',
+    });
+    const create = vi
+      .fn()
+      .mockRejectedValueOnce(timeout)
+      .mockResolvedValueOnce(completion('paid/fallback'));
+    await createOpenRouterChatCompletion(
+      client(create),
+      {
+        model: 'openrouter/free',
+        messages: [{ role: 'user', content: 'Return JSON' }],
+        response_format: { type: 'json_object' },
+      },
+      null,
+      { reasoning: { enabled: false } },
+    );
+    const requests = create.mock.calls.map(([request]) => request);
+    expect(requests[0]).toMatchObject({
+      model: 'openrouter/free',
+      response_format: { type: 'json_object' },
+      provider: { require_parameters: true },
+    });
+    expect(requests[0]).not.toHaveProperty('reasoning');
+    expect(requests[1]).toMatchObject({
+      model: 'paid/fallback',
+      reasoning: { enabled: false },
+    });
+    expect(ingestMocks.logIngestEvent).toHaveBeenCalledWith(
+      'llm:request',
+      expect.objectContaining({
+        model: 'openrouter/free',
+        reasoning: 'provider-default',
+      }),
+    );
+    expect(ingestMocks.logIngestEvent).toHaveBeenCalledWith(
+      'llm:request',
+      expect.objectContaining({
+        model: 'paid/fallback',
+        reasoning: 'disabled',
+      }),
+    );
+  });
+
   it('advances from the task primary through LLM_FALLBACK_MODELS after a timeout', async () => {
     vi.stubEnv('LLM_FALLBACK_MODELS', 'fallback/one,fallback/two');
     const timeout = Object.assign(new Error('provider timed out'), {

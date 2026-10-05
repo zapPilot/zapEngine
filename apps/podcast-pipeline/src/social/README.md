@@ -195,8 +195,8 @@ representing the episode; durable release state owns recovery from then on.
 ### Copy generation barrier
 
 Copy is the last pre-transport step that can fail for one language of an
-otherwise healthy article, because the Rednote red-line judge
-(`rednote-semantic-risk.ts`) only runs on `zh-Hant`. It used to be generated
+otherwise healthy article, because Rednote lexicon validation only runs on
+`zh-Hant`. It used to be generated
 inside `publishSocialBatch()`, which the daemon calls once per language in a
 loop — so a note rejected on the third attempt arrived after that article's
 `en` and `ja` lanes were already live. That is a permanently partial article.
@@ -213,7 +213,7 @@ before returning. Threads and Rednote share the zh-Hant row. Ordinary daemon
 retries (including `ops --social-once`) reuse that row even after transport
 failure or partial publication; they never overwrite
 or automatically regenerate it. Missing platform blocks and database read/write
-failures stop the release. Best Title and frozen budget variants come from the localization; the Rednote judge evaluates the actual transport title while Episode title remains Best Title,
+failures stop the release. Best Title and frozen budget variants come from the localization; the deterministic last-mile lexicon checks the actual transport title, body and hashtags,
 and `social_posts` still records only successful publication. Snapshot invalidation
 and the interactive break-glass CLI's explicit edit/regenerate workflow are
 separate from this daemon retry contract. Deploy the root migration before
@@ -230,16 +230,20 @@ Failing the lanes charges one attempt, applies `publishRetryDelayMs`, and moves
 the next tick's seed on.
 
 Only `SocialCopyGenerationError` — the single throw that means "these attempts
-are spent and this copy is decided" — holds the article. A missing prompt file,
-unset OpenRouter config, or a judge that could not reach a verdict at all
-(`RednoteSemanticRiskError` with `reason: 'unavailable'`) stays fatal: those
-recover on the next tick or the next deploy, while holding on them would burn
-all eight attempts of every `zh-Hant` article behind a green daemon.
+are spent and this copy is decided" — holds the article. A missing prompt file
+or unset OpenRouter config stays fatal: holding on deployment faults would burn
+all eight attempts of affected articles behind a green daemon.
+
+Social copy uses `OPENROUTER_FREE_MODEL` (`openrouter/free`) with the shared
+`LLM_FALLBACK_MODELS` transport fallback. The four investment-direction rules
+remain in the writer prompt. R1/R2 retain deterministic lexicon checks during
+generation and before publishing; R3/R4 rely only on the writer prompt. The LLM
+semantic judge was removed on 2026-10-05.
 
 The operator sees one line per held article and the reason in `last_error`:
 
 ```text
-⏸️ [social-daemon] “標題” · release held · copy generation failed 🇨🇳 zh-Hant · Rednote copy breaks investment-direction red lines (…)
+⏸️ [social-daemon] “標題” · release held · copy generation failed 🇨🇳 zh-Hant · rednote.body: Rednote copy must not contain moderation-risk wording (…)
 ```
 
 ```text

@@ -22,11 +22,10 @@ import { POLITICAL_TERMS } from './political.js';
  * - Only grow the lists from real review feedback. A false positive fails copy
  *   generation outright, which is more expensive than one risky post.
  *
- * These lists are the precision half of the gate. They catch wording that can
- * only be an instruction; the framing a term list cannot express — political
- * motive presented as market causation, a prediction stated more strongly than
- * its source — is judged by ../rednote-semantic-risk.ts instead. Neither layer
- * is a topic blacklist.
+ * These lists catch instructional wording. Framing that a term list cannot
+ * express — political motive presented as market causation, or a prediction
+ * stated more strongly than its source — relies only on the writer prompt.
+ * The semantic judge was removed on 2026-10-05. These are not topic blacklists.
  */
 export type SensitiveCategory =
   | 'ad_law'

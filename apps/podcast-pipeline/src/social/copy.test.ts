@@ -14,16 +14,6 @@ vi.mock('../services/llm.js', async (importOriginal) => ({
   getOpenRouterConfig: llmMocks.getOpenRouterConfig,
 }));
 
-// Only the judge's LLM call is stubbed; `readRednoteRiskRules` stays real so the
-// assertions below prove the red-line rules actually reach the writer's prompt.
-// The judge itself is covered by ./rednote-semantic-risk.test.ts.
-const riskMocks = vi.hoisted(() => ({ assertRednoteSemanticRisk: vi.fn() }));
-
-vi.mock('./rednote-semantic-risk.js', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('./rednote-semantic-risk.js')>()),
-  assertRednoteSemanticRisk: riskMocks.assertRednoteSemanticRisk,
-}));
-
 import {
   generateSocialCopy as generateSocialCopyImpl,
   latinLetterRatio,
@@ -31,15 +21,13 @@ import {
   weightedTweetLength,
 } from './copy.js';
 import { SocialCopyGenerationError } from './publish-error.js';
-import { RednoteSemanticRiskError } from './rednote-semantic-risk.js';
 import type { GeneratedSocialCopy } from './types.js';
 
 beforeEach(() => {
   vi.clearAllMocks();
-  riskMocks.assertRednoteSemanticRisk.mockResolvedValue(undefined);
   llmMocks.getOpenRouterConfig.mockReturnValue({
     openai: llmMocks.openai,
-    model: 'deepseek/deepseek-v4-flash',
+    model: 'openrouter/free',
     thinkingModel: null,
     timeoutMs: 120_000,
   });
@@ -149,16 +137,17 @@ describe('generateSocialCopy', () => {
 
     expect(result).toMatchObject({
       copy: { x: { text: '中'.repeat(125) } },
-      model: 'deepseek/deepseek-v4-flash',
+      model: 'openrouter/free',
     });
     expect(llmMocks.getOpenRouterConfig).toHaveBeenCalledWith({
+      model: 'openrouter/free',
       thinkingModel: null,
     });
     expect(llmMocks.createOpenRouterChatCompletion).toHaveBeenCalledTimes(1);
     expect(llmMocks.createOpenRouterChatCompletion).toHaveBeenNthCalledWith(
       1,
       llmMocks.openai,
-      expect.objectContaining({ model: 'deepseek/deepseek-v4-flash' }),
+      expect.objectContaining({ model: 'openrouter/free' }),
       null,
       {
         logContext: {
@@ -181,9 +170,14 @@ describe('generateSocialCopy', () => {
     expect(request?.messages[0]?.content).toContain(
       'Never disguise restricted content with misspellings, homophones, emoji substitutions or coded wording to evade moderation.',
     );
-    expect(request?.messages[0]?.content).toContain(
+    for (const rule of [
       'R1 `asset_allocation_advice`',
-    );
+      'R2 `market_timing_advice`',
+      'R3 `political_market_speculation`',
+      'R4 `strong_prediction_unattributed`',
+    ]) {
+      expect(request?.messages[0]?.content).toContain(rule);
+    }
     expect(request?.messages[0]?.content).toContain(
       'Allowed topic values: macro, btc, eth, defi, stablecoin, traditional_finance, portfolio, market_event, technology.',
     );
@@ -215,24 +209,6 @@ describe('generateSocialCopy', () => {
     );
     expect(prompt).toContain('Episode title');
     expect(prompt).not.toContain('Publisher headline');
-  });
-
-  it('judges the stored transport title while keeping Best Title as episode context', async () => {
-    llmMocks.createOpenRouterChatCompletion.mockResolvedValue(
-      socialCompletion(socialCopyJson('正文')),
-    );
-    const episode = {
-      ...ZH_EPISODE,
-      title: '标'.repeat(30),
-      titleVariants: { '20': { title: '你用USDT买到什么？', method: 'llm' } },
-    };
-    await generateSocialCopy({ episode });
-    expect(riskMocks.assertRednoteSemanticRisk).toHaveBeenCalledWith(
-      expect.objectContaining({
-        rednote: expect.objectContaining({ title: '你用USDT买到什么？' }),
-        episode: expect.objectContaining({ title: '标'.repeat(30) }),
-      }),
-    );
   });
 
   it('never injects learned performance guidance', async () => {
@@ -513,45 +489,7 @@ describe('generateSocialCopy', () => {
     );
   });
 
-  it('retries a semantic red-line verdict with the rule id in the reason', async () => {
-    llmMocks.createOpenRouterChatCompletion
-      .mockResolvedValueOnce(socialCompletion(socialCopyJson('第一版文案')))
-      .mockResolvedValueOnce(socialCompletion(socialCopyJson('修正版文案')));
-    riskMocks.assertRednoteSemanticRisk.mockRejectedValueOnce(
-      new RednoteSemanticRiskError({
-        reason: 'risk',
-        rules: ['market_timing_advice'],
-        message:
-          'Rednote copy breaks investment-direction red lines (market_timing_advice — "退場節奏" (tells the reader when to exit)).',
-      }),
-    );
-
-    await expect(
-      generateSocialCopy({
-        episode: {
-          id: '123e4567-e89b-12d3-a456-426614174000',
-          title: 'Episode title',
-          summary: 'Episode summary',
-          transcript: 'Episode transcript',
-          publishedAt: '2026-08-12T00:00:00.000Z',
-          episodeUrl: 'https://example.com/e/episode',
-          videoDurationSeconds: 180,
-          languageCode: 'zh-Hant',
-          videoUrl: 'https://example.com/video.mp4',
-          videoThumbnailUrl: 'https://example.com/thumbnail.jpg',
-        },
-      }),
-    ).resolves.toMatchObject({ copy: { x: { text: '修正版文案' } } });
-
-    expect(riskMocks.assertRednoteSemanticRisk).toHaveBeenCalledTimes(2);
-    const retryRequest =
-      llmMocks.createOpenRouterChatCompletion.mock.calls[1]?.[1];
-    expect(retryRequest?.messages.at(-1)?.content).toContain(
-      'market_timing_advice',
-    );
-  });
-
-  it('never judges a non-Chinese batch, which has no Rednote block', async () => {
+  it('requests only the X prompt shape for a non-Chinese batch', async () => {
     llmMocks.createOpenRouterChatCompletion.mockResolvedValueOnce(
       socialCompletion(
         JSON.stringify({
@@ -581,7 +519,6 @@ describe('generateSocialCopy', () => {
       },
     });
 
-    expect(riskMocks.assertRednoteSemanticRisk).not.toHaveBeenCalled();
     const systemPrompt = String(
       llmMocks.createOpenRouterChatCompletion.mock.calls[0]?.[1]?.messages[0]
         ?.content,
@@ -597,34 +534,56 @@ describe('generateSocialCopy', () => {
     });
   });
 
+  it('requests only Rednote copy and its investment-direction rules', async () => {
+    const payload = JSON.parse(socialCopyJson('文案'));
+    const rednoteOnly = { topic: payload.topic, rednote: payload.rednote };
+    llmMocks.createOpenRouterChatCompletion.mockResolvedValueOnce(
+      socialCompletion(JSON.stringify(rednoteOnly)),
+    );
+    await expect(
+      generateSocialCopy({
+        episode: ZH_EPISODE,
+        platforms: ['rednote'],
+      }),
+    ).resolves.toMatchObject({
+      copy: {
+        topic: 'macro',
+        rednote: { body: '正文内容' },
+      },
+    });
+    const systemPrompt = String(
+      llmMocks.createOpenRouterChatCompletion.mock.calls[0]?.[1]?.messages[0]
+        ?.content,
+    );
+    expect(systemPrompt).toContain('## Rednote rules');
+    expect(systemPrompt).toContain('R4 `strong_prediction_unattributed`');
+    for (const platform of ['X', 'Threads', 'YouTube']) {
+      expect(systemPrompt).not.toContain(`## ${platform} rules`);
+    }
+    const shape = /exactly this shape:\n(\{[\s\S]*?\})\n\nAllowed topic/u.exec(
+      systemPrompt,
+    )?.[1];
+    expect(JSON.parse(shape!)).toEqual({
+      topic: 'one allowed topic',
+      rednote: {
+        hookType: 'one allowed hook type',
+        body: '...',
+        hashtags: ['tag without #', '...'],
+      },
+    });
+  });
+
   // The production failure this fixes: attempt 2 repaired R1 by breaking R2,
   // and attempt 3 -- which only ever saw R2 -- put R1 straight back.
   it('carries every earlier rejection into the next attempt, not only the last', async () => {
-    llmMocks.createOpenRouterChatCompletion.mockResolvedValue(
-      socialCompletion(socialCopyJson('第一版文案')),
-    );
-    riskMocks.assertRednoteSemanticRisk
-      .mockRejectedValueOnce(
-        new RednoteSemanticRiskError({
-          reason: 'risk',
-          rules: ['asset_allocation_advice'],
-          message: 'Rednote copy breaks red lines (asset_allocation_advice)',
-        }),
-      )
-      .mockRejectedValueOnce(
-        new RednoteSemanticRiskError({
-          reason: 'risk',
-          rules: ['market_timing_advice'],
-          message: 'Rednote copy breaks red lines (market_timing_advice)',
-        }),
-      )
-      .mockRejectedValueOnce(
-        new RednoteSemanticRiskError({
-          reason: 'risk',
-          rules: ['market_timing_advice'],
-          message: 'Rednote copy breaks red lines (market_timing_advice)',
-        }),
-      );
+    const allocation = JSON.parse(socialCopyJson('第一版文案'));
+    allocation.rednote.body = '超配黄金';
+    const timing = JSON.parse(socialCopyJson('第二版文案'));
+    timing.rednote.body = '掌握退场节奏';
+    llmMocks.createOpenRouterChatCompletion
+      .mockResolvedValueOnce(socialCompletion(JSON.stringify(allocation)))
+      .mockResolvedValueOnce(socialCompletion(JSON.stringify(timing)))
+      .mockResolvedValueOnce(socialCompletion(JSON.stringify(allocation)));
 
     await expect(
       generateSocialCopy({ episode: ZH_EPISODE }),
@@ -635,33 +594,11 @@ describe('generateSocialCopy', () => {
         -1,
       )?.content,
     );
-    expect(thirdPrompt).toContain('asset_allocation_advice');
-    expect(thirdPrompt).toContain('market_timing_advice');
+    expect(thirdPrompt).toContain('1. rednote.body:');
+    expect(thirdPrompt).toContain('asset-allocation instruction "超配"');
+    expect(thirdPrompt).toContain('2. rednote.body:');
+    expect(thirdPrompt).toContain('entry-exit timing instruction "退场节奏"');
     expect(thirdPrompt).toContain('without reintroducing any earlier one');
-  });
-
-  it('hands the rejected note back so the retry edits it instead of rerolling', async () => {
-    llmMocks.createOpenRouterChatCompletion.mockResolvedValue(
-      socialCompletion(socialCopyJson('第一版文案')),
-    );
-    riskMocks.assertRednoteSemanticRisk.mockRejectedValueOnce(
-      new RednoteSemanticRiskError({
-        reason: 'risk',
-        rules: ['asset_allocation_advice'],
-        message: 'Rednote copy breaks red lines (asset_allocation_advice)',
-      }),
-    );
-
-    await generateSocialCopy({ episode: ZH_EPISODE });
-
-    const retryPrompt = String(
-      llmMocks.createOpenRouterChatCompletion.mock.calls[1]?.[1]?.messages.at(
-        -1,
-      )?.content,
-    );
-    expect(retryPrompt).toContain('Your previous rednote note was:');
-    expect(retryPrompt).toContain('正文内容');
-    expect(retryPrompt).toContain('Edit only the part that was flagged.');
   });
 });
 

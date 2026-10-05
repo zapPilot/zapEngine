@@ -87,7 +87,15 @@ async function main(): Promise<void> {
     loop.review.sha256 !== sha256
   ) {
     console.error(
-      `✗ ${videoId}: loop ${loop.id} is changed or awaits human listening. Review out/loops/${loop.id}/ previews, then pnpm --filter @zapengine/video loop accept ${loop.id}`,
+      [
+        `✗ ${videoId}: loop ${loop.id} is changed or awaits human listening.`,
+        '',
+        'Run (from repo root, no secrets needed):',
+        `  pnpm --filter @zapengine/video loop cut ${loop.id} --candidates`,
+        `  # listen: apps/video/out/loops/${loop.id}/candidate-*.mp3 + *.seams.mp3 + *.bed.mp3`,
+        `  pnpm --filter @zapengine/video render ${videoId}  # preview film with the pending loop`,
+        `  pnpm --filter @zapengine/video loop accept ${loop.id}  # human-only, after listening`,
+      ].join('\n'),
     );
     process.exit(2);
   }

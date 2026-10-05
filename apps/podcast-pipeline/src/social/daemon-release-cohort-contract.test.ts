@@ -715,7 +715,7 @@ describe('NON-NEGOTIABLE episode release cohort contract', () => {
   });
 
   it('holds the whole article when one language cannot produce copy', async () => {
-    // zh-Hant is claimed last on purpose: the red-line judge only runs on it,
+    // zh-Hant is claimed last on purpose: Rednote validation only runs on it,
     // and generating copy inside the publish loop would have shipped ja and en
     // before the rejection was even known.
     mocks.claimReleaseCohortJobs.mockResolvedValue([

@@ -66,6 +66,7 @@ async function requestEditorialTitle(input: {
   let costUsd = 0;
   let reason = 'invalid_title';
   try {
+    // Title intentionally uses LLM_MODEL: CTR-critical copy with short, low-cost input.
     const config = getOpenRouterConfig({ thinkingModel: null });
     model = config.model;
     const system = readFileSync(

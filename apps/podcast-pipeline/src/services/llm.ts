@@ -19,7 +19,10 @@ import {
   logIngestEvent,
   logPipelineEvent,
 } from './ingest/step.js';
-import { getOpenRouterModelCandidates } from './llm-model-fallback.js';
+import {
+  getOpenRouterModelCandidates,
+  OPENROUTER_FREE_MODEL,
+} from './llm-model-fallback.js';
 
 export interface ScriptResult {
   script: string;
@@ -335,6 +338,10 @@ export function getOpenRouterTimeoutMs(
     : DEFAULT_OPENROUTER_TIMEOUT_MS;
 }
 
+/**
+ * Omitting model selects the paid LLM_MODEL and is reserved for Script / Title.
+ * Every other workload must explicitly pass OPENROUTER_FREE_MODEL.
+ */
 export function getOpenRouterConfig(overrides?: {
   model?: string;
   thinkingModel?: string | null;
@@ -426,7 +433,11 @@ export function withOpenRouterOptions(
     ...params,
     usage: { include: true },
     provider: providerRouting,
-    ...(reasoning ? { reasoning } : {}),
+    // Some free-router endpoints require reasoning and reject enabled:false.
+    // Omit the override for the router; paid candidates retain caller options.
+    ...(reasoning && params.model !== OPENROUTER_FREE_MODEL
+      ? { reasoning }
+      : {}),
   };
 }
 
@@ -496,9 +507,9 @@ function logOpenRouterEvent(
 
 /**
  * One transport policy for every OpenRouter workload. The caller supplies the
- * workload's primary model (`LLM_MODEL` for normal work, `openrouter/free` for
- * translation). A timeout, connection failure, 408/409/429, or 5xx advances to
- * the next model in `LLM_FALLBACK_MODELS`. Payload / semantic validation remains
+ * workload's primary model (LLM_MODEL for Script / Title, OPENROUTER_FREE_MODEL
+ * for every other workload). A timeout, connection failure, 408/409/429, or 5xx
+ * advances to the next model in `LLM_FALLBACK_MODELS`. Payload / semantic validation remains
  * the caller's responsibility and never changes models by itself.
  */
 export async function createOpenRouterChatCompletion(
@@ -560,8 +571,13 @@ async function createOpenRouterChatCompletionOnce(
 ): Promise<OpenRouterChatCompletion> {
   const inputChars = userInputCharacterCount(params.messages);
   const timeoutMs = requestOptions.timeoutMs ?? getOpenRouterTimeoutMs();
-  const reasoning = reasoningLabel(requestOptions.reasoning);
   const routing = requestOptions.providerRouting ?? OPENROUTER_PROVIDER_ROUTING;
+  const request = withOpenRouterOptions(
+    params,
+    requestOptions.reasoning,
+    routing,
+  );
+  const reasoning = reasoningLabel(request.reasoning);
   // Explicit 'unset' rather than an omitted field: an absent output ceiling is
   // exactly the condition worth spotting on the failure line.
   const maxTokens = params.max_tokens ?? 'unset';
@@ -578,11 +594,6 @@ async function createOpenRouterChatCompletionOnce(
     requestOptions.logContext,
   );
 
-  const request = withOpenRouterOptions(
-    params,
-    requestOptions.reasoning,
-    routing,
-  );
   const deadline = combineAbortSignalWithTimeout(
     requestOptions.signal,
     timeoutMs,
@@ -1077,6 +1088,7 @@ export async function generateScriptWithLLM(
   text: string,
   options: GenerateScriptOptions = {},
 ): Promise<ScriptResult> {
+  // Podcast Script intentionally uses the production-quality LLM_MODEL.
   const { openai, model, thinkingModel } = getOpenRouterConfig();
   const system = getSystemPrompt();
   let retryError: ScriptPayloadValidationError | null = null;
@@ -1170,13 +1182,15 @@ export function buildLanguageClassroomUserMessage(
 export async function generateLanguageClassroomsWithLLM(
   input: LanguageClassroomInput,
 ): Promise<LanguageClassroomResult> {
-  const { openai, model, thinkingModel } = getOpenRouterConfig();
+  const { openai, model, thinkingModel } = getOpenRouterConfig({
+    model: OPENROUTER_FREE_MODEL,
+  });
   let costUsd = 0;
   let retryReason: string | null = null;
 
   for (let attempt = 1; ; attempt += 1) {
     // Transport/model failover lives entirely in createOpenRouterChatCompletion
-    // (LLM_MODEL -> shared LLM_FALLBACK_MODELS): a transport error reaching this
+    // (openrouter/free -> shared LLM_FALLBACK_MODELS): an error reaching this
     // layer means every candidate already failed, so it throws immediately
     // instead of replaying the chain. Only unusable payloads are re-prompted,
     // with correction context and rerouted endpoints.

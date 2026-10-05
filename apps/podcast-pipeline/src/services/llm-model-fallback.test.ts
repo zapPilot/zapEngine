@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   getOpenRouterModelCandidates,
+  OPENROUTER_FREE_MODEL,
   parseOpenRouterModelList,
 } from './llm-model-fallback.js';
 
@@ -39,10 +40,11 @@ describe('LLM model fallback config', () => {
     ]);
   });
 
-  it('uses the same fallback list for a task-specific primary such as translation', () => {
+  it('uses the same fallback list for the free-router primary', () => {
     vi.stubEnv('LLM_FALLBACK_MODELS', 'fallback/one,fallback/two');
 
-    expect(getOpenRouterModelCandidates('openrouter/free')).toEqual([
+    expect(OPENROUTER_FREE_MODEL).toBe('openrouter/free');
+    expect(getOpenRouterModelCandidates(OPENROUTER_FREE_MODEL)).toEqual([
       'openrouter/free',
       'fallback/one',
       'fallback/two',

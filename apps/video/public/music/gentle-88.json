@@ -40,6 +40,8 @@
     }
   },
   "review": {
-    "status": "pending"
+    "status": "accepted",
+    "acceptedAt": "2026-10-05T12:06:16.592Z",
+    "sha256": "d27de11eb73241941e851aadcbe478eaab676240d50270f4512411f4b678047a"
   }
 }

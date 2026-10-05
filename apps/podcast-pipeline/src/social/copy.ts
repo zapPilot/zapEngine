@@ -11,8 +11,8 @@ import {
   stripJsonFence,
   unwrapNestedJsonPayload,
 } from '../services/llm.js';
+import { OPENROUTER_FREE_MODEL } from '../services/llm-model-fallback.js';
 import { convertTextToZhCN, convertTextToZhTW } from '../services/opencc.js';
-import { rednoteTransportTitle } from './compose.js';
 import {
   describeSensitiveMatches,
   findSensitiveTerms,
@@ -23,11 +23,6 @@ import {
   THREADS_TOTAL_MAX_CHARACTERS,
 } from './platforms.js';
 import { SocialCopyGenerationError } from './publish-error.js';
-import {
-  assertRednoteSemanticRisk,
-  readRednoteRiskRules,
-  RednoteSemanticRiskError,
-} from './rednote-semantic-risk.js';
 import {
   type GeneratedSocialCopy,
   SOCIAL_HOOK_TYPES,
@@ -380,9 +375,7 @@ export async function generateSocialCopy(input: {
 }): Promise<{ copy: GeneratedSocialCopy; model: string }> {
   const languageCode = input.languageCode ?? input.episode.languageCode;
   const blocks = copyBlocksForPlatforms(input.platforms);
-  // The red-line rules are one file shared with the judge in
-  // ./rednote-semantic-risk.ts, so the writer is held to exactly what the
-  // gate checks.
+  // All four investment-direction rules remain in the writer prompt.
   const [
     commonRules,
     xRules,
@@ -396,22 +389,22 @@ export async function generateSocialCopy(input: {
     blocks.x ? readPrompt('x.md') : Promise.resolve(''),
     blocks.threads ? readPrompt('threads.md') : Promise.resolve(''),
     blocks.rednote ? readPrompt('rednote.md') : Promise.resolve(''),
-    blocks.rednote ? readRednoteRiskRules() : Promise.resolve(''),
+    blocks.rednote ? readPrompt('rednote-risk-rules.md') : Promise.resolve(''),
     blocks.youtube ? readPrompt('youtube.md') : Promise.resolve(''),
     readPrompt(`language/${languageCode}.md`),
   ]);
-  // Social copy is published verbatim, so it runs on the pipeline's configured
-  // LLM_MODEL rather than a free router that silently swaps models per request.
-  const config = getOpenRouterConfig({ thinkingModel: null });
+  // Social copy uses the free router with the shared transport fallback chain.
+  const config = getOpenRouterConfig({
+    model: OPENROUTER_FREE_MODEL,
+    thinkingModel: null,
+  });
 
   let lastError: unknown;
   // Accumulated rather than overwritten: attempt 2 repairing attempt 1's rule
   // by breaking a different one must not leave attempt 3 free to write the
   // first rule back.
   const failures: string[] = [];
-  let previousRednote: GeneratedSocialCopy['rednote'];
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
-    let parsed: GeneratedSocialCopy | undefined;
     try {
       const completion = await createOpenRouterChatCompletion(
         config.openai,
@@ -435,7 +428,6 @@ export async function generateSocialCopy(input: {
               input.episode,
               input.feedback,
               failures,
-              previousRednote,
               input.packagingByPlatform,
             ),
           },
@@ -455,42 +447,19 @@ export async function generateSocialCopy(input: {
         throw new Error('OpenRouter returned empty social copy.');
       }
 
-      parsed = parseGeneratedSocialCopy(content, languageCode, blocks);
-      // The term lists ran inside the schema above. This is the framing half of
-      // the gate, and it has to be here rather than in the schema because it is
-      // an LLM call: a verdict of risk becomes the next attempt's retry reason,
-      // so the model rewrites the note instead of the release failing.
-      if (languageCode === 'zh-Hant' && parsed.rednote) {
-        await assertRednoteSemanticRisk({
-          rednote: {
-            title: rednoteTransportTitle(input.episode),
-            body: parsed.rednote.body,
-            hashtags: parsed.rednote.hashtags,
-          },
-          episode: input.episode,
-        });
-      }
-
-      return { copy: parsed, model: completion.model ?? config.model };
+      return {
+        copy: parseGeneratedSocialCopy(content, languageCode, blocks),
+        model: completion.model ?? config.model,
+      };
     } catch (error) {
-      if (
-        error instanceof RednoteSemanticRiskError &&
-        error.reason === 'unavailable'
-      ) {
-        throw error;
-      }
       lastError = error;
       failures.push(describeValidationFailure(error));
-      // A red-line verdict means this note parsed. Handing it back is what
-      // lets the next attempt edit the flagged sentence instead of rerolling a
-      // whole new note, which can break a different rule.
-      previousRednote = parsed?.rednote ?? previousRednote;
     }
   }
 
   // The only throw that means "these attempts are spent and this copy is
   // decided". Everything above it -- a missing prompt file, unset OpenRouter
-  // config, a judge that could not answer -- is a deployment or outage failure
+  // config -- is a deployment failure
   // and stays an ordinary error, so the daemon keeps treating it as fatal.
   throw new SocialCopyGenerationError({
     episodeId: input.episode.id,
@@ -578,7 +547,6 @@ function buildEpisodePrompt(
   episode: SocialEpisode,
   feedback: string | undefined,
   failures: readonly string[],
-  previousRednote: GeneratedSocialCopy['rednote'],
   packagingByPlatform:
     | Partial<Record<SocialPlatform, PackagingAssignment>>
     | undefined,
@@ -586,7 +554,7 @@ function buildEpisodePrompt(
   const feedbackBlock = feedback?.trim()
     ? `\n\nEditor feedback for this regeneration:\n${feedback.trim()}`
     : '';
-  const retryBlock = buildRetryBlock(failures, previousRednote);
+  const retryBlock = buildRetryBlock(failures);
   const packagingBlocks = Object.entries(packagingByPlatform ?? {})
     .filter((entry): entry is [SocialPlatform, PackagingAssignment] =>
       Boolean(entry[1]),
@@ -605,22 +573,14 @@ function buildEpisodePrompt(
 
 /**
  * A rejected attempt is a rewrite request, not a JSON complaint. Naming every
- * earlier rejection is what stops the loop from oscillating between two rules,
- * and echoing the note back is what makes the next attempt an edit of the
- * flagged sentence rather than a fresh roll of the whole note.
+ * earlier rejection stops the loop from oscillating between two rules.
  */
-function buildRetryBlock(
-  failures: readonly string[],
-  previousRednote: GeneratedSocialCopy['rednote'],
-): string {
+function buildRetryBlock(failures: readonly string[]): string {
   if (failures.length === 0) return '';
   const history = failures
     .map((failure, index) => `${index + 1}. ${failure}`)
     .join('\n');
-  const previousNoteBlock = previousRednote
-    ? `\n\nYour previous rednote note was:\nbody: ${previousRednote.body}\nhashtags: ${previousRednote.hashtags.join(', ')}\nEdit only the part that was flagged. Keep the episode's named subject and the same finding, and leave every sentence that was not flagged exactly as it is.`
-    : '';
-  return `\n\nEarlier attempts were rejected for these reasons, oldest first:\n${history}\nFix the newest reason without reintroducing any earlier one -- an attempt that repairs the last rejection by bringing an earlier one back is rejected again.${previousNoteBlock}\nReturn valid JSON with every required field.`;
+  return `\n\nEarlier attempts were rejected for these reasons, oldest first:\n${history}\nFix the newest reason without reintroducing any earlier one -- an attempt that repairs the last rejection by bringing an earlier one back is rejected again.\nReturn valid JSON with every required field.`;
 }
 
 function describeValidationFailure(error: unknown): string {
