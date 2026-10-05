@@ -75,6 +75,18 @@ export function speechBounds(
   durationSeconds: number,
   keep = 0.06,
 ): SpeechBounds {
+  const span = speechSpan(stderr, durationSeconds);
+  if (span === null) return { start: 0, end: durationSeconds };
+  return {
+    start: Math.max(0, span.start - keep),
+    end: Math.min(durationSeconds, span.end + keep),
+  };
+}
+
+export function silenceIntervals(
+  stderr: string,
+  durationSeconds = Infinity,
+): { start: number; end: number }[] {
   const silences: { start: number; end: number }[] = [];
   for (const [, kind, value] of stderr.matchAll(
     /silence_(start|end): (-?[\d.]+)/g,
@@ -85,6 +97,14 @@ export function speechBounds(
       (silences.at(-1) as { end: number }).end = Number(value);
     }
   }
+  return silences;
+}
+
+export function speechSpan(
+  stderr: string,
+  durationSeconds: number,
+): SpeechBounds | null {
+  const silences = silenceIntervals(stderr, durationSeconds);
   const first = silences[0];
   const last = silences.at(-1);
   const speechStart =
@@ -93,9 +113,9 @@ export function speechBounds(
     last !== undefined && last.end >= durationSeconds - 0.02
       ? last.start
       : durationSeconds;
-  if (speechEnd <= speechStart) return { start: 0, end: durationSeconds };
+  if (speechEnd <= speechStart) return null;
   return {
-    start: Math.max(0, speechStart - keep),
-    end: Math.min(durationSeconds, speechEnd + keep),
+    start: speechStart,
+    end: speechEnd,
   };
 }

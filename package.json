@@ -42,7 +42,8 @@
     "video:stills": "pnpm --filter @zapengine/video stills",
     "video:dev": "pnpm --filter @zapengine/video dev",
     "video:make": "node scripts/env/run.mjs -- pnpm --filter @zapengine/video make",
-    "sales:render": "node scripts/sales-render.mjs"
+    "sales:render": "node scripts/sales-render.mjs",
+    "video:brand-audio": "node scripts/env/run.mjs -- pnpm --filter @zapengine/video brand-audio"
   },
   "devDependencies": {
     "@types/node": "catalog:",

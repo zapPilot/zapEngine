@@ -2,13 +2,15 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { VoManifest } from '../../src/timeline/manifest';
 import type { Storyboard } from '../../src/timeline/types';
+import { BRAND_CLIPS } from './speech-plan';
 import {
   clipFileName,
   droppedLines,
+  fileDigest,
   lineFingerprint,
   missingClips,
   orphanFiles,
@@ -152,4 +154,103 @@ describe('missing generated clips', () => {
       rmSync(root, { recursive: true, force: true });
     }
   });
+});
+
+it('preserves legacy fingerprints and never reads assets for plain lines', () => {
+  const digest = vi.fn();
+  expect(lineFingerprint({ id: 'a', text: 'Hello.' }, voice, { digest })).toBe(
+    '152bbf892c28d0f0',
+  );
+  expect(digest).not.toHaveBeenCalled();
+});
+it('invalidates only brand lines on clip bytes or assembly settings changing', () => {
+  const settings = { voice: 'adrian' as const, speed: 1 };
+  const clips = {
+    kokode: { ...BRAND_CLIPS['kokode']!, status: 'approved' as const },
+  };
+  const line = { id: 'a', text: 'Kokode. Hello.' };
+  const context = { clips, digest: vi.fn(() => 'one'), publicDir: '/assets' };
+  const original = lineFingerprint(line, settings, context);
+  expect(
+    lineFingerprint(line, settings, { ...context, digest: () => 'two' }),
+  ).not.toBe(original);
+  expect(lineFingerprint(line, settings, { ...context, keep: 0.01 })).not.toBe(
+    original,
+  );
+  expect(
+    lineFingerprint(line, settings, { ...context, assemblyVersion: 2 }),
+  ).not.toBe(original);
+  expect(
+    lineFingerprint(line, settings, {
+      ...context,
+      clips: { kokode: { ...clips.kokode, gainDb: 1 } },
+    }),
+  ).not.toBe(original);
+  const sb = {
+    ...storyboard,
+    voice: settings,
+    scenes: [
+      { ...storyboard.scenes[0]!, vo: [line, { id: 'b', text: 'Plain.' }] },
+    ],
+  };
+  const manifest = {
+    videoId: 'v',
+    engine: 'e',
+    voiceKey: 'k',
+    lines: {
+      a: clip(original),
+      b: clip(lineFingerprint({ id: 'b', text: 'Plain.' }, settings)),
+    },
+  };
+  expect(staleLines(sb, manifest, context)).toEqual([]);
+  expect(staleLines(sb, manifest, { ...context, digest: () => 'two' })).toEqual(
+    ['a'],
+  );
+  expect(context.digest).toHaveBeenCalledWith(
+    '/assets/brand/audio/kokode-adrian-ja.mp3',
+  );
+});
+it('digests fresh file bytes each time and explains missing files', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'digest-'));
+  const file = path.join(dir, 'clip.mp3');
+  try {
+    writeFileSync(file, 'one');
+    const first = fileDigest(file);
+    writeFileSync(file, 'two');
+    expect(fileDigest(file)).not.toBe(first);
+    expect(() => fileDigest(path.join(dir, 'missing'))).toThrow(
+      'pnpm video:brand-audio',
+    );
+    expect(() => fileDigest(dir)).toThrow();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+it('uses the default public directory and disk digest for approved clips', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'fingerprint-file-'));
+  const file = path.join(dir, 'source.mp3');
+  writeFileSync(file, 'raw');
+  const settings = { voice: 'adrian' as const, speed: 1 };
+  const line = { id: 'brand', text: 'Kokode' };
+  const clips = {
+    kokode: {
+      ...BRAND_CLIPS['kokode']!,
+      status: 'approved' as const,
+      file: 'source.mp3',
+    },
+  };
+  try {
+    const digest = vi.fn(() => 'digest');
+    lineFingerprint(line, settings, { clips, digest });
+    expect(digest).toHaveBeenCalledWith(
+      expect.stringContaining('/apps/video/public/source.mp3'),
+    );
+    const before = lineFingerprint(line, settings, { clips, publicDir: dir });
+    writeFileSync(file, 'changed');
+    expect(lineFingerprint(line, settings, { clips, publicDir: dir })).not.toBe(
+      before,
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

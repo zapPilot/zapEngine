@@ -5,11 +5,19 @@ import { join } from 'node:path';
 import { ffmpeg } from '../../lib/ffmpeg.js';
 
 const EDGE_TOLERANCE_S = 0.05;
-const RETAIN_S = 0.06;
+const DEFAULT_RETAIN_S = 0.06;
+
+export interface TrimOptions {
+  retainSeconds?: number;
+  minSilenceSeconds?: number;
+  edgeToleranceSeconds?: number;
+}
 
 export function parseSpeechBounds(
   stderrLines: string[],
   durationS: number,
+  retainS = DEFAULT_RETAIN_S,
+  edgeToleranceS = EDGE_TOLERANCE_S,
 ): { startS: number; endS: number } | null {
   let startS = 0;
   let endS = durationS;
@@ -20,15 +28,15 @@ export function parseSpeechBounds(
     const end = /silence_end:\s*([\d.]+)/.exec(line);
     if (!end || silenceStart === null) continue;
     const silenceEnd = Number(end[1]);
-    if (silenceStart <= EDGE_TOLERANCE_S) startS = silenceEnd;
-    if (silenceEnd >= durationS - EDGE_TOLERANCE_S) endS = silenceStart;
+    if (silenceStart <= edgeToleranceS) startS = silenceEnd;
+    if (silenceEnd >= durationS - edgeToleranceS) endS = silenceStart;
     silenceStart = null;
   }
   if (silenceStart !== null) endS = silenceStart;
   if (startS >= endS) return null;
   return {
-    startS: Math.max(0, startS - RETAIN_S),
-    endS: Math.min(durationS, endS + RETAIN_S),
+    startS: Math.max(0, startS - retainS),
+    endS: Math.min(durationS, endS + retainS),
   };
 }
 
@@ -66,28 +74,84 @@ function saveMp3(
   });
 }
 
-export async function trimMp3Silence(audio: Buffer): Promise<Buffer> {
+async function detectSilence(
+  input: string,
+  minSilenceS: number,
+): Promise<string[]> {
+  const lines: string[] = [];
+  await new Promise<void>((resolve, reject) => {
+    ffmpeg(input)
+      .audioFilters(
+        `asetpts=PTS-STARTPTS,silencedetect=noise=-50dB:d=${minSilenceS}`,
+      )
+      .format('null')
+      .on('stderr', (line) => lines.push(line))
+      .on('end', () => resolve())
+      .on('error', reject)
+      .save('/dev/null');
+  });
+  return lines;
+}
+
+export async function measureSilences(
+  audio: Buffer,
+  minSilenceS = 0.01,
+): Promise<{
+  durationSeconds: number;
+  silences: { start: number; end: number }[];
+}> {
   return inAudioWorkspace(async (directory) => {
     const input = join(directory, 'source.mp3');
     await writeFile(input, audio);
-    const lines: string[] = [];
-    await new Promise<void>((resolve, reject) => {
-      ffmpeg(input)
-        .audioFilters('asetpts=PTS-STARTPTS,silencedetect=noise=-50dB:d=0.08')
-        .format('null')
-        .on('stderr', (line) => lines.push(line))
-        .on('end', () => resolve())
-        .on('error', reject)
-        .save('/dev/null');
-    });
+    const lines = await detectSilence(input, minSilenceS);
+    const durationSeconds = durationFromLines(lines);
+    const silences: { start: number; end: number }[] = [];
+    for (const line of lines) {
+      const start = /silence_start:\s*([\d.]+)/.exec(line);
+      if (start)
+        silences.push({ start: Number(start[1]), end: durationSeconds });
+      const end = /silence_end:\s*([\d.]+)/.exec(line);
+      if (end && silences.length)
+        silences[silences.length - 1]!.end = Number(end[1]);
+    }
+    return { durationSeconds, silences };
+  });
+}
+
+export async function trimMp3Silence(
+  audio: Buffer,
+  {
+    retainSeconds = DEFAULT_RETAIN_S,
+    minSilenceSeconds = 0.08,
+    edgeToleranceSeconds = EDGE_TOLERANCE_S,
+  }: TrimOptions = {},
+): Promise<Buffer> {
+  if (
+    !Number.isFinite(retainSeconds) ||
+    retainSeconds < 0 ||
+    !Number.isFinite(minSilenceSeconds) ||
+    minSilenceSeconds <= 0 ||
+    !Number.isFinite(edgeToleranceSeconds) ||
+    edgeToleranceSeconds < 0
+  )
+    throw new Error('Invalid speech trim options');
+  return inAudioWorkspace(async (directory) => {
+    const input = join(directory, 'source.mp3');
+    await writeFile(input, audio);
+    const lines = await detectSilence(input, minSilenceSeconds);
     const durationS = durationFromLines(lines);
-    const bounds = parseSpeechBounds(lines, durationS);
+    const bounds = parseSpeechBounds(
+      lines,
+      durationS,
+      retainSeconds,
+      edgeToleranceSeconds,
+    );
     if (!bounds) throw new Error('MP3 has no speech');
     if (bounds.startS === 0 && bounds.endS === durationS) return audio;
     const output = join(directory, 'trimmed.mp3');
     await saveMp3(
       ffmpeg(input).audioFilters(
-        `atrim=start=${bounds.startS}:end=${bounds.endS},asetpts=PTS-STARTPTS`,
+        `atrim=start=${Number(bounds.startS.toFixed(3))}:end=${Number(bounds.endS.toFixed(3))},asetpts=PTS-STARTPTS`,
       ),
       output,
     );

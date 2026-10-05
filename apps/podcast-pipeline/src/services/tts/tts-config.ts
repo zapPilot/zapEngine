@@ -1,11 +1,9 @@
-export type FishAudioEngine = 's2-pro' | 's1' | 's2.1-pro-free' | (string & {});
-
 export interface FishAudioTtsConfig {
   modelId: string;
-  engine: FishAudioEngine;
+  engine: string;
 }
 
-const DEFAULT_FISH_AUDIO_ENGINE: FishAudioEngine = 's2-pro';
+const DEFAULT_FISH_AUDIO_ENGINE = 's2.1-pro-free';
 
 function getFishAudioReferenceId(): string {
   const referenceId = process.env['FISH_AUDIO_REFERENCE_ID']?.trim();
@@ -15,13 +13,18 @@ function getFishAudioReferenceId(): string {
   return referenceId;
 }
 
-function getFishAudioEngine(): FishAudioEngine {
-  return process.env['FISH_AUDIO_ENGINE']?.trim() || DEFAULT_FISH_AUDIO_ENGINE;
+export function resolveFishAudioEngine(value?: string): string {
+  const engine = value?.trim() || DEFAULT_FISH_AUDIO_ENGINE;
+  if (!engine.endsWith('free'))
+    throw new Error(
+      `Fish Audio only allows free engines; rejected ${engine}. Use FISH_AUDIO_ENGINE=${DEFAULT_FISH_AUDIO_ENGINE}`,
+    );
+  return engine;
 }
 
 export function getTtsConfig(): FishAudioTtsConfig {
   return {
     modelId: getFishAudioReferenceId(),
-    engine: getFishAudioEngine(),
+    engine: resolveFishAudioEngine(process.env['FISH_AUDIO_ENGINE']),
   };
 }

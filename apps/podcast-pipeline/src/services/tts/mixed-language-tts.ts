@@ -4,9 +4,16 @@ import { sleep } from '../../lib/sleep.js';
 import { compactUsageCostLines, type UsageCostLine } from '../cost.js';
 import type { TtsSynthesisResult, TtsSynthesizeOptions } from '../tts.js';
 import { concatMp3Buffers } from './audio-concat.js';
-import { createSilentMp3, trimMp3Silence } from './audio-trim.js';
+import {
+  createSilentMp3,
+  trimMp3Silence,
+  type TrimOptions,
+} from './audio-trim.js';
 import { getRequestDelayMs, synthesize } from './fish-audio.js';
-import type { MixedLanguagePart } from './mixed-language-text.js';
+import {
+  type MixedLanguagePart,
+  SEAM_RETAIN_S,
+} from './mixed-language-text.js';
 import type { FishAudioTtsConfig } from './tts-config.js';
 
 interface ClipStore {
@@ -39,6 +46,11 @@ async function pauseClip(store: ClipStore, ms: number): Promise<Buffer> {
 export async function synthesizeMixedLanguage(
   parts: MixedLanguagePart[],
   opts: TtsSynthesizeOptions,
+  deps: {
+    synthesize?: typeof synthesize;
+    trim?: TrimOptions;
+    requestDelayMs?: number;
+  } = {},
 ): Promise<TtsSynthesisResult> {
   return withEnglishTermClipReuse(async () => {
     const store = clips.getStore()!;
@@ -73,11 +85,15 @@ export async function synthesizeMixedLanguage(
       if (audio) {
         if (part.english) summary.reusedEnglishClips += 1;
       } else {
-        if (summary.fishRequests > 0) await sleep(getRequestDelayMs());
-        const result = await synthesize(part.text, opts);
+        if (summary.fishRequests > 0)
+          await sleep(deps.requestDelayMs ?? getRequestDelayMs());
+        const result = await (deps.synthesize ?? synthesize)(part.text, opts);
         summary.fishRequests += 1;
         costs.push(...result.cost);
-        audio = await trimMp3Silence(result.audio);
+        audio = await trimMp3Silence(
+          result.audio,
+          deps.trim ?? { retainSeconds: SEAM_RETAIN_S },
+        );
         cache.set(key, audio);
       }
       buffers.push(audio);

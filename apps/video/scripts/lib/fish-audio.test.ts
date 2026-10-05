@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { fishRequestInit, synthesize } from './fish-audio';
+import { fishRequestInit, resolveEngine, synthesize } from './fish-audio';
 
 const request = {
   apiKey: 'test-key',
   referenceId: 'voice',
-  engine: 's2-pro',
+  engine: 's2.1-pro-free',
   text: 'Hello.',
   speed: 1.06,
 };
@@ -20,7 +20,7 @@ describe('fishRequestInit', () => {
     expect(init.headers).toEqual({
       authorization: 'Bearer test-key',
       'content-type': 'application/json',
-      model: 's2-pro',
+      model: 's2.1-pro-free',
     });
     expect(JSON.parse(String(init.body))).toEqual({
       text: 'Hello.',
@@ -107,3 +107,26 @@ describe('synthesize', () => {
     }
   });
 });
+it('resolves trimmed engine or the existing default', () => {
+  expect(resolveEngine({})).toBe('s2.1-pro-free');
+  expect(resolveEngine({ FISH_AUDIO_ENGINE: ' ' })).toBe('s2.1-pro-free');
+  expect(resolveEngine({ FISH_AUDIO_ENGINE: ' future-model-free ' })).toBe(
+    'future-model-free',
+  );
+});
+it.each(['s2-pro', 's1', 's2.1-pro', 'free-paid'])(
+  'rejects paid engine %s before fetching',
+  async (engine) => {
+    const fetchImpl = vi.fn();
+    expect(() => resolveEngine({ FISH_AUDIO_ENGINE: engine })).toThrow(
+      'only allows free',
+    );
+    expect(() => fishRequestInit({ ...request, engine })).toThrow(
+      'only allows free',
+    );
+    await expect(
+      synthesize({ ...request, engine }, { fetchImpl }),
+    ).rejects.toThrow('only allows free');
+    expect(fetchImpl).not.toHaveBeenCalled();
+  },
+);

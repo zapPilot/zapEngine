@@ -23,12 +23,13 @@ export interface FishOptions {
 
 /** Request parameters for the storyboard’s declared official English preset. */
 export function fishRequestInit(request: FishRequest): RequestInit {
+  const engine = resolveEngine({ FISH_AUDIO_ENGINE: request.engine });
   return {
     method: 'POST',
     headers: {
       authorization: `Bearer ${request.apiKey}`,
       'content-type': 'application/json',
-      model: request.engine,
+      model: engine,
     },
     body: JSON.stringify({
       text: request.text,
@@ -70,6 +71,7 @@ export async function synthesize(
   request: FishRequest,
   options: FishOptions = {},
 ): Promise<Buffer> {
+  resolveEngine({ FISH_AUDIO_ENGINE: request.engine });
   const {
     attempts = 3,
     retryDelayMs = 2_000,
@@ -87,4 +89,14 @@ export async function synthesize(
       await sleep(retryDelayMs * index);
     }
   }
+}
+
+export const DEFAULT_ENGINE = 's2.1-pro-free';
+export function resolveEngine(env: Record<string, string | undefined>): string {
+  const engine = env['FISH_AUDIO_ENGINE']?.trim() || DEFAULT_ENGINE;
+  if (!engine.endsWith('free'))
+    throw new Error(
+      `Fish Audio only allows free engines; rejected ${engine}. Use FISH_AUDIO_ENGINE=${DEFAULT_ENGINE}`,
+    );
+  return engine;
 }

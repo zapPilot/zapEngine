@@ -20,7 +20,7 @@ import { getTtsMetadata, textToSpeech } from './tts.js';
 describe('Fish Audio TTS facade', () => {
   beforeEach(() => {
     vi.stubEnv('FISH_AUDIO_REFERENCE_ID', 'fish-reference');
-    vi.stubEnv('FISH_AUDIO_ENGINE', 's2-pro');
+    vi.stubEnv('FISH_AUDIO_ENGINE', 's2.1-pro-free');
     mocks.synthesize.mockResolvedValue({
       audio: Buffer.from('fish-audio'),
       cost: [
@@ -28,7 +28,7 @@ describe('Fish Audio TTS facade', () => {
           category: 'tts',
           label: 'TTS audio',
           provider: 'fish-audio',
-          model: 's2-pro',
+          model: 's2.1-pro-free',
           costUsd: 0.00001,
         },
       ],
@@ -54,7 +54,7 @@ describe('Fish Audio TTS facade', () => {
           category: 'tts',
           label: 'TTS audio',
           provider: 'fish-audio',
-          model: 's2-pro',
+          model: 's2.1-pro-free',
           costUsd: 0.00001,
         },
       ],
@@ -64,7 +64,7 @@ describe('Fish Audio TTS facade', () => {
       languageCode: 'zh-Hant',
       config: {
         modelId: 'fish-reference',
-        engine: 's2-pro',
+        engine: 's2.1-pro-free',
       },
       costLabel: 'TTS audio',
     });
@@ -78,7 +78,7 @@ describe('Fish Audio TTS facade', () => {
           category: 'tts',
           label: 'TTS audio',
           provider: 'fish-audio',
-          model: 's2-pro',
+          model: 's2.1-pro-free',
           costUsd: 9,
           usage: { unit: 'utf8_bytes', quantity: 12 },
         },
@@ -103,7 +103,7 @@ describe('Fish Audio TTS facade', () => {
       languageCode: 'en',
       config: {
         modelId: 'fish-reference',
-        engine: 's2-pro',
+        engine: 's2.1-pro-free',
       },
       costLabel: 'English main TTS',
     });

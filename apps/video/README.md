@@ -163,3 +163,11 @@ Current films override base to 1 and ducked to 0.2 after measuring the actual
 Remotion mix: mono narration becomes stereo and final normalization attenuates
 the whole mix. These overrides keep short gaps audible while preserving the
 voice/music separation. Initial fades and natural musical rests remain quieter.
+
+## Brand pronunciation auditions
+
+Run `pnpm video:brand-audio kokode --takes 3`, then `pnpm video:brand-audio kokode --audition`. Takes, raw fragment cache, baseline copies, variant MP3s and `CHECKLIST.md` live under ignored `out/brand-audio/kokode/`. Compare `--take 1 --keep 0.010,0.020,0.060 --pause-scale 0.6,1.3` before choosing.
+
+Only an explicit human choice permits `pnpm video:brand-audio kokode --pick N`. Pick copies exact take bytes to `public/brand/audio/kokode-adrian-ja.mp3` with a validated provenance sidecar; it needs no API key and does not approve the registry. An approved asset cannot be overwritten without `--replace`. Keep selected assets and provenance in Git. The synthesis lexicon substitutes the approved clip inside the English line; captions, story and timeline gaps keep their existing text and structure.
+
+Fish Audio uses only free engines: the current configuration is `FISH_AUDIO_ENGINE=s2.1-pro-free`. Narration, brand takes and auditions reject any engine not ending with `free`, and never fall back to a paid model. Newer provider-supported free versions may be adopted by updating env/runtime defaults and tests together. Free Fish synthesis does not require payment approval; brand selection still requires a named human take. Music generation remains separately paid.

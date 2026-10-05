@@ -72,6 +72,8 @@ function edgeSeam(text: string): string {
     end += 1;
   return text.slice(0, end);
 }
+export const SEAM_RETAIN_S = 0.06;
+
 const SENTENCE_PAUSE_MS = 280;
 const CLAUSE_PAUSE_MS = 100;
 

@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import type { VoManifest } from '../../src/timeline/manifest';
@@ -8,6 +8,14 @@ import type {
   VoiceSettings,
   VoLine,
 } from '../../src/timeline/types';
+import { publicDir as defaultPublicDir } from './paths';
+import {
+  ASSEMBLY_VERSION,
+  BRAND_CLIPS,
+  type BrandClip,
+  planSpeech,
+  SPLICE_KEEP_S,
+} from './speech-plan';
 
 const sha256 = (value: string) =>
   createHash('sha256').update(value).digest('hex');
@@ -16,14 +24,57 @@ const sha256 = (value: string) =>
  * What is spoken and how. A manifest entry whose fingerprint differs from the
  * storyboard line is stale: the words or the voice settings changed.
  */
-export function lineFingerprint(line: VoLine, voice: VoiceSettings): string {
-  return sha256(
-    JSON.stringify({
-      say: line.say ?? line.text,
-      speed: voice.speed,
-      voice: voice.voice,
-    }),
-  ).slice(0, 16);
+export interface FingerprintContext {
+  publicDir?: string;
+  clips?: Record<string, BrandClip>;
+  digest?: (file: string) => string;
+  keep?: number;
+  assemblyVersion?: number;
+}
+export function fileDigest(file: string): string {
+  try {
+    return createHash('sha256').update(readFileSync(file)).digest('hex');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT')
+      throw new Error(
+        `Missing brand asset ${file}; run pnpm video:brand-audio kokode --pick N after human approval`,
+      );
+    throw error;
+  }
+}
+export function lineFingerprint(
+  line: VoLine,
+  voice: VoiceSettings,
+  context: FingerprintContext = {},
+): string {
+  const say = line.say ?? line.text;
+  const plan = planSpeech(say, voice, context.clips ?? BRAND_CLIPS);
+  const payload: Record<string, unknown> = {
+    say,
+    speed: voice.speed,
+    voice: voice.voice,
+  };
+  if (plan.some((part) => part.kind === 'clip')) {
+    payload['splice'] = {
+      keep: context.keep ?? SPLICE_KEEP_S,
+      assemblyVersion: context.assemblyVersion ?? ASSEMBLY_VERSION,
+      parts: plan.map((part) =>
+        part.kind === 'clip'
+          ? {
+              kind: 'clip',
+              sha256: (context.digest ?? fileDigest)(
+                path.join(
+                  context.publicDir ?? defaultPublicDir,
+                  part.clip.file,
+                ),
+              ),
+              gainDb: part.clip.gainDb,
+            }
+          : part,
+      ),
+    };
+  }
+  return sha256(JSON.stringify(payload)).slice(0, 16);
 }
 
 /** Identifies the engine and public preset voice. */
@@ -40,13 +91,14 @@ export function clipFileName(fingerprint: string, key: string): string {
 export function staleLines(
   storyboard: Storyboard,
   manifest: VoManifest,
+  context?: FingerprintContext,
 ): string[] {
   return storyboard.scenes
     .flatMap((scene) => scene.vo)
     .filter(
       (line) =>
         manifest.lines[line.id]?.fingerprint !==
-        lineFingerprint(line, storyboard.voice),
+        lineFingerprint(line, storyboard.voice, context),
     )
     .map((line) => line.id);
 }
@@ -93,7 +145,7 @@ export function requireNarration(
 ): void {
   const missing = [
     ...new Set([
-      ...staleLines(storyboard, manifest),
+      ...staleLines(storyboard, manifest, { publicDir }),
       ...missingClips(manifest, publicDir),
     ]),
   ];

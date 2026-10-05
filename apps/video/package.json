@@ -25,7 +25,8 @@
     "test:watch": "vitest",
     "type-check": "tsc --noEmit -p tsconfig.json",
     "voiceover": "tsx scripts/voiceover.ts",
-    "make": "tsx scripts/make.ts"
+    "make": "tsx scripts/make.ts",
+    "brand-audio": "tsx scripts/brand-audio.ts"
   },
   "dependencies": {
     "@remotion/google-fonts": "4.0.532",
