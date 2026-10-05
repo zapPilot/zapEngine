@@ -71,7 +71,7 @@ overrides:
   expo-dev-client: 57.0.3
   expo-dev-launcher: 57.0.3
   expo-dev-menu: 57.0.3
-  fast-uri@>=3.0.0 <3.1.5: '>=3.1.5 <4'
+  fast-uri@>=3.0.0 <3.1.8: '>=3.1.8 <4'
   file-type@>=13.0.0 <21.3.1: '>=21.3.1'
   hono@<4.12.34: '>=4.12.34'
   ip-address@<=10.3.0: '>=10.3.1'
