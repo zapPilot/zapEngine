@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   getMetadata: vi.fn(),
   synthesize: vi.fn(),
-  mixed: vi.fn(),
 }));
 
 vi.mock('./tts/fish-audio.js', () => ({
@@ -11,9 +10,6 @@ vi.mock('./tts/fish-audio.js', () => ({
   synthesize: mocks.synthesize,
 }));
 
-vi.mock('./tts/mixed-language-tts.js', () => ({
-  synthesizeMixedLanguage: mocks.mixed,
-}));
 
 import { getTtsMetadata, textToSpeech } from './tts.js';
 
@@ -111,26 +107,19 @@ describe('Fish Audio TTS facade', () => {
 
   it.each([
     ['English DeFi terms', 'en'],
-    ['中文旁白', 'zh-Hant'],
-    ['日本語のナレーション', 'ja'],
-  ] as const)('keeps %s on the original path', async (text, languageCode) => {
-    await textToSpeech(text, { languageCode });
-    expect(mocks.synthesize).toHaveBeenCalledTimes(1);
-    expect(mocks.synthesize).toHaveBeenCalledWith(
-      text,
-      expect.objectContaining({ languageCode }),
-    );
-    expect(mocks.mixed).not.toHaveBeenCalled();
-  });
-
-  it('dispatches separable English in zh to mixed synthesis', async () => {
-    mocks.mixed.mockResolvedValue({ audio: Buffer.from('mixed'), cost: [] });
-    expect(
-      await textToSpeech('中文DeFi旁白', { languageCode: 'zh-Hant' }),
-    ).toEqual({ audio: Buffer.from('mixed'), cost: [] });
-    expect(mocks.mixed).toHaveBeenCalledTimes(1);
-    expect(mocks.synthesize).not.toHaveBeenCalled();
-  });
+    ['中文 DeFi 旁白', 'zh-Hant'],
+    ['日本語の DeFi ナレーション', 'ja'],
+  ] as const)(
+    'keeps the complete %s text in one Fish Audio request',
+    async (text, languageCode) => {
+      await textToSpeech(text, { languageCode });
+      expect(mocks.synthesize).toHaveBeenCalledTimes(1);
+      expect(mocks.synthesize).toHaveBeenCalledWith(
+        text,
+        expect.objectContaining({ languageCode }),
+      );
+    },
+  );
 
   it('returns Fish Audio metadata', () => {
     expect(getTtsMetadata({ languageCode: 'ja' })).toEqual({
