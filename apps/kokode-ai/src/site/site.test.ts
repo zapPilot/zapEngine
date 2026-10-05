@@ -14,7 +14,7 @@ import { INTEREST } from '../story/ja/form';
 import { DOCTOR_DECK, LANDING, PARTNER_DECK } from '../story/narrative';
 import { META } from '../story/ja/site';
 import type { Group } from '../story/types';
-import { ctaHref, toPdfHref } from './links';
+import { ctaHref, isAbsoluteHttpUrl, toPdfHref } from './links';
 import { escape, lines, markup } from './markup';
 import { HTML_ENTRIES, renderPage } from './pages';
 
@@ -181,6 +181,20 @@ describe('deck links', () => {
     expect(toPdfHref('/?utm_medium=deck#contact')).toBe(
       'https://www.kokode.xyz/?utm_medium=pdf#contact',
     );
+  });
+
+  it('only treats absolute http(s) URLs as link targets', () => {
+    expect(isAbsoluteHttpUrl('https://www.kokode.xyz/?a=1#contact')).toBe(true);
+    expect(isAbsoluteHttpUrl('http://example.com/x')).toBe(true);
+    for (const unsafe of [
+      'javascript:alert(1)',
+      'JaVaScRiPt:alert(1)',
+      'data:text/html,<script>alert(1)</script>',
+      '/relative/path',
+      '',
+      'not a url',
+    ])
+      expect(isAbsoluteHttpUrl(unsafe), unsafe).toBe(false);
   });
 });
 

@@ -92,10 +92,22 @@ function inspectDeck() {
   return { total: slides.length, problems };
 }
 
-/** PDF links go to the live site and are attributed to the PDF. */
+/** PDF links go to the live site and are attributed to the PDF. Runs in the
+ * page via page.evaluate, so it must stay self-contained (no imports). Only
+ * absolute http(s) targets are written: a `javascript:` data-pdf-href must
+ * never become a live href (CodeQL js/xss-through-dom). */
 function useAbsoluteLinks() {
+  const isHttp = (value) => {
+    try {
+      const protocol = new URL(value).protocol;
+      return protocol === 'http:' || protocol === 'https:';
+    } catch {
+      return false;
+    }
+  };
   for (const link of document.querySelectorAll('a[data-pdf-href]')) {
-    link.setAttribute('href', link.getAttribute('data-pdf-href'));
+    const target = link.getAttribute('data-pdf-href');
+    if (target && isHttp(target)) link.setAttribute('href', target);
   }
 }
 
