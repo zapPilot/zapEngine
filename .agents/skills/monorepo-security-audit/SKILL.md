@@ -57,6 +57,12 @@ audit does not prove an override is runtime-compatible with every consumer.
      `pnpm-workspace.yaml`.
    - **npm transitive dependency:** add or tighten the patched floor under
      `pnpm-workspace.yaml` `overrides`, then run `pnpm install`.
+   - **No patched release:** first try upgrading or removing the parent that
+     introduces the package. If that cannot clear it, add the GHSA to
+     `pnpm-workspace.yaml` `auditConfig.ignoreGhsas`, or use pip-audit's
+     `--ignore-vuln` for Python. Comment with the package and "no patched release".
+     Keep the GitHub alert open as owner/blocked; remove the ignore as soon as a
+     patched release exists. Upgrade difficulty never justifies an ignore.
 4. Commit the generated lockfile with the constraint change. Never hand-edit
    `uv.lock` or `pnpm-lock.yaml`.
 5. Rerun the focused audit, then the root audit.
@@ -91,16 +97,17 @@ or runtime initialization.
 
 ## Rationalizations — STOP
 
-| Excuse | Reality |
-| --- | --- |
-| "The lockfile did not change, so this must be unrelated." | Advisory databases change independently; yesterday's lock can fail today. |
-| "`verify ci` passed." | The security audit is a separate CI step. |
-| "The audit passed, so the override is safe." | A cross-major override can still break a consumer's API contract; run the full verify loop. |
+| Excuse                                                        | Reality                                                                                       |
+| ------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| "The lockfile did not change, so this must be unrelated."     | Advisory databases change independently; yesterday's lock can fail today.                     |
+| "`verify ci` passed."                                         | The security audit is a separate CI step.                                                     |
+| "The audit passed, so the override is safe."                  | A cross-major override can still break a consumer's API contract; run the full verify loop.   |
 | "Force every vulnerable major to the newest patched version." | Selector coverage is not compatibility. Upgrade the parent or use a compatible patched range. |
-| "The `node_modules missing` warning is the root cause." | Read the first advisory and failed workspace before trailing lifecycle warnings. |
-| "Raise the audit threshold." | That hides the vulnerability and weakens the gate. |
-| "Edit the lockfile to the patched version." | Change the constraint or override, then regenerate the lockfile. |
-| "It is only transitive." | A transitive vulnerable version still fails the repository audit. |
+| "The `node_modules missing` warning is the root cause."       | Read the first advisory and failed workspace before trailing lifecycle warnings.              |
+| "Upgrading is hard, so ignore it."                            | Only advisories without a patched release may be ignored.                                     |
+| "Raise the audit threshold."                                  | That hides the vulnerability and weakens the gate.                                            |
+| "Edit the lockfile to the patched version."                   | Change the constraint or override, then regenerate the lockfile.                              |
+| "It is only transitive."                                      | A transitive vulnerable version still fails the repository audit.                             |
 
 ## Verification
 
