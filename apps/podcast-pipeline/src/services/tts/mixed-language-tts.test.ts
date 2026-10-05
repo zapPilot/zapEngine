@@ -18,7 +18,7 @@ vi.mock('./audio-trim.js', () => ({
 vi.mock('./audio-concat.js', () => ({ concatMp3Buffers: mocks.concat }));
 vi.mock('../../lib/sleep.js', () => ({ sleep: mocks.sleep }));
 
-import { textToSpeech } from '../tts.js';
+import { buildMixedLanguagePlan } from './mixed-language-text.js';
 import {
   englishTermClipKey,
   synthesizeMixedLanguage,
@@ -64,8 +64,10 @@ afterEach(() => {
 });
 
 describe('mixed-language orchestration', () => {
-  it('reuses identical terms, preserves order and bills only new requests through the facade', async () => {
-    const result = await textToSpeech(text, { languageCode: 'zh-Hant' });
+  it('reuses identical terms, preserves order and bills only new requests', async () => {
+    const plan = buildMixedLanguagePlan(text, 'zh-Hant');
+    if (!plan) throw new Error('expected a mixed-language plan');
+    const result = await synthesizeMixedLanguage(plan, options);
     const buffers: Buffer[] = mocks.concat.mock.calls[0]![0];
     expect(buffers.map((b) => b.toString())).toEqual([
       'EigenLayer',
@@ -90,10 +92,10 @@ describe('mixed-language orchestration', () => {
     expect(mocks.sleep.mock.calls).toEqual([[3000], [3000], [3000], [3000]]);
     expect(result.cost).toEqual([
       expect.objectContaining({
-        costUsd: 0,
+        costUsd: 5,
         usage: {
           unit: 'utf8_bytes',
-          unitPriceUsd: 0,
+          unitPriceUsd: 1,
           quantity: Buffer.byteLength(
             'EigenLayer最近出现变化，的 TVL开始下降。',
           ),
@@ -141,21 +143,40 @@ describe('mixed-language orchestration', () => {
     expect(first[2]).not.toBe(second[2]);
   });
   it('isolates calls without a scope and separate episode scopes', async () => {
-    await textToSpeech('BTC中文', { languageCode: 'zh-Hant' });
-    await textToSpeech('BTC中文', { languageCode: 'zh-Hant' });
+    const parts = [
+      { kind: 'speech', text: 'BTC', english: true },
+      { kind: 'speech', text: '中文', english: false },
+    ] as const;
+    await synthesizeMixedLanguage([...parts], options);
+    await synthesizeMixedLanguage([...parts], options);
     await withEnglishTermClipReuse(() =>
-      textToSpeech('BTC中文', { languageCode: 'zh-Hant' }),
+      synthesizeMixedLanguage([...parts], options),
     );
     expect(mocks.synthesize).toHaveBeenCalledTimes(6);
   });
   it('separates engine and reference ID and reuses across zh/ja calls', async () => {
+    const zhParts = [
+      { kind: 'speech', text: 'BTC', english: true },
+      { kind: 'speech', text: '中文', english: false },
+    ] as const;
+    const jaParts = [
+      { kind: 'speech', text: 'BTC', english: true },
+      { kind: 'speech', text: 'について', english: false },
+    ] as const;
     await withEnglishTermClipReuse(async () => {
-      await textToSpeech('BTC中文', { languageCode: 'zh-Hant' });
-      await textToSpeech('BTCについて', { languageCode: 'ja' });
-      vi.stubEnv('FISH_AUDIO_ENGINE', 'future-model-free');
-      await textToSpeech('BTC中文', { languageCode: 'zh-Hant' });
-      vi.stubEnv('FISH_AUDIO_REFERENCE_ID', 'voice2');
-      await textToSpeech('BTC中文', { languageCode: 'zh-Hant' });
+      await synthesizeMixedLanguage([...zhParts], options);
+      await synthesizeMixedLanguage([...jaParts], {
+        ...options,
+        languageCode: 'ja',
+      });
+      await synthesizeMixedLanguage([...zhParts], {
+        ...options,
+        config: { engine: 'future-model-free', modelId: 'voice' },
+      });
+      await synthesizeMixedLanguage([...zhParts], {
+        ...options,
+        config: { engine: 'future-model-free', modelId: 'voice2' },
+      });
     });
     expect(
       mocks.synthesize.mock.calls.filter(([source]) => source === 'BTC'),
@@ -165,15 +186,14 @@ describe('mixed-language orchestration', () => {
     );
   });
   it.each(['synthesize', 'trim', 'silence', 'concat'] as const)(
-    'propagates %s failure without whole-text fallback',
+    'propagates %s failure',
     async (failure) => {
       mocks[failure].mockRejectedValueOnce(new Error(`${failure} failed`));
-      await expect(
-        textToSpeech(text, { languageCode: 'zh-Hant' }),
-      ).rejects.toThrow(`${failure} failed`);
-      expect(
-        mocks.synthesize.mock.calls.map(([source]) => source),
-      ).not.toContain(text);
+      const plan = buildMixedLanguagePlan(text, 'zh-Hant');
+      if (!plan) throw new Error('expected a mixed-language plan');
+      await expect(synthesizeMixedLanguage(plan, options)).rejects.toThrow(
+        `${failure} failed`,
+      );
     },
   );
 });
