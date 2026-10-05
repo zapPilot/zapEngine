@@ -331,10 +331,7 @@ describe.each(LOCALES)('%s pages', (locale) => {
           story.META[page].campaign,
         );
       }
-      if (locale !== 'ja')
-        expect(doc.querySelector('.translation-draft')?.textContent).toBe(
-          LOCALE_INFO[locale].draft,
-        );
+      expect(doc.querySelector('.translation-draft')).toBeNull();
     }
   });
   it('shows translated form labels while retaining Japanese submission values', () => {

@@ -277,12 +277,6 @@ body:lang(zh-Hant) {
   color: var(--blue);
   font-weight: 700;
 }
-.translation-draft {
-  margin: 8px 20px;
-  color: var(--muted);
-  font-size: 12px;
-  text-align: center;
-}
 @media print {
   .lang-switch {
     display: none;

@@ -1,5 +1,5 @@
 import { LOCALE_INFO } from '../story/locales';
-import { languageSwitch, draftNotice } from './lang-switch';
+import { languageSwitch } from './lang-switch';
 import { storyFor, type Story } from '../story/localized';
 import { DOM_IDS } from '../dom-ids';
 import { LANDING, type LandingSectionId } from '../story/narrative';
@@ -165,7 +165,7 @@ export function createLanding(story: Story) {
   }
 
   function renderLanding(): Markup {
-    return markup`${header()}${draftNotice(story.locale)}
+    return markup`${header()}
     <main id="main">
       ${LANDING.map(
         (group) =>

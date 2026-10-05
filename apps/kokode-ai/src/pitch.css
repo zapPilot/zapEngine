@@ -317,10 +317,6 @@ body.pitch-page {
   align-items: center;
   gap: 1.6cqi;
 }
-.slide-foot .translation-draft {
-  font-size: 0.8cqi;
-  margin: 0;
-}
 .slide-foot .lang-switch {
   font-size: 1.1cqi;
 }
@@ -337,8 +333,7 @@ body.pitch-page {
     flex-wrap: wrap;
     gap: 8px;
   }
-  .slide-foot .lang-switch,
-  .slide-foot .translation-draft {
+  .slide-foot .lang-switch {
     font-size: 12px;
   }
   .slide-foot .lang-switch summary {

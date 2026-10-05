@@ -9,7 +9,6 @@ export const LOCALE_INFO = {
     og: 'ja_JP',
     label: '日本語',
     switchLabel: '言語',
-    draft: '',
     privacyLanguage: '（日本語）',
   },
   en: {
@@ -18,7 +17,6 @@ export const LOCALE_INFO = {
     og: 'en_US',
     label: 'English',
     switchLabel: 'Language',
-    draft: 'Draft translation — awaiting native-speaker review.',
     privacyLanguage: '',
   },
   'zh-Hant': {
@@ -27,7 +25,6 @@ export const LOCALE_INFO = {
     og: 'zh_TW',
     label: '繁體中文',
     switchLabel: '語言',
-    draft: '翻譯草稿，待母語者審稿。',
     privacyLanguage: '',
   },
 } as const;

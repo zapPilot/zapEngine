@@ -21,7 +21,3 @@ export function languageSwitch(
   </details>`;
 }
 
-export function draftNotice(locale: Locale): Markup {
-  const text = LOCALE_INFO[locale].draft;
-  return text ? markup`<p class="translation-draft">${text}</p>` : markup``;
-}

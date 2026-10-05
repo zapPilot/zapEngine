@@ -1,4 +1,4 @@
-import { languageSwitch, draftNotice } from './lang-switch';
+import { languageSwitch } from './lang-switch';
 import { type Story } from '../story/localized';
 import type { PageMeta } from '../story/ja/site';
 import type { BeatId, Group } from '../story/types';
@@ -72,7 +72,7 @@ export function createDeck(story: Story) {
         <div class="slide-content">${content(group, layout, page)}</div>
         <footer class="slide-foot">
           <span class="slide-brand"><img class="brand-mark" src="/favicon.svg" alt="" aria-hidden="true" />${SITE.name}</span>
-          ${draftNotice(story.locale)}<span class="slide-foot-end">${languageSwitch(page.campaign === 'partner-deck' ? 'partner' : 'pitch', story.locale, 'up')}<span class="slide-num">${pad(number)} / ${pad(total)}</span></span>
+          <span class="slide-foot-end">${languageSwitch(page.campaign === 'partner-deck' ? 'partner' : 'pitch', story.locale, 'up')}<span class="slide-num">${pad(number)} / ${pad(total)}</span></span>
         </footer>
       </div>
     </section>`;
