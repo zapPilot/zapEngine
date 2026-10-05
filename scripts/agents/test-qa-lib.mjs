@@ -319,7 +319,7 @@ function aliasCandidates(specifier, workspace, config) {
     }
     for (const replacement of replacements) {
       if (typeof replacement !== 'string') continue;
-      const replaced = replacement.replace('*', capture);
+      const replaced = replacement.split('*').join(capture);
       candidates.push(
         posix.normalize(posix.join(workspace, config.baseUrl, replaced)),
       );
