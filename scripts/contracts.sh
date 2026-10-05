@@ -19,6 +19,7 @@ case "${1:-}" in
     node --test scripts/deploy-vercel-main.test.mjs
     node --test scripts/distribution-snapshot-workflow.test.mjs
     node --test scripts/llm-fallback-config.test.mjs
+    node --test scripts/sales-registry.test.mjs scripts/sales-render.test.mjs
     node --test scripts/agents/*.test.mjs
     node --test scripts/operations/*.test.mjs
     node scripts/check-vercel-deploy-policy.mjs

@@ -167,6 +167,17 @@ never killed.
 
 All apps — including analytics-engine — run via `pnpm <script>`. Python scripts wrap `uv run` under the hood; the CLI is uniform. The default `pnpm dev` includes analytics-engine so backtesting and analytics pages work out of the box. Use `pnpm dev lite` only when you are not touching those pages.
 
+### Sales artifacts
+
+```bash
+pnpm sales:render kokode      # all Kokode PDFs + videos, all languages
+pnpm sales:render zap-pilot   # calculator-pitch video
+```
+
+This rebuilds all PDFs and videos from existing assets without calling paid
+generation APIs. Granular `video:*` commands (stills, render, voiceover,
+music) are for media development and debugging; see `apps/video/README.md`.
+
 For development and verification commands, see [CONTRIBUTING.md](./CONTRIBUTING.md). Repository-wide engineering principles live in [AGENTS.md](./AGENTS.md). Infrastructure sources of truth are the [Fly inventory](./.github/fly-apps.json), [recurring-work registry](./.github/schedules.json), and [schema history](./supabase/migrations/).
 
 ## Turbo Remote Cache (optional)
