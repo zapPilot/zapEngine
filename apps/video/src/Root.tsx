@@ -4,7 +4,7 @@ import { Composition, Folder } from 'remotion';
 import { timeline as calculatorTimeline } from './videos/calculator-pitch/assets';
 import { CalculatorPitch } from './videos/calculator-pitch/Composition';
 import { storyboard as calculatorStoryboard } from './videos/calculator-pitch/storyboard';
-import { timeline as kokodeTimeline } from './videos/kokode-clinic/assets';
+import { timelines as kokodeTimelines } from './videos/kokode-clinic/assets';
 import { storyboard as kokodeStoryboard } from './videos/kokode-clinic/storyboard';
 import {
   defaultVideoProps,
@@ -28,7 +28,7 @@ export const RemotionRoot: React.FC = () => (
         id="calculator-pitch"
         component={CalculatorPitch}
         schema={videoPropsSchema}
-        defaultProps={defaultVideoProps}
+        defaultProps={{ ...defaultVideoProps, lang: 'en' }}
         calculateMetadata={() =>
           storyboardMetadata(calculatorStoryboard, calculatorTimeline)
         }
@@ -43,9 +43,9 @@ export const RemotionRoot: React.FC = () => (
         id="kokode-clinic"
         lazyComponent={loadKokodeClinic}
         schema={videoPropsSchema}
-        defaultProps={defaultVideoProps}
-        calculateMetadata={() =>
-          storyboardMetadata(kokodeStoryboard, kokodeTimeline)
+        defaultProps={{ ...defaultVideoProps, lang: 'ja' }}
+        calculateMetadata={({ props }) =>
+          storyboardMetadata(kokodeStoryboard, kokodeTimelines[props.lang])
         }
         durationInFrames={1}
         fps={30}

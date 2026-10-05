@@ -1,12 +1,15 @@
-import type { CSSProperties, FC } from 'react';
+import { type CSSProperties, type FC, useEffect, useState } from 'react';
+import { cancelRender, continueRender, delayRender } from 'remotion';
 
 import {
   NarratedVideo,
   type SceneComponents,
 } from '../../primitives/NarratedVideo';
+import { captionVersion } from '../../timeline/versions';
 import type { VideoProps } from '../metadata';
-import { timeline } from './assets';
-import { jaFont } from './fonts';
+import { timelines } from './assets';
+import { KokodeContext } from './context';
+import { fontFor } from './fonts';
 import { KokodeBackdrop } from './primitives/KokodeBackdrop';
 import { BoundaryScene } from './scenes/BoundaryScene';
 import { CtaScene } from './scenes/CtaScene';
@@ -14,6 +17,7 @@ import { DemoScene } from './scenes/DemoScene';
 import { HookScene } from './scenes/HookScene';
 import { RevealScene } from './scenes/RevealScene';
 import { TurnScene } from './scenes/TurnScene';
+import { storyFor } from './story';
 import { type KokodeScene, storyboard } from './storyboard';
 import { theme } from './theme';
 
@@ -30,27 +34,48 @@ const SCENES: SceneComponents<KokodeScene> = {
   cta: CtaScene,
 };
 
-/** Japanese captions on a light card, matching the site. */
+/** Localized captions on a light card, matching the site. */
 const CAPTION_STYLE: CSSProperties = {
   background: 'rgba(255, 255, 255, 0.94)',
   border: `1px solid ${theme.line}`,
   boxShadow: '0 12px 40px rgba(0, 0, 0, 0.08)',
   color: theme.ink,
-  fontFamily: jaFont,
   fontWeight: 600,
   fontSize: 46,
   letterSpacing: '0.02em',
 };
 
-export const KokodeClinic: FC<VideoProps> = ({ captions, music }) => (
-  <NarratedVideo
-    storyboard={storyboard}
-    timeline={timeline}
-    scenes={SCENES}
-    captions={captions}
-    music={music}
-    background={theme.bg}
-    backdrop={<KokodeBackdrop />}
-    captionStyle={CAPTION_STYLE}
-  />
+export const KokodeClinic: FC<VideoProps> = (props) => (
+  <LocalizedClinic key={props.lang} {...props} />
 );
+
+const LocalizedClinic: FC<VideoProps> = ({ captions, music, lang }) => {
+  const [fontFamily, setFontFamily] = useState('sans-serif');
+  const [handle] = useState(() => delayRender('Load caption font'));
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const font = await fontFor(lang);
+        setFontFamily(font);
+        continueRender(handle);
+      } catch (error) {
+        cancelRender(error);
+      }
+    };
+    void load();
+  }, [lang, handle]);
+  return (
+    <KokodeContext.Provider value={{ lang, story: storyFor(lang), fontFamily }}>
+      <NarratedVideo
+        storyboard={captionVersion(storyboard, lang)}
+        timeline={timelines[lang]}
+        scenes={SCENES}
+        captions={captions}
+        music={music}
+        background={theme.bg}
+        backdrop={<KokodeBackdrop />}
+        captionStyle={{ ...CAPTION_STYLE, fontFamily }}
+      />
+    </KokodeContext.Provider>
+  );
+};

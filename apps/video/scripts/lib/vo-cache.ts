@@ -1,4 +1,6 @@
 import { createHash } from 'node:crypto';
+import { existsSync } from 'node:fs';
+import path from 'node:path';
 
 import type { VoManifest } from '../../src/timeline/manifest';
 import type {
@@ -16,11 +18,15 @@ const sha256 = (value: string) =>
  */
 export function lineFingerprint(line: VoLine, voice: VoiceSettings): string {
   return sha256(
-    JSON.stringify({ say: line.say ?? line.text, speed: voice.speed }),
+    JSON.stringify({
+      say: line.say ?? line.text,
+      speed: voice.speed,
+      voice: voice.voice,
+    }),
   ).slice(0, 16);
 }
 
-/** Identifies the voice without committing the (secret) reference id. */
+/** Identifies the engine and public preset voice. */
 export function voiceKey(engine: string, referenceId: string): string {
   return sha256(`${engine}\u0000${referenceId}`).slice(0, 12);
 }
@@ -66,4 +72,33 @@ export function orphanFiles(
   return files.filter(
     (file) => file.endsWith('.mp3') && !used.has(`${folder}/${file}`),
   );
+}
+
+/** Manifest clips unavailable on this machine (generated audio is ignored). */
+export function missingClips(
+  manifest: VoManifest,
+  publicDir: string,
+  exists: (file: string) => boolean = existsSync,
+): string[] {
+  return Object.entries(manifest.lines)
+    .filter(([, clip]) => !exists(path.join(publicDir, clip.file)))
+    .map(([id]) => id);
+}
+
+/** Fail before bundling with an actionable error for a clean checkout. */
+export function requireNarration(
+  storyboard: Storyboard,
+  manifest: VoManifest,
+  publicDir: string,
+): void {
+  const missing = [
+    ...new Set([
+      ...staleLines(storyboard, manifest),
+      ...missingClips(manifest, publicDir),
+    ]),
+  ];
+  if (missing.length > 0)
+    throw new Error(
+      `Narration missing or stale for ${missing.join(', ')}; run pnpm voiceover ${storyboard.id} first.`,
+    );
 }

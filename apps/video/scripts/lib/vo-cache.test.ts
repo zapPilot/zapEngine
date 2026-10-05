@@ -1,3 +1,7 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import type { VoManifest } from '../../src/timeline/manifest';
@@ -6,12 +10,14 @@ import {
   clipFileName,
   droppedLines,
   lineFingerprint,
+  missingClips,
   orphanFiles,
+  requireNarration,
   staleLines,
   voiceKey,
 } from './vo-cache';
 
-const voice = { speed: 1 };
+const voice = { speed: 1, voice: 'hannah' as const };
 
 const storyboard: Storyboard = {
   id: 'v',
@@ -24,6 +30,7 @@ const storyboard: Storyboard = {
   tail: 12,
   gap: 6,
   voice,
+  music: { src: 'music/test.mp3', prompt: 'Instrumental' },
   scenes: [
     {
       id: 's',
@@ -54,7 +61,10 @@ describe('lineFingerprint', () => {
 
   it('changes with the voice settings', () => {
     const line = { id: 'x', text: 'A' };
-    expect(lineFingerprint(line, { speed: 1.1 })).not.toBe(
+    expect(lineFingerprint(line, { speed: 1, voice: 'adrian' })).not.toBe(
+      lineFingerprint(line, voice),
+    );
+    expect(lineFingerprint(line, { speed: 1.1, voice: 'hannah' })).not.toBe(
       lineFingerprint(line, voice),
     );
   });
@@ -103,5 +113,43 @@ describe('manifest freshness', () => {
     expect(
       orphanFiles(['old.mp3', 'stray.mp3', 'notes.txt'], fresh, 'vo/v'),
     ).toEqual(['stray.mp3']);
+  });
+});
+
+describe('missing generated clips', () => {
+  it('detects missing disk files even when fingerprints are current', () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'vo-cache-test-'));
+    const manifest: VoManifest = {
+      videoId: 'v',
+      engine: 'e',
+      voiceKey: 'k',
+      lines: {
+        a: clip(
+          lineFingerprint(storyboard.scenes[0]!.vo[0]!, voice),
+          'vo/v/a.mp3',
+        ),
+        b: clip(
+          lineFingerprint(storyboard.scenes[0]!.vo[1]!, voice),
+          'vo/v/b.mp3',
+        ),
+      },
+    };
+    try {
+      expect(staleLines(storyboard, manifest)).toEqual([]);
+      expect(missingClips(manifest, root)).toEqual(['a', 'b']);
+      expect(() => requireNarration(storyboard, manifest, root)).toThrow(
+        'run pnpm voiceover v first',
+      );
+      mkdirSync(path.join(root, 'vo/v'), { recursive: true });
+      writeFileSync(path.join(root, 'vo/v/a.mp3'), 'test');
+      writeFileSync(path.join(root, 'vo/v/b.mp3'), 'test');
+      expect(missingClips(manifest, root)).toEqual([]);
+      expect(() => requireNarration(storyboard, manifest, root)).not.toThrow();
+      expect(
+        missingClips(manifest, root, (file) => file.endsWith('/a.mp3')),
+      ).toEqual(['b']);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });

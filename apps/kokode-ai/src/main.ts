@@ -1,6 +1,7 @@
 import { getAttribution } from './analytics';
 import { SALES_EMAIL, SUPPORT_EMAIL } from './config';
 import { initInterest } from './interest';
+import { initLangMenu } from './lang-menu';
 import { initWaitlist } from './waitlist';
 
 function initContactEmails(): void {
@@ -34,5 +35,6 @@ function initContactEmails(): void {
 // when the form is submitted. Runs on every page, including privacy.html.
 getAttribution();
 initInterest();
+initLangMenu();
 initContactEmails();
 initWaitlist();

@@ -3,10 +3,15 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { staleLines } from '../../../scripts/lib/vo-cache';
+import {
+  clipFileName,
+  staleLines,
+  voiceKey,
+} from '../../../scripts/lib/vo-cache';
 import { parseCaptureManifest } from '../../captures/manifest';
 import { unspokenCues } from '../../timeline/beats';
 import { parseVoManifest } from '../../timeline/manifest';
+import { VOICES } from '../../timeline/voices';
 import { getShots, getVideo, videoIds } from '../catalog';
 import { recorded, shot, timeline } from './assets';
 import capturesJson from './captures.json';
@@ -25,9 +30,15 @@ describe('calculator-pitch narration', () => {
     expect(manifest.videoId).toBe(storyboard.id);
   });
 
-  it('has every clip it references on disk', () => {
+  it('has reproducible cache names and the declared official voice', () => {
+    expect(manifest.voiceKey).toBe(
+      voiceKey(manifest.engine, VOICES[storyboard.voice.voice].id),
+    );
     for (const clip of Object.values(manifest.lines)) {
-      expect(existsSync(path.join(publicDir, clip.file)), clip.file).toBe(true);
+      expect(clip.fingerprint).toMatch(/^[0-9a-f]{16}$/);
+      expect(clip.file).toBe(
+        `vo/${storyboard.id}/${clipFileName(clip.fingerprint, manifest.voiceKey)}`,
+      );
     }
   });
 

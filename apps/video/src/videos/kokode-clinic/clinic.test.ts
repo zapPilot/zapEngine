@@ -3,24 +3,32 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { lineFingerprint } from '../../../scripts/lib/vo-cache';
+import {
+  lineFingerprint,
+  staleLines,
+  voiceKey,
+} from '../../../scripts/lib/vo-cache';
 import { cueAt, cuePhrases, unspokenCues } from '../../timeline/beats';
+import { CAPTION_PROFILES } from '../../timeline/captions';
 import {
   endsAtBreak,
   fullWidth,
   hasJapanese,
   JA_MAX_CPS,
-  MAX_JA_CAPTION_UNITS,
   MIN_CAPTION_SECONDS,
 } from '../../timeline/cjk';
 import { parseVoManifest } from '../../timeline/manifest';
 import { readingRates } from '../../timeline/timeline';
+import { captionVersion } from '../../timeline/versions';
+import { VOICES } from '../../timeline/voices';
 import { getVideo, videoIds } from '../catalog';
-import { timeline } from './assets';
+import { timelines } from './assets';
 import { arcViolations, DEMOS, FILM, FILM_ORDER, voLines } from './story';
 import { storyboard } from './storyboard';
 import { CSS_VARIABLES, theme } from './theme';
 import voJson from './vo.manifest.json';
+
+const timeline = timelines.ja;
 
 // This file lives where no Japanese literal may appear, so it reads every
 // Japanese string from the story.
@@ -89,37 +97,45 @@ describe('kokode-clinic follows the story', () => {
   });
 });
 
-describe('kokode-clinic captions', () => {
-  const seconds = (frames: number) => frames / storyboard.fps;
-
-  it('fit one line and end at a break', () => {
-    expect(timeline.captions.length).toBeGreaterThan(0);
-    for (const cue of timeline.captions) {
-      expect(fullWidth(cue.text), cue.text).toBeLessThanOrEqual(
-        MAX_JA_CAPTION_UNITS,
-      );
-      expect(endsAtBreak(cue.text), cue.text).toBe(true);
-    }
-  });
-
-  it('stay on screen long enough to read', () => {
-    for (const cue of timeline.captions) {
-      expect(seconds(cue.to - cue.from), cue.text).toBeGreaterThanOrEqual(
-        MIN_CAPTION_SECONDS,
-      );
-    }
-    const rates = readingRates(storyboard, timeline);
-    expect(rates).toHaveLength(
-      storyboard.scenes.flatMap((scene) => scene.vo).length,
-    );
-    for (const rate of rates) {
-      expect(rate.cps, rate.lineId).toBeLessThanOrEqual(JA_MAX_CPS);
-    }
-  });
-});
+describe.each(['ja', 'en', 'zh-Hant'] as const)(
+  'kokode-clinic %s captions',
+  (lang) => {
+    const timeline = timelines[lang];
+    const version = captionVersion(storyboard, lang);
+    it('fits one caption line and stays long enough to read', () => {
+      expect(timeline.captions.length).toBeGreaterThan(0);
+      for (const cue of timeline.captions) {
+        expect(
+          lang === 'en' ? cue.text.length : fullWidth(cue.text),
+          cue.text,
+        ).toBeLessThanOrEqual(CAPTION_PROFILES[lang].maxUnits);
+        if (lang !== 'en') {
+          expect(endsAtBreak(cue.text), cue.text).toBe(true);
+          expect(
+            (cue.to - cue.from) / storyboard.fps,
+            cue.text,
+          ).toBeGreaterThanOrEqual(MIN_CAPTION_SECONDS);
+        }
+      }
+      for (const rate of readingRates(version, timeline)) {
+        expect(rate.cps, rate.lineId).toBeLessThanOrEqual(JA_MAX_CPS);
+      }
+      expect(unspokenCues(version)).toEqual([]);
+      expect(timeline.voice).toEqual(timelines.ja.voice);
+      expect(timeline.durationInFrames).toBe(timelines.ja.durationInFrames);
+    });
+  },
+);
 
 describe('kokode-clinic narration', () => {
   const manifest = parseVoManifest(voJson);
+
+  it('uses the declared official voice and complete current narration', () => {
+    expect(manifest.voiceKey).toBe(
+      voiceKey(manifest.engine, VOICES[storyboard.voice.voice].id),
+    );
+    expect(staleLines(storyboard, manifest)).toEqual([]);
+  });
 
   it('holds no clip for words that changed (re-run pnpm voiceover)', () => {
     expect(manifest.videoId).toBe(storyboard.id);

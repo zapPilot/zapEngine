@@ -57,12 +57,4 @@ describe('assets copied from other workspaces', () => {
       ),
     ).toBe(true);
   });
-
-  it('ships the podcast music bed byte for byte', () => {
-    expect(
-      read('apps/video/public/music/bgm-03.mp3').equals(
-        read('apps/podcast-pipeline/assets/video/music/bgm-03.mp3'),
-      ),
-    ).toBe(true);
-  });
 });

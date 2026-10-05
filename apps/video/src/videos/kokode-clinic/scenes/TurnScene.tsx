@@ -3,6 +3,7 @@ import type { FC } from 'react';
 import { typingEnd } from '../../../primitives/typing';
 import { cueAt } from '../../../timeline/beats';
 import type { SceneOf } from '../assets';
+import { useKokodeScene } from '../context';
 import { BrandMark } from '../primitives/BrandMark';
 import {
   ChatWindow,
@@ -11,10 +12,9 @@ import {
   UserBubble,
 } from '../primitives/ChatWindow';
 import { Disclaimers } from '../primitives/Disclaimers';
-import { JaHeadline } from '../primitives/JaHeadline';
+import { Headline } from '../primitives/Headline';
 import { Stage } from '../primitives/Stage';
 import { Swap } from '../primitives/Swap';
-import { BEATS, CHAT_UI, DEMOS } from '../story';
 
 /**
  * The turn: the wish (as easy as ChatGPT, kept in-house), the answer (an AI
@@ -23,10 +23,10 @@ import { BEATS, CHAT_UI, DEMOS } from '../story';
 export const TurnScene: FC<{ readonly scene: SceneOf<'turn'> }> = ({
   scene,
 }) => {
-  const { props } = scene.spec;
+  const { story, props } = useKokodeScene(scene);
   const solutionFrom = cueAt(scene, props.solutionCue);
   const browserFrom = cueAt(scene, props.browserCue);
-  const prompt = DEMOS.chat.prompt;
+  const prompt = story.DEMOS.chat.prompt;
   const typeFrom = browserFrom + 12;
   return (
     <Stage
@@ -35,9 +35,9 @@ export const TurnScene: FC<{ readonly scene: SceneOf<'turn'> }> = ({
           at={solutionFrom}
           height={460}
           before={
-            <JaHeadline
-              lines={props.film.headline}
-              eyebrow={BEATS.desiredWorld.eyebrow}
+            <Headline
+              lines={story.BEATS[props.film.headline].title}
+              eyebrow={story.BEATS.desiredWorld.eyebrow}
               from={cueAt(scene, props.desireCue)}
               size={66}
             />
@@ -47,8 +47,8 @@ export const TurnScene: FC<{ readonly scene: SceneOf<'turn'> }> = ({
               <div style={{ marginBottom: 34 }}>
                 <BrandMark size={64} />
               </div>
-              <JaHeadline
-                lines={BEATS.solution.title}
+              <Headline
+                lines={story.BEATS.solution.title}
                 from={solutionFrom + 6}
                 size={72}
               />
@@ -60,8 +60,8 @@ export const TurnScene: FC<{ readonly scene: SceneOf<'turn'> }> = ({
         <ChatWindow variant="kokode" from={browserFrom}>
           <UserBubble text={prompt} typeFrom={typeFrom} variant="kokode" />
           <ReplyBubble
-            title={CHAT_UI.assistant}
-            lines={DEMOS.chat.reply}
+            title={story.CHAT_UI.assistant}
+            lines={story.DEMOS.chat.reply}
             from={typingEnd(prompt, typeFrom, TYPE_SPEED) + 8}
           />
         </ChatWindow>

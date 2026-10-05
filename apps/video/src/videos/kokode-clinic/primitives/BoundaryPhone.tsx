@@ -2,8 +2,7 @@ import type { FC } from 'react';
 import { useCurrentFrame } from 'remotion';
 
 import { enter, rise } from '../../../primitives/motion';
-import { jaFont } from '../fonts';
-import { FIGURES } from '../story';
+import { useKokode } from '../context';
 import { theme } from '../theme';
 import { Icon } from './icons';
 
@@ -12,16 +11,17 @@ import { Icon } from './icons';
  * connect" mark only, never an imitation of a browser error page.
  */
 export const BoundaryPhone: FC<{ readonly from: number }> = ({ from }) => {
+  const { fontFamily, story } = useKokode();
   const frame = useCurrentFrame();
   const cut = rise(frame, from + 14, 12);
-  const { outside, blocked } = FIGURES.boundary;
+  const { outside, blocked } = story.FIGURES.boundary;
   return (
     <div
       style={{
         display: 'flex',
         alignItems: 'center',
         gap: 26,
-        fontFamily: jaFont,
+        fontFamily,
         fontSize: 26,
         color: theme.muted,
         ...enter(frame, from, { distance: 20 }),

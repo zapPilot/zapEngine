@@ -2,8 +2,7 @@ import type { FC } from 'react';
 import { useCurrentFrame } from 'remotion';
 
 import { enter, rise } from '../../../primitives/motion';
-import { jaFont } from '../fonts';
-import { FIGURES } from '../story';
+import { useKokode } from '../context';
 import { theme } from '../theme';
 import { Icon } from './icons';
 
@@ -18,8 +17,9 @@ export const StackReveal: FC<{
   readonly from: number;
   readonly highlightFrom: number;
 }> = ({ from, highlightFrom }) => {
+  const { fontFamily, story } = useKokode();
   const frame = useCurrentFrame();
-  const { layers } = FIGURES.turnkey;
+  const { layers } = story.FIGURES.turnkey;
   const glow = rise(frame, highlightFrom, 14);
   return (
     <div
@@ -28,7 +28,7 @@ export const StackReveal: FC<{
         display: 'flex',
         flexDirection: 'column',
         gap: 14,
-        fontFamily: jaFont,
+        fontFamily,
         fontSize: 28,
       }}
     >

@@ -12,7 +12,7 @@ describe('media helpers', { timeout: 30_000 }, () => {
   it('runs the bundled ffmpeg and returns its log', async () => {
     const log = await ffmpeg([
       '-i',
-      path.join(publicDir, 'music/bgm-03.mp3'),
+      path.join(publicDir, 'music/kokode-clinic.mp3'),
       '-f',
       'null',
       '-',
@@ -28,8 +28,8 @@ describe('media helpers', { timeout: 30_000 }, () => {
 
   it('measures media duration', async () => {
     await expect(
-      mediaDuration(path.join(publicDir, 'music/bgm-03.mp3')),
-    ).resolves.toBeCloseTo(32, 1);
+      mediaDuration(path.join(publicDir, 'music/kokode-clinic.mp3')),
+    ).resolves.toBeGreaterThan(83.33);
   });
 });
 
@@ -45,7 +45,12 @@ describe('videoPaths', () => {
     expect(paths.voPublic).toBe('vo/demo');
     expect(paths.capturePublic).toBe('captures/demo');
     expect(path.relative(workspaceRoot, paths.work)).toBe('out/demo');
-    expect(path.relative(workspaceRoot, paths.video)).toBe('out/demo.mp4');
+    expect(path.relative(workspaceRoot, paths.videoFile('en'))).toBe(
+      'out/demo.en.mp4',
+    );
+    expect(path.relative(workspaceRoot, paths.versionWork('zh-Hant'))).toBe(
+      'out/demo/zh-Hant',
+    );
     expect(path.basename(workspaceRoot)).toBe('video');
   });
 });

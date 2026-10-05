@@ -358,7 +358,7 @@ export const ENV_MANIFEST = {
   COINMARKETCAP_API_URL: server(['alpha-etl']),
   ALPHA_VANTAGE_API_KEY: server(['alpha-etl'], { sensitive: true }),
 
-  OPENROUTER_API_KEY: server(['podcast-pipeline', 'control-center'], {
+  OPENROUTER_API_KEY: server(['podcast-pipeline', 'control-center', 'video'], {
     sensitive: true,
   }),
   OPENROUTER_BASE_URL: server(['podcast-pipeline', 'control-center']),
@@ -374,13 +374,13 @@ export const ENV_MANIFEST = {
   YOUTUBE_CHANNEL_ID: server(['podcast-pipeline'], { sensitive: true }),
   YOUTUBE_API_KEY: server(['podcast-pipeline'], { sensitive: true }),
   // `video` is the local narration tool (apps/video scripts/voiceover.ts);
-  // it reuses the podcast voice and has no deployment store.
+  // it uses public official English preset voices and has no deployment store.
   FISH_AUDIO_API_KEY: server(['podcast-pipeline', 'video'], {
     requiredFor: ['podcast-pipeline:fish-audio'],
     sensitive: true,
   }),
   FISH_AUDIO_ENGINE: server(['podcast-pipeline', 'video']),
-  FISH_AUDIO_REFERENCE_ID: server(['podcast-pipeline', 'video'], {
+  FISH_AUDIO_REFERENCE_ID: server(['podcast-pipeline'], {
     requiredFor: ['podcast-pipeline:fish-audio'],
     sensitive: true,
   }),

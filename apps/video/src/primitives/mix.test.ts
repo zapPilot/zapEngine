@@ -5,7 +5,8 @@ import { musicVolume } from './mix';
 const options = {
   base: 0.3,
   ducked: 0.1,
-  ramp: 10,
+  attack: 10,
+  release: 10,
   fadeIn: 20,
   fadeOut: 40,
   durationInFrames: 400,
@@ -39,4 +40,24 @@ describe('musicVolume', () => {
       musicVolume(0, [], { ...options, fadeIn: 0, fadeOut: 0 }),
     ).toBeCloseTo(0.3);
   });
+});
+
+it('uses a fast attack and slower release without jumps at speech boundaries', () => {
+  const settings = { ...options, attack: 8, release: 24 };
+  expect(musicVolume(96, voice, settings)).toBeCloseTo(0.2);
+  expect(musicVolume(162, voice, settings)).toBeCloseTo(0.2);
+  expect(musicVolume(100, voice, settings)).toBeCloseTo(0.1);
+  expect(musicVolume(150, voice, settings)).toBeCloseTo(0.1);
+  expect(musicVolume(174, voice, settings)).toBeCloseTo(0.3);
+});
+it('supports zero attack/release and overlapping recovery spans', () => {
+  expect(
+    musicVolume(100, voice, { ...options, attack: 0, release: 0 }),
+  ).toBeCloseTo(0.1);
+  expect(
+    musicVolume(150, voice, { ...options, attack: 0, release: 0 }),
+  ).toBeCloseTo(0.1);
+  expect(
+    musicVolume(156, [...voice, { from: 160, durationInFrames: 20 }], options),
+  ).toBeCloseTo(0.18);
 });

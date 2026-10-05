@@ -10,9 +10,12 @@ import {
 
 describe('video props', () => {
   it('default to captions and music on, and validate', () => {
-    expect(videoPropsSchema.parse(defaultVideoProps)).toEqual({
+    expect(
+      videoPropsSchema.parse({ ...defaultVideoProps, lang: 'ja' }),
+    ).toEqual({
       captions: true,
       music: true,
+      lang: 'ja',
     });
     expect(videoPropsSchema.safeParse({ captions: 'yes' }).success).toBe(false);
   });
@@ -30,7 +33,8 @@ describe('storyboardMetadata', () => {
       leadIn: 12,
       tail: 12,
       gap: 6,
-      voice: { speed: 1 },
+      music: { src: 'music/test.mp3', prompt: 'Instrumental' },
+      voice: { speed: 1, voice: 'hannah' },
       scenes: [],
     };
     const timeline: Timeline = {

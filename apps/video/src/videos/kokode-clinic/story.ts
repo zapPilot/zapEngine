@@ -21,9 +21,15 @@ export {
   FILM_ORDER,
   footnote,
   SITE,
+  storyFor,
 } from '../../../../kokode-ai/src/story';
 
 /** A film line as narration: `ja` is the caption, `en` is what is spoken. */
 export function voLines(lines: readonly FilmLine[]): VoLine[] {
-  return lines.map((line) => ({ id: line.id, text: line.ja, say: line.en }));
+  return lines.map((line) => ({
+    id: line.id,
+    text: line.ja,
+    say: line.en,
+    translations: { en: line.en, 'zh-Hant': line['zh-Hant'] },
+  }));
 }

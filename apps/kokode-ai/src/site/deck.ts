@@ -72,7 +72,7 @@ export function createDeck(story: Story) {
         <div class="slide-content">${content(group, layout, page)}</div>
         <footer class="slide-foot">
           <span class="slide-brand"><img class="brand-mark" src="/favicon.svg" alt="" aria-hidden="true" />${SITE.name}</span>
-          ${languageSwitch(page.campaign === 'partner-deck' ? 'partner' : 'pitch', story.locale)}${draftNotice(story.locale)}<span class="slide-num">${pad(number)} / ${pad(total)}</span>
+          ${draftNotice(story.locale)}<span class="slide-foot-end">${languageSwitch(page.campaign === 'partner-deck' ? 'partner' : 'pitch', story.locale, 'up')}<span class="slide-num">${pad(number)} / ${pad(total)}</span></span>
         </footer>
       </div>
     </section>`;

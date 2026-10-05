@@ -3,8 +3,7 @@ import { useCurrentFrame } from 'remotion';
 
 import { enter, rise } from '../../../primitives/motion';
 import { typedText } from '../../../primitives/typing';
-import { jaFont } from '../fonts';
-import { CHAT_UI, DEMOS } from '../story';
+import { useKokode } from '../context';
 import { theme } from '../theme';
 import { Icon } from './icons';
 
@@ -25,6 +24,7 @@ const Composer: FC<{
   readonly typeFrom?: number;
   readonly lockedFrom?: number;
 }> = ({ variant, text = '', typeFrom = 0, lockedFrom }) => {
+  const { story } = useKokode();
   const frame = useCurrentFrame();
   const typed = typedText(text, frame, typeFrom, TYPE_SPEED);
   const locked = lockedFrom === undefined ? 0 : rise(frame, lockedFrom, 10);
@@ -46,7 +46,7 @@ const Composer: FC<{
           opacity: 1 - locked * 0.45,
         }}
       >
-        {typed || CHAT_UI.placeholder}
+        {typed || story.CHAT_UI.placeholder}
       </span>
       <span
         style={{
@@ -85,6 +85,7 @@ export const ChatWindow: FC<{
   };
   readonly width?: number;
 }> = ({ variant, from, children, composer, width = 880 }) => {
+  const { fontFamily, lang, story } = useKokode();
   const frame = useCurrentFrame();
   const kokode = variant === 'kokode';
   return (
@@ -96,8 +97,8 @@ export const ChatWindow: FC<{
         background: theme.surface,
         border: '1px solid rgba(0, 0, 0, 0.08)',
         boxShadow: '0 30px 80px rgba(0, 0, 0, 0.10)',
-        fontFamily: jaFont,
-        fontSize: 28,
+        fontFamily,
+        fontSize: lang === 'en' ? 22 : 28,
         lineHeight: 1.5,
         color: theme.ink,
         ...enter(frame, from, { distance: 40 }),
@@ -142,7 +143,7 @@ export const ChatWindow: FC<{
           }}
         >
           {kokode ? null : <Icon name="cloud" size={24} color={theme.muted} />}
-          {kokode ? DEMOS.chat.address : CHAT_UI.cloud}
+          {kokode ? story.DEMOS.chat.address : story.CHAT_UI.cloud}
         </span>
       </div>
       <div

@@ -1,0 +1,19 @@
+{
+  "prompt": "Instrumental only, absolutely no vocals, voices, humming or choir. Duration 70 seconds, clean ending. Underscore beneath English narration for a hackathon product pitch. 112 BPM, A minor resolving to C major. Crisp plucked synthesizer arpeggios, tight soft kick, light hi-hats, clean restrained sub bass, bright airy pads. Precise, forward-moving and optimistic. Sparse midrange for intelligible speech, no dominant lead melody. [0:00–0:12] restrained plucked motif; [0:12–0:30] light rhythmic momentum; [0:30–0:50] confident layered progression; [0:50–1:10] optimistic resolution into a clear final chord and clean cadence. No vocals or drops, no risers or cinematic impacts. Begin audible music immediately, no silent intro.",
+  "model": "google/lyria-3-pro-preview",
+  "generatedAt": "2026-10-05T00:57:42.496Z",
+  "id": "calculator-pitch",
+  "take": 1,
+  "report": {
+    "durationSeconds": 69.26400000000001,
+    "leadingSilenceSeconds": 0,
+    "loudness": {
+      "i": -18.26,
+      "tp": -3.93,
+      "lra": 2.6,
+      "thresh": -28.63,
+      "offset": -0.29
+    }
+  },
+  "sha256": "2b8aaebb0d72419653ddcb51352b7e1f466edc56c1f6bcbdd4440fca405906e2"
+}

@@ -45,6 +45,7 @@ try {
           lang,
         );
         for (const target of languages) {
+          await page.locator('.lang-switch').first().locator('summary').click();
           await page
             .locator('.lang-switch')
             .first()

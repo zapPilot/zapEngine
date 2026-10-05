@@ -15,6 +15,7 @@
     "format:check": "prettier --check .",
     "lint": "eslint src/ scripts/ *.ts --max-warnings 0",
     "lint:fix": "eslint src/ scripts/ *.ts --fix",
+    "music": "tsx scripts/music.ts",
     "render": "tsx scripts/render.ts",
     "stills": "tsx scripts/contact-sheet.ts",
     "test": "vitest run",

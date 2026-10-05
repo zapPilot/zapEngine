@@ -1,67 +1,67 @@
 {
   "videoId": "kokode-clinic",
   "engine": "s2.1-pro-free",
-  "voiceKey": "cb4225f9e356",
+  "voiceKey": "0478e5e65966",
   "lines": {
     "hook-patient": {
-      "file": "vo/kokode-clinic/51b384a492aab0e9.mp3",
-      "fingerprint": "b4269adb69c2a601",
-      "durationSeconds": 5.16
-    },
-    "hook-content": {
-      "file": "vo/kokode-clinic/f02eeafba25db69e.mp3",
-      "fingerprint": "2b13eeb9a3ea8522",
-      "durationSeconds": 4.848
-    },
-    "turn-desire": {
-      "file": "vo/kokode-clinic/d052cbc2503d7ae1.mp3",
-      "fingerprint": "808831060959200b",
-      "durationSeconds": 5.496
-    },
-    "turn-solution": {
-      "file": "vo/kokode-clinic/2863418d51308690.mp3",
-      "fingerprint": "a9e3e3cc3e0d320e",
+      "file": "vo/kokode-clinic/5648f709ef66bca1.mp3",
+      "fingerprint": "232d5c889ed947da",
       "durationSeconds": 5.112
     },
+    "hook-content": {
+      "file": "vo/kokode-clinic/3a818a4b78d3cf36.mp3",
+      "fingerprint": "bad67bc5d38c72fb",
+      "durationSeconds": 5.376
+    },
+    "turn-desire": {
+      "file": "vo/kokode-clinic/fc839ef5889af9ce.mp3",
+      "fingerprint": "d86a19e37a253d08",
+      "durationSeconds": 5.76
+    },
+    "turn-solution": {
+      "file": "vo/kokode-clinic/54a6c58ed31ce8a0.mp3",
+      "fingerprint": "472e5aa684e56a87",
+      "durationSeconds": 5.52
+    },
     "turn-experience": {
-      "file": "vo/kokode-clinic/28519668bc380d0d.mp3",
-      "fingerprint": "efde4d1e5016532f",
-      "durationSeconds": 5.328
+      "file": "vo/kokode-clinic/11238312acd9e372.mp3",
+      "fingerprint": "b5d41bef96eb6719",
+      "durationSeconds": 5.4
     },
     "demo-patient-flow": {
-      "file": "vo/kokode-clinic/be34df0f831fa603.mp3",
-      "fingerprint": "aa18b9ef61c9a146",
-      "durationSeconds": 3.84
+      "file": "vo/kokode-clinic/12a3fd98175e711d.mp3",
+      "fingerprint": "6b7d05e28362c7f7",
+      "durationSeconds": 4.608
     },
     "demo-patient-draft": {
-      "file": "vo/kokode-clinic/839f6bad66ba5839.mp3",
-      "fingerprint": "e7ca164cda7254ac",
-      "durationSeconds": 4.8
+      "file": "vo/kokode-clinic/e5ef663ed77e8829.mp3",
+      "fingerprint": "7234f250e8f5e6e3",
+      "durationSeconds": 5.496
     },
     "demo-image": {
-      "file": "vo/kokode-clinic/c0649cc6f712b22d.mp3",
-      "fingerprint": "0f78bd692ba4dae5",
-      "durationSeconds": 4.944
+      "file": "vo/kokode-clinic/931ffb90cc943871.mp3",
+      "fingerprint": "88e5f1067253102b",
+      "durationSeconds": 6.216
     },
     "reveal": {
-      "file": "vo/kokode-clinic/1e04c724d186c460.mp3",
-      "fingerprint": "407164ac7a5a461c",
-      "durationSeconds": 6.024
+      "file": "vo/kokode-clinic/2c56ce3187c47d50.mp3",
+      "fingerprint": "fafcc5cce67cf6d6",
+      "durationSeconds": 7.872
     },
     "boundary": {
-      "file": "vo/kokode-clinic/220296d5ebf694d4.mp3",
-      "fingerprint": "df42d8796e005cfb",
-      "durationSeconds": 6.936
+      "file": "vo/kokode-clinic/d12007e5332b6fcf.mp3",
+      "fingerprint": "18cba2e5c4db704e",
+      "durationSeconds": 7.632
     },
     "cta-ask": {
-      "file": "vo/kokode-clinic/2c6687d5609ec27a.mp3",
-      "fingerprint": "b9a4eb004e0d3112",
-      "durationSeconds": 6.36
+      "file": "vo/kokode-clinic/c17e2dbd407d8840.mp3",
+      "fingerprint": "d3a4f059dea06aae",
+      "durationSeconds": 7.176
     },
     "cta-brand": {
-      "file": "vo/kokode-clinic/83c83201494eae64.mp3",
-      "fingerprint": "413c973ffecd9057",
-      "durationSeconds": 2.16
+      "file": "vo/kokode-clinic/efadb140ced34779.mp3",
+      "fingerprint": "7153c7dea67e4cc4",
+      "durationSeconds": 3.744
     }
   }
 }

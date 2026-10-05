@@ -9,7 +9,7 @@ See @README.md for the videos, commands and layout.
    from the repo root. It prints every scene's length and fails over the
    storyboard's `maxSeconds`.
 3. Look before you render: `pnpm --filter @zapengine/video stills <id>`, read
-   `out/<id>/contact-sheet.png`, then single files in `out/<id>/stills/`.
+   `out/<id>/<lang>/contact-sheet.png`, then single files in `out/<id>/<lang>/stills/`.
 4. Render the MP4 only when asked: `pnpm --filter @zapengine/video render <id>`.
 
 # Gotchas
@@ -25,7 +25,7 @@ See @README.md for the videos, commands and layout.
   `staleLines` must be empty. `text` is the caption, `say` is what the voice
   says when it differs: a pronunciation override (e.g. `CREATE2` →
   `create-two`) or, for translated captions, the narration itself.
-- **Japanese captions are read, not heard.** `captions: { lang: 'ja', … }`
+- **CJK captions are read, not heard.** `captions: { lang: 'ja', … }`
   splits and times them by reading units (`timeline/cjk.ts`), and
   `voiceover` (also `--dry-run`) prints each line's reading speed: `dense`
   above 4 units/s, `over limit` above 6. Shorten the caption, not the voice.
@@ -63,13 +63,67 @@ See @README.md for the videos, commands and layout.
 - Every word comes from `apps/kokode-ai/src/story` through
   `src/videos/kokode-clinic/story.ts`, the only import across the workspace
   boundary. Change copy there, never here: `clinic.test.ts` fails on any
-  Japanese literal under `src/videos/kokode-clinic/` or `src/primitives/`.
-- Captions are the story's `ja`, narration its `en`, so cue phrases are
-  English. Editing an `en` line means paying Fish Audio again.
-- `fonts.ts` (Noto Sans JP, about 120 font files) is reached only through the
-  lazy composition in `Root.tsx`. Never import it from shared code.
+  Japanese or Chinese literal under `src/videos/kokode-clinic/` or `src/primitives/`.
+- Captions and screen copy follow `lang` (`ja`, `en`, `zh-Hant`); narration
+  is always the story's `en`, so cue phrases are English. Editing an `en` line requires re-synthesising the English narration.
+- `fonts.ts` loads only the selected language through the lazy composition in
+  `Root.tsx`. Never import it from shared code.
 - `theme.ts` mirrors the site's `:root` and `public/brand/kokode-mark.svg` is
   a byte copy of its favicon; the test fails when either drifts.
 - No new dependencies (no QR library). The story feeds this workspace's
   type-check and tests (`turbo.json` inputs), but `--affected` cannot see that
   link: after a story edit run this workspace's gate as well.
+
+# Voices
+
+- Advertisement, pitch and sales videos always use a Fish Audio **Fish Official
+  English preset** from `src/timeline/voices.ts`. Narration is always English.
+  Do not use cloned or podcast voices. Choose gender and delivery to fit the
+  product: Kokode uses Adrian (calm, reliable male narrator); Zap Pilot's
+  calculator pitch uses Hannah (conversational female advertisement voice).
+- Before adding a preset, verify its author is Fish Official and its language
+  is English, then register its public reference ID in `voices.ts`. Preset IDs
+  are data; only `FISH_AUDIO_API_KEY` is secret. Default engine: `s2.1-pro-free`.
+
+# Subtitle versions
+
+- Captions and all on-screen copy follow the selected language. Versions share
+  English narration and scene timing. Caption-only edits do not require TTS;
+  spoken English or voice changes do. Kokode outputs Japanese, English and
+  Traditional Chinese; translated copy remains a draft pending native review.
+- A new language needs `CaptionLang`, split rules, fonts, story copy and tests.
+  `render` and `stills` output every available version; `--lang` selects one.
+
+# Generated artifacts
+
+- `out/` and `public/vo/` are ignored. `vo.manifest.json` stays committed: tests
+  and timelines use it. Regenerate narration before rendering a clean checkout.
+- TTS is nondeterministic: regenerated durations may differ on another machine.
+  Commit the updated manifest together with narration/script changes.
+
+# Music
+
+- Advertisements require genuine arranged instrumental BGM. Declare each film's
+  `music.src` and exact generation prompt in its storyboard. Never use a pulse
+  oscillator as music, loop a short take or silently substitute a provider.
+- Source, terms, date, prompt and SynthID disclosure must be recorded in
+  `public/music/README.md` and the selected asset's provenance JSON. AI music
+  does not imply exclusive copyright or guaranteed non-infringement; disclose
+  this to the customer before delivery.
+- Selected `public/music/*.mp3` and JSON are source assets and must be committed
+  with their documentation. Generated music cannot be reproduced exactly;
+  this differs from the ignored, regenerable `public/vo/` clips.
+- From the repo root, use `node scripts/env/run.mjs -- pnpm --filter
+@zapengine/video music <id> --takes 2`. Audition the takes, then run
+  `pnpm --filter @zapengine/video music <id> --pick N` (no key or cost).
+  The ignored `out/music-budget.json` reserves $0.08 per attempt, including
+  failures; never reset it to bypass the $1 generation budget. At most six
+  takes per invocation. Provider errors stop generation for operator review.
+- Acceptance requires duration ≥ film + 2s, initial silence ≤ 0.3s and an
+  approximately −18 LUFS / ≤ −2 dBTP stereo 48 kHz master. Music uses dynamic loudnorm with LRA target 3 to lift quiet passages; narration retains its own linear master. Use loudnorm for
+  measurement because bundled ffmpeg lacks ebur128. Human listening must
+  confirm no vocals and judge musical quality; spectra cannot prove either.
+- The default mix uses base 0.5, ducked 0.17, 0.25s attack, 0.8s release,
+  30-frame fade-in and 60-frame fade-out. Override base/ducked per storyboard
+  after measuring music and voice stems: audible gaps ≥ −30 LUFS and music
+  at least 12 dB below narration. Final delivery remains −16 LUFS / ≤ −1.5 dBTP.

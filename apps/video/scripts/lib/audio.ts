@@ -36,11 +36,18 @@ export function parseLoudnorm(stderr: string): LoudnessReport {
 
 /**
  * The loudnorm filter. With a first-pass `measured` report it normalises
- * linearly (one gain for the whole clip, no pumping); without one it only
- * measures.
+ * linearly when the targets permit it; without one it uses dynamic
+ * normalization. Discard the output when using it only to measure.
  */
-export function loudnormFilter(measured?: LoudnessReport): string {
-  const target = `I=${LOUDNESS_TARGET.i}:TP=${LOUDNESS_TARGET.tp}:LRA=${LOUDNESS_TARGET.lra}`;
+export function loudnormFilter(
+  measured?: LoudnessReport,
+  targets: {
+    readonly i: number;
+    readonly tp: number;
+    readonly lra: number;
+  } = LOUDNESS_TARGET,
+): string {
+  const target = `I=${targets.i}:TP=${targets.tp}:LRA=${targets.lra}`;
   if (measured === undefined) return `loudnorm=${target}:print_format=json`;
   return [
     `loudnorm=${target}`,

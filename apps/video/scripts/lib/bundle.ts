@@ -3,17 +3,24 @@ import path from 'node:path';
 import { bundle } from '@remotion/bundler';
 import { ensureBrowser, selectComposition } from '@remotion/renderer';
 
+import type { CaptionLang } from '../../src/timeline/types';
 import { defaultVideoProps } from '../../src/videos/metadata';
 import { publicDir, workspaceRoot } from './paths';
 
 /** Bundles the Remotion entry once and resolves a composition's metadata. */
-export async function prepare(videoId: string) {
+export async function prepare(
+  videoId: string,
+  lang: CaptionLang,
+  existingServeUrl?: string,
+) {
   await ensureBrowser();
-  const serveUrl = await bundle({
-    entryPoint: path.join(workspaceRoot, 'src', 'index.ts'),
-    publicDir,
-  });
-  const inputProps = defaultVideoProps;
+  const serveUrl =
+    existingServeUrl ??
+    (await bundle({
+      entryPoint: path.join(workspaceRoot, 'src', 'index.ts'),
+      publicDir,
+    }));
+  const inputProps = { ...defaultVideoProps, lang };
   const composition = await selectComposition({
     serveUrl,
     id: videoId,

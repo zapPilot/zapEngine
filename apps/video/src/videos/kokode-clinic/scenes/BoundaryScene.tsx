@@ -2,25 +2,25 @@ import type { FC } from 'react';
 
 import { cueAt } from '../../../timeline/beats';
 import type { SceneOf } from '../assets';
+import { useKokodeScene } from '../context';
 import { BoundaryPhone } from '../primitives/BoundaryPhone';
 import { Disclaimers } from '../primitives/Disclaimers';
-import { JaHeadline } from '../primitives/JaHeadline';
+import { Headline } from '../primitives/Headline';
 import { NetworkDiagram } from '../primitives/NetworkDiagram';
 import { Stage } from '../primitives/Stage';
-import { BEATS } from '../story';
 
 /** Usable on the staff network, after login; from outside it does not connect. */
 export const BoundaryScene: FC<{ readonly scene: SceneOf<'boundary'> }> = ({
   scene,
 }) => {
-  const { props } = scene.spec;
+  const { story, props } = useKokodeScene(scene);
   const insideFrom = cueAt(scene, props.insideCue);
   return (
     <Stage
       copy={
-        <JaHeadline
-          lines={props.film.headline}
-          eyebrow={BEATS.boundary.eyebrow}
+        <Headline
+          lines={story.BEATS[props.film.headline].title}
+          eyebrow={story.BEATS.boundary.eyebrow}
           from={0}
           size={68}
         />

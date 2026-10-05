@@ -2,8 +2,7 @@ import type { FC } from 'react';
 import { useCurrentFrame } from 'remotion';
 
 import { rise } from '../../../primitives/motion';
-import { jaFont } from '../fonts';
-import { FIGURES } from '../story';
+import { useKokode } from '../context';
 import { theme } from '../theme';
 import { Icon } from './icons';
 import { Pill, Zone } from './Zone';
@@ -20,8 +19,9 @@ const Arrow: FC<{ readonly from: number }> = ({ from }) => {
 
 /** Where patient data goes: to a cloud AI before, to the in-house AI after. */
 export const DataFlow: FC<{ readonly from: number }> = ({ from }) => {
+  const { fontFamily, story } = useKokode();
   const frame = useCurrentFrame();
-  const { before, after, inside } = FIGURES.beforeAfter;
+  const { before, after, inside } = story.FIGURES.beforeAfter;
   const [data = '', cloud = '', worry = ''] = before.steps;
   const [ownData = '', kokode = '', local = ''] = after.steps;
   const afterFrom = from + 24;
@@ -38,7 +38,7 @@ export const DataFlow: FC<{ readonly from: number }> = ({ from }) => {
         display: 'flex',
         flexDirection: 'column',
         gap: 18,
-        fontFamily: jaFont,
+        fontFamily,
         fontSize: 26,
       }}
     >
@@ -86,13 +86,14 @@ export const DataFlow: FC<{ readonly from: number }> = ({ from }) => {
  * patients' Wi-Fi is a separate network that cannot.
  */
 export const NetworkDiagram: FC<{ readonly from: number }> = ({ from }) => {
-  const f = FIGURES.boundary;
+  const { fontFamily, story } = useKokode();
+  const f = story.FIGURES.boundary;
   const [pc = '', tablet = ''] = f.devices;
   return (
     <Zone
       label={f.inside}
       from={from}
-      style={{ fontFamily: jaFont, fontSize: 26, width: 860 }}
+      style={{ fontFamily, fontSize: 26, width: 860 }}
     >
       <div
         style={{

@@ -21,7 +21,7 @@ export interface FishOptions {
   readonly sleep?: (ms: number) => Promise<void>;
 }
 
-/** Same voice parameters as the podcast narration, so the two sound alike. */
+/** Request parameters for the storyboard’s declared official English preset. */
 export function fishRequestInit(request: FishRequest): RequestInit {
   return {
     method: 'POST',

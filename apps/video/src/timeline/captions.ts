@@ -6,7 +6,7 @@ import {
   MAX_JA_CAPTION_UNITS,
   readingUnits,
 } from './cjk';
-import type { CaptionSettings, VoLine } from './types';
+import type { CaptionLang, CaptionSettings, VoLine } from './types';
 
 /** Longest caption phrase, in characters, that fits one 1080p caption line. */
 export const MAX_CAPTION_CHARS = 60;
@@ -81,10 +81,15 @@ function packAtoms(clause: string, max: number): string[] {
   return phrases;
 }
 
-export const SPLIT_RULES: {
-  readonly en: SplitRules;
-  readonly ja: SplitRules;
-} = {
+const CJK_RULES: SplitRules = {
+  sentences: jaSentences,
+  clauses: jaClauses,
+  pack: packAtoms,
+  join: (left, right) => left + right,
+  width: fullWidth,
+};
+
+export const SPLIT_RULES: Record<CaptionLang, SplitRules> = {
   // Decimal points ("13.75%") never split because a sentence break needs
   // whitespace after the punctuation.
   en: {
@@ -96,13 +101,8 @@ export const SPLIT_RULES: {
   },
   // No spaces between words: pieces rejoin as written, measured in
   // full-width cells.
-  ja: {
-    sentences: jaSentences,
-    clauses: jaClauses,
-    pack: packAtoms,
-    join: (left, right) => left + right,
-    width: fullWidth,
-  },
+  ja: CJK_RULES,
+  'zh-Hant': CJK_RULES,
 };
 
 function mergeClauses(
@@ -185,10 +185,7 @@ export interface CaptionProfile {
   readonly weigh: (text: string) => number;
 }
 
-export const CAPTION_PROFILES: {
-  readonly en: CaptionProfile;
-  readonly ja: CaptionProfile;
-} = {
+export const CAPTION_PROFILES: Record<CaptionLang, CaptionProfile> = {
   en: {
     maxUnits: MAX_CAPTION_CHARS,
     split: (text) => splitPhrases(text, MAX_CAPTION_CHARS, SPLIT_RULES.en),
@@ -197,6 +194,12 @@ export const CAPTION_PROFILES: {
   ja: {
     maxUnits: MAX_JA_CAPTION_UNITS,
     split: (text) => splitPhrases(text, MAX_JA_CAPTION_UNITS, SPLIT_RULES.ja),
+    weigh: readingWeight,
+  },
+  'zh-Hant': {
+    maxUnits: MAX_JA_CAPTION_UNITS,
+    split: (text) =>
+      splitPhrases(text, MAX_JA_CAPTION_UNITS, SPLIT_RULES['zh-Hant']),
     weigh: readingWeight,
   },
 };

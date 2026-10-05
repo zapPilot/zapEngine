@@ -2,12 +2,12 @@ import type { FC } from 'react';
 import { AbsoluteFill, useCurrentFrame } from 'remotion';
 
 import { enter, rise } from '../../../primitives/motion';
-import { jaFont } from '../fonts';
-import { BEATS, type DisclaimerId, FILM_LINK } from '../story';
+import { useKokode } from '../context';
+import { type DisclaimerId, FILM_LINK } from '../story';
 import { theme } from '../theme';
 import { BrandMark } from './BrandMark';
 import { Disclaimers } from './Disclaimers';
-import { JaHeadline } from './JaHeadline';
+import { Headline } from './Headline';
 
 /** The address viewers type; the full link with UTM lives in the story. */
 const HOST = new URL(FILM_LINK).host;
@@ -22,6 +22,7 @@ export const KokodeEndCard: FC<{
   readonly brandFrom: number;
   readonly notes: readonly DisclaimerId[];
 }> = ({ ask, from, brandFrom, notes }) => {
+  const { fontFamily, story } = useKokode();
   const frame = useCurrentFrame();
   const swap = rise(frame, brandFrom - 8, 14);
   return (
@@ -36,7 +37,7 @@ export const KokodeEndCard: FC<{
           translate: `0px ${(-swap * 40).toFixed(2)}px`,
         }}
       >
-        <JaHeadline lines={ask} from={from} size={74} />
+        <Headline lines={ask} from={from} size={74} />
       </AbsoluteFill>
       <AbsoluteFill
         style={{
@@ -44,7 +45,7 @@ export const KokodeEndCard: FC<{
           justifyContent: 'center',
           gap: 36,
           paddingBottom: 140,
-          fontFamily: jaFont,
+          fontFamily,
           opacity: swap,
         }}
       >
@@ -60,7 +61,7 @@ export const KokodeEndCard: FC<{
             ...enter(frame, brandFrom + 6, { distance: 24, blur: 6 }),
           }}
         >
-          {BEATS.hero.eyebrow}
+          {story.BEATS.hero.eyebrow}
         </span>
         <span
           style={{

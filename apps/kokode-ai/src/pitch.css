@@ -312,12 +312,25 @@ body.pitch-page {
   }
 }
 
+.slide-foot-end {
+  display: inline-flex;
+  align-items: center;
+  gap: 1.6cqi;
+}
 .slide-foot .translation-draft {
   font-size: 0.8cqi;
   margin: 0;
 }
 .slide-foot .lang-switch {
-  font-size: 0.9cqi;
+  font-size: 1.1cqi;
+}
+.slide-foot .lang-switch summary {
+  min-height: 0;
+  padding: 0.5cqi 1cqi;
+  gap: 0.5cqi;
+}
+.slide-foot .lang-menu a {
+  padding: 0.6cqi 1.2cqi;
 }
 @media (orientation: portrait) and (max-width: 760px) {
   .slide-foot {
@@ -326,6 +339,15 @@ body.pitch-page {
   }
   .slide-foot .lang-switch,
   .slide-foot .translation-draft {
-    font-size: 10px;
+    font-size: 12px;
+  }
+  .slide-foot .lang-switch summary {
+    padding: 6px 12px;
+  }
+  .slide-foot-end {
+    gap: 12px;
+  }
+  .slide-foot .lang-menu a {
+    padding: 8px 12px;
   }
 }

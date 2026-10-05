@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { cliArgs, requireVideoId } from './args';
+import { cliArgs, requireVideoId, selectedLangs } from './args';
 
 describe('cliArgs', () => {
   it('ignores the literal -- pnpm forwards', () => {
@@ -30,5 +30,13 @@ describe('requireVideoId', () => {
     );
     expect(() => requireVideoId(['a', 'b'], ['a', 'b'])).toThrow('Got: a b');
     expect(() => requireVideoId(['c'], ['a'])).toThrow('Got: c');
+  });
+});
+
+describe('selectedLangs', () => {
+  it('selects all versions or the requested available version', () => {
+    expect(selectedLangs(['ja', 'en'])).toEqual(['ja', 'en']);
+    expect(selectedLangs(['ja', 'en'], 'en')).toEqual(['en']);
+    expect(() => selectedLangs(['en'], 'ja')).toThrow('Available: en');
   });
 });

@@ -84,7 +84,8 @@ describe('unspokenCues', () => {
     leadIn: 12,
     tail: 12,
     gap: 6,
-    voice: { speed: 1 },
+    music: { src: 'music/test.mp3', prompt: 'Instrumental' },
+    voice: { speed: 1, voice: 'hannah' as const },
     ...(captions === undefined ? {} : { captions }),
     scenes: [
       {

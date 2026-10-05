@@ -1,3 +1,8 @@
+import type { VoiceName } from './voices';
+
+export const CAPTION_LANGS = ['ja', 'en', 'zh-Hant'] as const;
+export type CaptionLang = (typeof CAPTION_LANGS)[number];
+
 /** One narrated sentence. Its id keys the voiceover manifest. */
 export interface VoLine {
   readonly id: string;
@@ -5,6 +10,7 @@ export interface VoLine {
   readonly text: string;
   /** What the TTS engine is asked to say, when it differs from `text`. */
   readonly say?: string;
+  readonly translations?: Partial<Record<CaptionLang, string>>;
 }
 
 export interface SceneSpec<Id extends string = string, Props = unknown> {
@@ -22,6 +28,7 @@ export interface SceneSpec<Id extends string = string, Props = unknown> {
 export interface VoiceSettings {
   /** Fish Audio prosody speed; part of every line's cache fingerprint. */
   readonly speed: number;
+  readonly voice: VoiceName;
 }
 
 /**
@@ -30,8 +37,15 @@ export interface VoiceSettings {
  * while the narration says `say`, so cue phrases are matched in what is heard.
  */
 export interface CaptionSettings {
-  readonly lang: 'en' | 'ja';
+  readonly lang: CaptionLang;
   readonly relation: 'transcript' | 'translation';
+}
+
+export interface MusicSettings {
+  readonly src: string;
+  readonly prompt: string;
+  readonly base?: number;
+  readonly ducked?: number;
 }
 
 export interface Storyboard<Scene extends SceneSpec = SceneSpec> {
@@ -48,6 +62,7 @@ export interface Storyboard<Scene extends SceneSpec = SceneSpec> {
   /** Frames between consecutive lines inside one scene. */
   readonly gap: number;
   readonly voice: VoiceSettings;
+  readonly music: MusicSettings;
   /** Absent: English captions that transcribe the narration. */
   readonly captions?: CaptionSettings;
   readonly scenes: readonly Scene[];

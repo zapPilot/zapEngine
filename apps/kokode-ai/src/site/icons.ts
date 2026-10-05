@@ -27,6 +27,9 @@ export const ICONS = {
     markup`<circle cx="12" cy="12" r="9" /><path d="M6 6l12 12" />`,
   ),
   arrow: icon(markup`<path d="M4 12h16M14 6l6 6-6 6" />`),
+  globe: icon(
+    markup`<circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c2.6 2.6 3.9 5.6 3.9 9s-1.3 6.4-3.9 9c-2.6-2.6-3.9-5.6-3.9-9S9.4 5.6 12 3z" />`,
+  ),
 } as const;
 
 /**

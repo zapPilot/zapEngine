@@ -60,7 +60,7 @@ The <60 s pitch video is generated from code in `apps/video` (`calculator-pitch`
 narration, captions and on-screen numbers come from that workspace's storyboard
 and `facts.ts`, which is tested against `apps/landing-page/src/data/verifiable-strategy.json`.
 Render with `pnpm --filter @zapengine/video render calculator-pitch` (output
-`apps/video/out/calculator-pitch.mp4`). Uploading it to YouTube/HackQuest stays
+`apps/video/out/calculator-pitch.en.mp4`). Uploading it to YouTube/HackQuest stays
 user-owned.
 
 ## Demo script

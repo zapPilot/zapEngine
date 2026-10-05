@@ -1,52 +1,52 @@
 {
   "videoId": "calculator-pitch",
   "engine": "s2.1-pro-free",
-  "voiceKey": "cb4225f9e356",
+  "voiceKey": "8c06ad86c3bf",
   "lines": {
     "hook": {
-      "file": "vo/calculator-pitch/e5b13736b6b47275.mp3",
-      "fingerprint": "8def36fa4ddcb8b6",
+      "file": "vo/calculator-pitch/7533aeb3d56c9459.mp3",
+      "fingerprint": "7c726efa9c582364",
       "durationSeconds": 3.96
     },
     "rule": {
-      "file": "vo/calculator-pitch/59f0e6d87645dbe8.mp3",
-      "fingerprint": "5b2fb8a2c6dc4bd2",
-      "durationSeconds": 8.04
+      "file": "vo/calculator-pitch/be224728dc9657c9.mp3",
+      "fingerprint": "796ee712cc37e680",
+      "durationSeconds": 7.752
     },
     "inputs": {
-      "file": "vo/calculator-pitch/c76888d602c36137.mp3",
-      "fingerprint": "da679a87c623e683",
-      "durationSeconds": 7.536
+      "file": "vo/calculator-pitch/234cbfb75055bf6d.mp3",
+      "fingerprint": "6f8d957518758369",
+      "durationSeconds": 7.248
     },
     "proof-bytecode": {
-      "file": "vo/calculator-pitch/5b62a8d8bac4388d.mp3",
-      "fingerprint": "9bed7d6eef0b2824",
-      "durationSeconds": 4.344
+      "file": "vo/calculator-pitch/e31222a4706f953d.mp3",
+      "fingerprint": "d17c2dbe2c2df91d",
+      "durationSeconds": 3.72
     },
     "proof-decision": {
-      "file": "vo/calculator-pitch/d59d970ca98b87bd.mp3",
-      "fingerprint": "b5aa67cdff9d9e9e",
-      "durationSeconds": 10.56
+      "file": "vo/calculator-pitch/423180f6745f43f5.mp3",
+      "fingerprint": "9b9923011502b7f4",
+      "durationSeconds": 9.864
     },
     "scenario": {
-      "file": "vo/calculator-pitch/73fc20ba340804c3.mp3",
-      "fingerprint": "239fa9af59b8d242",
-      "durationSeconds": 3.096
+      "file": "vo/calculator-pitch/5dcb8b3ddadb541c.mp3",
+      "fingerprint": "822450c66a23f831",
+      "durationSeconds": 2.664
     },
     "deploy": {
-      "file": "vo/calculator-pitch/74e275ab97a27e34.mp3",
-      "fingerprint": "979c1c3bd4294056",
-      "durationSeconds": 5.928
+      "file": "vo/calculator-pitch/0ebd90e28aeadc14.mp3",
+      "fingerprint": "03ad54e801a34959",
+      "durationSeconds": 5.4
     },
     "scope": {
-      "file": "vo/calculator-pitch/4e6cb1af87bc0789.mp3",
-      "fingerprint": "9f34f44646446d52",
-      "durationSeconds": 3.96
+      "file": "vo/calculator-pitch/fdf839afd6c08709.mp3",
+      "fingerprint": "8c4d5a71987b6226",
+      "durationSeconds": 3.792
     },
     "cta": {
-      "file": "vo/calculator-pitch/69b29ea8f64c501d.mp3",
-      "fingerprint": "3f9af475c913fd27",
-      "durationSeconds": 2.448
+      "file": "vo/calculator-pitch/84feac82c76e270b.mp3",
+      "fingerprint": "b7179973a42c64a5",
+      "durationSeconds": 2.712
     }
   }
 }

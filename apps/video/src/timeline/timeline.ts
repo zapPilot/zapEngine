@@ -172,7 +172,7 @@ export interface ReadingRate {
 }
 
 /**
- * Reading speed of every narrated line, for Japanese captions only: they are
+ * Reading speed of every narrated line, for Japanese and Traditional Chinese captions: they are
  * read rather than heard, so a line that says too much for its narration
  * leaves the viewer behind. English captions follow the voice and return [].
  */
@@ -180,7 +180,11 @@ export function readingRates(
   storyboard: Storyboard,
   timeline: Timeline,
 ): ReadingRate[] {
-  if (storyboard.captions?.lang !== 'ja') return [];
+  if (
+    storyboard.captions?.lang !== 'ja' &&
+    storyboard.captions?.lang !== 'zh-Hant'
+  )
+    return [];
   return timeline.scenes.flatMap((scene) =>
     scene.beats.map((beat) => {
       const units = readingUnits(beat.line.text);

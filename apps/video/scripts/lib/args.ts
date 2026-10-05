@@ -1,5 +1,7 @@
 import { parseArgs, type ParseArgsOptionsConfig } from 'node:util';
 
+import type { CaptionLang } from '../../src/timeline/types';
+
 /**
  * `pnpm <script> -- <args>` forwards the literal `--`, which node's parseArgs
  * treats as "everything after is positional". Drop it so
@@ -29,4 +31,18 @@ export function requireVideoId(
     );
   }
   return id;
+}
+
+/** All versions by default; reject a language the video does not provide. */
+export function selectedLangs(
+  available: readonly CaptionLang[],
+  requested?: string,
+): readonly CaptionLang[] {
+  if (requested === undefined) return available;
+  const lang = available.find((value) => value === requested);
+  if (lang === undefined)
+    throw new Error(
+      `Unknown caption language "${requested}". Available: ${available.join(', ')}`,
+    );
+  return [lang];
 }

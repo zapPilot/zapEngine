@@ -86,3 +86,9 @@ describe('speechBounds', () => {
     });
   });
 });
+
+it('supports dynamic music normalization independently of narration targets', () => {
+  expect(loudnormFilter(undefined, { i: -18, tp: -2, lra: 3 })).toBe(
+    'loudnorm=I=-18:TP=-2:LRA=3:print_format=json',
+  );
+});

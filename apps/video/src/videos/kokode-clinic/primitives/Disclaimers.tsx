@@ -3,8 +3,8 @@ import { useCurrentFrame } from 'remotion';
 
 import { safe } from '../../../primitives/layout';
 import { rise } from '../../../primitives/motion';
-import { jaFont } from '../fonts';
-import { type DisclaimerId, footnote } from '../story';
+import { useKokode } from '../context';
+import { type DisclaimerId } from '../story';
 import { theme } from '../theme';
 
 /**
@@ -15,6 +15,7 @@ export const Disclaimers: FC<{
   readonly notes: readonly DisclaimerId[];
   readonly from?: number;
 }> = ({ notes, from = 0 }) => {
+  const { fontFamily, story } = useKokode();
   const frame = useCurrentFrame();
   if (notes.length === 0) return null;
   return (
@@ -28,7 +29,7 @@ export const Disclaimers: FC<{
         flexWrap: 'wrap',
         columnGap: 32,
         rowGap: 4,
-        fontFamily: jaFont,
+        fontFamily,
         fontSize: 20,
         lineHeight: 1.4,
         color: theme.muted,
@@ -36,7 +37,7 @@ export const Disclaimers: FC<{
       }}
     >
       {notes.map((note) => (
-        <span key={note}>{footnote(note)}</span>
+        <span key={note}>{story.footnote(note)}</span>
       ))}
     </div>
   );

@@ -8,20 +8,27 @@ export interface DuckOptions {
   readonly base: number;
   /** Music level under narration (0–1). */
   readonly ducked: number;
-  /** Frames to dip before a line and recover after it. */
-  readonly ramp: number;
+  /** Frames to dip before a line. */
+  readonly attack: number;
+  /** Frames to recover after a line. */
+  readonly release: number;
   readonly fadeIn: number;
   readonly fadeOut: number;
   readonly durationInFrames: number;
 }
 
 /** 0 away from the span, 1 inside it, linear ramps either side. */
-function envelope(frame: number, span: Span, ramp: number): number {
+function envelope(
+  frame: number,
+  span: Span,
+  attack: number,
+  release: number,
+): number {
   const start = span.from;
   const end = span.from + span.durationInFrames;
-  if (frame <= start - ramp || frame >= end + ramp) return 0;
-  if (frame < start) return (frame - (start - ramp)) / ramp;
-  if (frame > end) return (end + ramp - frame) / ramp;
+  if (frame < start - attack || frame > end + release) return 0;
+  if (frame < start) return (frame - (start - attack)) / attack;
+  if (frame > end) return (end + release - frame) / release;
   return 1;
 }
 
@@ -35,7 +42,8 @@ export function musicVolume(
   options: DuckOptions,
 ): number {
   const duck = voice.reduce(
-    (deepest, span) => Math.max(deepest, envelope(frame, span, options.ramp)),
+    (deepest, span) =>
+      Math.max(deepest, envelope(frame, span, options.attack, options.release)),
     0,
   );
   const level = options.base + (options.ducked - options.base) * duck;

@@ -3,6 +3,7 @@ import type { FC } from 'react';
 import { typingEnd } from '../../../primitives/typing';
 import { cueAt } from '../../../timeline/beats';
 import type { SceneOf } from '../assets';
+import { useKokodeScene } from '../context';
 import {
   ChatWindow,
   LockedResult,
@@ -11,9 +12,8 @@ import {
   UserBubble,
 } from '../primitives/ChatWindow';
 import { Disclaimers } from '../primitives/Disclaimers';
-import { JaHeadline } from '../primitives/JaHeadline';
+import { Headline } from '../primitives/Headline';
 import { Stage } from '../primitives/Stage';
-import { BEATS, DEMOS } from '../story';
 
 /**
  * The two pains, one shape: a cloud chat window where the work stops. Patient
@@ -23,18 +23,20 @@ import { BEATS, DEMOS } from '../story';
 export const HookScene: FC<{
   readonly scene: SceneOf<'hook-patient' | 'hook-content'>;
 }> = ({ scene }) => {
-  const { props } = scene.spec;
+  const { story, props } = useKokodeScene(scene);
   const headlineFrom = cueAt(scene, props.headlineCue);
   const lockFrom = cueAt(scene, props.lockCue);
   const [beat] = props.beats;
   const patient = props.variant === 'patient';
-  const prompt = patient ? DEMOS.patient.prompt : DEMOS.image.prompt;
+  const prompt = patient
+    ? story.DEMOS.patient.prompt
+    : story.DEMOS.image.prompt;
   return (
     <Stage
       copy={
-        <JaHeadline
-          lines={props.film.headline}
-          eyebrow={beat === undefined ? undefined : BEATS[beat].eyebrow}
+        <Headline
+          lines={story.BEATS[props.film.headline].title}
+          eyebrow={beat === undefined ? undefined : story.BEATS[beat].eyebrow}
           from={headlineFrom}
           size={68}
         />
@@ -47,8 +49,8 @@ export const HookScene: FC<{
             composer={{ text: prompt, typeFrom: 10, lockedFrom: lockFrom }}
           >
             <RecordCard
-              title={DEMOS.patient.record.title}
-              lines={DEMOS.patient.record.lines}
+              title={story.DEMOS.patient.record.title}
+              lines={story.DEMOS.patient.record.lines}
               from={4}
             />
           </ChatWindow>

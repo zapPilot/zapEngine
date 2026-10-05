@@ -2,6 +2,8 @@
 // scroll and snap; with it, arrows/PageUp/PageDown/Space/Home/End page, and
 // the URL hash follows the slide on screen so a link reopens the same slide.
 
+import { initLangMenu } from '../lang-menu';
+
 const NEXT = new Set(['ArrowDown', 'ArrowRight', 'PageDown', ' ']);
 const PREVIOUS = new Set(['ArrowUp', 'ArrowLeft', 'PageUp']);
 
@@ -9,7 +11,9 @@ function isTyping(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   return (
     target.isContentEditable ||
-    ['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON'].includes(target.tagName)
+    ['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON', 'SUMMARY'].includes(
+      target.tagName,
+    )
   );
 }
 
@@ -108,6 +112,7 @@ function initPrintLinks(): void {
 }
 
 if (typeof document !== 'undefined' && document.querySelector('.deck')) {
+  initLangMenu();
   initDeckNav();
   initPrintLinks();
 }

@@ -34,16 +34,13 @@ export interface NarratedVideoProps<Scene extends SceneSpec> {
   /** Laid over the scenes, under the captions. */
   readonly overlay?: ReactNode;
   readonly captionStyle?: CSSProperties;
-  /** Music bed below `public/`, looped for the whole video. */
-  readonly musicSrc?: string;
 }
 
 const MUSIC = {
-  base: 0.3,
-  ducked: 0.09,
-  ramp: 8,
-  fadeIn: 20,
-  fadeOut: 50,
+  base: 0.5,
+  ducked: 0.17,
+  fadeIn: 30,
+  fadeOut: 60,
 } as const;
 
 /** Narration lines still sized by estimate: visible in Studio, never rendered. */
@@ -82,10 +79,15 @@ export function NarratedVideo<Scene extends SceneSpec>({
   backdrop,
   overlay,
   captionStyle,
-  musicSrc = 'music/bgm-03.mp3',
 }: NarratedVideoProps<Scene>) {
   const { fps } = useVideoConfig();
-  const mix = { ...MUSIC, durationInFrames: timeline.durationInFrames };
+  const mix = {
+    ...MUSIC,
+    ...storyboard.music,
+    attack: Math.round(fps * 0.25),
+    release: Math.round(fps * 0.8),
+    durationInFrames: timeline.durationInFrames,
+  };
   return (
     <AbsoluteFill style={{ backgroundColor: background }}>
       {backdrop}
@@ -130,9 +132,7 @@ export function NarratedVideo<Scene extends SceneSpec>({
       {music ? (
         <Audio
           name="Music bed"
-          src={staticFile(musicSrc)}
-          loop
-          loopVolumeCurveBehavior="extend"
+          src={staticFile(storyboard.music.src)}
           volume={(frame) => musicVolume(frame, timeline.voice, mix)}
         />
       ) : null}

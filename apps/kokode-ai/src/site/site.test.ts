@@ -296,6 +296,10 @@ describe.each(LOCALES)('%s pages', (locale) => {
         doc.querySelector('link[hreflang="x-default"]')?.getAttribute('href'),
       ).toBe('https://www.kokode.xyz' + pagePath(page, 'ja'));
       for (const nav of doc.querySelectorAll('.lang-switch')) {
+        expect(nav.tagName).toBe('DETAILS');
+        expect(nav.querySelector('summary')?.textContent).toContain(
+          LOCALE_INFO[locale].label,
+        );
         expect(nav.querySelectorAll('a')).toHaveLength(3);
         expect(nav.querySelectorAll('[aria-current="true"]')).toHaveLength(1);
         expect(

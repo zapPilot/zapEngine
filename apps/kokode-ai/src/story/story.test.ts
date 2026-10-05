@@ -260,12 +260,14 @@ describe('film', () => {
     expect(Object.keys(FILM)).toEqual(FILM_ORDER.map((scene) => scene.id));
   });
 
-  it('pairs a Japanese caption with English narration on every line', () => {
+  it('provides three caption languages and English narration on every line', () => {
     const lines = Object.values(FILM).flatMap((scene) => scene.lines);
     expect(new Set(lines.map((line) => line.id)).size).toBe(lines.length);
     for (const line of lines) {
       expect(JAPANESE.test(line.ja), line.id).toBe(true);
       expect(JAPANESE.test(line.en), line.id).toBe(false);
+      expect(line['zh-Hant'], line.id).toBeTruthy();
+      expect(/[\u3040-\u30ff]/u.test(line['zh-Hant']), line.id).toBe(false);
     }
   });
 

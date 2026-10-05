@@ -1,5 +1,7 @@
 import path from 'node:path';
 
+import type { CaptionLang } from '../../src/timeline/types';
+
 /** apps/video, wherever the script is launched from. */
 export const workspaceRoot = path.resolve(import.meta.dirname, '../..');
 
@@ -17,6 +19,9 @@ export function videoPaths(videoId: string) {
     /** Stills, contact sheet and intermediate renders. */
     work: path.join(workspaceRoot, 'out', videoId),
     /** The deliverable. */
-    video: path.join(workspaceRoot, 'out', `${videoId}.mp4`),
+    videoFile: (lang: CaptionLang) =>
+      path.join(workspaceRoot, 'out', `${videoId}.${lang}.mp4`),
+    versionWork: (lang: CaptionLang) =>
+      path.join(workspaceRoot, 'out', videoId, lang),
   };
 }

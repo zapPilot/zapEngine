@@ -93,7 +93,14 @@ export const storyboard = {
   leadIn: 14,
   tail: 18,
   gap: 10,
-  voice: { speed: 1 },
+  music: {
+    src: 'music/kokode-clinic.mp3',
+    base: 1,
+    ducked: 0.2,
+    prompt:
+      'Instrumental only, absolutely no vocals, voices, humming or choir. Duration 85 seconds, clean ending. Underscore for a medical technology advertisement beneath English narration. 88 BPM, C major. Soft felt piano arpeggios, warm analog pads, gentle plucked bass, extremely light brushed percussion and fingerpicked pulses entering at 0:14. Sparse 1–4 kHz region for speech, no dominant lead melody. [0:00–0:14] sparse questioning suspenseful chords; [0:14–0:30] pulse enters, hopeful; [0:30–1:05] steady confident gradual layering; [1:05–1:25] warm rising resolution and clean cadence. No drops, risers, heavy bass, distortion, EDM or cinematic impacts. Begin audible music immediately, no silent intro.',
+  },
+  voice: { speed: 1, voice: 'adrian' },
   captions: { lang: 'ja', relation: 'translation' },
   scenes: [
     {

@@ -1,12 +1,12 @@
 /**
  * pnpm voiceover <video-id> [--prune] [--dry-run]
  *
- * Synthesises storyboard narration with the podcast's Fish Audio voice. Lines
+ * Synthesises English narration with the declared Fish Official preset voice. Lines
  * are cached by content hash, so only edited lines cost a request. Each clip
  * is trimmed to its speech and loudness-normalised to −16 LUFS, then measured;
  * the durations in vo.manifest.json drive the whole timeline.
  *
- * Needs FISH_AUDIO_API_KEY and FISH_AUDIO_REFERENCE_ID (FISH_AUDIO_ENGINE is
+ * Needs FISH_AUDIO_API_KEY (FISH_AUDIO_ENGINE is
  * optional), so run it through the env runner from the repo root:
  *   node scripts/env/run.mjs -- pnpm --filter @zapengine/video voiceover calculator-pitch
  */
@@ -28,12 +28,10 @@ import {
   type VoClip,
   type VoManifest,
 } from '../src/timeline/manifest';
-import {
-  buildTimeline,
-  readingRates,
-  type Timeline,
-} from '../src/timeline/timeline';
+import { buildTimeline, readingRates } from '../src/timeline/timeline';
 import type { VoLine } from '../src/timeline/types';
+import { captionLangs, captionVersion } from '../src/timeline/versions';
+import { VOICES } from '../src/timeline/voices';
 import { getVideo, videoIds } from '../src/videos/catalog';
 import { cliArgs, requireVideoId } from './lib/args';
 import { loudnormFilter, parseLoudnorm, speechBounds } from './lib/audio';
@@ -44,6 +42,7 @@ import {
   clipFileName,
   droppedLines,
   lineFingerprint,
+  missingClips,
   orphanFiles,
   staleLines,
   voiceKey,
@@ -109,29 +108,35 @@ async function master(raw: string, target: string): Promise<void> {
   ]);
 }
 
-/** Japanese captions only: how fast each line asks the viewer to read. */
-function printReadingRates(timeline: Timeline): void {
-  const rates = readingRates(storyboard, timeline);
-  if (rates.length === 0) return;
-  console.log(
-    `  reading speed (target ≤ ${JA_TARGET_CPS} cps, limit ${JA_MAX_CPS} cps)`,
-  );
-  for (const rate of rates) {
-    const flag =
-      rate.cps > JA_MAX_CPS
-        ? '  over limit'
-        : rate.cps > JA_TARGET_CPS
-          ? '  dense'
-          : '';
+/** CJK caption versions: how fast each line asks the viewer to read. */
+function printReadingRates(manifest: VoManifest): void {
+  for (const lang of captionLangs(storyboard)) {
+    const version = captionVersion(storyboard, lang);
+    const rates = readingRates(version, buildTimeline(version, manifest));
+    if (rates.length === 0) continue;
     console.log(
-      `  ${rate.lineId.padEnd(18)} ${rate.units} units / ${rate.seconds.toFixed(2)}s = ${rate.cps.toFixed(1)} cps${flag}`,
+      `  ${lang} reading speed (target ≤ ${JA_TARGET_CPS} cps, limit ${JA_MAX_CPS} cps)`,
     );
+    for (const rate of rates) {
+      const flag =
+        rate.cps > JA_MAX_CPS
+          ? '  over limit'
+          : rate.cps > JA_TARGET_CPS
+            ? '  dense'
+            : '';
+      console.log(
+        `  ${rate.lineId.padEnd(18)} ${rate.units} units / ${rate.seconds.toFixed(2)}s = ${rate.cps.toFixed(1)} cps${flag}`,
+      );
+    }
   }
 }
 
 async function main() {
   const previous = await readManifest();
-  const stale = new Set(staleLines(storyboard, previous));
+  const stale = new Set([
+    ...staleLines(storyboard, previous),
+    ...missingClips(previous, publicDir),
+  ]);
   const dropped = droppedLines(storyboard, previous);
   console.log(
     `${videoId}: ${stale.size} line(s) to synthesise${stale.size ? ` (${[...stale].join(', ')})` : ''}, ${dropped.length} dropped`,
@@ -142,22 +147,20 @@ async function main() {
     const current = Object.entries(previous.lines).filter(
       ([id]) => !stale.has(id),
     );
-    printReadingRates(
-      buildTimeline(storyboard, {
-        ...previous,
-        lines: Object.fromEntries(current),
-      }),
-    );
+    printReadingRates({
+      ...previous,
+      lines: Object.fromEntries(current),
+    });
     return;
   }
 
   const apiKey = process.env['FISH_AUDIO_API_KEY']?.trim();
-  const referenceId = process.env['FISH_AUDIO_REFERENCE_ID']?.trim();
+  const referenceId = VOICES[storyboard.voice.voice].id;
   const engine = process.env['FISH_AUDIO_ENGINE']?.trim() || DEFAULT_ENGINE;
-  if (!apiKey || !referenceId) {
+  if (!apiKey) {
     if (stale.size === 0 && dropped.length === 0) return;
     throw new Error(
-      'FISH_AUDIO_API_KEY and FISH_AUDIO_REFERENCE_ID are required; run through `node scripts/env/run.mjs --`.',
+      'FISH_AUDIO_API_KEY is required; run through `node scripts/env/run.mjs --`.',
     );
   }
 
@@ -219,7 +222,7 @@ async function main() {
       `  ${scene.spec.id.padEnd(10)} ${(scene.durationInFrames / storyboard.fps).toFixed(2)}s`,
     );
   }
-  printReadingRates(timeline);
+  printReadingRates(manifest);
   if (seconds > storyboard.maxSeconds) {
     throw new Error(
       `Over the ${storyboard.maxSeconds}s limit; shorten the script.`,

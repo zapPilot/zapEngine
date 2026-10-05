@@ -1,11 +1,13 @@
 import type { ShotSet } from '../captures/types';
-import type { Storyboard } from '../timeline/types';
+import type { CaptionLang, Storyboard } from '../timeline/types';
+import { captionLangs } from '../timeline/versions';
 import { shots as calculatorShots } from './calculator-pitch/shots';
 import { storyboard as calculatorStoryboard } from './calculator-pitch/storyboard';
 import { storyboard as kokodeStoryboard } from './kokode-clinic/storyboard';
 
 interface VideoEntry {
   readonly storyboard: Storyboard;
+  readonly captionLangs: readonly CaptionLang[];
   /** What `pnpm capture` photographs; absent when a video has no captures. */
   readonly shots?: ShotSet;
 }
@@ -17,10 +19,14 @@ interface VideoEntry {
 const catalog: Readonly<Record<string, VideoEntry>> = {
   'calculator-pitch': {
     storyboard: calculatorStoryboard,
+    captionLangs: captionLangs(calculatorStoryboard),
     shots: calculatorShots,
   },
   // Kokode is a separate product; its film is drawn, not captured.
-  'kokode-clinic': { storyboard: kokodeStoryboard },
+  'kokode-clinic': {
+    storyboard: kokodeStoryboard,
+    captionLangs: captionLangs(kokodeStoryboard),
+  },
 };
 
 export const videoIds = Object.keys(catalog);

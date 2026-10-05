@@ -5,7 +5,7 @@ import { enter } from '../../../primitives/motion';
 import { typingEnd } from '../../../primitives/typing';
 import { cueAt } from '../../../timeline/beats';
 import type { SceneOf } from '../assets';
-import { jaFont } from '../fonts';
+import { useKokodeScene } from '../context';
 import {
   ChatWindow,
   RecordCard,
@@ -14,24 +14,23 @@ import {
   UserBubble,
 } from '../primitives/ChatWindow';
 import { Disclaimers } from '../primitives/Disclaimers';
+import { Headline } from '../primitives/Headline';
 import { Icon } from '../primitives/icons';
-import { JaHeadline } from '../primitives/JaHeadline';
 import { DataFlow } from '../primitives/NetworkDiagram';
 import { SketchCanvas } from '../primitives/SketchCanvas';
 import { Stage } from '../primitives/Stage';
 import { Swap } from '../primitives/Swap';
-import { BEATS, DEMOS } from '../story';
 import { theme } from '../theme';
 
 /** Patient data stays in the building; the referral summary is drafted there. */
 const PatientDemo: FC<{ readonly scene: SceneOf<'demo-patient'> }> = ({
   scene,
 }) => {
-  const { props } = scene.spec;
+  const { story, props } = useKokodeScene(scene);
   const flowFrom = cueAt(scene, props.flowCue);
   const askFrom = cueAt(scene, props.askCue);
   const typeFrom = askFrom + 4;
-  const demo = DEMOS.patient;
+  const demo = story.DEMOS.patient;
   return (
     <Stage
       copy={
@@ -39,17 +38,17 @@ const PatientDemo: FC<{ readonly scene: SceneOf<'demo-patient'> }> = ({
           at={askFrom}
           height={460}
           before={
-            <JaHeadline
-              lines={props.film.headline}
-              eyebrow={BEATS.beforeAfter.eyebrow}
+            <Headline
+              lines={story.BEATS[props.film.headline].title}
+              eyebrow={story.BEATS.beforeAfter.eyebrow}
               from={flowFrom}
               size={70}
             />
           }
           after={
-            <JaHeadline
-              lines={BEATS.demoPatient.title}
-              eyebrow={BEATS.demoPatient.eyebrow}
+            <Headline
+              lines={story.BEATS.demoPatient.title}
+              eyebrow={story.BEATS.demoPatient.eyebrow}
               from={askFrom - 6}
               size={70}
             />
@@ -95,12 +94,12 @@ const PatientDemo: FC<{ readonly scene: SceneOf<'demo-patient'> }> = ({
 const ImageDemo: FC<{ readonly scene: SceneOf<'demo-image'> }> = ({
   scene,
 }) => {
+  const { fontFamily, story, props } = useKokodeScene(scene);
   const frame = useCurrentFrame();
-  const { props } = scene.spec;
   const askFrom = cueAt(scene, props.askCue);
   const sketchFrom = cueAt(scene, props.sketchCue);
   const slideFrom = cueAt(scene, props.slideCue);
-  const demo = DEMOS.image;
+  const demo = story.DEMOS.image;
   const [sketchStep = '', slideStep = ''] = demo.steps;
   const step = (label: string, at: number) => (
     <span
@@ -116,9 +115,9 @@ const ImageDemo: FC<{ readonly scene: SceneOf<'demo-image'> }> = ({
   return (
     <Stage
       copy={
-        <JaHeadline
-          lines={props.film.headline}
-          eyebrow={BEATS.demoImage.eyebrow}
+        <Headline
+          lines={story.BEATS[props.film.headline].title}
+          eyebrow={story.BEATS.demoImage.eyebrow}
           from={askFrom}
           size={70}
         />
@@ -135,7 +134,7 @@ const ImageDemo: FC<{ readonly scene: SceneOf<'demo-image'> }> = ({
               display: 'flex',
               alignItems: 'center',
               gap: 22,
-              fontFamily: jaFont,
+              fontFamily,
             }}
           >
             <div
