@@ -37,7 +37,7 @@ async function main(): Promise<void> {
         `  ${relativeToRoot(paths.voManifest)}`,
         '',
         'Run:',
-        `  pnpm --filter @zapengine/video voiceover ${videoId}`,
+        `  node scripts/env/run.mjs -- pnpm --filter @zapengine/video voiceover ${videoId}`,
       ].join('\n'),
     );
     process.exit(2);
@@ -57,7 +57,7 @@ async function main(): Promise<void> {
         `✗ ${videoId}: narration is missing or stale for ${problems.join(', ')}.`,
         '',
         'Run:',
-        `  pnpm --filter @zapengine/video voiceover ${videoId}`,
+        `  node scripts/env/run.mjs -- pnpm --filter @zapengine/video voiceover ${videoId}`,
       ].join('\n'),
     );
     process.exit(2);
@@ -73,7 +73,7 @@ async function main(): Promise<void> {
         `  ${relativeToRoot(music)}`,
         '',
         'Run:',
-        `  pnpm --filter @zapengine/video music ${videoId}`,
+        `  node scripts/env/run.mjs -- pnpm --filter @zapengine/video music ${videoId}`,
       ].join('\n'),
     );
     process.exit(2);

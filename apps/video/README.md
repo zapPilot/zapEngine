@@ -42,22 +42,29 @@ workspace commands below are for media development, debugging and explicit
 regeneration of voice/music — run them via `pnpm --filter @zapengine/video`
 (AI use); they have no root `video:*` aliases.
 
+Commands without secrets:
+
 ```bash
 pnpm --filter @zapengine/video dev                         # Remotion Studio
 pnpm --filter @zapengine/video capture calculator-pitch    # re-photograph the live product
-pnpm --filter @zapengine/video voiceover calculator-pitch
 pnpm --filter @zapengine/video stills calculator-pitch     # out/<id>/en/contact-sheet.png
 pnpm --filter @zapengine/video render calculator-pitch     # out/<id>/<id>.en.mp4, −16 LUFS
-pnpm --filter @zapengine/video voiceover kokode-clinic --dry-run
 pnpm --filter @zapengine/video stills kokode-clinic        # three language contact sheets
-pnpm --filter @zapengine/video make kokode-clinic          # refresh narration, then render all versions
+```
+
+Commands requiring secrets (authenticated Infisical workspace):
+
+```bash
+node scripts/env/run.mjs -- pnpm --filter @zapengine/video voiceover calculator-pitch
+node scripts/env/run.mjs -- pnpm --filter @zapengine/video voiceover kokode-clinic --dry-run
+node scripts/env/run.mjs -- pnpm --filter @zapengine/video make kokode-clinic          # refresh narration, then render all versions
 ```
 
 - `capture` defaults to `https://www.zap-pilot.org`; pass `--base-url` for a
   local build and `--only shot,shot` for part of the list. Every shot asserts
   what it shows; one failed check aborts the run and writes nothing.
-- `voiceover` needs `FISH_AUDIO_API_KEY`, hence
-  the env runner. Only lines whose words or voice settings changed are
+- `voiceover` needs `FISH_AUDIO_API_KEY`, loaded by the outer
+  env runner shown above. Only lines whose words or voice settings changed are
   synthesised; `--dry-run` lists them, `--prune` deletes unused clips. Videos
   with Japanese or Traditional Chinese captions also get each line's reading speed.
 - `stills` takes `--at 0.35,0.85` (fractions of each scene) or
@@ -65,7 +72,7 @@ pnpm --filter @zapengine/video make kokode-clinic          # refresh narration, 
 - `render` refuses while any narration line is still an estimate, then prints
   duration, size and loudness.
 - `make <id>` runs `voiceover` and then `render`, stopping if either fails.
-  It uses the env runner and only synthesises missing or stale narration.
+  The outer env runner supplies secrets; it only synthesises missing or stale narration.
   Music generation stays separate because every take costs $0.08.
   `voiceover`, `music` and `make` require an authenticated
   Infisical workspace; `render`, `stills` and `dev` need no keys.
@@ -152,7 +159,14 @@ voice/music separation. Initial fades and natural musical rests remain quieter.
 
 ## Brand pronunciation auditions
 
-Run `pnpm --filter @zapengine/video brand-audio kokode --takes 3`, then `pnpm --filter @zapengine/video brand-audio kokode --audition`. Takes, raw fragment cache, baseline copies, variant MP3s and `CHECKLIST.md` live under ignored `out/brand-audio/kokode/`. Compare `--take 1 --keep 0.010,0.020,0.060 --pause-scale 0.6,1.3` before choosing.
+Run from the repository root:
+
+```bash
+node scripts/env/run.mjs -- pnpm --filter @zapengine/video brand-audio kokode --takes 3
+node scripts/env/run.mjs -- pnpm --filter @zapengine/video brand-audio kokode --audition
+```
+
+Takes, raw fragment cache, baseline copies, variant MP3s and `CHECKLIST.md` live under ignored `out/brand-audio/kokode/`. Compare `--take 1 --keep 0.010,0.020,0.060 --pause-scale 0.6,1.3` before choosing.
 
 Only an explicit human choice permits `pnpm --filter @zapengine/video brand-audio kokode --pick N`. Pick copies exact take bytes to `public/brand/audio/kokode-adrian-ja.mp3` with a validated provenance sidecar; it needs no API key and does not approve the registry. An approved asset cannot be overwritten without `--replace`. Keep selected assets and provenance in Git. The synthesis lexicon substitutes the approved clip inside the English line; captions, story and timeline gaps keep their existing text and structure.
 
@@ -168,4 +182,12 @@ The spike measured identical 1105-sample decoder delay for three MP3 copies and 
 
 Selected clips are linearly mastered, frame-period corrected by ≤0.2%, SHA checked, bounded to 600 kB and accompanied by source/seam/rate/review metadata. CI decodes the committed clips and recomputes seam metrics. Workspace `render` permits review previews; `sales:render` requires explicit human acceptance (`pnpm --filter @zapengine/video loop accept <id>`). No acceptance is inferred from objective tests.
 
-Paid music remains `pnpm --filter @zapengine/video music <loop-id> --takes 2`, storing raw source takes in `out/<loop-id>/music/`; free `loop cut <loop-id> --take N` selects one. The shared $1 ledger and provider-error stop rules remain. This implementation did not call a paid API.
+Paid music requires secrets:
+
+```bash
+node scripts/env/run.mjs -- pnpm --filter @zapengine/video music <loop-id> --takes 2
+```
+
+It stores raw source takes in `out/<loop-id>/music/`; free `loop cut <loop-id> --take N` selects one.
+
+The shared $1 ledger and provider-error stop rules remain. This implementation did not call a paid API.
