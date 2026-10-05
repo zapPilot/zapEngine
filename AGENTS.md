@@ -11,6 +11,15 @@ Read the nearest scoped `AGENTS.md` before changing code. Scoped rules may add t
 - Verify real behavior before declaring success: use the narrowest relevant check during development and one appropriate aggregate gate before handoff or push. Do not treat a vacuous or no-op check as evidence. If executable verification is unavailable, complete the work and report exactly what was not run.
 - Do not preserve backward compatibility unless the nearest scoped instructions or an explicitly supported external contract require it. Otherwise remove obsolete paths instead of adding compatibility layers or fallbacks.
 
+## Root package scripts
+
+- Keep root `package.json` a curated repository CLI. Common repo-wide tasks, orchestration, and supported product workflows belong here; do not add aliases that merely shorten `pnpm --filter <workspace> <script>`.
+- Pure workspace passthroughs are allowed only for operator commands explicitly documented by their owning scope. The current exceptions are `ops:cost` and `social:login`; convenience alone is not an exception.
+- Scripts invoked by other root launchers are orchestration contracts, including `ops:dashboard:raw`, which `pnpm ops` launches inside an existing environment runner.
+- Document workspace commands requiring secrets in their owning scope using `node scripts/env/run.mjs [--environment prod] -- pnpm --filter <workspace> <script>`. Choose the environment explicitly where production is required: the runner defaults to development, while `pnpm ops` selects production.
+- Workspace scripts must remain env-raw and must not wrap themselves in the environment runner. Root orchestration such as `scripts/ops.mjs` invokes them after loading secrets, and `scripts/env/run.mjs` has no nested-run protection.
+- Before removing or renaming a root script, use `git grep` across the tracked tree to update callers: Actions, `.husky/`, documentation, tests that parse root `package.json`, and user-visible command hints. Preserve launcher contracts and verify affected callers.
+
 ## Messaging
 
 Use [.agents/skills/persuasive-messaging/SKILL.md](.agents/skills/persuasive-messaging/SKILL.md) for marketing copy, positioning, pitch decks, promo video packaging and editorial titles.

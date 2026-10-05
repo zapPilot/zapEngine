@@ -10,19 +10,36 @@ agent/developer media iteration and debugging — run them via
 `pnpm --filter @zapengine/video <cmd>` from the repo root, not via root
 `video:*` aliases.
 
+# Environment for workspace commands
+
+`voiceover`, `make`, `music --takes`, and `brand-audio --takes|--audition`
+require secrets. From the repo root, prefix these commands with
+`node scripts/env/run.mjs --`. `--pick`, `render`, `stills`, `dev`, `check`,
+`capture`, and `loop` need no secrets. Workspace scripts do not load the environment themselves.
+
 # Iteration loop
 
 1. Change copy, narration, cue phrases or scene order in
    `src/videos/<id>/storyboard.ts`; change visuals in `scenes/` or
    `src/primitives/`. Numbers and claims come only from `facts.ts`.
-2. Narration changed → `pnpm --filter @zapengine/video voiceover <id>`
-   from the repo root. It prints every scene's length and fails over the
-   storyboard's `maxSeconds`.
+2. Narration changed → run from the repo root:
+
+   ```bash
+   node scripts/env/run.mjs -- pnpm --filter @zapengine/video voiceover <id>
+   ```
+
+   It prints every scene's length and fails over the storyboard's `maxSeconds`.
+
 3. Look before you render: `pnpm --filter @zapengine/video stills <id>`, read
    `out/<id>/<lang>/contact-sheet.png`, then single files in `out/<id>/<lang>/stills/`.
 4. Render the MP4 only when asked: `pnpm --filter @zapengine/video render <id>`.
-   `pnpm --filter @zapengine/video make <id>` refreshes narration before rendering every language;
-   it uses the env runner. Music generation remains a separate paid command.
+   Refresh narration before rendering every language with:
+
+   ```bash
+   node scripts/env/run.mjs -- pnpm --filter @zapengine/video make <id>
+   ```
+
+   Music generation remains a separate paid command.
 
 # Gotchas
 
@@ -122,7 +139,14 @@ agent/developer media iteration and debugging — run them via
 - The real-song spike found frame-step crossfade residuals, so this implementation uses the approved fallback: sample-accurate precomputed PCM beds. `prepare-music.ts` runs before Studio, bundling and rendering. Beds are ignored and regenerable; selected short MP3s and provenance JSON stay committed. Full paid originals remain in `music/sources/`, outside the Remotion bundle.
 - Source/model/prompt/hash/original commit, cut/BPM/bars, period/crossfade samples, rho, rate/cents, linear gain, seam metrics and review status live in each loop JSON. Keep SynthID and provider terms disclosed in `public/music/README.md`. No exclusive copyright or non-infringement guarantee is asserted. Tell the customer these limits before delivery.
 - Free iteration: `pnpm --filter @zapengine/video loop cut <loop-id> --candidates` auditions only in `out/`; `cut` writes the selected clip and sets review pending. `--start`/`--bars` adjust the region. Listen to seam/bed previews and films before explicitly authorizing `pnpm --filter @zapengine/video loop accept <loop-id>`. Never mark accepted from objective metrics alone. `sales:render` fails closed for changed/unaccepted loops; workspace `render` is the development preview path.
-- Paid source generation remains separate: `pnpm --filter @zapengine/video music <loop-id> --takes 2`, then free `loop cut --take N`. Shared ledger reserves $0.08 before each attempt, including failures, with a $1 hard cap and at most six takes per invocation. Provider errors stop immediately; never reset the ledger or substitute another model. Do not run generation unless authorized.
+- Paid source generation remains separate: the following command, then free `loop cut --take N`.
+
+  ```bash
+  node scripts/env/run.mjs -- pnpm --filter @zapengine/video music <loop-id> --takes 2
+  ```
+
+  Shared ledger reserves $0.08 before each attempt, including failures, with a $1 hard cap and at most six takes per invocation. Provider errors stop immediately; never reset the ledger or substitute another model. Do not run generation unless authorized.
+
 - Loops align their period to integer 30fps frames using ≤0.2% rate correction, stay ≤600 kB and cover P+X samples. Master with one linear gain to approximately −18 LUFS / ≤−2 dBTP; no dynamic loudnorm on a loop. CI recomputes encoded seam metrics. Human ears judge instrumentation, vocals and musical quality.
 - Preserve existing narration ducking and final mastering (−16 LUFS / ≤−1.5 dBTP). Measure voice/music stems after edits: music at least 12 dB below narration; audible gaps ≥−30 LUFS. Re-render and publish content after accepted music changes even though content fingerprints deliberately exclude audio.
 
@@ -130,6 +154,14 @@ Film source fingerprints come from the same `filmStory` projection the compositi
 
 # Brand pronunciation source assets
 
-- `pnpm --filter @zapengine/video brand-audio kokode --takes 3` generates immutable candidates only. Audition with `--audition`; `--pick N` is human-only and requires an explicit named take. The registry remains candidate until the listening decision.
+- Generate immutable candidates and audition with the environment loaded:
+
+  ```bash
+  node scripts/env/run.mjs -- pnpm --filter @zapengine/video brand-audio kokode --takes 3
+  node scripts/env/run.mjs -- pnpm --filter @zapengine/video brand-audio kokode --audition
+  ```
+
+  `--pick N` is human-only and requires an explicit named take. The registry remains candidate until the listening decision.
+
 - Selected `public/brand/audio/*.mp3` and provenance JSON are committed source assets like `public/music`. Voiceover never generates or selects a brand clip; approved assets must match the voice, engine, speed, reference ID and digest.
 - Keep English story/caption text unchanged. Splice the approved clip inside one VoLine; never create a separate brand VoLine. Internal edges use splice retention; whole-line mastering keeps its existing 60 ms retention. Punctuation supplies pauses, language switches do not.
