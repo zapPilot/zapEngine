@@ -109,3 +109,7 @@ auditConfig:
     - GHSA-jmr9-qjv8-65gv
     - GHSA-w3rx-r6r6-pgpr
     - GHSA-5p2g-fcmc-qvqq
+    # No patched release: braces 3.0.3 is latest (via chokidar/micromatch), http-cache-semantics 4.2.0 (via got/@electron/get, build-time only), node-forge 1.4.0 (via @expo/cli). GitHub alerts stay open as owner/blocked; remove when patched releases exist.
+    - GHSA-vfj7-8cjw-p6xm
+    - GHSA-ch52-4w7c-c8xp
+    - GHSA-86w9-cpqp-85rv
