@@ -414,6 +414,6 @@ starting the collector. Existing `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`,
 `SUPABASE_DB_SCHEMA`, and `SENTRY_PODCAST_PIPELINE_DSN` configuration is reused;
 no database passwords or management API token is required.
 
-### Mixed-language seam audition
+### TTS context preservation
 
-Production fragment edges retain `SEAM_RETAIN_S` (currently 60 ms); punctuation pauses stay 100/280 ms, and language switches add no pause. Run `node scripts/env/run.mjs -- pnpm --filter @zapengine/podcast-pipeline tts:audition` with the existing Fish API key/reference ID. The command synthesizes each unique fragment once and runs the real mixed-language orchestration at 60/20/15/10 ms plus a finer-detector row. Outputs default to an OS temporary directory (`--output` overrides), with measured raw/final silence reports and a listening checklist. Compare classroom ja→en joins and narration edges as well as internal seams. Local ffmpeg 4.4 differs from production 4.1; automated measurements do not establish naturalness. Change production only after the listening decision.
+Production narration keeps sentence context intact. Chinese and Japanese text that contains English terms is sent to Fish Audio as complete text/chunks; English terms are not synthesized separately and spliced back into the narration. The `tts:audition` mixed-language seam tooling is retained only as a diagnostic experiment and is not part of the production TTS path.

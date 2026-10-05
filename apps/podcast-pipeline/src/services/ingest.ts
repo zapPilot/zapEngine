@@ -41,7 +41,6 @@ import {
   type SecondaryLanguageCode,
   translateCanonicalScript,
 } from './translate.js';
-import { withEnglishTermClipReuse } from './tts/mixed-language-tts.js';
 
 export type { IngestResult } from './ingest/result-builder.js';
 
@@ -77,99 +76,93 @@ export async function performMultilingualIngest(
   costSink?: IngestCostSinkEntry[],
 ): Promise<IngestResult> {
   const runId = getStepLogContext()?.runId ?? randomUUID().slice(0, 8);
-  return withEnglishTermClipReuse(() =>
-    withStepLogContext({ runId }, async () => {
-      const results: IngestResult[] = [];
-      const total = MULTILINGUAL_INGEST_LANGUAGE_CODES.length;
+  return withStepLogContext({ runId }, async () => {
+    const results: IngestResult[] = [];
+    const total = MULTILINGUAL_INGEST_LANGUAGE_CODES.length;
 
-      for (const [
-        index,
-        languageCode,
-      ] of MULTILINGUAL_INGEST_LANGUAGE_CODES.entries()) {
-        results.push(
-          await withStepLogContext(
-            {
-              languageCode,
-              localizationIndex: index + 1,
-              localizationTotal: total,
-            },
-            async () => {
-              const startedAt = Date.now();
-              const telemetry: IngestLanguageTelemetry = {
-                lines: [],
-                attempts: [],
-                episodeId: null,
-                localizationId: null,
-              };
-              logIngestEvent('localization:start');
-              try {
-                const result = await performIngest(
-                  url,
-                  languageCode,
-                  telemetry,
-                );
+    for (const [
+      index,
+      languageCode,
+    ] of MULTILINGUAL_INGEST_LANGUAGE_CODES.entries()) {
+      results.push(
+        await withStepLogContext(
+          {
+            languageCode,
+            localizationIndex: index + 1,
+            localizationTotal: total,
+          },
+          async () => {
+            const startedAt = Date.now();
+            const telemetry: IngestLanguageTelemetry = {
+              lines: [],
+              attempts: [],
+              episodeId: null,
+              localizationId: null,
+            };
+            logIngestEvent('localization:start');
+            try {
+              const result = await performIngest(url, languageCode, telemetry);
+              costSink?.push({
+                languageCode,
+                episodeId: result.episode.id,
+                localizationId: result.episode.localizationId,
+                lines: result.costDetails.breakdown,
+                attempts: telemetry.attempts,
+                status: 'completed',
+              });
+              logIngestEvent('localization:done', {
+                elapsedMs: Date.now() - startedAt,
+                status: result.statusCode,
+              });
+              return result;
+            } catch (error) {
+              // The language that dies mid-run is the one whose spend and
+              // timing are most worth having, and it is exactly the one the
+              // sink used to drop: it never returned, so nothing pushed it.
+              // Its episode id is also the only one the run row can carry.
+              if (telemetry.episodeId) {
                 costSink?.push({
                   languageCode,
-                  episodeId: result.episode.id,
-                  localizationId: result.episode.localizationId,
-                  lines: result.costDetails.breakdown,
+                  episodeId: telemetry.episodeId,
+                  localizationId: telemetry.localizationId,
+                  lines: telemetry.lines,
                   attempts: telemetry.attempts,
-                  status: 'completed',
+                  status: 'failed',
                 });
-                logIngestEvent('localization:done', {
-                  elapsedMs: Date.now() - startedAt,
-                  status: result.statusCode,
-                });
-                return result;
-              } catch (error) {
-                // The language that dies mid-run is the one whose spend and
-                // timing are most worth having, and it is exactly the one the
-                // sink used to drop: it never returned, so nothing pushed it.
-                // Its episode id is also the only one the run row can carry.
-                if (telemetry.episodeId) {
-                  costSink?.push({
-                    languageCode,
-                    episodeId: telemetry.episodeId,
-                    localizationId: telemetry.localizationId,
-                    lines: telemetry.lines,
-                    attempts: telemetry.attempts,
-                    status: 'failed',
-                  });
-                }
-                logIngestEvent('localization:failed', {
-                  elapsedMs: Date.now() - startedAt,
-                  error: errorMessage(error),
-                });
-                throw error;
               }
-            },
-          ),
-        );
-      }
-
-      const selectedResult = results.find(
-        (result) => result.episode.languageCode === responseLanguageCode,
+              logIngestEvent('localization:failed', {
+                elapsedMs: Date.now() - startedAt,
+                error: errorMessage(error),
+              });
+              throw error;
+            }
+          },
+        ),
       );
-      if (!selectedResult) {
-        throw new Error(
-          `Failed to generate requested localization: ${responseLanguageCode}`,
-        );
-      }
+    }
 
-      const costDetails = buildUsageCostDetails(
-        results.flatMap((result) => result.costDetails.breakdown),
+    const selectedResult = results.find(
+      (result) => result.episode.languageCode === responseLanguageCode,
+    );
+    if (!selectedResult) {
+      throw new Error(
+        `Failed to generate requested localization: ${responseLanguageCode}`,
       );
+    }
 
-      return {
-        episode: selectedResult.episode,
-        statusCode: results.some((result) => result.statusCode === 201)
-          ? 201
-          : selectedResult.statusCode,
-        costUsd: costDetails.totalUsd,
-        costDetails,
-      };
-    }),
-  );
+    const costDetails = buildUsageCostDetails(
+      results.flatMap((result) => result.costDetails.breakdown),
+    );
+
+    return {
+      episode: selectedResult.episode,
+      statusCode: results.some((result) => result.statusCode === 201)
+        ? 201
+        : selectedResult.statusCode,
+      costUsd: costDetails.totalUsd,
+      costDetails,
+    };
+  });
 }
 
 export async function performIngest(
