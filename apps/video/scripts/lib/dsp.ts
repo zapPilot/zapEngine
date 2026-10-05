@@ -42,7 +42,11 @@ export function spectrum(samples: ArrayLike<number>): Float64Array {
       bit >>= 1;
     }
     j ^= bit;
-    if (i < j) [real[i], real[j]] = [sampleAt(real, j), sampleAt(real, i)];
+    if (i < j) {
+      const swapped = real[i] as number;
+      real[i] = real[j] as number;
+      real[j] = swapped;
+    }
   }
   for (let size = 2; size <= n; size *= 2) {
     for (let start = 0; start < n; start += size)
@@ -52,17 +56,22 @@ export function spectrum(samples: ArrayLike<number>): Float64Array {
           s = Math.sin(angle),
           k = start + j,
           q = k + size / 2;
-        const r = sampleAt(real, q) * c - sampleAt(imag, q) * s,
-          im = sampleAt(real, q) * s + sampleAt(imag, q) * c;
-        real[q] = sampleAt(real, k) - r;
-        imag[q] = sampleAt(imag, k) - im;
-        real[k] = sampleAt(real, k) + r;
-        imag[k] = sampleAt(imag, k) + im;
+        const rq = real[q] as number,
+          iq = imag[q] as number,
+          rk = real[k] as number,
+          ik = imag[k] as number;
+        const r = rq * c - iq * s,
+          im = rq * s + iq * c;
+        real[q] = rk - r;
+        imag[q] = ik - im;
+        real[k] = rk + r;
+        imag[k] = ik + im;
       }
   }
-  return Float64Array.from({ length: n / 2 }, (_, i) =>
-    Math.hypot(sampleAt(real, i), sampleAt(imag, i)),
-  );
+  const magnitudes = new Float64Array(n / 2);
+  for (let i = 0; i < n / 2; i++)
+    magnitudes[i] = Math.hypot(real[i] as number, imag[i] as number);
+  return magnitudes;
 }
 export function chroma(
   magnitudes: ArrayLike<number>,
@@ -84,20 +93,18 @@ export function onsets(
 ): Float64Array {
   if (samples.length < window || hop < 1)
     throw new Error('Insufficient onset samples');
+  const count = Math.floor((samples.length - window) / hop) + 1;
+  const flux = new Float64Array(count);
   let previous: Float64Array = new Float64Array(window / 2);
-  return Float64Array.from(
-    { length: Math.floor((samples.length - window) / hop) + 1 },
-    (_, index) => {
-      const next = spectrum(
-        samples.subarray(index * hop, index * hop + window),
-      );
-      let flux = 0;
-      for (let i = 0; i < next.length; i++)
-        flux += Math.max(0, sampleAt(next, i) - sampleAt(previous, i));
-      previous = next;
-      return flux;
-    },
-  );
+  for (let index = 0; index < count; index++) {
+    const next = spectrum(samples.subarray(index * hop, index * hop + window));
+    let value = 0;
+    for (let i = 0; i < next.length; i++)
+      value += Math.max(0, (next[i] as number) - (previous[i] as number));
+    flux[index] = value;
+    previous = next;
+  }
+  return flux;
 }
 /** Comb ACF near the prompt tempo; sub-hop precision comes from quadratic interpolation. */
 export function tempo(

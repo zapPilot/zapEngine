@@ -3,6 +3,8 @@ import { execFileSync } from 'node:child_process';
 import { readFile, writeFile, rename, rm } from 'node:fs/promises';
 import { z } from 'zod';
 
+import { resolveAttempts } from './retry.js';
+
 function canonical(value: unknown): unknown {
   if (
     value === null ||
@@ -147,10 +149,7 @@ export async function verifyPublicArtifact(
   } = {},
 ): Promise<void> {
   const request = options.fetch ?? fetch;
-  const attempts = options.attempts ?? 3;
-  if (!Number.isInteger(attempts) || attempts < 1) {
-    throw new Error('attempts must be positive');
-  }
+  const attempts = resolveAttempts(options.attempts, 3);
   for (let attempt = 0; attempt < attempts; attempt++) {
     try {
       const head = await request(artifact.url, {

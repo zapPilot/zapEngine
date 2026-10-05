@@ -4,6 +4,8 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 
+import { resolveAttempts } from './retry.js';
+
 export function createR2Client(credentials: {
   endpoint: string;
   accessKeyId: string;
@@ -31,10 +33,8 @@ export async function putImmutable(
   },
   attempts = 3,
 ): Promise<void> {
-  if (!Number.isInteger(attempts) || attempts < 1) {
-    throw new Error('attempts must be positive');
-  }
-  for (let attempt = 0; attempt < attempts; attempt++) {
+  const budget = resolveAttempts(attempts, 3);
+  for (let attempt = 0; attempt < budget; attempt++) {
     try {
       await client.send(
         new PutObjectCommand({
@@ -63,7 +63,7 @@ export async function putImmutable(
         }
         throw new Error(`Immutable object collision: ${input.key}`);
       }
-      if (attempt === attempts - 1) {
+      if (attempt === budget - 1) {
         throw error;
       }
     }
