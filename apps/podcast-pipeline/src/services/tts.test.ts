@@ -10,7 +10,6 @@ vi.mock('./tts/fish-audio.js', () => ({
   synthesize: mocks.synthesize,
 }));
 
-
 import { getTtsMetadata, textToSpeech } from './tts.js';
 
 describe('Fish Audio TTS facade', () => {
