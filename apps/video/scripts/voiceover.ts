@@ -34,10 +34,12 @@ import { captionLangs, captionVersion } from '../src/timeline/versions';
 import { VOICES } from '../src/timeline/voices';
 import { getVideo, videoIds } from '../src/videos/catalog';
 import { cliArgs, requireVideoId } from './lib/args';
-import { loudnormFilter, parseLoudnorm, speechBounds } from './lib/audio';
-import { synthesize } from './lib/fish-audio';
-import { ffmpeg, mediaDuration } from './lib/media';
+import { verifyBrandAsset } from './lib/brand-asset';
+import { resolveEngine, synthesize } from './lib/fish-audio';
+import { mediaDuration } from './lib/media';
 import { publicDir, videoPaths } from './lib/paths';
+import { synthesizeLine } from './lib/speech-assemble';
+import { planSpeech } from './lib/speech-plan';
 import {
   clipFileName,
   droppedLines,
@@ -47,8 +49,6 @@ import {
   staleLines,
   voiceKey,
 } from './lib/vo-cache';
-
-const DEFAULT_ENGINE = 's2.1-pro-free';
 
 const { values, positionals } = cliArgs(process.argv.slice(2), {
   prune: { type: 'boolean', default: false },
@@ -63,49 +63,6 @@ async function readManifest(): Promise<VoManifest> {
     return { videoId, engine: '', voiceKey: '', lines: {} };
   }
   return parseVoManifest(JSON.parse(await readFile(paths.voManifest, 'utf8')));
-}
-
-/** Raw TTS bytes → speech-trimmed, −16 LUFS MP3 at `target`. */
-async function master(raw: string, target: string): Promise<void> {
-  const seconds = await mediaDuration(raw);
-  const silence = await ffmpeg([
-    '-i',
-    raw,
-    '-af',
-    'silencedetect=noise=-45dB:d=0.08',
-    '-f',
-    'null',
-    '-',
-  ]);
-  const { start, end } = speechBounds(silence, seconds);
-  const trim = `atrim=start=${start.toFixed(3)}:end=${end.toFixed(3)},asetpts=PTS-STARTPTS`;
-  const measured = parseLoudnorm(
-    await ffmpeg([
-      '-i',
-      raw,
-      '-af',
-      `${trim},${loudnormFilter()}`,
-      '-f',
-      'null',
-      '-',
-    ]),
-  );
-  await ffmpeg([
-    '-y',
-    '-i',
-    raw,
-    '-af',
-    `${trim},${loudnormFilter(measured)}`,
-    '-ar',
-    '48000',
-    '-ac',
-    '1',
-    '-c:a',
-    'libmp3lame',
-    '-b:a',
-    '192k',
-    target,
-  ]);
 }
 
 /** CJK caption versions: how fast each line asks the viewer to read. */
@@ -156,7 +113,7 @@ async function main() {
 
   const apiKey = process.env['FISH_AUDIO_API_KEY']?.trim();
   const referenceId = VOICES[storyboard.voice.voice].id;
-  const engine = process.env['FISH_AUDIO_ENGINE']?.trim() || DEFAULT_ENGINE;
+  const engine = resolveEngine(process.env);
   if (!apiKey) {
     if (stale.size === 0 && dropped.length === 0) return;
     throw new Error(
@@ -164,6 +121,11 @@ async function main() {
     );
   }
 
+  for (const line of storyboard.scenes.flatMap((scene) => scene.vo)) {
+    for (const part of planSpeech(line.say ?? line.text, storyboard.voice)) {
+      if (part.kind === 'clip') verifyBrandAsset(part.clip, publicDir, engine);
+    }
+  }
   const key = voiceKey(engine, referenceId);
   const lines: Record<string, VoClip> = {};
   await mkdir(path.join(publicDir, paths.voPublic), { recursive: true });
@@ -177,18 +139,20 @@ async function main() {
       const target = path.join(publicDir, file);
       if (!existsSync(target)) {
         console.log(`  synthesise ${line.id}: ${line.say ?? line.text}`);
-        const raw = path.join(scratch, `${line.id}.mp3`);
-        await writeFile(
-          raw,
-          await synthesize({
-            apiKey,
-            referenceId,
-            engine,
-            text: line.say ?? line.text,
-            speed: storyboard.voice.speed,
-          }),
-        );
-        await master(raw, target);
+        const plan = planSpeech(line.say ?? line.text, storyboard.voice);
+        await synthesizeLine(plan, {
+          scratch,
+          target,
+          publicDir,
+          synthesize: (text) =>
+            synthesize({
+              apiKey,
+              referenceId,
+              engine,
+              text,
+              speed: storyboard.voice.speed,
+            }),
+        });
       }
       const durationSeconds = Number((await mediaDuration(target)).toFixed(3));
       lines[line.id] = { file, fingerprint, durationSeconds };

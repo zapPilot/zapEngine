@@ -78,7 +78,7 @@ describe('Fish Audio TTS provider', () => {
       languageCode: 'zh-Hant',
       config: {
         modelId: 'custom-model-id',
-        engine: 's1',
+        engine: 'future-model-free',
       },
       costLabel: 'TTS main audio',
     });
@@ -89,7 +89,7 @@ describe('Fish Audio TTS provider', () => {
         category: 'tts',
         label: 'TTS main audio',
         provider: 'fish-audio',
-        model: 's1',
+        model: 'future-model-free',
       }),
     ]);
     expect(mockFetch).toHaveBeenCalledWith(
@@ -99,7 +99,7 @@ describe('Fish Audio TTS provider', () => {
         headers: {
           authorization: 'Bearer fish-test-key',
           'content-type': 'application/json',
-          model: 's1',
+          model: 'future-model-free',
         },
       }),
     );
@@ -133,7 +133,7 @@ describe('Fish Audio TTS provider', () => {
 
       await synthesize('progress duration', {
         languageCode: 'en',
-        config: { modelId: 'model', engine: 's2-pro' },
+        config: { modelId: 'model', engine: 's2.1-pro-free' },
       });
 
       const progress = log.mock.calls.find(
@@ -241,7 +241,7 @@ describe('Fish Audio TTS provider', () => {
         languageCode: 'en',
         config: {
           modelId: 'custom-reference-id',
-          engine: 's2-pro',
+          engine: 's2.1-pro-free',
         },
       }),
     ).resolves.toMatchObject({
@@ -283,17 +283,17 @@ describe('Fish Audio TTS provider', () => {
     await expect(
       synthesize('timeout transport', {
         languageCode: 'en',
-        config: { modelId: 'model', engine: 's2-pro' },
+        config: { modelId: 'model', engine: 's2.1-pro-free' },
       }),
     ).rejects.toBe(timeout);
   });
 
-  it('estimates cost from UTF-8 input bytes', () => {
+  it('tracks UTF-8 usage without charging the free engine', () => {
     const cost = buildFishAudioCostLine('測試', {
       languageCode: 'zh-Hant',
       config: {
         modelId: 'custom-model-id',
-        engine: 's2-pro',
+        engine: 's2.1-pro-free',
       },
       costLabel: 'TTS main audio',
     });
@@ -302,12 +302,12 @@ describe('Fish Audio TTS provider', () => {
       category: 'tts',
       label: 'TTS main audio',
       provider: 'fish-audio',
-      model: 's2-pro',
-      costUsd: 0.00009,
+      model: 's2.1-pro-free',
+      costUsd: 0,
       usage: {
         unit: 'utf8_bytes',
         quantity: 6,
-        unitPriceUsd: 0.000015,
+        unitPriceUsd: 0,
       },
     });
   });
@@ -317,7 +317,7 @@ describe('Fish Audio TTS provider', () => {
       languageCode: 'zh-Hant',
       config: {
         modelId: 'custom-model-id',
-        engine: 's2-pro',
+        engine: 's2.1-pro-free',
       },
     });
 
@@ -334,7 +334,7 @@ describe('Fish Audio TTS provider', () => {
         languageCode: 'zh-Hant',
         config: {
           modelId: 'custom-model-id',
-          engine: 's2-pro',
+          engine: 's2.1-pro-free',
         },
       }),
     ).rejects.toThrow('FISH_AUDIO_API_KEY is required for Fish Audio TTS');
@@ -355,7 +355,7 @@ describe('Fish Audio TTS provider', () => {
         languageCode: 'zh-Hant',
         config: {
           modelId: 'custom-model-id',
-          engine: 's2-pro',
+          engine: 's2.1-pro-free',
         },
       });
     } catch (caught) {
@@ -376,7 +376,7 @@ describe('Fish Audio TTS provider', () => {
         languageCode: 'ja',
         config: {
           modelId: 'custom-ja-model',
-          engine: 's2-pro',
+          engine: 's2.1-pro-free',
         },
       }),
     ).toEqual({
@@ -400,7 +400,7 @@ describe('Fish Audio TTS provider', () => {
         languageCode: 'en',
         config: {
           modelId: 'custom-model-id',
-          engine: 's2-pro',
+          engine: 's2.1-pro-free',
         },
       }),
     ).rejects.toThrow('Fish Audio TTS response has no body stream');
@@ -417,7 +417,7 @@ describe('Fish Audio TTS provider', () => {
       languageCode: 'en',
       config: {
         modelId: 'custom-model-id',
-        engine: 's2-pro',
+        engine: 's2.1-pro-free',
       },
     });
 
@@ -443,7 +443,7 @@ describe('Fish Audio TTS provider', () => {
         languageCode: 'zh-Hant',
         config: {
           modelId: 'custom-model-id',
-          engine: 's2-pro',
+          engine: 's2.1-pro-free',
         },
       }),
     ).rejects.toThrow('Fish Audio TTS failed: 500 Internal Server Error');
@@ -463,7 +463,7 @@ describe('Fish Audio TTS provider', () => {
         languageCode: 'zh-Hant',
         config: {
           modelId: 'custom-model-id',
-          engine: 's2-pro',
+          engine: 's2.1-pro-free',
         },
       }),
     ).rejects.toThrow('Fish Audio TTS failed: 429: rate limit exceeded');
@@ -479,7 +479,7 @@ describe('Fish Audio TTS provider', () => {
       languageCode: 'en',
       config: {
         modelId: 'model-id',
-        engine: 's2-pro',
+        engine: 's2.1-pro-free',
       },
     });
 
@@ -499,7 +499,7 @@ describe('Fish Audio TTS provider', () => {
       languageCode: 'en',
       config: {
         modelId: 'model-id',
-        engine: 's2-pro',
+        engine: 's2.1-pro-free',
       },
     });
 
@@ -522,7 +522,7 @@ describe('Fish Audio TTS provider', () => {
       languageCode: 'ja',
       config: {
         modelId: 'ja-model',
-        engine: 's2-pro',
+        engine: 's2.1-pro-free',
       },
     });
 
@@ -546,7 +546,7 @@ describe('Fish Audio TTS provider', () => {
       languageCode: 'ja',
       config: {
         modelId: 'ja-model',
-        engine: 's2-pro',
+        engine: 's2.1-pro-free',
       },
     });
 
@@ -616,7 +616,7 @@ describe('Fish Audio TTS provider', () => {
         languageCode: 'ja',
         config: {
           modelId: 'ja-model',
-          engine: 's2-pro',
+          engine: 's2.1-pro-free',
         },
       }),
     ).rejects.toThrow(/Fish Audio TTS failed: 503/);
@@ -636,7 +636,7 @@ describe('Fish Audio TTS provider', () => {
       languageCode: 'en',
       config: {
         modelId: 'model-id',
-        engine: 's2-pro',
+        engine: 's2.1-pro-free',
       },
     });
 
@@ -664,7 +664,7 @@ describe('Fish Audio TTS provider', () => {
         languageCode: 'en',
         config: {
           modelId: 'custom-reference-id',
-          engine: 's2-pro',
+          engine: 's2.1-pro-free',
         },
       });
 
@@ -704,7 +704,7 @@ describe('Fish Audio TTS provider', () => {
         languageCode: 'en',
         config: {
           modelId: 'custom-reference-id',
-          engine: 's2-pro',
+          engine: 's2.1-pro-free',
         },
       }),
     ).resolves.toMatchObject({
@@ -728,7 +728,7 @@ describe('Fish Audio TTS provider', () => {
       languageCode: 'en',
       config: {
         modelId: 'custom-reference-id',
-        engine: 's2-pro',
+        engine: 's2.1-pro-free',
       },
     });
 
@@ -753,7 +753,7 @@ describe('Fish Audio TTS provider', () => {
         languageCode: 'en',
         config: {
           modelId: 'custom-reference-id',
-          engine: 's2-pro',
+          engine: 's2.1-pro-free',
         },
       });
 
@@ -785,7 +785,7 @@ describe('Fish Audio TTS provider', () => {
         languageCode: 'en',
         config: {
           modelId: 'custom-reference-id',
-          engine: 's2-pro',
+          engine: 's2.1-pro-free',
         },
       }),
     ).resolves.toMatchObject({
@@ -810,7 +810,7 @@ describe('Fish Audio TTS provider', () => {
       languageCode: 'en',
       config: {
         modelId: 'custom-reference-id',
-        engine: 's2-pro',
+        engine: 's2.1-pro-free',
       },
     });
 
@@ -833,7 +833,7 @@ describe('Fish Audio TTS provider', () => {
       languageCode: 'en',
       config: {
         modelId: 'custom-reference-id',
-        engine: 's2-pro',
+        engine: 's2.1-pro-free',
       },
     });
 
@@ -857,7 +857,7 @@ describe('Fish Audio TTS provider', () => {
       languageCode: 'ja',
       config: {
         modelId: 'ja-model',
-        engine: 's2-pro',
+        engine: 's2.1-pro-free',
       },
     });
 
@@ -891,7 +891,7 @@ describe('Fish Audio TTS provider', () => {
 
     await synthesize('abcdefghij. ', {
       languageCode: 'en',
-      config: { modelId: 'model', engine: 's2-pro' },
+      config: { modelId: 'model', engine: 's2.1-pro-free' },
     });
 
     expect(mockFetch).toHaveBeenCalledTimes(2);
@@ -1035,7 +1035,7 @@ describe('Fish Audio TTS provider', () => {
     try {
       await synthesize('idle timeout test', {
         languageCode: 'en',
-        config: { modelId: 'm', engine: 's2-pro' },
+        config: { modelId: 'm', engine: 's2.1-pro-free' },
       });
     } catch (e) {
       caught = e;
@@ -1113,7 +1113,7 @@ describe('Fish Audio TTS provider', () => {
 
     const result = await synthesize('idle reset test', {
       languageCode: 'en',
-      config: { modelId: 'm', engine: 's2-pro' },
+      config: { modelId: 'm', engine: 's2.1-pro-free' },
     });
     expect(result.audio).toEqual(Buffer.from([0x01, 0x02, 0x03]));
     expect(mockFetch).toHaveBeenCalledTimes(1);
@@ -1155,7 +1155,7 @@ describe('Fish Audio TTS provider', () => {
     try {
       await synthesize('ttfb test', {
         languageCode: 'en',
-        config: { modelId: 'm', engine: 's2-pro' },
+        config: { modelId: 'm', engine: 's2.1-pro-free' },
       });
     } catch (e) {
       caught = e;
@@ -1215,7 +1215,7 @@ describe('Fish Audio TTS provider', () => {
 
     const result = await synthesize('retry success test', {
       languageCode: 'en',
-      config: { modelId: 'm', engine: 's2-pro' },
+      config: { modelId: 'm', engine: 's2.1-pro-free' },
     });
     expect(result.audio).toEqual(Buffer.from([0xaa, 0xbb]));
     expect(mockFetch).toHaveBeenCalledTimes(2);
@@ -1245,7 +1245,7 @@ describe('Fish Audio TTS provider', () => {
     try {
       await synthesize('exhausted', {
         languageCode: 'en',
-        config: { modelId: 'm', engine: 's2-pro' },
+        config: { modelId: 'm', engine: 's2.1-pro-free' },
       });
     } catch (e) {
       caught = e;
@@ -1288,7 +1288,7 @@ describe('Fish Audio TTS provider', () => {
 
     await synthesize(longText, {
       languageCode: 'ja',
-      config: { modelId: 'ja-model', engine: 's2-pro' },
+      config: { modelId: 'ja-model', engine: 's2.1-pro-free' },
     });
 
     const chunkCount = mockFetch.mock.calls.length;
@@ -1319,7 +1319,7 @@ describe('Fish Audio TTS provider', () => {
 
     await synthesize(text, {
       languageCode: 'en',
-      config: { modelId: 'm', engine: 's2-pro' },
+      config: { modelId: 'm', engine: 's2.1-pro-free' },
     });
     expect(mockFetch).toHaveBeenCalledTimes(2);
     const firstBody = JSON.parse(
@@ -1355,7 +1355,7 @@ describe('Fish Audio TTS provider', () => {
 
     await synthesize(text, {
       languageCode: 'en',
-      config: { modelId: 'm', engine: 's2-pro' },
+      config: { modelId: 'm', engine: 's2.1-pro-free' },
     });
 
     expect(concatSpy).toHaveBeenCalledTimes(1);
@@ -1383,7 +1383,7 @@ describe('Fish Audio TTS provider', () => {
 
     await synthesize('network retry log', {
       languageCode: 'en',
-      config: { modelId: 'm', engine: 's2-pro' },
+      config: { modelId: 'm', engine: 's2.1-pro-free' },
     });
 
     const retryLog = warnSpy.mock.calls.find(
@@ -1412,7 +1412,7 @@ describe('Fish Audio TTS provider', () => {
 
     await synthesize('http retry log', {
       languageCode: 'en',
-      config: { modelId: 'm', engine: 's2-pro' },
+      config: { modelId: 'm', engine: 's2.1-pro-free' },
     });
 
     const retryLog = warnSpy.mock.calls.find(
@@ -1423,4 +1423,21 @@ describe('Fish Audio TTS provider', () => {
     );
   });
   /* eslint-enable sonarjs/no-nested-functions, sonarjs/no-identical-functions, promise/param-names, @typescript-eslint/prefer-promise-reject-errors, @typescript-eslint/only-throw-error */
+});
+it('rejects a paid engine passed directly to synthesis before any request', async () => {
+  vi.stubEnv('FISH_AUDIO_API_KEY', 'test-key');
+  const fetchMock = vi.fn();
+  vi.stubGlobal('fetch', fetchMock);
+  try {
+    await expect(
+      synthesize('test', {
+        languageCode: 'en',
+        config: { modelId: 'voice', engine: 's2-pro' },
+      }),
+    ).rejects.toThrow('only allows free');
+    expect(fetchMock).not.toHaveBeenCalled();
+  } finally {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  }
 });

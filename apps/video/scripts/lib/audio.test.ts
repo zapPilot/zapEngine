@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { loudnormFilter, parseLoudnorm, speechBounds } from './audio';
+import {
+  loudnormFilter,
+  parseLoudnorm,
+  silenceIntervals,
+  speechBounds,
+  speechSpan,
+} from './audio';
 
 const report = `[Parsed_loudnorm_0 @ 0x1]
 {
@@ -91,4 +97,15 @@ it('supports dynamic music normalization independently of narration targets', ()
   expect(loudnormFilter(undefined, { i: -18, tp: -2, lra: 3 })).toBe(
     'loudnorm=I=-18:TP=-2:LRA=3:print_format=json',
   );
+});
+
+it('reports exact speech spans and parsed silence intervals', () => {
+  expect(
+    speechSpan('silence_start: 0\nsilence_end: 0.05\nsilence_start: 1.95', 2),
+  ).toEqual({ start: 0.05, end: 1.95 });
+  expect(speechSpan('silence_start: 0', 2)).toBeNull();
+  expect(speechSpan('silence_end: 0.1', 2)).toEqual({ start: 0, end: 2 });
+  expect(silenceIntervals('silence_start: 1')).toEqual([
+    { start: 1, end: Infinity },
+  ]);
 });

@@ -140,3 +140,15 @@ describe('mixed-language plan', () => {
     );
   });
 });
+
+it.each([
+  ['EigenLayer 最近出现变化，EigenLayer 的 TVL 开始下降。', 'zh-Hant', 1],
+  ['BTCについて説明します。', 'ja', 0],
+] as const)('punctuation alone supplies pauses for %s', (text, lang, count) => {
+  const plan = buildMixedLanguagePlan(text, lang)!;
+  expect(plan.filter((part) => part.kind === 'pause')).toHaveLength(count);
+  if (count)
+    expect(plan.filter((part) => part.kind === 'pause')).toEqual([
+      { kind: 'pause', ms: 100 },
+    ]);
+});

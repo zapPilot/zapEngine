@@ -49,6 +49,7 @@ import { rm } from 'node:fs/promises';
 
 import {
   createSilentMp3,
+  measureSilences,
   parseSpeechBounds,
   trimMp3Silence,
 } from './audio-trim.js';
@@ -141,3 +142,79 @@ describe('MP3 operations', () => {
     await expect(createSilentMp3(100)).resolves.toEqual(Buffer.from('encoded'));
   });
 });
+
+it.each([
+  [0.015, '0.485', '1.515'],
+  [0.01, '0.49', '1.51'],
+])('retains %s seconds', async (retainSeconds, start, end) => {
+  await trimMp3Silence(Buffer.from('source'), {
+    retainSeconds: Number(retainSeconds),
+  });
+  expect(mocks.chains[1]!['audioFilters']).toHaveBeenCalledWith(
+    `atrim=start=${start}:end=${end},asetpts=PTS-STARTPTS`,
+  );
+});
+it('supports finer detector and tighter tolerance', async () => {
+  await trimMp3Silence(Buffer.from('source'), {
+    retainSeconds: 0.015,
+    minSilenceSeconds: 0.03,
+    edgeToleranceSeconds: 0.02,
+  });
+  expect(mocks.chains[0]!['audioFilters']).toHaveBeenCalledWith(
+    'asetpts=PTS-STARTPTS,silencedetect=noise=-50dB:d=0.03',
+  );
+  expect(
+    parseSpeechBounds(
+      ['silence_start: 0.04', 'silence_end: 0.2'],
+      2,
+      0.01,
+      0.02,
+    ),
+  ).toEqual({ startS: 0, endS: 2 });
+  expect(
+    parseSpeechBounds(
+      ['silence_start: 0', 'silence_end: 0.02', 'silence_start: 1.98'],
+      2,
+      0.06,
+    ),
+  ).toEqual({ startS: 0, endS: 2 });
+});
+it('measures short intervals and unmatched tail with no reencode', async () => {
+  mocks.lines = [
+    'Duration: 00:00:02.00',
+    'silence_end: 0.01',
+    'silence_start: 0',
+    'silence_end: 0.05',
+    'silence_start: 1.95',
+  ];
+  expect(await measureSilences(Buffer.from('source'))).toEqual({
+    durationSeconds: 2,
+    silences: [
+      { start: 0, end: 0.05 },
+      { start: 1.95, end: 2 },
+    ],
+  });
+  expect(mocks.chains[0]!['audioFilters']).toHaveBeenCalledWith(
+    'asetpts=PTS-STARTPTS,silencedetect=noise=-50dB:d=0.01',
+  );
+});
+it('measurement errors propagate', async () => {
+  mocks.failure = 1;
+  await expect(measureSilences(Buffer.from('source'), 0.02)).rejects.toThrow(
+    'ffmpeg failed',
+  );
+});
+it.each([
+  { retainSeconds: -1 },
+  { retainSeconds: NaN },
+  { minSilenceSeconds: 0 },
+  { minSilenceSeconds: NaN },
+  { edgeToleranceSeconds: -1 },
+  { edgeToleranceSeconds: NaN },
+])(
+  'rejects invalid trim %j',
+  async (options) =>
+    await expect(
+      trimMp3Silence(Buffer.from('source'), options),
+    ).rejects.toThrow('Invalid'),
+);

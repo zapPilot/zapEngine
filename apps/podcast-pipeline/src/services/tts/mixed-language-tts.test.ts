@@ -27,13 +27,13 @@ import {
 
 const options = {
   languageCode: 'zh-Hant' as const,
-  config: { engine: 's2-pro', modelId: 'voice' },
+  config: { engine: 's2.1-pro-free', modelId: 'voice' },
 };
 const text = 'EigenLayer 最近出现变化，EigenLayer 的 TVL 开始下降。';
 
 beforeEach(() => {
   vi.stubEnv('FISH_AUDIO_REFERENCE_ID', 'voice');
-  vi.stubEnv('FISH_AUDIO_ENGINE', 's2-pro');
+  vi.stubEnv('FISH_AUDIO_ENGINE', 's2.1-pro-free');
   mocks.synthesize.mockImplementation(async (source: string, opts) => ({
     audio: Buffer.from(source),
     cost: [
@@ -85,6 +85,8 @@ describe('mixed-language orchestration', () => {
       '开始下降。',
     ]);
     expect(mocks.trim).toHaveBeenCalledTimes(5);
+    for (const call of mocks.trim.mock.calls)
+      expect(call[1]).toEqual({ retainSeconds: 0.06 });
     expect(mocks.sleep.mock.calls).toEqual([[3000], [3000], [3000], [3000]]);
     expect(result.cost).toEqual([
       expect.objectContaining({
@@ -150,7 +152,7 @@ describe('mixed-language orchestration', () => {
     await withEnglishTermClipReuse(async () => {
       await textToSpeech('BTC中文', { languageCode: 'zh-Hant' });
       await textToSpeech('BTCについて', { languageCode: 'ja' });
-      vi.stubEnv('FISH_AUDIO_ENGINE', 's1');
+      vi.stubEnv('FISH_AUDIO_ENGINE', 'future-model-free');
       await textToSpeech('BTC中文', { languageCode: 'zh-Hant' });
       vi.stubEnv('FISH_AUDIO_REFERENCE_ID', 'voice2');
       await textToSpeech('BTC中文', { languageCode: 'zh-Hant' });
@@ -159,7 +161,7 @@ describe('mixed-language orchestration', () => {
       mocks.synthesize.mock.calls.filter(([source]) => source === 'BTC'),
     ).toHaveLength(3);
     expect(englishTermClipKey(options.config, 'BTC')).toBe(
-      '["s2-pro","voice","BTC"]',
+      '["s2.1-pro-free","voice","BTC"]',
     );
   });
   it.each(['synthesize', 'trim', 'silence', 'concat'] as const)(
@@ -174,4 +176,35 @@ describe('mixed-language orchestration', () => {
       ).not.toContain(text);
     },
   );
+});
+
+it('audition overrides synthesizer, retention and request delay', async () => {
+  const synthesize = vi.fn(async (text: string) => ({
+    audio: Buffer.from(text),
+    cost: [],
+  }));
+  await synthesizeMixedLanguage(
+    [
+      { kind: 'speech', text: 'BTC', english: true },
+      { kind: 'speech', text: 'について', english: false },
+    ],
+    options,
+    {
+      synthesize,
+      trim: {
+        retainSeconds: 0.015,
+        minSilenceSeconds: 0.03,
+        edgeToleranceSeconds: 0.02,
+      },
+      requestDelayMs: 0,
+    },
+  );
+  expect(synthesize).toHaveBeenCalledTimes(2);
+  expect(mocks.synthesize).not.toHaveBeenCalled();
+  expect(mocks.trim.mock.calls[0]![1]).toEqual({
+    retainSeconds: 0.015,
+    minSilenceSeconds: 0.03,
+    edgeToleranceSeconds: 0.02,
+  });
+  expect(mocks.sleep).toHaveBeenCalledWith(0);
 });

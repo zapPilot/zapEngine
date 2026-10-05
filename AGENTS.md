@@ -15,3 +15,9 @@ Read the nearest scoped `AGENTS.md` before changing code. Scoped rules may add t
 
 Use [.agents/skills/persuasive-messaging/SKILL.md](.agents/skills/persuasive-messaging/SKILL.md) for marketing copy, positioning, pitch decks, promo video packaging and editorial titles.
 Technical docs and functional UI strings are outside this scope.
+
+## Fish Audio: free models only
+
+- Fish Audio requests must use an engine whose name ends with `free`. The current required configuration is `FISH_AUDIO_ENGINE=s2.1-pro-free` in both development and production, including narration, classroom audio, brand takes and auditions.
+- Never select a paid Fish model, fall back to one, or request a paid model to bypass a free-model error, quota or outage. Fail closed instead. Future upgrades may use a newer provider-supported free engine, but it must still end with `free`; update canonical env defaults, runtime defaults and tests together.
+- Fish synthesis on the configured free engine is authorized without a separate payment approval. Human listening/selection gates (such as brand `--pick`) still apply. Paid music generation has its own separate policy.

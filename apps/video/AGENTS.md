@@ -86,13 +86,13 @@ in the loop below are for agent/developer media iteration and debugging.
 # Voices
 
 - Advertisement, pitch and sales videos always use a Fish Audio **Fish Official
-  English preset** from `src/timeline/voices.ts`. Narration is always English.
+  English preset** from `src/timeline/voices.ts`. Narration is English except for the sanctioned Japanese brand pronunciation clip.
   Do not use cloned or podcast voices. Choose gender and delivery to fit the
   product: Kokode uses Adrian (calm, reliable male narrator); Zap Pilot's
   calculator pitch uses Hannah (conversational female advertisement voice).
 - Before adding a preset, verify its author is Fish Official and its language
   is English, then register its public reference ID in `voices.ts`. Preset IDs
-  are data; only `FISH_AUDIO_API_KEY` is secret. Default engine: `s2.1-pro-free`.
+  are data; only `FISH_AUDIO_API_KEY` is secret. Required current configuration: `FISH_AUDIO_ENGINE=s2.1-pro-free`. Every Fish engine must end with `free`; runtime rejects paid engines and never falls back to one. Newer provider-supported free engines may replace the current version when env defaults, runtime defaults and tests are updated together. This applies to narration, brand candidates and auditions; free Fish synthesis does not need payment approval. Human-only `--pick` remains mandatory.
 
 # Subtitle versions
 
@@ -139,3 +139,9 @@ in the loop below are for agent/developer media iteration and debugging.
   30-frame fade-in and 60-frame fade-out. Override base/ducked per storyboard
   after measuring music and voice stems: audible gaps ≥ −30 LUFS and music
   at least 12 dB below narration. Final delivery remains −16 LUFS / ≤ −1.5 dBTP.
+
+# Brand pronunciation source assets
+
+- `pnpm video:brand-audio kokode --takes 3` generates immutable candidates only. Audition with `--audition`; `--pick N` is human-only and requires an explicit named take. The registry remains candidate until the listening decision.
+- Selected `public/brand/audio/*.mp3` and provenance JSON are committed source assets like `public/music`. Voiceover never generates or selects a brand clip; approved assets must match the voice, engine, speed, reference ID and digest.
+- Keep English story/caption text unchanged. Splice the approved clip inside one VoLine; never create a separate brand VoLine. Internal edges use splice retention; whole-line mastering keeps its existing 60 ms retention. Punctuation supplies pauses, language switches do not.

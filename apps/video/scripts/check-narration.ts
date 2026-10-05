@@ -78,4 +78,9 @@ async function main(): Promise<void> {
   console.log(`✓ ${videoId}: narration fresh, music present`);
 }
 
-await main();
+try {
+  await main();
+} catch (error) {
+  console.error(String(error));
+  process.exitCode = 2;
+}

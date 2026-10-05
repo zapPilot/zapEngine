@@ -44,3 +44,9 @@ export async function mediaDuration(file: string): Promise<number> {
     input.dispose();
   }
 }
+
+export interface MediaTools {
+  readonly run: typeof ffmpeg;
+  readonly duration: typeof mediaDuration;
+}
+export const MEDIA_TOOLS: MediaTools = { run: ffmpeg, duration: mediaDuration };
