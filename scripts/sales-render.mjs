@@ -175,7 +175,10 @@ async function main() {
   const pdfFiles =
     entry.pdf === null ? [] : discoverArtifacts(entry.pdf.outDir, /\.pdf$/);
   const videoFiles = entry.videos.flatMap((videoId) =>
-    discoverArtifacts(VIDEO_OUT_DIR, new RegExp(`^${videoId}\\..*\\.mp4$`)),
+    discoverArtifacts(
+      `${VIDEO_OUT_DIR}/${videoId}`,
+      new RegExp(`^${videoId}\\..*\\.mp4$`),
+    ),
   );
   console.log('');
   console.log(formatSummary(entry.label, pdfFiles, videoFiles));

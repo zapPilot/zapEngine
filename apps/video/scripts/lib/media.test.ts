@@ -46,7 +46,7 @@ describe('videoPaths', () => {
     expect(paths.capturePublic).toBe('captures/demo');
     expect(path.relative(workspaceRoot, paths.work)).toBe('out/demo');
     expect(path.relative(workspaceRoot, paths.videoFile('en'))).toBe(
-      'out/demo.en.mp4',
+      path.join('out/demo', 'demo.en.mp4'),
     );
     expect(path.relative(workspaceRoot, paths.versionWork('zh-Hant'))).toBe(
       'out/demo/zh-Hant',

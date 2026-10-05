@@ -1,12 +1,12 @@
 /**
  * pnpm render <video-id>
  *
- * Renders each deliverable out/<id>.<lang>.mp4 (1080p H.264 + AAC), then corrects the
+ * Renders each deliverable out/<id>/<id>.<lang>.mp4 (1080p H.264 + AAC), then corrects the
  * mix to −16 LUFS / −1.5 dBTP and prints the numbers a reviewer checks:
  * duration, size, loudness. Refuses to render while any narration line is
  * still an estimate.
  */
-import { mkdir, readFile, stat } from 'node:fs/promises';
+import { mkdir, readFile, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 
 import { renderMedia } from '@remotion/renderer';
@@ -120,6 +120,10 @@ async function main() {
         `Rendered ${seconds.toFixed(2)}s exceeds ${storyboard.maxSeconds}s.`,
       );
     }
+    // The deliverable is written; the pre-correction intermediate has served
+    // its purpose (loudness measurement). A failed render keeps it for
+    // debugging.
+    await rm(raw, { force: true });
   }
 }
 

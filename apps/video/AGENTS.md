@@ -105,7 +105,10 @@ in the loop below are for agent/developer media iteration and debugging.
 
 # Generated artifacts
 
-- `out/` and `public/vo/` are ignored. `vo.manifest.json` stays committed: tests
+- `out/` and `public/vo/` are ignored. `out/` is a disposable local
+  workspace: `render` writes each deliverable to `out/<id>/<id>.<lang>.mp4`
+  and deletes its `raw` intermediate on success (a failed render keeps the
+  `raw` file for debugging). `vo.manifest.json` stays committed: tests
   and timelines use it. Regenerate narration before rendering a clean checkout.
 - TTS is nondeterministic: regenerated durations may differ on another machine.
   Commit the updated manifest together with narration/script changes.

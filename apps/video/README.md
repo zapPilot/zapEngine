@@ -46,7 +46,7 @@ pnpm video:dev                         # Remotion Studio
 pnpm --filter @zapengine/video capture calculator-pitch    # re-photograph the live product
 pnpm video:voiceover calculator-pitch
 pnpm video:stills calculator-pitch     # out/<id>/en/contact-sheet.png
-pnpm video:render calculator-pitch     # out/<id>.en.mp4, −16 LUFS
+pnpm video:render calculator-pitch     # out/<id>/<id>.en.mp4, −16 LUFS
 pnpm video:voiceover kokode-clinic --dry-run
 pnpm video:stills kokode-clinic        # three language contact sheets
 pnpm video:make kokode-clinic          # refresh narration, then render all versions
@@ -92,7 +92,8 @@ src/
     Composition.tsx         maps scene ids to scenes/ and hands them to NarratedVideo
 scripts/                    capture, voiceover, music, stills, render (+ lib/)
 public/                     brand/, music/, vo/<id>/, captures/<id>/
-out/                        renders and stills (ignored by git)
+out/                        renders and stills (ignored by git, disposable:
+                             render deletes its raw intermediate on success)
 ```
 
 ## Adding a video
@@ -117,10 +118,10 @@ pnpm video:render kokode-clinic --lang zh-Hant
 ```
 
 One render command bundles once and produces
-`out/kokode-clinic.{ja,en,zh-Hant}.mp4`. Stills and contact sheets live in
+`out/kokode-clinic/kokode-clinic.{ja,en,zh-Hant}.mp4`. Stills and contact sheets live in
 `out/kokode-clinic/<lang>/`. Captions and all on-screen text follow the
 language; every version shares the same English audio and duration.
-Calculator outputs `out/calculator-pitch.en.mp4`.
+Calculator outputs `out/calculator-pitch/calculator-pitch.en.mp4`.
 
 [Official English presets](src/timeline/voices.ts): Kokode uses Adrian, a calm
 male narrator; Zap Pilot uses Hannah, a conversational female advertisement

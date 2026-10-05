@@ -18,9 +18,14 @@ export function videoPaths(videoId: string) {
     capturePublic: `captures/${videoId}`,
     /** Stills, contact sheet and intermediate renders. */
     work: path.join(workspaceRoot, 'out', videoId),
-    /** The deliverable. */
+    /**
+     * The deliverable, inside the video folder next to the stills:
+     * `out/<id>/<id>.<lang>.mp4`. The `raw.<lang>.mp4` intermediate in the
+     * same folder is deleted by `render` once the loudness-corrected
+     * deliverable is written.
+     */
     videoFile: (lang: CaptionLang) =>
-      path.join(workspaceRoot, 'out', `${videoId}.${lang}.mp4`),
+      path.join(workspaceRoot, 'out', videoId, `${videoId}.${lang}.mp4`),
     versionWork: (lang: CaptionLang) =>
       path.join(workspaceRoot, 'out', videoId, lang),
   };
