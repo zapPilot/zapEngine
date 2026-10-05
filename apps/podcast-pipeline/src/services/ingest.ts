@@ -41,7 +41,6 @@ import {
   type SecondaryLanguageCode,
   translateCanonicalScript,
 } from './translate.js';
-import { withEnglishTermClipReuse } from './tts/mixed-language-tts.js';
 
 export type { IngestResult } from './ingest/result-builder.js';
 
@@ -77,8 +76,7 @@ export async function performMultilingualIngest(
   costSink?: IngestCostSinkEntry[],
 ): Promise<IngestResult> {
   const runId = getStepLogContext()?.runId ?? randomUUID().slice(0, 8);
-  return withEnglishTermClipReuse(() =>
-    withStepLogContext({ runId }, async () => {
+  return withStepLogContext({ runId }, async () => {
       const results: IngestResult[] = [];
       const total = MULTILINGUAL_INGEST_LANGUAGE_CODES.length;
 
@@ -168,8 +166,7 @@ export async function performMultilingualIngest(
         costUsd: costDetails.totalUsd,
         costDetails,
       };
-    }),
-  );
+  });
 }
 
 export async function performIngest(
