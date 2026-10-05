@@ -17,7 +17,9 @@ it(
         ffmpeg()
           .input('sine=frequency=440:duration=1:sample_rate=44100')
           .inputFormat('lavfi')
-          .audioFilters('adelay=50,apad=pad_dur=0.05')
+          // ffmpeg 4.1 has no apad pad_dur/whole_dur (added in 4.2), so pad by
+          // sample count: 50 ms at 44100 Hz = 2205 samples.
+          .audioFilters('adelay=50,apad=pad_len=2205')
           .audioCodec('libmp3lame')
           .audioBitrate('128k')
           .on('end', () => resolve())
