@@ -32,6 +32,7 @@
     "track-record:verify": "tsx --tsconfig apps/landing-page/tsconfig.json scripts/track-record/verify-track-record.ts",
     "clean": "turbo run clean && rm -rf node_modules",
     "prepare": "husky",
+    "signing:backup": "node scripts/signing-backup.mjs",
     "desktop:release": "node scripts/desktop-release.mjs build",
     "sales:render": "node scripts/sales-render.mjs",
     "sales:publish": "node scripts/sales-publish.mjs"

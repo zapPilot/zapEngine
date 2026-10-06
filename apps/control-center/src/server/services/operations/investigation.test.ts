@@ -27,7 +27,7 @@ const PRODUCT: OperationalSignal = {
   source: 'product-health',
   domain: 'product',
   status: 'critical',
-  title: 'Priority wallet refresh has stalled',
+  title: 'Scheduled wallet refresh has stalled',
   detail: '5 of 23 priority wallets refreshed.',
   evidence: {
     expectedWallets: 23,

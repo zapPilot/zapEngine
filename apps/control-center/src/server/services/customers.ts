@@ -1,3 +1,7 @@
+import {
+  isInactivePriorityOnFastCadence,
+  staleWindowHours,
+} from '../../shared/service-cadence.js';
 import type {
   CustomerEconomicsResponse,
   CustomerRecord,
@@ -57,13 +61,6 @@ type ClientFactory = typeof createSchemaClient;
 const DAY_MS = 86_400_000;
 const USAGE_WINDOW_DAYS = 30;
 const ACTIVE_WINDOW_DAYS = 7;
-const INACTIVE_WINDOW_DAYS = 30;
-/**
- * A Priority wallet whose portfolio has not refreshed in two days is not a
- * scheduling wobble — the daily job either did not run or is failing for that
- * wallet, and the number the customer sees is two days old.
- */
-const PORTFOLIO_STALE_HOURS = 48;
 const AUM_AT_RISK_FLOOR_USD = 10_000;
 // A negative balance is debt, not assets under management. Values above one
 // quadrillion dollars are also necessarily a broken token price or decimal
@@ -162,9 +159,7 @@ export async function loadCustomerEconomics(input: {
 }
 
 /**
- * Signals the aggregate folds into the `customers` domain. Both of them answer
- * a question the rest of the dashboard cannot: money spent on accounts that
- * stopped showing up, and Priority accounts silently being served stale data.
+ * Signals stale data against the refresh cadence actually assigned by SQL.
  */
 export function deriveCustomerSignals(
   response: CustomerEconomicsResponse,
@@ -193,11 +188,6 @@ export function deriveCustomerSignals(
     ];
   }
 
-  // Inactive priority accounts are deliberately not a signal. Refreshing them
-  // costs a couple of dollars a month and stopping it is a pricing decision
-  // nobody has asked for, so reporting it as `degraded` only ever produced
-  // triage work that ended in "leave it alone". The count stays on the
-  // Customers view as `inactiveButPriority`.
   return [freshnessSignal(response, now)];
 }
 
@@ -211,9 +201,11 @@ function freshnessSignal(
   const stale = response.users
     .filter(
       (user) =>
-        user.effectiveTier === 'priority' &&
+        user.refreshIntervalHours !== null &&
+        user.effectiveTier !== 'paused' &&
         (user.neverRefreshedWallets > 0 ||
-          (user.portfolioWorstStaleHours ?? -1) >= PORTFOLIO_STALE_HOURS),
+          (user.portfolioWorstStaleHours ?? -1) >=
+            staleWindowHours(user.refreshIntervalHours)),
     )
     .sort((left, right) => (right.aumUsd ?? 0) - (left.aumUsd ?? 0));
   const worst = stale[0];
@@ -237,8 +229,8 @@ function freshnessSignal(
     status,
     title:
       stale.length > 0
-        ? `${stale.length} priority portfolios older than ${PORTFOLIO_STALE_HOURS}h or never refreshed`
-        : 'Priority portfolios are current',
+        ? `${stale.length} scheduled portfolios past their refresh window or never refreshed`
+        : 'Scheduled portfolios are current',
     detail: worst ? describeWorst(worst) : null,
     evidence: {
       affectedUsers: stale.length,
@@ -402,20 +394,13 @@ function summarize(
       (user) =>
         user.inactiveDays !== null && user.inactiveDays < ACTIVE_WINDOW_DAYS,
     ).length,
-    inactiveButPriority: users.filter(isInactivePriority).length,
+    inactiveButPriority: users.filter(isInactivePriorityOnFastCadence).length,
     aumUsd: sumRounded(users.map((user) => user.aumUsd)),
     attributedCostUsd30d: sumRounded(
       users.map((user) => user.attributedCostUsd30d),
     ),
     revenueUsd: null,
   };
-}
-
-function isInactivePriority(user: CustomerRecord): boolean {
-  return (
-    user.effectiveTier === 'priority' &&
-    (user.inactiveDays === null || user.inactiveDays >= INACTIVE_WINDOW_DAYS)
-  );
 }
 
 /**

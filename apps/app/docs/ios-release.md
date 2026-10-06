@@ -315,3 +315,9 @@ next EAS production build.
   `submit-only` with that exact EAS build ID. Do not rebuild just to retry upload.
 - **Runtime config missing:** add the variable to the EAS `production`
   environment; the local `.env` is not uploaded to EAS Build.
+
+## Back up local signing materials
+
+Run `pnpm signing:backup` from the repository root on your signing Mac. See
+[the local signing backup procedure](../../../docs/signing-backup.md) for the ZIP,
+Apple p12 password file, restore steps and completeness checks.

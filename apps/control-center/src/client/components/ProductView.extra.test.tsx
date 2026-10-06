@@ -131,6 +131,7 @@ describe('ProductView coverage', () => {
         customers={customers([
           customer({
             effectiveTier: 'priority',
+            refreshIntervalHours: 24,
             inactiveDays: null,
             userId: 'quiet-vip',
           }),
@@ -163,7 +164,7 @@ describe('ProductView coverage', () => {
         customers={customers([
           customer({
             dueForRefresh: true,
-            portfolioWorstStaleHours: 72,
+            portfolioWorstStaleHours: 193,
             userId: 'stale',
           }),
         ])}
@@ -173,6 +174,29 @@ describe('ProductView coverage', () => {
 
     expect(screen.getByText(/Worst wallet .* old/)).toBeVisible();
     expect(screen.getByText(/· due/)).toBeVisible();
+  });
+
+  it('keeps an inactive weekly account out of owner judgment until its cadence is missed', () => {
+    render(
+      <ProductView
+        customers={customers([
+          customer({
+            userId: 'weekly',
+            effectiveTier: 'priority',
+            inactiveDays: 45,
+            refreshIntervalHours: 168,
+            portfolioWorstStaleHours: 150,
+          }),
+        ])}
+        product={productFixture()}
+      />,
+    );
+    expect(
+      screen.queryByText('Priority, inactive 45d'),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText('weekly')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Show all/ }));
+    expect(screen.getByText('weekly')).toBeVisible();
   });
 
   it('leaves a fresh account without a reason', () => {

@@ -57,7 +57,7 @@ const mockUserServiceStates = [
     email: 'priority@example.com',
     wallet: '0x1111111111111111111111111111111111111111',
     plan_code: 'vip',
-    last_activity_at: '2025-01-01T00:00:00.000Z',
+    last_activity_at: new Date().toISOString(),
     // Widened rather than inferred: `updateMockPortfolioTimestamps` writes a
     // timestamp back into these rows, and every fixture row starts null.
     last_portfolio_update_at: null as string | null,
@@ -75,7 +75,7 @@ const mockUserServiceStates = [
     email: 'standard@example.com',
     wallet: '0x2222222222222222222222222222222222222222',
     plan_code: 'free',
-    last_activity_at: null,
+    last_activity_at: new Date().toISOString(),
     last_portfolio_update_at: null as string | null,
     default_tier: 'standard',
     override_tier: null,
