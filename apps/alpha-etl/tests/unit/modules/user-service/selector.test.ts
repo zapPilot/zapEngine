@@ -91,13 +91,18 @@ describe('selectDueUsers', () => {
       dueSources: [],
     });
     const selection = await selectDueUsers({
-      fetcher: fetcherReturning([standard, priority, fresh]),
+      fetcher: fetcherReturning([
+        standard,
+        priority,
+        fresh,
+        candidate({ wallet: '0xdisabled', refreshIntervalHours: 0 }),
+      ]),
       source: 'debank',
       jobId: 'weekly',
     });
     expect(selection.usersToUpdate).toEqual([standard, priority]);
     expect(selection.skippedNotDue).toBe(1);
-    expect(selection.skippedByTier).toBe(0);
+    expect(selection.skippedByTier).toBe(1);
   });
 
   it('never schedules a paused wallet even if SQL called it due', async () => {
