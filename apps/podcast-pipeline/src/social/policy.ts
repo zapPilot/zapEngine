@@ -92,7 +92,7 @@ export function socialReleaseCadenceForBacklog(
   return (
     SOCIAL_RELEASE_CADENCES.find(
       (cadence) => normalized >= cadence.minBacklogArticles,
-    ) ?? SOCIAL_RELEASE_CADENCES[SOCIAL_RELEASE_CADENCES.length - 1]
+    ) ?? SOCIAL_RELEASE_CADENCES[2]
   );
 }
 
