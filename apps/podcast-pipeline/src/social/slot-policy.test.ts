@@ -31,6 +31,10 @@ describe('article release policy shape', () => {
     [20, 5],
     [21, 6],
     [100, 6],
+    [-1, 4],
+    [9.9, 4],
+    [20.9, 5],
+    [Number.NaN, 4],
   ])('uses %i queued articles => %i releases/day', (backlog, dailyCap) => {
     expect(socialReleaseCadenceForBacklog(backlog).slots).toHaveLength(
       dailyCap,

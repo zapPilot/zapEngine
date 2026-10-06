@@ -738,11 +738,14 @@ describe('social daemon release edge coverage', () => {
   it('reports a one-article deferred backlog after all eight scheduling days are full', async () => {
     resetReleaseMocks();
     const dayStart = Date.parse('2026-09-01T15:00:00.000Z');
+    // A full eight-day queue selects the six-article backlog cadence.
     const slotOffsets = [
-      9.5 * 60 * 60_000,
-      12 * 60 * 60_000,
-      16 * 60 * 60_000,
-      21 * 60 * 60_000,
+      9 * 60 * 60_000,
+      11.5 * 60 * 60_000,
+      14 * 60 * 60_000,
+      16.5 * 60 * 60_000,
+      19 * 60 * 60_000,
+      21.5 * 60 * 60_000,
     ];
     const schedules = Array.from({ length: 8 }).flatMap((_, day) =>
       slotOffsets.map((offset, slot) => ({
@@ -813,6 +816,7 @@ describe('social daemon release edge coverage', () => {
     expect(text).toContain('no article slot inside the 8-day horizon');
     expect(text).toContain('▶️ YouTube');
     expect(text).toContain('🌐 fr');
+    expect(mocks.enqueueSocialPublishJob).not.toHaveBeenCalled();
 
     const secondEpisodeReady = ready.map((row) => ({
       ...row,
@@ -843,6 +847,7 @@ describe('social daemon release edge coverage', () => {
     expect(
       pluralLog.mock.calls.map(([message]) => String(message)).join('\n'),
     ).toContain('Backlog · 2 articles beyond the 8-day scheduling horizon');
+    expect(mocks.enqueueSocialPublishJob).not.toHaveBeenCalled();
   });
 
   it('logs publish warnings, notifies Telegram, and completes a confirmed social post', async () => {
