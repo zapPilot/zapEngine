@@ -157,14 +157,15 @@ export async function verifyPublicArtifact(
         headers: { 'Accept-Encoding': 'identity' },
         signal: AbortSignal.timeout(30000),
       });
+      const cacheControl = head.headers.get('cache-control') ?? '';
       if (
         !head.ok ||
         head.headers.get('content-type')?.split(';')[0] !==
           artifact.contentType ||
         head.headers.get('content-length') !== String(artifact.bytes) ||
-        !/\bimmutable\b/.test(head.headers.get('cache-control') ?? '') ||
-        !/\bmax-age=31536000\b/.test(head.headers.get('cache-control') ?? '') ||
-        !/\bpublic\b/.test(head.headers.get('cache-control') ?? '') ||
+        !/\bimmutable\b/.test(cacheControl) ||
+        !/\bmax-age=31536000\b/.test(cacheControl) ||
+        !/\bpublic\b/.test(cacheControl) ||
         (options.disposition !== undefined &&
           head.headers.get('content-disposition') !== options.disposition)
       ) {
