@@ -13,6 +13,7 @@ import {
   fingerprintPaths,
   parseJsonc,
   primarySubject,
+  resolveImports,
   safePath,
 } from './test-qa-lib.mjs';
 
@@ -109,6 +110,19 @@ test('parseJsonc accepts comments and trailing commas', () => {
   });
 });
 
+test('resolveImports expands every star in an alias replacement', () => {
+  // Guards CodeQL js/incomplete-sanitization: a replacement holding more
+  // than one '*' must substitute all of them, not just the first.
+  const resolved = resolveImports({
+    repoRoot: '.',
+    testPath: 'apps/foo/src/a.test.ts',
+    content: "import { x } from '@/a';\nvoid x;\n",
+    fileSet: new Set(['apps/foo/src/a/a.ts']),
+    tsconfig: { baseUrl: '.', paths: { '@/*': ['src/*/*'] } },
+  });
+  assert.deepEqual(resolved, ['apps/foo/src/a/a.ts']);
+});
+
 test('primarySubject prefers the longest filename prefix, then unique imports', () => {
   assert.equal(
     primarySubject('apps/foo/src/github-extra.test.ts', [
@@ -140,6 +154,16 @@ test('collectScopes groups sibling coverage tests around their production subjec
       'apps/foo/tests/helpers.ts',
     ]);
     assert.equal(github.risk.coverageNamed, 1);
+    assert.deepEqual(Object.keys(github.pathShas).sort(), [
+      'apps/foo/src/github-coverage.test.ts',
+      'apps/foo/src/github.test.ts',
+      'apps/foo/src/github.ts',
+    ]);
+    assert.ok(
+      Object.values(github.pathShas).every((sha) =>
+        /^[a-f0-9]{40,64}$/u.test(sha),
+      ),
+    );
     assert.match(github.commands.test, /exec vitest run/u);
     assert.match(
       github.commands.coverageReport,
@@ -367,6 +391,45 @@ test('shared imports do not invalidate scope, while test and subject changes do'
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+});
+
+test('connector blob snapshots drive change detection when present', () => {
+  const previous = {
+    status: 'clean',
+    auditedAt: '2026-09-30T00:00:00Z',
+    fingerprint: 'a'.repeat(64),
+    pathShas: {
+      'apps/foo/src/github.ts': '1'.repeat(40),
+      'apps/foo/src/github.test.ts': '2'.repeat(40),
+    },
+    findings: [],
+  };
+  assert.equal(
+    classifyScope(
+      {
+        fingerprint: 'b'.repeat(64),
+        pathShas: {
+          'apps/foo/src/github.ts': '1'.repeat(40),
+          'apps/foo/src/github.test.ts': '2'.repeat(40),
+        },
+      },
+      previous,
+    ).kind,
+    'clean',
+  );
+  assert.equal(
+    classifyScope(
+      {
+        fingerprint: 'a'.repeat(64),
+        pathShas: {
+          'apps/foo/src/github.ts': '3'.repeat(40),
+          'apps/foo/src/github.test.ts': '2'.repeat(40),
+        },
+      },
+      previous,
+    ).kind,
+    'changed',
+  );
 });
 
 test('record defaults use audited main except for pending PR contents', async () => {

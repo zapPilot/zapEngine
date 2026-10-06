@@ -13,6 +13,25 @@ import {
   validateStoryboardDraft,
 } from './video/storyboard/validation.js';
 
+interface SceneCountRange {
+  min: number;
+  max: number;
+}
+
+export interface ContentSceneBounds {
+  min?: number;
+  max?: number;
+}
+
+function clampContentSceneRange(
+  range: { min: number; max: number },
+  bounds: ContentSceneBounds,
+): SceneCountRange {
+  const max = Math.max(1, Math.min(range.max, bounds.max ?? range.max));
+  const min = Math.min(max, Math.max(range.min, bounds.min ?? range.min));
+  return { min, max };
+}
+
 export const PODCAST_INTRO = '欢迎收听 Zap Podcast。';
 export const PODCAST_PACKAGING_VERSION = 'podcast-script.v1';
 export const ZAP_PILOT_OUTRO =
@@ -185,12 +204,14 @@ export function applyAndValidatePodcastBrandingToStoryboard(
   script: string,
   draft: StoryboardDraft,
   durationMs: number,
+  bounds: ContentSceneBounds = {},
 ): StoryboardDraft {
   const branded = applyPodcastBrandingToStoryboard(script, draft);
   const validation = validatePodcastStoryboardDraft(
     script,
     branded,
     durationMs,
+    bounds,
   );
   if (!validation.success) {
     const details = validation.issues
@@ -205,6 +226,7 @@ export function validatePodcastStoryboardDraft(
   script: string,
   draft: StoryboardDraft,
   durationMs: number,
+  bounds: ContentSceneBounds = {},
 ): StoryboardValidationResult {
   const sentences = splitCanonicalSentences(script);
   return validateStoryboardDraft(draft, {
@@ -215,6 +237,7 @@ export function validatePodcastStoryboardDraft(
       durationMs,
       sentences.length,
       script,
+      bounds,
     ),
   });
 }
@@ -263,32 +286,43 @@ export function podcastContentSceneCountRange(
   durationMs: number,
   sentenceCount: number,
   script: string,
-): { min: number; max: number } {
-  const range = storyboardSceneCountRange(durationMs, sentenceCount);
-  if (!hasCurrentPodcastPackaging(script)) return range;
-  return withOutroReserve(range);
+  bounds: ContentSceneBounds = {},
+): SceneCountRange {
+  return podcastEditorialSceneCountRange(
+    durationMs,
+    sentenceCount,
+    hasCurrentPodcastPackaging(script),
+    bounds,
+  );
 }
 
 export function podcastEditorialSceneCountRange(
   durationMs: number,
   sentenceCount: number,
   isPackaged: boolean,
-): { min: number; max: number } {
+  bounds: ContentSceneBounds = {},
+): SceneCountRange {
   const range = storyboardSceneCountRange(durationMs, sentenceCount);
-  if (!isPackaged) return range;
-  return withOutroReserve(range);
+  return clampContentSceneRange(
+    isPackaged ? withOutroReserve(range) : range,
+    bounds,
+  );
 }
 
 function podcastBrandedSceneCountRange(
   durationMs: number,
   sentenceCount: number,
   script: string,
-): { min: number; max: number } {
-  const content = podcastContentSceneCountRange(
-    durationMs,
-    sentenceCount,
-    script,
-  );
+  bounds: ContentSceneBounds = {},
+): SceneCountRange {
+  const content = hasCurrentPodcastPackaging(script)
+    ? podcastEditorialSceneCountRange(
+        durationMs,
+        getPodcastEditorialSentences(script).length,
+        true,
+        bounds,
+      )
+    : podcastContentSceneCountRange(durationMs, sentenceCount, script, bounds);
   if (!hasCurrentPodcastPackaging(script)) return content;
   return { min: content.min + 1, max: content.max + 1 };
 }

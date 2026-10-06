@@ -1173,10 +1173,10 @@ describe('generateLanguageClassroomsWithLLM', () => {
   });
 
   // The classroom call is the heaviest generation in the pipeline: one response
-  // carries a full narration script per target language. JSON mode and reasoning
-  // off are load-bearing; an output ceiling is deliberately absent, because it
-  // cuts a JSON body mid-string and turns a verbose answer into an unusable one.
-  it('bounds the request with JSON mode and reasoning off, and sends no output ceiling', async () => {
+  // carries a full narration script per target language. JSON mode is required;
+  // the free router chooses reasoning behavior. An output ceiling is deliberately
+  // absent because it cuts a JSON body mid-string and turns a verbose answer into an unusable one.
+  it('uses JSON mode without a reasoning override or output ceiling', async () => {
     const mockCreate = vi.fn().mockResolvedValue({
       choices: [{ message: { content: validLanguageClassroomPayload() } }],
       provider: 'Cloudflare',
@@ -1195,20 +1195,43 @@ describe('generateLanguageClassroomsWithLLM', () => {
     });
 
     const callArgs = mockCreate.mock.calls[0]![0] as {
+      model: string;
       response_format?: object;
       max_tokens?: number;
       reasoning?: object;
       provider?: object;
       usage?: object;
     };
+    expect(callArgs.model).toBe('openrouter/free');
     expect(callArgs.response_format).toEqual({ type: 'json_object' });
     expect(callArgs).not.toHaveProperty('max_tokens');
-    expect(callArgs.reasoning).toEqual({ enabled: false });
+    expect(callArgs).not.toHaveProperty('reasoning');
     expect(callArgs.provider).toEqual({
       sort: 'throughput',
       require_parameters: true,
     });
     expect(callArgs.usage).toEqual({ include: true });
+  });
+
+  it('runs without a configured paid LLM_MODEL', async () => {
+    vi.stubEnv('LLM_MODEL', '');
+    const mockCreate = vi.fn().mockResolvedValue({
+      choices: [{ message: { content: validLanguageClassroomPayload() } }],
+    });
+    mockOpenAIClient(mockCreate);
+    await expect(
+      generateLanguageClassroomsWithLLM({
+        title: '市場流動性',
+        articleText: '文章',
+        script: '講稿',
+        sourceLanguageCode: 'zh-Hant',
+        targetLanguageCodes: ['ja'],
+      }),
+    ).resolves.toMatchObject({ model: 'openrouter/free' });
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ model: 'openrouter/free' }),
+      expect.anything(),
+    );
   });
 
   it('returns parsed language classroom lessons from JSON response', async () => {
@@ -1399,7 +1422,7 @@ ${validLanguageClassroomPayload()}
         targetLanguageCodes: ['ja'],
       }),
     ).rejects.toThrow(
-      'OpenRouter returned no usable content for model test/model (provider=Cloudflare, finishReason=unknown, reasoningChars=0)',
+      'OpenRouter returned no usable content for model openrouter/free (provider=Cloudflare, finishReason=unknown, reasoningChars=0)',
     );
     expect(mockCreate).toHaveBeenCalledTimes(1);
   });

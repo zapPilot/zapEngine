@@ -630,18 +630,17 @@ describe('HomeScreen — range tabs', () => {
 });
 
 describe('HomeScreen — read-only bundle view', () => {
-  it('hides every owner-only affordance', async () => {
+  it('keeps owner actions disabled and wallet assets visible', async () => {
     const { container } = await renderHomeScreen({
       ...liveOverrides(),
       account: accountFixtures.bundleView(),
     });
 
-    const labels = buttons(container).map((node) => node.textContent);
-    expect(labels).not.toContain('Invest');
-    expect(labels).not.toContain('Rebalance');
-    expect(labels).not.toContain('Send');
-    expect(container.textContent).not.toContain('Wallet assets');
-    expect(container.textContent).not.toContain('Idle across');
+    for (const label of ['Invest', 'Rebalance', 'Send'])
+      expect(buttonByText(container, label).disabled).toBe(true);
+    expect(container.textContent).toContain('Wallet assets');
+    expect(container.textContent).toContain('Idle across');
+    expect(container.textContent).toContain('Read-only view');
 
     // The read-only surfaces stay.
     expect(container.textContent).toContain('Rebalance recommended');
@@ -723,3 +722,12 @@ describe('HomeScreen — strategy section', () => {
     expect(homeScreenState.suggestion.data).toBeNull();
   });
 });
+
+vi.mock('@zapengine/app-core/hooks/queries/wallet/useUserWallets', () => ({
+  useUserWallets: () => ({
+    data: [{ wallet: '0xf8a6000000000000000000000000000000000f94' }],
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
+  }),
+}));

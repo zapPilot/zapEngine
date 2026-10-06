@@ -12,6 +12,7 @@ import {
   type SocialPostRow,
   SUPPORTED_PRIMARY_LANGUAGE_CODES,
 } from '../types.js';
+import { recordSocialEnqueueResult } from './daemon-tick-telemetry.js';
 import type { SocialPlatform } from './platforms.js';
 
 export const SOCIAL_DAEMON_STATE_ID = 'local-social-daemon-v1';
@@ -103,32 +104,6 @@ export interface SocialWaitingVideoItem {
   episodeId: string;
   title: string | null;
   languageCodes: PrimaryLanguageCode[];
-}
-
-/**
- * Learned copy guidance only. Publish timing used to live here too and was
- * never read -- the scheduler always used its own defaults -- so it is now
- * code-owned in `policy.ts`, where a learner cannot widen a daily cap by
- * writing a row. Extra keys on historical rows are simply ignored.
- */
-export interface SocialStrategyConfig {
-  preferredHookTypes?: string[];
-  preferredHashtags?: string[];
-  avoidHashtags?: string[];
-  /** ε-greedy copy exploration. */
-  explorationRate?: number;
-}
-
-export interface SocialStrategyVersionRow {
-  id: string;
-  platform: SocialPlatform;
-  language_code?: PrimaryLanguageCode;
-  version: number;
-  config: SocialStrategyConfig;
-  based_on_samples: number;
-  active: boolean;
-  activated_at: string | null;
-  created_at: string;
 }
 
 export async function ensureSocialDaemonStart(now: Date): Promise<string> {
@@ -266,9 +241,7 @@ async function affectedSocialPublishJobRow(
   return data !== null;
 }
 
-// No strategy version is stamped here. A job can be queued days before it is
-// due -- or before any version exists at all -- so the version it publishes
-// under is resolved at claim time and recorded on completion.
+// New jobs leave strategy_version_id null. Historical strategy stamps remain readable.
 export async function enqueueSocialPublishJob(
   input: SocialDistributionMetadata & {
     episodeId: string;
@@ -276,27 +249,34 @@ export async function enqueueSocialPublishJob(
     scheduledAt: string;
   },
 ): Promise<boolean> {
-  return affectedSocialPublishJobRow(
-    getPipelineSupabase()
-      .from('social_publish_jobs')
-      .upsert(
-        {
-          episode_id: input.episodeId,
-          platform: input.platform,
-          language_code: input.languageCode ?? 'zh-Hant',
-          experiment_key: input.experimentKey ?? null,
-          experiment_variant: input.experimentVariant ?? null,
-          scheduled_at: input.scheduledAt,
-          next_attempt_at: input.scheduledAt,
-        },
-        {
-          onConflict: 'episode_id,platform,language_code',
-          ignoreDuplicates: true,
-        },
-      )
-      .select('id')
-      .maybeSingle<{ id: string }>(),
-  );
+  try {
+    const inserted = await affectedSocialPublishJobRow(
+      getPipelineSupabase()
+        .from('social_publish_jobs')
+        .upsert(
+          {
+            episode_id: input.episodeId,
+            platform: input.platform,
+            language_code: input.languageCode ?? 'zh-Hant',
+            experiment_key: input.experimentKey ?? null,
+            experiment_variant: input.experimentVariant ?? null,
+            scheduled_at: input.scheduledAt,
+            next_attempt_at: input.scheduledAt,
+          },
+          {
+            onConflict: 'episode_id,platform,language_code',
+            ignoreDuplicates: true,
+          },
+        )
+        .select('id')
+        .maybeSingle<{ id: string }>(),
+    );
+    recordSocialEnqueueResult(inserted ? 'inserted' : 'duplicate');
+    return inserted;
+  } catch (error) {
+    recordSocialEnqueueResult('error');
+    throw error;
+  }
 }
 
 /**
@@ -335,16 +315,26 @@ export interface PendingSocialPublishSchedule {
 export async function listPendingSocialPublishSchedules(): Promise<
   PendingSocialPublishSchedule[]
 > {
-  return many<PendingSocialPublishSchedule>(
-    getPipelineSupabase()
-      .from('social_publish_jobs')
-      .select(
-        'episode_id,platform,language_code,scheduled_at,completed_at,status,experiment_key,experiment_variant',
-      )
-      .in('status', ['queued', 'failed', 'processing', 'completed'])
-      .order('scheduled_at', { ascending: true })
-      .returns<PendingSocialPublishSchedule[]>(),
-  );
+  // Completed lanes remain authoritative duplicate-protection evidence. Read
+  // every page so a growing back catalogue cannot truncate a complete cohort
+  // into an apparent interrupted enqueue, or hide a newer cohort altogether.
+  const rows: PendingSocialPublishSchedule[] = [];
+  for (let offset = 0; ; offset += CANDIDATE_PAGE_SIZE) {
+    const page = await many<PendingSocialPublishSchedule>(
+      getPipelineSupabase()
+        .from('social_publish_jobs')
+        .select(
+          'episode_id,platform,language_code,scheduled_at,completed_at,status,experiment_key,experiment_variant',
+        )
+        .in('status', ['queued', 'failed', 'processing', 'completed'])
+        .order('scheduled_at', { ascending: true })
+        .order('id', { ascending: true })
+        .range(offset, offset + CANDIDATE_PAGE_SIZE - 1)
+        .returns<PendingSocialPublishSchedule[]>(),
+    );
+    rows.push(...page);
+    if (page.length < CANDIDATE_PAGE_SIZE) return rows;
+  }
 }
 
 type SocialQueueJobRow = Pick<
@@ -549,7 +539,6 @@ async function updateOwnedSocialPublishJob(
 function completedSocialPublishJobPatch(
   completedAt: string,
   socialPostId: string | null,
-  strategyVersionId?: string | null,
 ): Partial<SocialPublishJobRow> {
   return {
     status: 'completed',
@@ -559,11 +548,6 @@ function completedSocialPublishJobPatch(
     lease_expires_at: null,
     last_error: null,
     updated_at: completedAt,
-    // Left untouched when absent: a job completed from evidence in
-    // `social_posts` was not published under any guidance this daemon applied.
-    ...(strategyVersionId !== undefined
-      ? { strategy_version_id: strategyVersionId }
-      : {}),
   };
 }
 
@@ -572,18 +556,12 @@ export async function completeSocialPublishJob(input: {
   owner: string;
   completedAt: Date;
   socialPostId?: string | null;
-  /** The strategy version whose guidance this publish actually used. */
-  strategyVersionId?: string | null;
 }): Promise<void> {
   const completedAt = input.completedAt.toISOString();
   await updateOwnedSocialPublishJob(
     input.jobId,
     input.owner,
-    completedSocialPublishJobPatch(
-      completedAt,
-      input.socialPostId ?? null,
-      input.strategyVersionId,
-    ),
+    completedSocialPublishJobPatch(completedAt, input.socialPostId ?? null),
   );
 }
 
@@ -722,82 +700,6 @@ export async function insertSocialAccountSnapshot(
         followers: input.followers,
         details: input.details ?? {},
       }),
-  );
-}
-
-export async function getActiveSocialStrategies(): Promise<
-  SocialStrategyVersionRow[]
-> {
-  return many<SocialStrategyVersionRow>(
-    getPipelineSupabase()
-      .from('social_strategy_versions')
-      .select('*')
-      .eq('active', true)
-      .returns<SocialStrategyVersionRow[]>(),
-  );
-}
-
-export async function activateSocialStrategy(input: {
-  platform: SocialPlatform;
-  languageCode?: PrimaryLanguageCode;
-  config: SocialStrategyConfig;
-  basedOnSamples: number;
-  now: Date;
-}): Promise<SocialStrategyVersionRow> {
-  const supabase = getPipelineSupabase();
-  const languageCode = input.languageCode ?? 'zh-Hant';
-  const current = await many<{ version: number }>(
-    supabase
-      .from('social_strategy_versions')
-      .select('version')
-      .eq('platform', input.platform)
-      .eq('language_code', languageCode)
-      .order('version', { ascending: false })
-      .limit(1)
-      .returns<{ version: number }[]>(),
-  );
-  const version = (current[0]?.version ?? 0) + 1;
-  const nowIso = input.now.toISOString();
-
-  await expectNoError(
-    supabase
-      .from('social_strategy_versions')
-      .update({ active: false })
-      .eq('platform', input.platform)
-      .eq('language_code', languageCode)
-      .eq('active', true),
-  );
-
-  const row = await maybeOne<SocialStrategyVersionRow>(
-    supabase
-      .from('social_strategy_versions')
-      .insert({
-        platform: input.platform,
-        language_code: languageCode,
-        version,
-        config: input.config,
-        based_on_samples: input.basedOnSamples,
-        active: true,
-        activated_at: nowIso,
-      })
-      .select('*')
-      .single<SocialStrategyVersionRow>(),
-  );
-  if (!row) throw new Error('Failed to activate social strategy');
-  return row;
-}
-
-/**
- * Retires a strategy row whose lane the publish policy no longer ships, so the
- * refresh can heal itself instead of waiting for someone to run SQL.
- */
-export async function deactivateSocialStrategy(id: string): Promise<void> {
-  await expectNoError(
-    getPipelineSupabase()
-      .from('social_strategy_versions')
-      .update({ active: false })
-      .eq('id', id)
-      .eq('active', true),
   );
 }
 

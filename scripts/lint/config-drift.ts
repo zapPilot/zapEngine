@@ -1,7 +1,7 @@
 #!/usr/bin/env pnpm tsx
 
 import { execFileSync } from 'child_process';
-import { basename, join, posix, relative } from 'path';
+import { basename, join, relative } from 'path';
 
 import {
   DriftIssue,
@@ -32,8 +32,8 @@ const LOCAL_JSCPD_KEYS = new Set([
 ]);
 
 /**
- * A git index entry. `content` is the blob of an entry point; for a symlink
- * git stores the link target as that blob.
+ * A git index entry. For a symlink git stores the link target as the blob, so
+ * `content` is that target.
  */
 export interface IndexEntry {
   path: string;
@@ -41,141 +41,12 @@ export interface IndexEntry {
   content?: string;
 }
 
-const AGENT_INSTRUCTIONS = 'AGENTS.md';
-const ENTRY_POINTS = ['CLAUDE.md', 'GEMINI.md'];
-const NESTED_ENTRY_POINT = 'CLAUDE.md';
-const NESTED_POINTER =
-  'See @AGENTS.md for the canonical instructions for this scope.';
-const FILE_MODE = '100644';
 const SYMLINK_MODE = '120000';
 const SKILLS_LINK = '.claude/skills';
 const SKILLS_TARGET = '../.agents/skills';
-const WORKSPACE_ROOT = /^(?:\.|(?:apps|packages)\/[^/]+)$/;
 
 function agentFileIssue(type: string, file: string, issue: string): DriftIssue {
   return { type, file, issue, severity: 'HIGH' };
-}
-
-function workspaceEntryPointIssue(
-  path: string,
-  entry: IndexEntry | undefined,
-): DriftIssue | undefined {
-  if (entry === undefined) {
-    return agentFileIssue(
-      'agent_entry_point_missing',
-      path,
-      `not tracked; add \`ln -s ${AGENT_INSTRUCTIONS} ${posix.basename(path)}\` beside ${AGENT_INSTRUCTIONS}`,
-    );
-  }
-  if (entry.mode !== SYMLINK_MODE) {
-    return agentFileIssue(
-      'agent_entry_point_not_symlink',
-      path,
-      `tracked with mode ${entry.mode}; workspace-root entry points must be symlinks (mode ${SYMLINK_MODE}) to ${AGENT_INSTRUCTIONS}`,
-    );
-  }
-  if (entry.content !== AGENT_INSTRUCTIONS) {
-    return agentFileIssue(
-      'agent_entry_point_target',
-      path,
-      `points to "${entry.content ?? ''}"; it must point to "${AGENT_INSTRUCTIONS}"`,
-    );
-  }
-  return undefined;
-}
-
-function nestedEntryPointIssue(
-  path: string,
-  entry: IndexEntry | undefined,
-): DriftIssue | undefined {
-  if (entry === undefined) {
-    return agentFileIssue(
-      'agent_entry_point_missing',
-      path,
-      `not tracked; add the one-line pointer "${NESTED_POINTER}"`,
-    );
-  }
-  if (entry.mode !== FILE_MODE || entry.content !== `${NESTED_POINTER}\n`) {
-    return agentFileIssue(
-      'agent_entry_point_not_pointer',
-      path,
-      `must be a regular file holding only "${NESTED_POINTER}"; instructions belong in ${AGENT_INSTRUCTIONS}`,
-    );
-  }
-  return undefined;
-}
-
-/**
- * Agent CLIs auto-load only their own file name, so every AGENTS.md scope needs
- * a CLAUDE.md beside it. The repo root and each workspace root also carry
- * GEMINI.md, and there both must be symlinks so they cannot diverge from
- * AGENTS.md. A nested scope carries only a CLAUDE.md holding the pointer line,
- * so instructions cannot drift into it. Takes git index entries rather than the
- * working tree so an untracked file cannot make the check pass.
- */
-export function checkAgentEntryPoints(
-  entries: readonly IndexEntry[],
-): DriftIssue[] {
-  const byPath = new Map(entries.map((entry) => [entry.path, entry]));
-  const instructions = entries.filter(
-    (entry) => posix.basename(entry.path) === AGENT_INSTRUCTIONS,
-  );
-  const scopes = new Set(
-    instructions.map((entry) => posix.dirname(entry.path)),
-  );
-  const issues: DriftIssue[] = [];
-
-  for (const entry of instructions) {
-    if (entry.mode === SYMLINK_MODE) {
-      issues.push(
-        agentFileIssue(
-          'agent_instructions_symlink',
-          entry.path,
-          `is a symlink; ${AGENT_INSTRUCTIONS} must hold the instructions and its entry points link to it`,
-        ),
-      );
-    }
-  }
-
-  for (const scope of [...scopes].sort()) {
-    if (WORKSPACE_ROOT.test(scope)) {
-      for (const name of ENTRY_POINTS) {
-        const path = posix.join(scope, name);
-        const issue = workspaceEntryPointIssue(path, byPath.get(path));
-        if (issue !== undefined) issues.push(issue);
-      }
-      continue;
-    }
-
-    const path = posix.join(scope, NESTED_ENTRY_POINT);
-    const issue = nestedEntryPointIssue(path, byPath.get(path));
-    if (issue !== undefined) issues.push(issue);
-  }
-
-  for (const entry of entries) {
-    const name = posix.basename(entry.path);
-    if (!ENTRY_POINTS.includes(name)) continue;
-    const scope = posix.dirname(entry.path);
-    if (!scopes.has(scope)) {
-      issues.push(
-        agentFileIssue(
-          'agent_entry_point_orphan',
-          entry.path,
-          `has no tracked ${AGENT_INSTRUCTIONS} beside it to point at`,
-        ),
-      );
-    } else if (name !== NESTED_ENTRY_POINT && !WORKSPACE_ROOT.test(scope)) {
-      issues.push(
-        agentFileIssue(
-          'agent_entry_point_unexpected',
-          entry.path,
-          `nested scopes carry only ${NESTED_ENTRY_POINT}; remove it`,
-        ),
-      );
-    }
-  }
-
-  return issues;
 }
 
 /**
@@ -216,31 +87,19 @@ export function checkSkillsLink(entries: readonly IndexEntry[]): DriftIssue[] {
   return [];
 }
 
-/** Lists the tracked instruction files and entry points from the git index. */
+/** Lists the tracked skills link from the git index. */
 export function readIndexEntries(root: string): IndexEntry[] {
   const git = (args: string[]) =>
     execFileSync('git', args, { cwd: root, encoding: 'utf-8' });
-  const blobs = new Map<string, string>();
-  const pathspecs = [
-    ...[AGENT_INSTRUCTIONS, ...ENTRY_POINTS].map((name) => `*${name}`),
-    SKILLS_LINK,
-  ];
 
-  return git(['ls-files', '--stage', '-z', '--', ...pathspecs])
+  return git(['ls-files', '--stage', '-z', '--', SKILLS_LINK])
     .split('\0')
     .filter((record) => record !== '')
     .map((record) => {
       const tab = record.indexOf('\t');
       const [mode, oid] = record.slice(0, tab).split(' ');
       const path = record.slice(tab + 1);
-      if (!ENTRY_POINTS.includes(posix.basename(path)) && path !== SKILLS_LINK)
-        return { path, mode };
-
-      let content = blobs.get(oid);
-      if (content === undefined) {
-        content = git(['cat-file', 'blob', oid]);
-        blobs.set(oid, content);
-      }
+      const content = git(['cat-file', 'blob', oid]);
       return { path, mode, content };
     });
 }
@@ -326,7 +185,6 @@ function main() {
   }
 
   const indexEntries = readIndexEntries(ROOT);
-  issues.push(...checkAgentEntryPoints(indexEntries));
   issues.push(...checkSkillsLink(indexEntries));
 
   reportAndExit(issues, {

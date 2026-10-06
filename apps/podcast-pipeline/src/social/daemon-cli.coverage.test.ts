@@ -3,6 +3,14 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('./daemon-tick-telemetry.js', () => ({
+  withSocialDaemonTickTelemetry: (
+    _options: unknown,
+    run: () => Promise<unknown>,
+  ) => run(),
+  recordSocialEnqueueResult: vi.fn(),
+}));
+
 const mocks = vi.hoisted(() => ({
   acquire: vi.fn(),
   recoverLeases: vi.fn(),
@@ -14,7 +22,6 @@ const mocks = vi.hoisted(() => ({
   listCandidateEpisodes: vi.fn(),
   listPendingSchedules: vi.fn(),
   queueSnapshot: vi.fn(),
-  activeStrategies: vi.fn(),
   claimCohort: vi.fn(),
   capture: vi.fn(),
   flush: vi.fn(),
@@ -53,7 +60,6 @@ vi.mock('./daemon-store.js', async (importOriginal) => ({
   listSocialPublishCandidatesForEpisodes: mocks.listCandidateEpisodes,
   listPendingSocialPublishSchedules: mocks.listPendingSchedules,
   getSocialQueueSnapshot: mocks.queueSnapshot,
-  getActiveSocialStrategies: mocks.activeStrategies,
 }));
 vi.mock('./release-cohort-store.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./release-cohort-store.js')>()),
@@ -90,7 +96,6 @@ beforeEach(() => {
     nextByLane: {},
     waitingVideos: [],
   });
-  mocks.activeStrategies.mockResolvedValue([]);
   mocks.claimCohort.mockResolvedValue([]);
   mocks.flush.mockResolvedValue(undefined);
   mocks.send.mockResolvedValue(undefined);

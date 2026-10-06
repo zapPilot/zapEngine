@@ -30,6 +30,8 @@ Sentry remediation uses a separate server-side credential:
 
 Normal Sentry collection and inspection never fall back to the write token. If `SENTRY_OPS_WRITE_TOKEN` is absent, all read tools continue to work and `ops_resolve_sentry_issue` fails closed before sending a request.
 
+Both local MCP client configurations resolve Git's shared `.git` directory and launch `scripts/ops-mcp.mjs` from the primary checkout. Every linked worktree therefore uses the same Ops MCP source, installed dependencies, built packages, and canonical production environment, even when it has no `node_modules`. Worktree-local code changes do not affect this shared MCP service. The primary checkout must be prepared once; creating or switching worktrees requires no installation or build. This uses the primary checkout's current files, regardless of its branch name, and never switches branches. Older branches must contain the updated client configuration to use this entry point.
+
 The stdio launcher deliberately runs through `scripts/env/run.mjs --environment prod`, so a repository-local agent sees production operational truth instead of silently falling back to the env runner's default `dev` rail. For direct shell reads, use the same canonical runner; do not substitute bare `infisical run --env=prod -- ...`, because that injects secrets without necessarily merging committed non-secret values from `config/env/prod.env` and the repository env projection. Missing provider read credentials still degrade that provider to `unknown`; they must never be interpreted as healthy.
 
 `ops_status` is an incident inventory, not proof that every failure class is
@@ -44,7 +46,7 @@ The remote deployment receives the same provider credentials through the Control
 
 Engineering agents run the [ops-sweep skill](../../.agents/skills/ops-sweep/SKILL.md): it reads these tools and delivers every fix as a reviewed pull request.
 
-1. Call `ops_status` first to get all eight domains, signals and deterministic priorities.
+1. Call `ops_status` first to get all nine domains, signals and deterministic priorities.
 2. For a priority incident, call `ops_investigate` with the stable signal fingerprint. This is the normal bounded incident packet and may use `force: true` when fresh provider reads are required. Read its `correlation` and `remediation` blocks before choosing a fix.
 3. Call `ops_inspect_signal` only when extra provider-specific evidence is needed. For Sentry it returns the internal numeric issue IDs needed for remediation.
 4. Use `ops_domain`, `ops_signal`, `ops_customers`, `ops_social`, or the `ops_costs` compatibility alias for narrower operational reads.
@@ -94,7 +96,7 @@ Fail-closed rules:
 
 `exposure` reports only what the investigated signal itself proves. Customer impact correlated through service topology is reported separately in the packet's `customerImpact`, and an agent weighing a repair must read both: a job failure can carry no exposure of its own while the same packet shows stale priority portfolios behind it.
 
-`no-inspector` is a caveat rather than a blocker. Only `github-actions`, `sentry`, and `fly` have deep inspectors, so for every other source an empty gap list means nothing was gathered rather than that nothing is wrong. Such an incident may still be classified from repository evidence, but it must never be described as production-verified.
+`no-inspector` is a caveat rather than a blocker. Only `github-actions`, `github-security`, `sentry`, and `fly` have deep inspectors, so for every other source an empty gap list means nothing was gathered rather than that nothing is wrong. Such an incident may still be classified from repository evidence, but it must never be described as production-verified.
 
 `ops_resolve_sentry_issue` remains a separate, explicit delegated mutation. Empty `blockers` does not bypass the Sentry resolve gate documented below or the fix registration rules in [the operator runbook](./OPERATOR.md).
 
@@ -137,7 +139,7 @@ The Vercel MCP function therefore has a 30-second maximum duration. Provider cal
 From Claude Code or OpenCode at the repository root:
 
 1. Confirm `zap-pilot-ops` appears in `tools/list`.
-2. Call `ops_status` and confirm all eight domains are present.
+2. Call `ops_status` and confirm all nine domains are present.
 3. Confirm configured production providers do not all report `unknown` because of missing environment injection.
 4. Pick an active priority fingerprint and call `ops_investigate`; confirm the packet exposes explicit correlation for mapped services, separates `operationalPriorityScore` from the rest of the `remediation` block, and keeps `directMutationAllowed` `false`.
 5. Pick a real Sentry signal fingerprint and call `ops_inspect_signal`; confirm the issue evidence includes a numeric issue ID.
@@ -177,9 +179,11 @@ GitHub workflow inspection selects scheduled runs; recent-failure selects main r
 
 ## Growth and coverage review
 
+Packaging in `ops_growth` is the same 15-minute cached read model as `/api/growth`: one universal title/cover insight, Rednote 24h primary, normalized within each lane with ±7-day baselines. It reports observed associations, excludes suppressed notes and separates the ≤20-view distribution gate. It never recommends platform topics, slots, hooks or article selection and never enters `ops_status` reliability priorities.
+
 `ops_growth` is a separate lazy read with a 15-minute cache and `force` refresh.
-Version 0.11.0 returns observation time, `windowDays: 30`, `journey`,
-`community`, `lanes`, and `laneSources`. Journey contains separate ordered one-day
+Since 0.12.0, the response returns observation time, `windowDays: 30`, `journey`,
+`community`, `lanes`, `laneSources`, and `packaging`. Journey contains separate ordered one-day
 landing → waitlist CTA and landing → Discord CTA funnels. Lanes join first-touch
 episode/platform/language across PostHog 30-day unique people, recent social posts,
 and cumulative waitlist signups; these mixed windows must not be treated as a
@@ -214,3 +218,19 @@ signups joined by exposure ID, source/device segments, bounded failure reasons,
 exclusions and measurement availability. `baseline` is observational;
 `review_ready` is a sample floor, not a winner. See
 [the experiment runbook](../../docs/operations/landing-cta-experiment.md).
+
+### GitHub Security (0.13.0)
+
+`ops_domain {domain:"security"}` reads the shared collector. Each of code scanning,
+Dependabot and secret scanning contributes one repository rollup; targets are
+bounded in `followUpTargets`. `ops_inspect_signal` accepts only
+`github-security:<surface>/repository`, never individual alerts. Reads are bounded
+to two pages of 100 open alerts per surface. 403/404 means unknown permissions or
+feature availability; other failures degrade only that surface. No posture endpoints
+or alert mutations are used. Secret scanning requests use `hide_secret=true`, strip
+unknown fields and return only allowlisted metadata, never secret values.
+
+The existing `OPS_GITHUB_TOKEN` needs Code scanning alerts: Read, Dependabot alerts:
+Read and optionally Secret scanning alerts: Read, in addition to Actions: Read.
+The owner chooses the secret permission because the token itself could read raw
+secrets outside this adapter. A healthy surface proves only a readable open inventory.

@@ -60,7 +60,7 @@ describe('podcast packaging edge coverage', () => {
 
   it('bounds oversized editorial drafts and carries the final sentence into the last kept scene', () => {
     const body = Array.from(
-      { length: 70 },
+      { length: 160 },
       (_, index) => `正文第${index + 1}句。`,
     ).join('');
     const script = packagePodcastScript(body);
@@ -74,7 +74,7 @@ describe('podcast packaging edge coverage', () => {
 
     const branded = applyPodcastBrandingToStoryboard(script, { scenes });
 
-    expect(branded.scenes).toHaveLength(64);
+    expect(branded.scenes).toHaveLength(150);
     expect(branded.scenes.at(-2)?.endSentenceId).toBe(sections.body.at(-1)?.id);
     expect(branded.scenes.at(-1)?.imageSearchIntent).toEqual([
       PODCAST_OUTRO_VISUAL_INTENT,
@@ -118,7 +118,7 @@ describe('podcast packaging edge coverage', () => {
     );
     expect(
       podcastContentSceneCountRange(60_000, 4, packaged).max,
-    ).toBeLessThanOrEqual(63);
+    ).toBeLessThanOrEqual(149);
     expect(podcastEditorialSceneCountRange(60_000, 4, false)).toEqual(
       expect.objectContaining({
         min: expect.any(Number),
@@ -127,7 +127,7 @@ describe('podcast packaging edge coverage', () => {
     );
     expect(
       podcastEditorialSceneCountRange(60_000, 4, true).max,
-    ).toBeLessThanOrEqual(63);
+    ).toBeLessThanOrEqual(149);
     expect(stripKnownPodcastPackaging(`  ${packaged}  `)).toBe(raw);
   });
 

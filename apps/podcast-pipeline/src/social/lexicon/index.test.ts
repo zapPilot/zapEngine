@@ -33,8 +33,7 @@ describe('findSensitiveTerms', () => {
   });
 
   // Precision pin. The gate fails copy generation outright, so this feed's own
-  // subject matter must never trip it; suppressing a weak topic is the
-  // learner's job, not the lexicon's.
+  // subject matter must never trip it; owner interest decides topics.
   it('leaves ordinary market coverage of its own topics alone', () => {
     expect(
       findSensitiveTerms(

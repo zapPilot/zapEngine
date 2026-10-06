@@ -51,7 +51,7 @@ export const SERVICE_TOPOLOGY: readonly ServiceTopology[] = [
     workspace: '@zapengine/podcast-pipeline',
     flyApp: 'from-fed-to-chain-api',
     sentryProject: 'podcast-pipeline',
-    githubWorkflows: ['distribution-snapshot.yml'],
+    githubWorkflows: ['distribution-snapshot.yml', 'podcast-artifact-gc.yml'],
     impact: 'social-media',
   },
 ];

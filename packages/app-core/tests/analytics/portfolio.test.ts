@@ -157,6 +157,20 @@ describe('portfolio composition', () => {
     expect(extractROIChanges(d)).toEqual({ change7d: 2, change30d: 3 });
     d.portfolio_roi = {} as LandingPageResponse['portfolio_roi'];
     expect(extractROIChanges(d)).toEqual({ change7d: 0, change30d: 0 });
+    d.portfolio_roi = {
+      windows: { '30d': { value: 30 } },
+    } as LandingPageResponse['portfolio_roi'];
+    expect(extractROIChanges(d)).toEqual({ change7d: 0, change30d: 30 });
+  });
+  it('falls back to a zero balance when the response omits net_portfolio_value', () => {
+    const d = {
+      ...landing(),
+      net_portfolio_value: null,
+    } as LandingPageResponse;
+    expect(extractBalanceData(d).balance).toBe(0);
+    expect(
+      transformToWalletPortfolioDataWithDirection(d, null, null).balance,
+    ).toBe(0);
   });
   it('waits for all required query data and propagates the first error', () => {
     const extract = vi.fn((a: number, b: number) => a + b);

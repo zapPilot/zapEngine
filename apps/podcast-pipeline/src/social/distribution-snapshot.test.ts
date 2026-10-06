@@ -82,7 +82,6 @@ function source(
     posts: [],
     metrics: [],
     publishJobs: [],
-    strategyVersions: [],
     ...overrides,
   };
 }
@@ -376,10 +375,6 @@ describe('buildDistributionSnapshot', () => {
           metric({ social_post_id: 'p1' }),
           metric({ social_post_id: 'p2', collection_status: 'unavailable' }),
         ],
-        strategyVersions: [
-          { platform: 'x', language_code: 'zh-Hant' },
-          { platform: 'threads', language_code: 'ja' },
-        ],
       }),
     );
 
@@ -389,7 +384,6 @@ describe('buildDistributionSnapshot', () => {
       publishJobsFailed: 1,
       metricSnapshots: 2,
       metricSnapshotsCollected: 1,
-      strategyVersions: 2,
     });
   });
 
@@ -433,6 +427,19 @@ describe('buildDistributionSnapshot', () => {
 
     expect(snapshot.coverage.lastPostAt).toBe('2026-08-20T00:00:00.000Z');
     expect(snapshot.channels[0]?.firstPostAt).toBe('2026-08-20T00:00:00.000Z');
+  });
+
+  it('sorts example channels with unknown publish dates as empty strings', () => {
+    const input = completeChain();
+    input.posts.forEach((post) => {
+      post.published_at = null;
+    });
+    const snapshot = buildDistributionSnapshot(input);
+    const channels = snapshot.example?.channels ?? [];
+    expect(channels.length).toBeGreaterThan(1);
+    expect(channels.every((channel) => channel.publishedAt === null)).toBe(
+      true,
+    );
   });
 
   it('returns an empty snapshot for an empty corpus', () => {

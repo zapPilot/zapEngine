@@ -13,9 +13,8 @@ import { POLITICAL_TERMS } from './political.js';
  * Precision discipline for anyone extending these lists:
  *
  * - Never add a term this feed is *about*. 穩定幣、比特幣、以太坊、美聯儲、
- *   流動性、GPU are the subject matter; suppressing a topic that underperforms is
- *   the learner's job (`review_status` de-pollution in ./../strategy.ts), not
- *   this gate's.
+ *   流動性、GPU are the subject matter. Owner interest decides topics; neither
+ *   this gate nor a learner may suppress a topic.
  * - Prefer terms of three characters or more. Matching is a substring scan, so a
  *   two-character fragment collides with ordinary sentences (保本 inside
  *   「確保本次」). ./asset-allocation.ts and ./market-timing.ts each carry a
@@ -23,11 +22,10 @@ import { POLITICAL_TERMS } from './political.js';
  * - Only grow the lists from real review feedback. A false positive fails copy
  *   generation outright, which is more expensive than one risky post.
  *
- * These lists are the precision half of the gate. They catch wording that can
- * only be an instruction; the framing a term list cannot express — political
- * motive presented as market causation, a prediction stated more strongly than
- * its source — is judged by ../rednote-semantic-risk.ts instead. Neither layer
- * is a topic blacklist.
+ * These lists catch instructional wording. Framing that a term list cannot
+ * express — political motive presented as market causation, or a prediction
+ * stated more strongly than its source — relies only on the writer prompt.
+ * The semantic judge was removed on 2026-10-05. These are not topic blacklists.
  */
 export type SensitiveCategory =
   | 'ad_law'

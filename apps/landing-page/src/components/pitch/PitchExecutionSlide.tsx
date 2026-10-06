@@ -1,45 +1,51 @@
-import { PITCH_EXECUTION } from '@/config/pitch';
+import { GuaranteeList } from '@/components/landing-v2/TrustBoundary';
+import { StatusBadge, StatusNote } from '@/components/StatusBadge';
+import { PITCH_WALLET } from '@/config/pitch';
 import { PitchSlide } from './PitchSlide';
 
 /**
- * Slide 7 — Execution. Two columns: bullet list of properties on the left,
- * vertical CSS flow diagram on the right with the "you sign" step highlighted
- * in brand gold to anchor the self-custody story.
+ * Slide 7 — Wallet. The home page's wallet-boundary guarantees on the left;
+ * on the right, today's deposit flow (the "you sign" step in brand gold)
+ * above the planned rebalance flow, each step badged with its status.
  */
 export function PitchExecutionSlide() {
+  const { flowToday, flowPlanned } = PITCH_WALLET;
   return (
     <PitchSlide
-      id="execution"
-      kicker={PITCH_EXECUTION.kicker}
-      title={PITCH_EXECUTION.headline}
+      id="wallet"
+      kicker={PITCH_WALLET.kicker}
+      title={PITCH_WALLET.headline}
     >
       <div className="pitch-execution-grid">
-        <ul className="pitch-execution-bullets">
-          {PITCH_EXECUTION.bullets.map((bullet) => (
-            <li key={bullet}>{bullet}</li>
-          ))}
-        </ul>
+        <GuaranteeList className="pitch-execution-bullets" />
 
-        <ol
-          className="pitch-execution-flow"
-          aria-label="Execution flow: regime shift to on-chain settlement"
-        >
-          {PITCH_EXECUTION.flow.map((step, index) => {
-            const isHighlight = index === PITCH_EXECUTION.signStepIndex;
-            return (
+        <div className="pitch-execution-flows">
+          <p className="pitch-execution-flow-label">
+            {flowToday.label} <StatusBadge capability={flowToday.capability} />
+          </p>
+          <ol className="pitch-execution-flow" aria-label={flowToday.label}>
+            {flowToday.steps.map((step, index) => (
               <li
                 key={step}
                 className={
-                  isHighlight
+                  index === flowToday.signStepIndex
                     ? 'pitch-execution-step pitch-execution-step--highlight'
                     : 'pitch-execution-step'
                 }
               >
                 {String(index + 1).padStart(2, '0')} · {step}
               </li>
-            );
-          })}
-        </ol>
+            ))}
+          </ol>
+          <p className="pitch-execution-flow-label">{flowPlanned.label}</p>
+          <ol className="pitch-execution-flow" aria-label={flowPlanned.label}>
+            {flowPlanned.steps.map((step) => (
+              <li key={step.text} className="pitch-execution-step">
+                <StatusNote note={step} />
+              </li>
+            ))}
+          </ol>
+        </div>
       </div>
     </PitchSlide>
   );

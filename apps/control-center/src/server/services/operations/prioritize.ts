@@ -7,7 +7,7 @@ import type {
 import { evidenceNumber } from './evidence.js';
 
 /**
- * Deterministic triage. A human scanning eight domains and an agent reading
+ * Deterministic triage. A human scanning nine domains and an agent reading
  * `ops:status --json` have to agree on what matters most, which rules out
  * asking a model and rules out per-adapter opinions. The whole ranking is this
  * table plus a handful of evidence boosts.
@@ -30,6 +30,7 @@ const DOMAIN_WEIGHT: Record<OperationsDomain, number> = {
   infra: 8,
   jobs: 6,
   errors: 6,
+  security: 6,
   costs: 4,
   product: 2,
   analytics: 0,

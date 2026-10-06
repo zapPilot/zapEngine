@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { ownershipChallengeSchema } from '@core/schemas/api/accountSchemas';
 
 const validChallenge = {
-  nonce: 'a'.repeat(64),
+  challengeId: '123e4567-e89b-12d3-a456-426614174000',
   message: 'ZapPilot wallet ownership proof',
   expiresAt: '2026-08-23T02:00:00.000Z',
 };
@@ -16,11 +16,14 @@ describe('ownershipChallengeSchema', () => {
   });
 
   it.each([
-    ['short nonce', { ...validChallenge, nonce: 'a'.repeat(63) }],
+    ['invalid challenge id', { ...validChallenge, challengeId: 'bad' }],
     ['missing message', { ...validChallenge, message: '' }],
     [
       'missing expiry',
-      { nonce: validChallenge.nonce, message: validChallenge.message },
+      {
+        challengeId: validChallenge.challengeId,
+        message: validChallenge.message,
+      },
     ],
   ])(
     'rejects a malformed challenge before signing: %s',

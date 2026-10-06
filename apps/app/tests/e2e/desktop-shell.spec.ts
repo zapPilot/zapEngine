@@ -44,6 +44,43 @@ async function noOverflow(page: Page) {
     page.getByText('Something went wrong', { exact: true }),
   ).toHaveCount(0);
 }
+async function switchTab(page: Page, name: 'Home' | 'Podcast') {
+  const nav = page.getByRole('navigation', { name: 'Primary', exact: true });
+  await nav.getByRole('link', { name, exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/${name.toLowerCase()}$`));
+  await expect(nav.getByRole('link', { name, exact: true })).toHaveAttribute(
+    'aria-current',
+    'page',
+  );
+  const previous = name === 'Home' ? 'Podcast' : 'Home';
+  await expect(
+    nav.getByRole('link', { name: previous, exact: true }),
+  ).not.toHaveAttribute('aria-current', 'page');
+}
+test('desktop tabs support repeated round trips without reloading', async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await prepare(page, 1440);
+  await page.goto('/home');
+  await expect(
+    page.getByRole('navigation', { name: 'Primary', exact: true }),
+  ).toBeVisible({ timeout: 45000 });
+  await page.evaluate(() => {
+    Object.assign(window, { shellNavigationMarker: 'loaded' });
+  });
+  for (const name of ['Podcast', 'Home', 'Podcast'] as const)
+    await switchTab(page, name);
+  expect(
+    await page.evaluate(
+      () =>
+        (window as Window & { shellNavigationMarker?: string })
+          .shellNavigationMarker,
+    ),
+  ).toBe('loaded');
+  expect(errors).toEqual([]);
+});
 test('desktop navigation persists across episode routes and keeps locked guests on their current page', async ({
   page,
 }) => {
@@ -68,8 +105,9 @@ test('desktop navigation persists across episode routes and keeps locked guests 
     nav.getByRole('link', { name: 'Podcast', exact: true }),
   ).toHaveAttribute('aria-current', 'page');
   await noOverflow(page);
-  await nav.getByRole('link', { name: 'Home', exact: true }).click();
-  await expect(page).toHaveURL(/\/home$/);
+  await switchTab(page, 'Home');
+  await switchTab(page, 'Podcast');
+  await switchTab(page, 'Home');
   await nav.getByRole('button', { name: 'Strategy', exact: true }).click();
   await expect(
     page.getByRole('dialog', { name: 'Choose how to connect', exact: true }),
@@ -77,6 +115,12 @@ test('desktop navigation persists across episode routes and keeps locked guests 
   await expect(page).toHaveURL(/\/home$/);
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toHaveCount(0);
+  await nav.getByRole('button', { name: 'Account', exact: true }).click();
+  await expect(
+    page.getByRole('dialog', { name: 'Choose how to connect', exact: true }),
+  ).toBeVisible();
+  await expect(page).toHaveURL(/\/home$/);
+  await page.keyboard.press('Escape');
   await noOverflow(page);
   expect(errors).toEqual([]);
 });
@@ -102,7 +146,39 @@ test('switches between bottom tabs and the sidebar at the 1024px boundary withou
     await expect(
       page.getByRole('tablist', { name: 'App tabs', exact: true }),
     ).toHaveCount(0);
+    await switchTab(page, 'Home');
+    await switchTab(page, 'Podcast');
     await noOverflow(page);
   }
   expect(errors).toEqual([]);
 });
+
+for (const width of [390, 1440]) {
+  test(`podcast keeps one gutter and a reading column at ${width}px`, async ({
+    page,
+  }) => {
+    await prepare(page, width);
+    await page.goto('/podcast');
+    const heading = page.getByRole('heading', { name: 'Podcast', exact: true });
+    const unheard = page.getByRole('button', {
+      name: 'Unheard (1)',
+      exact: true,
+    });
+    await expect(unheard).toBeVisible();
+    const headerBox = await heading.boundingBox();
+    const sectionBox = await unheard.boundingBox();
+    expect(headerBox).not.toBeNull();
+    expect(sectionBox).not.toBeNull();
+    if (width === 390) {
+      expect(headerBox!.x).toBeCloseTo(20, 0);
+      expect(sectionBox!.x).toBeCloseTo(20, 0);
+    } else {
+      expect(sectionBox!.width).toBeLessThanOrEqual(720);
+    }
+    await page.goto('/podcast/shell-episode?lang=en');
+    const back = page.getByRole('button', { name: 'Back', exact: true });
+    await expect(back).toBeVisible();
+    if (width === 390) expect((await back.boundingBox())!.x).toBeCloseTo(20, 0);
+    await noOverflow(page);
+  });
+}

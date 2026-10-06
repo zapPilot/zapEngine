@@ -1,39 +1,49 @@
 ---
 title: Track Record
-description: Backtest track record while the live on-chain pipeline is pending
+description: Daily backtests, the unsigned snapshot chain, and the on-chain rule check — and what each one does and does not prove.
 ---
 
-## Backtest Track Record
+import { StatusBadge } from '@/components/StatusBadge';
 
-The published charts currently describe backtest results. The live on-chain
-snapshot pipeline, signed history, and public verification chain are pending;
-this page does not claim they are operating today.
+The track record has three parts. None of them is a live account's results.
 
-The intended live pipeline will fetch positions, value assets, compute NAV,
-sign snapshots, and publish a verifiable history. Until that pipeline is live,
-the runtime pending banner is authoritative.
+## Daily backtests
+
+<StatusBadge capability="reference-strategy" qualifier="backtest" />
+
+The charts on the [track record page](/track-record) default to the reference strategy's backtest, recomputed every day over a rolling 500-day window and compared with [DCA Classic](/docs/track-record/dca-classic-v1). The results are hypothetical; the [backtest method](/docs/track-record/dma-fgi-portfolio-rules-v1#backtest-method) lists its assumptions.
+
+## Snapshot chain
+
+<StatusBadge capability="snapshot-chain" />
+
+Every day a snapshot of one reference address — its positions, NAV and performance — is published to IPFS. Each snapshot links to the previous one by CID, so the history is tamper-evident. Snapshots are **unsigned** today: no official signer is configured, so the chain shows that the record was not edited after publication, not who published it. Switch the track record page to **Snapshots** to load it.
+
+## On-chain rule check
+
+<StatusBadge capability="verifiable-rule" />
+
+The [Verifiable Strategy calculator](/docs/track-record/verifiable-strategy) recomputes one recorded cross-down exit with public Vyper bytecode on Arbitrum Sepolia. It covers one of six rules and is not the production strategy.
 
 ## Pages
 
-- **Overview** (`/track-record`) — Current status, NAV, key metrics
+- **Overview** (`/track-record`) — backtest or snapshot NAV and key metrics
 - **Performance** (`/track-record/performance`) — NAV curve, drawdown, benchmark comparison
-- **Positions** (`/track-record/positions`) — Current tokenized holdings by chain
-- **Rebalances** (`/track-record/rebalances`) — Rebalance history with on-chain tx links
-- **Verification** (`/track-record/verification`) — CID chain validity, signature checks, methodology
+- **Positions** (`/track-record/positions`) — holdings by chain
+- **Rebalances** (`/track-record/rebalances`) — allocation changes
+- **Verification** (`/track-record/verification`) — CID chain validity, signature status, methodology
 
-## Strategy Specs
+## Strategy specs
 
-- [DMA/FGI Portfolio Rules v1](/docs/track-record/dma-fgi-portfolio-rules-v1) — The backtested strategy
-- [DCA Classic v1](/docs/track-record/dca-classic-v1) — The baseline benchmark
+- [DMA/FGI Portfolio Rules](/docs/track-record/dma-fgi-portfolio-rules-v1) — the reference strategy
+- [DCA Classic](/docs/track-record/dca-classic-v1) — the benchmark
 
 ## Verify
 
-The verification CLI is reserved for the future live snapshot chain:
+The verification CLI walks the published snapshot chain:
 
 ```bash
 pnpm track-record:verify
 ```
 
-Once the live pipeline is enabled, it will validate schema, signatures,
-recomputed metrics, and snapshot content hashes. It is not evidence of a live
-public chain today.
+It validates the schema, recomputes performance metrics and checks each snapshot's content hash. Until snapshots are signed, it reports the official signer as `none`.

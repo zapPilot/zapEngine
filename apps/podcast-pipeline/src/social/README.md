@@ -3,19 +3,22 @@
 `src/social` is the local social publishing and measurement stack for completed
 podcast localizations. The long-lived `social:daemon` discovers publishable
 media, schedules article releases, publishes every active platform/language lane,
-records post/account metrics, and refreshes copy guidance.
+records post/account metrics, and reports experiments.
 
 This is the operator-facing runbook. It explains how the product contract behaves
 in production; it does not define a competing policy.
 
 ## Canonical sources
 
+Optimization contract: [Social optimization contract](AGENTS.md#social-optimization-contract).
+
 | Concern                              | Canonical source                                                                                  |
 | ------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| Optimization contract                | `src/social/AGENTS.md#social-optimization-contract`                                               |
 | Product invariant                    | `apps/podcast-pipeline/AGENTS.md` + `src/social/AGENTS.md`                                        |
 | Executable invariant                 | `src/social/daemon-release-cohort-contract.test.ts` + `scripts/check-social-release-contract.mjs` |
 | Release-lane shape                   | `src/social/cohort.ts` + `src/social/policy.ts`                                                   |
-| Article timing policy                | `src/social/policy.ts` (`SOCIAL_RELEASE_DAILY_CAP`, `SOCIAL_RELEASE_SLOTS`)                       |
+| Article timing policy                | `src/social/policy.ts` (`SOCIAL_RELEASE_CADENCES`)                                                |
 | Scheduling / recovery implementation | `src/social/daemon.ts`, `src/social/release-cohort-store.ts`, `src/social/slot-policy.ts`         |
 | Platform media / CTA behavior        | `src/social/platforms.ts`, `src/brand/cta.ts`                                                     |
 | Session / auth behavior              | platform auth modules under `src/social/`                                                         |
@@ -31,7 +34,8 @@ Normal operation from the repository root:
 
 ```bash
 pnpm social:login
-pnpm social:daemon
+pnpm ops --social  # daemon only
+pnpm ops           # full operator stack
 ```
 
 Bounded operator catch-up after the Mac was offline:
@@ -47,7 +51,7 @@ article.
 The daemon CLI now defaults to the compact operator log: queue repair is summarized,
 out-of-horizon articles are counted instead of printed one-by-one, successful
 account/LLM telemetry is hidden, and a live release gets a dedicated publishing
-section. Use `pnpm ops --verbose` (or `pnpm social:daemon --verbose`) when the
+section. Use `pnpm ops --verbose` when the
 full provider/browser diagnostics are needed.
 
 Only one daemon may run at a time. It owns a pid lock at:
@@ -57,7 +61,7 @@ Only one daemon may run at a time. It owns a pid lock at:
 ```
 
 A stale lock from a dead process is taken over on the next start. The Control
-Center is optional; publishing, metric collection, and strategy refresh do not
+Center is optional; publishing and metric collection do not
 depend on its process staying alive.
 
 Manual break-glass / diagnostics remain package-level commands:
@@ -101,22 +105,25 @@ rather than kept as dead recovery paths. Nothing was lost:
   They publish on their original languages and then the experiment shape is gone.
 - Published experiment posts, metrics, and `social_experiment_assignments` rows
   are untouched in the database and remain available for analysis.
-- `daemon.ts` still recognises the historical experiment keys for one purpose:
-  keeping learned copy guidance frozen on those not-yet-published lanes.
+- Episodes created before **2026-08-24** (`SOCIAL_RELEASE_MIN_EPISODE_CREATED_AT`,
+  when multilingual distribution started) get no lanes at all.
+  `social_publish_candidates` has no creation-time filter of its own, so this
+  constant is what stops a re-rendered old video from making the whole back
+  catalogue publishable in one tick.
 
-Episodes created before **2026-08-24** (`SOCIAL_RELEASE_MIN_EPISODE_CREATED_AT`,
-when multilingual distribution started) get no lanes at all.
-`social_publish_candidates` has no creation-time filter of its own, so this
-constant is what stops a re-rendered old video from making the whole back
-catalogue publishable in one tick.
+Article timing is backlog-aware and always shared by the whole article cohort:
 
-Current article timing is **4 articles per JST day at 09:30, 12:00, 16:00 and
-21:00 JST**. Each article takes one of those times and every active lane of that
-article receives it.
+- **0-9 unpublished queued articles:** 4/day at 09:30, 12:00, 16:00, 21:00 JST
+- **10-20:** 5/day at 09:00, 12:00, 15:00, 18:00, 21:00 JST
+- **21+:** 6/day at 09:00, 11:30, 14:00, 16:30, 19:00, 21:30 JST
 
-The cap and the slot list move together: `nextReleaseSlot()` places at most one
-article per slot, so raising `SOCIAL_RELEASE_DAILY_CAP` without adding a slot
-leaves the extra articles unschedulable.
+The backlog count is one per wholly unpublished durable `episode_id`, not one per
+platform lane. Partial-release recovery stays outside this count and continues to
+fence fresh publishing until recovery finishes or becomes terminal.
+
+Each cadence's slot list is also its daily cap: `nextReleaseSlot()` places at
+most one article per selected slot, so frequency and candidate times always move
+together inside the same backlog tier.
 
 Correct steady-state example:
 
@@ -146,7 +153,7 @@ a few minutes apart. That is one release cycle, not staggered scheduling.
 
 Reach optimization may change article-level frequency, candidate article slots,
 or body copy. It must not derive a separate publish budget, time, or title from
-each platform. Changing the fixed language mapping is now a product-contract
+each platform. Character-budget compression is generated and frozen in ingest. Changing the fixed language mapping is now a product-contract
 change rather than an active optimization arm.
 
 The long-lived daemon is constrained to the code-owned 09:00–23:00 JST watch
@@ -194,8 +201,8 @@ representing the episode; durable release state owns recovery from then on.
 ### Copy generation barrier
 
 Copy is the last pre-transport step that can fail for one language of an
-otherwise healthy article, because the Rednote red-line judge
-(`rednote-semantic-risk.ts`) only runs on `zh-Hant`. It used to be generated
+otherwise healthy article, because Rednote lexicon validation only runs on
+`zh-Hant`. It used to be generated
 inside `publishSocialBatch()`, which the daemon calls once per language in a
 loop — so a note rejected on the third attempt arrived after that article's
 `en` and `ja` lanes were already live. That is a permanently partial article.
@@ -210,9 +217,9 @@ Each successful preparation commits generated/published copy, model, and
 packaging assignments to `social_copy_snapshots`, keyed by episode and language,
 before returning. Threads and Rednote share the zh-Hant row. Ordinary daemon
 retries (including `ops --social-once`) reuse that row even after transport
-failure, changed strategy guidance, or partial publication; they never overwrite
+failure or partial publication; they never overwrite
 or automatically regenerate it. Missing platform blocks and database read/write
-failures stop the release. Canonical titles still come from the localization,
+failures stop the release. Best Title and frozen budget variants come from the localization; the deterministic last-mile lexicon checks the actual transport title, body and hashtags,
 and `social_posts` still records only successful publication. Snapshot invalidation
 and the interactive break-glass CLI's explicit edit/regenerate workflow are
 separate from this daemon retry contract. Deploy the root migration before
@@ -229,16 +236,20 @@ Failing the lanes charges one attempt, applies `publishRetryDelayMs`, and moves
 the next tick's seed on.
 
 Only `SocialCopyGenerationError` — the single throw that means "these attempts
-are spent and this copy is decided" — holds the article. A missing prompt file,
-unset OpenRouter config, or a judge that could not reach a verdict at all
-(`RednoteSemanticRiskError` with `reason: 'unavailable'`) stays fatal: those
-recover on the next tick or the next deploy, while holding on them would burn
-all eight attempts of every `zh-Hant` article behind a green daemon.
+are spent and this copy is decided" — holds the article. A missing prompt file
+or unset OpenRouter config stays fatal: holding on deployment faults would burn
+all eight attempts of affected articles behind a green daemon.
+
+Social copy uses `OPENROUTER_FREE_MODEL` (`openrouter/free`) with the shared
+`LLM_FALLBACK_MODELS` transport fallback. The four investment-direction rules
+remain in the writer prompt. R1/R2 retain deterministic lexicon checks during
+generation and before publishing; R3/R4 rely only on the writer prompt. The LLM
+semantic judge was removed on 2026-10-05.
 
 The operator sees one line per held article and the reason in `last_error`:
 
 ```text
-⏸️ [social-daemon] “標題” · release held · copy generation failed 🇨🇳 zh-Hant · Rednote copy breaks investment-direction red lines (…)
+⏸️ [social-daemon] “標題” · release held · copy generation failed 🇨🇳 zh-Hant · rednote.body: Rednote copy must not contain moderation-risk wording (…)
 ```
 
 ```text
@@ -328,7 +339,7 @@ or persistence race is reconciled rather than uploaded twice.
 
 Publishing is fail-closed and fail-fast for release work. `reconcile`, cohort
 alignment, discovery, and publishing are release-shape stages; failures propagate
-and stop the daemon. Metrics, pre-publish/account snapshots, strategy refresh,
+and stop the daemon. Metrics, pre-publish/account snapshots,
 experiment reporting, and queue summaries are observational and remain isolated.
 
 A platform call that already succeeded before a later failure remains persisted.
@@ -442,13 +453,17 @@ Current media shape is owned by `platforms.ts`:
 | Platform | Local MP4 required | Published media                                      |
 | -------- | ------------------ | ---------------------------------------------------- |
 | X        | yes                | Japanese teaser, or full video within X duration cap |
-| Threads  | no                 | teaser prepared/reused from the `zh-Hant` video      |
+| Threads  | no                 | full `zh-Hant` video within 300s, otherwise teaser   |
 | Rednote  | yes                | local `zh-Hant` full video                           |
 | YouTube  | yes                | English full video                                   |
 
-X and Threads share the deterministic teaser path where possible. Rednote always
-publishes the main Chinese full video, and Threads publishes its teaser. New
-Chinese videos and Threads teasers have Simplified subtitles (an accepted
+X keeps its 140-second cap. Threads independently uses a 300-second cap, per
+[Meta Threads API Media Specifications](https://developers.facebook.com/documentation/threads/posts#video-specifications)
+(verified 2026-10-04). Each publishes the full video at or below its own cap;
+over-limit videos use the first 130 seconds plus the final 2.8-second brand outro.
+An existing X teaser may be reused only when Threads also needs a teaser.
+Rednote always publishes the main Chinese full video. New
+Chinese videos and Threads videos have Simplified subtitles (an accepted
 trade-off); older videos retain their original script. X publishes Japanese and
 YouTube publishes English under the fixed language policy.
 
@@ -468,8 +483,7 @@ In normal operation, `social:daemon` owns standardized post metric windows and
 account snapshots; `social:metrics` remains a manual diagnostic/recovery entry
 point.
 
-Strategy learning uses persisted posts plus standardized 24-hour metric samples.
-It may influence copy/content guidance but does not own release timing.
+The per-platform learner was removed on 2026-10-03. Control Center alone exposes a universal observational packaging read model; no learned guidance enters generation.
 
 ## Language and packaging experiments
 
@@ -478,25 +492,22 @@ not write language experiment keys or variants. Historical `social_posts` and
 `social_experiment_assignments` remain intact so the v1/v2/v3 results can still
 be evaluated within each platform using standardized 24-hour samples.
 
-Current jobs are not language experiment arms, so strategy guidance is not
-frozen merely because historical keys still exist in the database. Stale active
-strategy rows for language lanes no longer present in
-`SOCIAL_LANGUAGE_BY_PLATFORM` are retired by the normal strategy refresh.
+No lane receives learned guidance. Historical strategy rows remain readable and new jobs leave strategy_version_id null.
 
 Platform-specific packaging experiments are currently disabled.
 `packaging-experiments.ts` deliberately returns no assignments.
 
-Visible titles have one source of truth: the selected
-`episode_localizations.title`. The independent title call (`prompts/title-system-prompt.txt`) is instructed to keep the
-canonical title within 20 Unicode characters, but that is a generation
-preference rather than an ingest gate. If the model returns a longer valid
-title, it is persisted unchanged.
-
-Platform limits are enforced only at the final transport projection: Rednote
-hard-truncates the canonical title to 20 Unicode characters and YouTube
-hard-truncates it to 100. X and Threads have no separate title field. Secondary
-language localization titles remain translations of the canonical title, not
-platform-written headlines.
+`episode_localizations.title` is the Best Title and editorial source of truth.
+It has no 20-character target; valid generated titles retain the 4..60 code-point
+guard and must never be identical to the source after normalization.
+Title and variants precede script generation; failures stop ingest without a scraped-title fallback.
+Semantically equivalent compression variants are generated in ingest by character
+budget and persisted atomically in `title_variants`; they are never recomputed
+by social or after resume. Social never generates titles or calls a title LLM.
+Transport reads a stored budget variant, otherwise deterministic fitting at word
+or clause boundaries (Rednote 20, YouTube 100); X and Threads have no title field.
+Platform audience, per-platform hook, thesis, and learned headline strategies
+are forbidden. Never add a title field to `GeneratedSocialCopy`.
 
 `social_publish_jobs.legacy_title_override` exists only for the finite set of
 already-queued Rednote jobs that predate the canonical-title migration. New jobs
@@ -507,8 +518,19 @@ to the same final Rednote transport truncation.
 
 The daemon samples account-level follower/subscriber counts on a best-effort
 three-hour cadence. Immediately before a due publish it also attempts a fresh
-baseline for affected platforms. Snapshot or rolling-metric failures are
-observational and cannot block a release.
+baseline for affected platforms except YouTube. Snapshot or rolling-metric failures
+are observational and cannot block a release.
+
+All four platforms (Rednote, X, Threads, YouTube) have account snapshots.
+YouTube checks the configured channel locally before requesting statistics and
+rejects a mismatched channel, hidden subscriber counts or unreadable counts;
+failed reads never insert zero. The Data API rounds subscriber counts above
+1,000 to three significant digits. Older sessions missing `youtube.readonly`
+need `pnpm social:login` again.
+
+YouTube account snapshots serve audience history only. Attribution still uses
+exact per-video subscriber gains: no interval attribution, rolling observations
+or pre-publish baseline for YouTube.
 
 ## Safe smoke test after publisher changes
 
@@ -563,3 +585,33 @@ attempts, leases, and visual versions. Consumers must not interpret every
 nonempty result as media merely catching up: terminal or unclaimable producers
 need operator intervention. The view supplies facts; shared TypeScript retry
 eligibility owns the version policy.
+
+## Tick evidence outside the database
+
+Every regular daemon tick and `social:once` invocation writes one unsampled
+terminal `social_daemon_tick` record, including failed and zero-work ticks. It
+contains actual enqueue request attempts, newly inserted rows, successful
+ignore-duplicate responses, and enqueue errors, plus tick outcome, duration,
+host, pid, owner, and configured release. Existing complete cohorts generate
+zero enqueue requests; a repeated duplicate count is therefore an actionable
+signal even when all HTTP responses are successful.
+
+Evidence is appended and synced to
+`~/.zap-pilot/observability/social-daemon/ticks-YYYY-MM-DD.jsonl` (UTC), with
+private directory/file permissions and 30 days of retention. Each daily file is
+capped at approximately 5 MiB plus its most recent rotation (`.1`); the current
+record can exceed the boundary. Old unrelated files are never removed. The same
+summary is sent as a Sentry structured log when the existing
+`SENTRY_PODCAST_PIPELINE_DSN` is configured. Logging is independent of trace
+sampling, and no raw SQL, article text, credentials, or error messages are
+included. Inspect startup's `[sentry] enabled` line to confirm the remote sink is
+configured; local evidence still records ticks when Sentry is disabled/offline.
+
+Neither sink changes release behavior on failure; it emits a warning and the
+original tick result/error remains authoritative. Local evidence survives a
+Supabase restart, but not loss of the daemon host. Sentry delivery is buffered
+and best effort; a sudden process kill can lose buffered remote logs, while a
+kill before tick completion can leave that in-flight tick without a terminal
+record. Retain the independent per-minute DB/host monitor evidence as well.
+
+Optimization contract: [one universal packaging strategy](AGENTS.md#social-optimization-contract). Owner interest controls topic selection. Cover → title → video opening; observed associations never prove causation or justify topic selection.

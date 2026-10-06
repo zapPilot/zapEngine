@@ -16,6 +16,7 @@ export default defineKnipConfig(
       'src/**/*.web.{ts,tsx}',
       'src/**/*.native.{ts,tsx}',
       'src/**/*.ios.{ts,tsx}',
+      'src/**/*.android.{ts,tsx}',
       'tests/**/*.test.ts',
       'tests/e2e/**/*.spec.ts',
     ],

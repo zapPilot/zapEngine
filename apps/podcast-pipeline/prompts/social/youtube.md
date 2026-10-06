@@ -1,9 +1,7 @@
 # YouTube metadata
 
 The episode title is already finalized upstream. Do not generate, rewrite,
-shorten, or optimize a YouTube-specific title. If the canonical title exceeds
-YouTube's transport limit, the publisher truncates it deterministically at the
-final platform boundary.
+shorten, or optimize a YouTube-specific title. The publisher uses the ingest-frozen character-budget variant when present, otherwise deterministic fitting at the final transport boundary. Social never generates titles.
 
 Return only the hook classification requested by the JSON schema. The
 description is assembled from the episode separately.

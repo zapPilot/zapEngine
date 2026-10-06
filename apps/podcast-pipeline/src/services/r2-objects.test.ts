@@ -56,3 +56,29 @@ describe('R2 pagination and deletion', () => {
     );
   });
 });
+
+it('downloads through S3 without overwriting a backup', async () => {
+  const { Readable } = await import('node:stream');
+  const { mkdtemp, readFile, rm } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { downloadR2Object } = await import('./r2-objects.js');
+  const directory = await mkdtemp(join(tmpdir(), 'r2-download-'));
+  const send = vi
+    .fn()
+    .mockImplementation(async () => ({ Body: Readable.from(['original']) }));
+  const r2 = { send } as unknown as S3Client;
+  try {
+    await downloadR2Object(r2, 'bucket', 'key', join(directory, 'backup'));
+    expect(await readFile(join(directory, 'backup'), 'utf8')).toBe('original');
+    await expect(
+      downloadR2Object(r2, 'bucket', 'key', join(directory, 'backup')),
+    ).rejects.toThrow();
+    send.mockResolvedValue({});
+    await expect(
+      downloadR2Object(r2, 'bucket', 'key', join(directory, 'missing')),
+    ).rejects.toThrow('Missing R2');
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});

@@ -1,6 +1,5 @@
 import {
   CHAIN_BRAND,
-  PROTOCOL_BRAND,
   TOKEN_BRAND,
   protocolBrandKeyFor,
   tokenBrandSymbolFor,
@@ -159,17 +158,15 @@ export function ChainIdentity({
   );
 }
 
+/** Decorative protocol mark; callers render the protocol name as text. */
 export function ProtocolIcon({
-  labelled = false,
   protocol,
   size = 20,
 }: {
-  labelled?: boolean;
   protocol: string;
   size?: number;
 }) {
   const brandKey = protocolBrandKeyFor(protocol);
-  const label = brandKey ? PROTOCOL_BRAND[brandKey].label : protocol;
 
   if (!brandKey) {
     return (
@@ -184,8 +181,7 @@ export function ProtocolIcon({
   const markSize = size * 0.72;
   return (
     <span
-      aria-label={labelled ? label : undefined}
-      aria-hidden={labelled ? undefined : true}
+      aria-hidden
       style={{
         alignItems: 'center',
         border: '1px solid rgba(255, 255, 255, 0.12)',
@@ -204,34 +200,6 @@ export function ProtocolIcon({
         size={markSize}
         source={PROTOCOL_ICON_SRC[brandKey]}
       />
-    </span>
-  );
-}
-
-export function TokenIconPair({
-  size = 14,
-  symbols,
-}: {
-  size?: number;
-  symbols: readonly [string, string];
-}) {
-  return (
-    <span style={{ alignItems: 'center', display: 'inline-flex' }}>
-      {symbols.map((symbol, index) => (
-        <span
-          key={`${symbol}-${index}`}
-          style={{
-            borderRadius: '999px',
-            boxShadow: '0 0 0 1.5px #0a0a0a',
-            display: 'inline-flex',
-            height: size,
-            marginLeft: index === 0 ? 0 : -size * 0.35,
-            width: size,
-          }}
-        >
-          <TokenIcon symbol={symbol} size={size} />
-        </span>
-      ))}
     </span>
   );
 }

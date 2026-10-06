@@ -6,6 +6,7 @@ import { HttpStatus } from '../common/http';
 import type { DatabaseService } from '../database/database.service';
 import { jsonResponse, jsonValidator } from './shared';
 import { zEmail } from './validators';
+import { clientIp } from './waitlist-client-ip';
 import { createWaitlistRateLimiter } from './waitlist-rate-limit';
 
 const SOCIAL_PLATFORMS = new Set(['x', 'threads', 'rednote', 'youtube']);
@@ -145,13 +146,4 @@ async function resolveSocialPublishJob(
     .maybeSingle();
   if (error) throw new Error(error.message);
   return data?.id ?? null;
-}
-
-function clientIp(headers: Record<string, string | undefined>): string {
-  return (
-    headers['fly-client-ip'] ??
-    headers['cf-connecting-ip'] ??
-    headers['x-forwarded-for']?.split(',')[0]?.trim() ??
-    'unknown'
-  );
 }

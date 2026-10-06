@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { SOCIAL_RELEASE_SLOTS } from './policy.js';
+import { socialReleaseCadenceForBacklog } from './policy.js';
 import {
   planPendingSocialReleaseCohorts,
   type ReleaseScheduleRow,
@@ -157,6 +157,31 @@ describe('planPendingSocialReleaseCohorts · on-time cohorts', () => {
   });
 });
 
+describe('planPendingSocialReleaseCohorts · adaptive cadence', () => {
+  it('uses six daily slots when more than 20 unpublished articles are queued', () => {
+    const rows = Array.from({ length: 21 }, (_, index) =>
+      row(`episode-${index}`, `job-${index}`, at('2026-08-31T23:00:00.000Z')),
+    );
+
+    const plan = planPendingSocialReleaseCohorts(
+      rows,
+      new Date('2026-08-31T23:30:00.000Z'),
+      GRACE_MS,
+    );
+
+    expect(
+      plan.updates.slice(0, 6).map((update) => update.scheduledAt),
+    ).toEqual([
+      '2026-09-01T00:00:00.000Z',
+      '2026-09-01T02:30:00.000Z',
+      '2026-09-01T05:00:00.000Z',
+      '2026-09-01T07:30:00.000Z',
+      '2026-09-01T10:00:00.000Z',
+      '2026-09-01T12:30:00.000Z',
+    ]);
+  });
+});
+
 describe('planPendingSocialReleaseCohorts · missed cohorts', () => {
   it('moves a whole cohort to the next slot once the grace period has passed', () => {
     const rows = [row(ARTICLE_A, 'rednote'), row(ARTICLE_A, 'threads')];
@@ -226,7 +251,7 @@ describe('planPendingSocialReleaseCohorts · missed cohorts', () => {
     const dayMs = 24 * 60 * 60_000;
     const startOfSep01Jst = Date.parse('2026-08-31T15:00:00.000Z');
     const occupied = Array.from({ length: 366 }).flatMap((_, day) =>
-      SOCIAL_RELEASE_SLOTS.map((slot) => {
+      socialReleaseCadenceForBacklog(0).slots.map((slot) => {
         const at0 = new Date(
           startOfSep01Jst +
             day * dayMs +

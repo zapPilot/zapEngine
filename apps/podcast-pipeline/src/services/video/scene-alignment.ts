@@ -4,6 +4,7 @@ import { throwIfAborted } from '../../lib/abort.js';
 import { isPlainRecord as isRecord } from '../../lib/typeGuards.js';
 import type { LanguageClassroomLanguageCode } from '../../types.js';
 import { createOpenRouterChatCompletion, getOpenRouterConfig } from '../llm.js';
+import { OPENROUTER_FREE_MODEL } from '../llm-model-fallback.js';
 import {
   canonicalSentenceRangeText,
   formatSentencesForPrompt,
@@ -260,7 +261,7 @@ function compactSceneAlignment(
   return result;
 }
 
-/** Scene alignment is now always an OpenRouter workload using LLM_MODEL. */
+/** Scene alignment is now an OpenRouter workload using the shared free-router primary. */
 export function configuredSceneAlignmentProvider(): SceneAlignmentProvider {
   return createOpenRouterSceneAlignmentProvider();
 }
@@ -310,7 +311,10 @@ function parseSceneAlignmentContent(content: string): unknown {
 export function createOpenRouterSceneAlignmentProvider(): SceneAlignmentProvider {
   return {
     async align(request) {
-      const { openai, model } = getOpenRouterConfig({ thinkingModel: null });
+      const { openai, model } = getOpenRouterConfig({
+        model: OPENROUTER_FREE_MODEL,
+        thinkingModel: null,
+      });
       const completion = await createOpenRouterChatCompletion(
         openai,
         {

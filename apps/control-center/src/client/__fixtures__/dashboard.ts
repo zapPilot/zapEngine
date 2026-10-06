@@ -98,29 +98,12 @@ export function socialFixture(
       { platform: 'x', followers: 240, capturedAt: GENERATED_AT },
       { platform: 'rednote', followers: 964, capturedAt: GENERATED_AT },
     ],
-    decisions: [
-      {
-        platform: 'rednote',
-        evidenceSamples: 18,
-        confidence: 'medium',
-        preferredHookTypes: ['contrarian'],
-        preferredHashtags: ['#理財'],
-        avoidHashtags: [],
-        bestTopic: 'regime shifts',
-        bestTopicSamples: 6,
-        bestTopicMedian24hViews: 410,
-        platformMedian24hViews: 205,
-        bestTopicLiftVsPlatformMedian: 2,
-        publishSlotsJst: '20:00',
-        topExample: 'Why the 200MA still matters',
-      },
-    ],
     episodes: [
       {
         episodeId: 'ep-1',
+        publishedAt: '2026-08-28T12:00:00Z',
+        windowReached: true,
         title: 'Buy in fear',
-        totalViews: 1_204,
-        totalImpressions: 9_100,
         platforms: [],
       },
     ],
@@ -477,5 +460,30 @@ export function podcastEpisodeCostFixture(
     unpricedStages: 0,
     breakdown: [],
     ...overrides,
+  };
+}
+
+export function audienceFixture(): import('../../shared/types.js').SocialAudienceHistory {
+  const days = Array.from({ length: 30 }, (_, index) =>
+    new Date(Date.UTC(2026, 8, 5 + index)).toISOString().slice(0, 10),
+  );
+  return {
+    days,
+    series: ['x', 'threads', 'rednote', 'youtube'].map((platform, index) => {
+      const delta = [0, 1, 46, null][index]!;
+      const current = [80, 233, 132, null][index]!;
+      return {
+        platform,
+        followersNow: current,
+        capturedAt: current === null ? null : '2026-10-04T07:01:00Z',
+        delta7d: delta,
+        delta30d: delta,
+        followersByDay: days.map((_, day) =>
+          current === null || delta === null
+            ? null
+            : current - delta + (delta * day) / 29,
+        ),
+      };
+    }),
   };
 }

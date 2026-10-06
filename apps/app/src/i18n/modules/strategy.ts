@@ -4,7 +4,13 @@ export const en = {
   'strategy.currentPositioning': 'Current positioning',
   'strategy.allocationUnavailable':
     'Strategy allocation is unavailable for this account.',
-  'strategy.start': 'Start with Zap Strategy',
+  'strategy.start': 'Invest with your own mix',
+  'strategy.subtitle':
+    'Reference strategy: {name}. Evaluated daily. Advisory only — nothing executes automatically.',
+  'strategy.backtestLabel': 'Reference strategy · backtest ROI',
+  'strategy.backtestDisclaimer':
+    "Hypothetical backtest. It assumes a yield on stablecoin and crypto balances and includes an S&P 500 sleeve that can't be executed yet. Past performance does not guarantee future results.",
+  'strategy.backtestUnavailable': 'Backtest unavailable right now.',
   'strategy.todaysDecision': "Today's decision",
   'strategy.action': 'Action',
   'strategy.trigger': 'Trigger',
@@ -55,7 +61,13 @@ export const zhHant = {
   'strategy.backtest': '回測',
   'strategy.currentPositioning': '目前部位',
   'strategy.allocationUnavailable': '此帳戶目前無法取得策略配置。',
-  'strategy.start': '開始使用 Zap Strategy',
+  'strategy.start': '以自訂配置投資',
+  'strategy.subtitle':
+    '參考策略：{name}。每日評估，僅供參考，不會自動執行任何交易。',
+  'strategy.backtestLabel': '參考策略 · 回測報酬率',
+  'strategy.backtestDisclaimer':
+    '假設性回測：假設穩定幣與加密資產部位可獲得收益，並包含目前尚無法執行的 S&P 500 部位。過往績效不代表未來結果。',
+  'strategy.backtestUnavailable': '目前無法取得回測。',
   'strategy.todaysDecision': '今日決策',
   'strategy.action': '操作',
   'strategy.trigger': '觸發條件',
@@ -107,7 +119,13 @@ export const ja = {
   'strategy.currentPositioning': '現在のポジション',
   'strategy.allocationUnavailable':
     'このアカウントではストラテジー配分を取得できません。',
-  'strategy.start': 'Zap Strategyを始める',
+  'strategy.start': '自分の配分で投資する',
+  'strategy.subtitle':
+    'リファレンス・ストラテジー：{name}。毎日評価されます。参考情報のみで、自動では何も実行されません。',
+  'strategy.backtestLabel': 'リファレンス・ストラテジー · バックテストROI',
+  'strategy.backtestDisclaimer':
+    '仮想のバックテストです。ステーブルコインと暗号資産の残高に利回りを仮定し、現時点で執行できないS&P 500の配分を含みます。過去の実績は将来の結果を保証しません。',
+  'strategy.backtestUnavailable': '現在バックテストを取得できません。',
   'strategy.todaysDecision': '今日の判断',
   'strategy.action': 'アクション',
   'strategy.trigger': 'トリガー',

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="KOKODE">
+  <path fill="#111827" d="M32 4 55 17v10h-8v-5L32 13 17 22v20l15 9 15-9v-5H33v-8h22v18L32 60 9 47V17z"/>
+  <rect x="15" y="24" width="20" height="5" rx="2.5" fill="#111827"/>
+  <rect x="15" y="33" width="20" height="5" rx="2.5" fill="#111827"/>
+  <rect x="15" y="42" width="20" height="5" rx="2.5" fill="#111827"/>
+  <circle cx="18" cy="26.5" r="1.5" fill="#0071e3"/>
+  <circle cx="18" cy="35.5" r="1.5" fill="#0071e3"/>
+  <circle cx="18" cy="44.5" r="1.5" fill="#0071e3"/>
+  <path fill="#0071e3" d="M35 20h10v4H35z"/>
+  <circle cx="48" cy="22" r="5" fill="#0071e3"/>
+</svg>

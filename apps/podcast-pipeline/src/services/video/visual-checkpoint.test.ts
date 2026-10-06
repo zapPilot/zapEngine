@@ -283,3 +283,20 @@ describe('restoreVisualCheckpointPlan', () => {
     ).rejects.toThrow('aborted');
   });
 });
+
+describe('expanded checkpoint scenes', () => {
+  it('accepts 150 scenes and three-digit image IDs while rejecting overflow', () => {
+    const value = checkpoint();
+    value.storyboard.draft.scenes = Array.from({ length: 150 }, (_, index) => ({
+      ...value.storyboard.draft.scenes[0]!,
+      sceneId: `scene-${String(index + 1).padStart(2, '0')}`,
+    }));
+    value.scenes = value.storyboard.draft.scenes.map((scene) => ({
+      sceneId: scene.sceneId,
+      assetId: 'image-150',
+    }));
+    expect(parseVisualCheckpoint(value, identity)?.scenes).toHaveLength(150);
+    value.scenes.push({ sceneId: 'scene-151', assetId: 'image-150' });
+    expect(parseVisualCheckpoint(value, identity)).toBeNull();
+  });
+});

@@ -197,13 +197,9 @@ export async function collectThreadsMetrics(
 }
 
 /**
- * The public counters are read with an API key rather than the session's bearer
- * token. `videos.list` only honours `youtube.readonly` and wider scopes, while
- * the session deliberately carries just `youtube.upload` + `yt-analytics.readonly`
- * so no metrics snapshot can widen the grant to full read access over the
- * account's channels — the same reason the channel guard proves identity through
- * Analytics instead of `channels.list` (see ./README.md, "Channel guard").
- * Daemon uploads are always public, so an API key can read these counters.
+ * Public video counters still use an API key; daemon uploads are public.
+ * The session also carries youtube.readonly for account subscriber snapshots,
+ * alongside youtube.upload and yt-analytics.readonly.
  */
 export async function collectYouTubeMetrics(
   post: SocialPostRow,
@@ -272,7 +268,7 @@ export async function collectYouTubeMetrics(
  * session never had: both answer 403. Google names the cause in the body, so the
  * reason travels with the thrown error instead of being parsed and dropped.
  */
-function describeGoogleApiError(payload: unknown): string {
+export function describeGoogleApiError(payload: unknown): string {
   if (!isRecord(payload) || !isRecord(payload['error'])) return '';
   const error = payload['error'];
   const errors = error['errors'];
@@ -568,8 +564,7 @@ export async function collectRednoteMetrics(
       }
 
       // Read the state before the numbers: a suppressed note still renders a
-      // stat row of zeros, and recording those as a snapshot is what taught the
-      // learner to avoid the hashtags of a post nobody was ever shown.
+      // stat row of zeros; those zeros cannot measure packaging nobody was shown.
       // `under_review` is temporary, so a recovery back to `visible` is written
       // too — otherwise one moderation pass would exclude the post forever.
       const reviewStatus = detectRednoteReviewStatus(await card.innerText());
@@ -925,7 +920,7 @@ async function readXButtonCount(
 ): Promise<number | null> {
   const aria = await locator
     .first()
-    .getAttribute('aria-label')
+    .getAttribute('aria-label', { timeout: BROWSER_TIMEOUT_MS })
     .catch(() => null);
   const fromAria = parseFirstMetricNumber(aria);
   if (fromAria !== null) return fromAria;
@@ -937,7 +932,7 @@ async function readFirstMetricNumber(
 ): Promise<number | null> {
   const text = await locator
     .first()
-    .innerText()
+    .innerText({ timeout: BROWSER_TIMEOUT_MS })
     .catch(() => '');
   return parseFirstMetricNumber(text);
 }

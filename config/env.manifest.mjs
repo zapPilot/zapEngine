@@ -45,6 +45,33 @@ const WEB_TARGETS = ['web', 'desktop'];
 const APP_TARGETS = ['web', 'expo', 'desktop'];
 
 export const ENV_MANIFEST = {
+  CSC_LINK: host(['env-tooling'], { documented: false, sensitive: true }),
+  CSC_KEY_PASSWORD: host(['env-tooling'], {
+    documented: false,
+    sensitive: true,
+  }),
+  APPLE_API_KEY: host(['env-tooling'], { documented: false, sensitive: true }),
+  APPLE_API_KEY_ID: host(['env-tooling'], {
+    documented: false,
+    sensitive: true,
+  }),
+  APPLE_API_ISSUER: host(['env-tooling'], {
+    documented: false,
+    sensitive: true,
+  }),
+  APPLE_KEYCHAIN_PROFILE: host(['env-tooling'], {
+    documented: false,
+    sensitive: true,
+  }),
+
+  // Separate product configuration: no credentials or new writers in Zap stores.
+  KOKODE_SUPABASE_URL: client(['kokode-ai'], { vite: 'VITE_SUPABASE_URL' }),
+  KOKODE_SALES_EMAIL: client(['kokode-ai'], { vite: 'VITE_SALES_EMAIL' }),
+  KOKODE_SUPPORT_EMAIL: client(['kokode-ai'], { vite: 'VITE_SUPPORT_EMAIL' }),
+  KOKODE_ANALYTICS_ENDPOINT: client(['kokode-ai'], {
+    vite: 'VITE_ANALYTICS_ENDPOINT',
+  }),
+
   ACCOUNT_API_URL: client(APP_TARGETS, {
     vite: 'VITE_ACCOUNT_API_URL',
     expo: 'EXPO_PUBLIC_ACCOUNT_API_URL',
@@ -331,7 +358,7 @@ export const ENV_MANIFEST = {
   COINMARKETCAP_API_URL: server(['alpha-etl']),
   ALPHA_VANTAGE_API_KEY: server(['alpha-etl'], { sensitive: true }),
 
-  OPENROUTER_API_KEY: server(['podcast-pipeline', 'control-center'], {
+  OPENROUTER_API_KEY: server(['podcast-pipeline', 'control-center', 'video'], {
     sensitive: true,
   }),
   OPENROUTER_BASE_URL: server(['podcast-pipeline', 'control-center']),
@@ -346,11 +373,13 @@ export const ENV_MANIFEST = {
   YOUTUBE_CLIENT_SECRET: server(['podcast-pipeline'], { sensitive: true }),
   YOUTUBE_CHANNEL_ID: server(['podcast-pipeline'], { sensitive: true }),
   YOUTUBE_API_KEY: server(['podcast-pipeline'], { sensitive: true }),
-  FISH_AUDIO_API_KEY: server(['podcast-pipeline'], {
+  // `video` is the local narration tool (apps/video scripts/voiceover.ts);
+  // it uses public official English preset voices and has no deployment store.
+  FISH_AUDIO_API_KEY: server(['podcast-pipeline', 'video'], {
     requiredFor: ['podcast-pipeline:fish-audio'],
     sensitive: true,
   }),
-  FISH_AUDIO_ENGINE: server(['podcast-pipeline']),
+  FISH_AUDIO_ENGINE: server(['podcast-pipeline', 'video']),
   FISH_AUDIO_REFERENCE_ID: server(['podcast-pipeline'], {
     requiredFor: ['podcast-pipeline:fish-audio'],
     sensitive: true,
@@ -547,6 +576,7 @@ export const ENV_MANIFEST = {
 };
 
 export const ENV_TARGETS = [
+  'kokode-ai',
   ...new Set(
     Object.values(ENV_MANIFEST)
       .flatMap((entry) => entry.targets)

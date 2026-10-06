@@ -7,6 +7,7 @@ import { mentionsAnyEntity } from './search-candidate-ranking.js';
 import {
   perceptualHashDistance,
   planVisualAssets,
+  publisherImageSlotCount,
   type VisualAssetProgress,
   type VisualAssetScene,
 } from './visual-asset-planner.js';
@@ -46,6 +47,16 @@ function candidate(
   };
 }
 
+function panewsCandidate(
+  id: string,
+  origin: ImageCandidate['origin'] = 'article',
+): ImageCandidate {
+  return {
+    ...candidate(id, origin),
+    sourceUrl: 'https://www.panewslab.com/zh/articles/example-story',
+  };
+}
+
 function acquired(id: string): AcquiredRemoteImage {
   return {
     path: `/work/${id}.image`,
@@ -71,29 +82,36 @@ describe('planVisualAssets', () => {
     ).rejects.toThrow('requires at least one scene');
   });
 
-  it('uses qualified article images before invoking Brave search', async () => {
+  it('uses every downloadable publisher body image before invoking Brave search', async () => {
     const acquireImage = vi.fn<typeof acquireRemoteImage>(async (url: string) =>
       acquired(new URL(url).pathname.split('/').at(-1)!.replace('.jpg', '')),
     );
     const searchImages = vi.fn();
+    const article = panewsCandidate('article-a');
+    const figure = panewsCandidate('article-b', 'figure');
 
     const result = await planVisualAssets({
       scenes: scenes.slice(0, 2),
-      articleImages: [candidate('article-a'), candidate('article-b')],
+      articleImages: [article, figure],
       workingDirectory: '/work/visual-assets',
       dependencies: {
         acquireImage,
         searchProviders: braveProviders(searchImages),
-        fingerprintImage: vi
-          .fn()
-          .mockResolvedValueOnce('0000000000000000')
-          .mockResolvedValueOnce('ffffffffffffffff'),
+        // Body images are publisher-owned inputs, so even visually similar
+        // images must both survive instead of being treated like search dupes.
+        fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
       },
     });
 
     expect(searchImages).not.toHaveBeenCalled();
+    expect(acquireImage.mock.calls.map(([url]) => url)).toEqual([
+      article.imageUrl,
+      figure.imageUrl,
+    ]);
     for (const [, options] of acquireImage.mock.calls) {
-      expect(options).not.toHaveProperty('allowSmallDimensions');
+      expect(options).toEqual(
+        expect.objectContaining({ allowSmallDimensions: true }),
+      );
     }
     expect(result.scenes).toEqual([
       { sceneId: 'scene-01', assetId: 'image-01' },
@@ -375,7 +393,36 @@ describe('planVisualAssets', () => {
     expect(result.assets[0]?.originalImageUrl).toBe(fallback.imageUrl);
   });
 
-  it('excludes thumbnail-like article URLs before downloading candidates', async () => {
+  it('keeps thumbnail-like publisher body URLs when the image can be acquired', async () => {
+    const thumbnail = {
+      ...panewsCandidate('story-thumbnail'),
+      imageUrl: 'https://images.example.test/thumbnail/story.jpg',
+    };
+    const fullSize = panewsCandidate('story-full');
+    const acquireImage = vi.fn(async () => acquired('story-thumbnail'));
+    const searchImages = vi.fn();
+
+    const result = await planVisualAssets({
+      scenes: scenes.slice(0, 1),
+      articleImages: [thumbnail, fullSize],
+      workingDirectory: '/work/visual-assets',
+      dependencies: {
+        acquireImage,
+        searchProviders: braveProviders(searchImages),
+        fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
+      },
+    });
+
+    expect(searchImages).not.toHaveBeenCalled();
+    expect(acquireImage).toHaveBeenCalledOnce();
+    expect(acquireImage).toHaveBeenCalledWith(
+      thumbnail.imageUrl,
+      expect.objectContaining({ allowSmallDimensions: true }),
+    );
+    expect(result.assets[0]?.originalImageUrl).toBe(thumbnail.imageUrl);
+  });
+
+  it('keeps the existing decorative filter for non-PANews article images', async () => {
     const thumbnail = {
       ...candidate('story-thumbnail'),
       imageUrl: 'https://images.example.test/thumbnail/story.jpg',
@@ -1523,6 +1570,199 @@ describe('perceptualHashDistance', () => {
     );
     expect(() => perceptualHashDistance('short', '0000000000000000')).toThrow(
       '64-bit hexadecimal',
+    );
+  });
+});
+
+describe('publisher image consumption contract', () => {
+  it('counts a canonical queue and recognizes trailing-dot hosts and invalid source URLs', () => {
+    const body = panewsCandidate('body');
+    expect(
+      publisherImageSlotCount([candidate('cover', 'openGraph'), body, body]),
+    ).toBe(2);
+    expect(
+      publisherImageSlotCount([
+        { ...body, sourceUrl: 'https://WWW.PANEWS.IO./articles/a' },
+      ]),
+    ).toBe(1);
+    expect(publisherImageSlotCount([{ ...body, sourceUrl: 'invalid' }])).toBe(
+      0,
+    );
+    expect(publisherImageSlotCount([candidate('ordinary')])).toBe(0);
+    expect(publisherImageSlotCount([{ ...body, imageUrl: 'invalid' }])).toBe(0);
+  });
+
+  it('exhausts publisher acquisitions including failures before Brave', async () => {
+    const article = [
+      panewsCandidate('first'),
+      panewsCandidate('broken'),
+      panewsCandidate('last', 'figure'),
+    ];
+    const searched = candidate('searched', 'brave');
+    const search = vi.fn().mockResolvedValue([searched]);
+    const acquireImage = vi.fn(async (url: string) => {
+      if (url === article[1]!.imageUrl) throw new Error('download failed');
+      return acquired(url);
+    });
+    await planVisualAssets({
+      scenes,
+      articleImages: article,
+      workingDirectory: '/work',
+      dependencies: {
+        acquireImage,
+        searchProviders: braveProviders(search),
+        fingerprintImage: vi.fn().mockResolvedValue('ffffffffffffffff'),
+      },
+    });
+    for (const image of article) {
+      const index = acquireImage.mock.calls.findIndex(
+        ([url]) => url === image.imageUrl,
+      );
+      expect(index).toBeGreaterThanOrEqual(0);
+      expect(acquireImage.mock.invocationCallOrder[index]).toBeLessThan(
+        search.mock.invocationCallOrder[0]!,
+      );
+    }
+  });
+
+  it('hoists the cover, keeps body order, skips identical files and keeps perceptual twins', async () => {
+    const cover = panewsCandidate('cover', 'openGraph');
+    const body = panewsCandidate('body');
+    const identical = panewsCandidate('identical');
+    const last = panewsCandidate('last');
+    const acquireImage = vi.fn(async (url: string) =>
+      acquired(url === identical.imageUrl ? body.imageUrl : url),
+    );
+    const search = vi.fn();
+    const result = await planVisualAssets({
+      scenes,
+      articleImages: [
+        body,
+        cover,
+        { ...cover, origin: 'article' },
+        identical,
+        last,
+      ],
+      requireLeadCover: true,
+      workingDirectory: '/work',
+      dependencies: {
+        acquireImage,
+        searchProviders: braveProviders(search),
+        fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
+      },
+    });
+    expect(result.assets.map((asset) => asset.originalImageUrl)).toEqual([
+      cover.imageUrl,
+      body.imageUrl,
+      last.imageUrl,
+    ]);
+    expect(acquireImage.mock.calls.map(([url]) => url)).toEqual([
+      cover.imageUrl,
+      body.imageUrl,
+      identical.imageUrl,
+      last.imageUrl,
+    ]);
+    expect(search).not.toHaveBeenCalled();
+  });
+
+  it('preserves multiple ordinary open-graph candidates', async () => {
+    const images = [
+      candidate('one', 'openGraph'),
+      candidate('two', 'openGraph'),
+    ];
+    const result = await planVisualAssets({
+      scenes: scenes.slice(0, 2),
+      articleImages: images,
+      workingDirectory: '/work',
+      dependencies: {
+        acquireImage: vi.fn(async (url: string) => acquired(url)),
+        searchProviders: [],
+        fingerprintImage: vi
+          .fn()
+          .mockResolvedValueOnce('0000000000000000')
+          .mockResolvedValueOnce('ffffffffffffffff'),
+      },
+    });
+    expect(result.assets.map((asset) => asset.originalImageUrl)).toEqual(
+      images.map((image) => image.imageUrl),
+    );
+  });
+
+  it('fills a resumed lead hole despite a checkpointed perceptual twin and skips reserved IDs', async () => {
+    const body = panewsCandidate('body');
+    const cover = panewsCandidate('cover', 'openGraph');
+    const acquireImage = vi.fn(async (url: string) => acquired(url));
+    const result = await planVisualAssets({
+      scenes: scenes.slice(0, 2),
+      articleImages: [body, cover],
+      requireLeadCover: true,
+      workingDirectory: '/work',
+      resumePlan: {
+        scenes: [{ sceneId: 'scene-02', assetId: 'image-97' }],
+        assets: [
+          {
+            ...acquired('body'),
+            assetId: 'image-97',
+            perceptualHash: '0000000000000000',
+            originalImageUrl: body.imageUrl,
+            sourcePageUrl: body.sourceUrl,
+            provider: 'article',
+            license: 'unknown',
+          },
+        ],
+      },
+      dependencies: {
+        acquireImage,
+        searchProviders: [],
+        fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
+      },
+    });
+    expect(acquireImage).toHaveBeenCalledOnce();
+    expect(acquireImage.mock.calls[0]![0]).toBe(cover.imageUrl);
+    expect(result.assets.at(-1)!.assetId).toBe('image-100');
+  });
+});
+
+describe('resumed publisher queue ordering', () => {
+  it('skips checkpointed publisher URLs and acquires all remaining body images before Brave', async () => {
+    const first = panewsCandidate('checkpointed');
+    const remaining = panewsCandidate('remaining');
+    const search = vi.fn().mockResolvedValue([candidate('fresh', 'brave')]);
+    const acquireImage = vi.fn(async (url: string) => acquired(url));
+    const result = await planVisualAssets({
+      scenes,
+      articleImages: [first, remaining],
+      workingDirectory: '/work',
+      resumePlan: {
+        scenes: [{ sceneId: 'scene-01', assetId: 'image-01' }],
+        assets: [
+          {
+            ...acquired('checkpointed'),
+            assetId: 'image-01',
+            perceptualHash: '0000000000000000',
+            originalImageUrl: first.imageUrl,
+            sourcePageUrl: first.sourceUrl,
+            provider: 'article',
+            license: 'unknown',
+          },
+        ],
+      },
+      dependencies: {
+        acquireImage,
+        searchProviders: braveProviders(search),
+        fingerprintImage: vi
+          .fn()
+          .mockResolvedValueOnce('0000000000000000')
+          .mockResolvedValueOnce('ffffffffffffffff'),
+      },
+    });
+    expect(result.scenes).toHaveLength(3);
+    expect(acquireImage.mock.calls.map(([url]) => url)).not.toContain(
+      first.imageUrl,
+    );
+    expect(acquireImage.mock.calls[0]![0]).toBe(remaining.imageUrl);
+    expect(acquireImage.mock.invocationCallOrder[0]).toBeLessThan(
+      search.mock.invocationCallOrder[0]!,
     );
   });
 });

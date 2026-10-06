@@ -7,7 +7,7 @@ import { sourceColorVar } from './tone.js';
 /**
  * Which system a number came from.
  *
- * This is load-bearing on a dashboard that fans in eight providers with
+ * This is load-bearing on a dashboard that fans in nine providers with
  * different freshness and different failure modes: "GitHub Actions says the job
  * failed" and "Supabase says the queue is deep" are not interchangeable claims.
  */

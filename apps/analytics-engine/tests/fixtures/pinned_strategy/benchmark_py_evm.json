@@ -1,0 +1,43 @@
+{
+  "backend": "py-evm",
+  "latency": {
+    "commit": {
+      "daily_45_calls_ms": 75.2409225,
+      "execution_gas": 5549,
+      "gas": 5549,
+      "gas_semantics": "execution only",
+      "median_us": 1672.0205,
+      "p95_us": 1688.667,
+      "study_144000_calls_s": 240.770952
+    },
+    "cross_down_exit": {
+      "daily_45_calls_ms": 156.07781999999997,
+      "execution_gas": 12328,
+      "gas": 12328,
+      "gas_semantics": "execution only",
+      "median_us": 3468.3959999999997,
+      "p95_us": 3788.958,
+      "study_144000_calls_s": 499.44902399999995
+    },
+    "observe": {
+      "daily_45_calls_ms": 89.3503125,
+      "execution_gas": 6259,
+      "gas": 6259,
+      "gas_semantics": "execution only",
+      "median_us": 1985.5625,
+      "p95_us": 2080.583,
+      "study_144000_calls_s": 285.921
+    },
+    "warmup": {
+      "daily_45_calls_ms": 34.86564,
+      "execution_gas": 2088,
+      "gas": 2088,
+      "gas_semantics": "execution only",
+      "median_us": 774.7919999999999,
+      "p95_us": 1109.709,
+      "study_144000_calls_s": 111.57004799999999
+    }
+  },
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "python": "3.11.15"
+}

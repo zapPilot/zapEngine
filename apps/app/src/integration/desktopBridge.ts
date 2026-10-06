@@ -25,3 +25,12 @@ export function useDesktopBridge(): void {
 export function DesktopSchedulerContextSync(): ReactElement | null {
   return null;
 }
+
+export function useDesktopUpdate() {
+  return {
+    state: undefined,
+    update: () => {},
+    install: () => {},
+    retry: () => {},
+  };
+}

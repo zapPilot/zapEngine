@@ -31,7 +31,6 @@ const social = {
   window: 'latest' as const,
   generatedAt: FETCHED_AT,
   accounts: [],
-  decisions: [],
   episodes: [],
 };
 

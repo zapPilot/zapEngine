@@ -1,5 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('./daemon-tick-telemetry.js', () => ({
+  withSocialDaemonTickTelemetry: (
+    _options: unknown,
+    run: () => Promise<unknown>,
+  ) => run(),
+  recordSocialEnqueueResult: vi.fn(),
+}));
+
 const mocks = vi.hoisted(() => ({
   alignPendingSocialReleaseCohorts: vi.fn().mockResolvedValue({
     alignedLanes: 0,
@@ -11,7 +19,6 @@ const mocks = vi.hoisted(() => ({
   enqueueSocialPublishJob: vi.fn().mockResolvedValue(true),
   ensureSocialDaemonStart: vi.fn(),
   failSocialPublishJob: vi.fn(),
-  getActiveSocialStrategies: vi.fn().mockResolvedValue([]),
   getSocialQueueSnapshot: vi.fn().mockResolvedValue({
     pendingCount: 0,
     episodeQueue: [],
@@ -47,7 +54,6 @@ const mocks = vi.hoisted(() => ({
   }),
   captureDueAccountSnapshots: vi.fn().mockResolvedValue([]),
   capturePrePublishAccountSnapshots: vi.fn().mockResolvedValue([]),
-  refreshSocialStrategies: vi.fn(),
 }));
 
 vi.mock('./release-cohort-store.js', () => ({
@@ -61,7 +67,6 @@ vi.mock('./daemon-store.js', () => ({
   enqueueSocialPublishJob: mocks.enqueueSocialPublishJob,
   ensureSocialDaemonStart: mocks.ensureSocialDaemonStart,
   failSocialPublishJob: mocks.failSocialPublishJob,
-  getActiveSocialStrategies: mocks.getActiveSocialStrategies,
   getSocialQueueSnapshot: mocks.getSocialQueueSnapshot,
   listPendingSocialPublishSchedules: mocks.listPendingSocialPublishSchedules,
   listDueSocialPublishPlatforms: mocks.listDueSocialPublishPlatforms,
@@ -97,10 +102,6 @@ vi.mock('./publish-batch.js', () => ({
 vi.mock('./metric-collectors.js', () => ({
   createMetricCollectors: mocks.createMetricCollectors,
   createMetricsBrowserSession: mocks.createMetricsBrowserSession,
-}));
-vi.mock('./strategy.js', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('./strategy.js')>()),
-  refreshSocialStrategies: mocks.refreshSocialStrategies,
 }));
 
 import { runSocialCatchUpOnce, runSocialDaemonTick } from './daemon.js';
@@ -346,6 +347,7 @@ describe('NON-NEGOTIABLE episode release cohort contract', () => {
     expect(enqueued).not.toContain('x|ja');
     expect(enqueued).not.toContain('youtube|en');
     expect(enqueued).not.toContain('threads|zh-Hant');
+    expect(mocks.enqueueSocialPublishJob).not.toHaveBeenCalled();
   });
 
   it('enqueues zero jobs until every required language media is ready', async () => {
@@ -573,6 +575,44 @@ describe('NON-NEGOTIABLE episode release cohort contract', () => {
     expect(log).toHaveBeenCalledWith(expect.stringContaining('“繁中標題”'));
   });
 
+  it.each(['queued', 'processing', 'failed', 'completed'] as const)(
+    'does not re-enqueue a complete %s cohort across repeated discovery ticks',
+    async (status) => {
+      const scheduledAt = '2026-09-15T03:00:00.000Z';
+      mocks.listPendingSocialPublishSchedules.mockResolvedValue(
+        (
+          [
+            ['rednote', 'zh-Hant'],
+            ['threads', 'zh-Hant'],
+            ['x', 'ja'],
+            ['youtube', 'en'],
+          ] as const
+        ).map(([platform, language_code]) => ({
+          episode_id: ARTICLE_A,
+          platform,
+          language_code,
+          scheduled_at: scheduledAt,
+          completed_at: status === 'completed' ? scheduledAt : null,
+          status,
+        })),
+      );
+      const candidates = readyEpisode(ARTICLE_A);
+      mocks.listSocialPublishCandidates.mockResolvedValue(candidates);
+      mocks.listSocialPublishCandidatesForEpisodes.mockResolvedValue(
+        candidates,
+      );
+
+      for (let tick = 0; tick < 3; tick += 1) {
+        await runSocialDaemonTick({
+          now: NOW,
+          firstStartedAt: FIRST_STARTED_AT,
+        });
+      }
+
+      expect(mocks.enqueueSocialPublishJob).not.toHaveBeenCalled();
+    },
+  );
+
   it('completes an interrupted cohort whose lanes already match the fixed policy', async () => {
     const scheduledAt = '2026-09-15T03:00:00.000Z';
     mocks.listPendingSocialPublishSchedules.mockResolvedValue([
@@ -581,8 +621,8 @@ describe('NON-NEGOTIABLE episode release cohort contract', () => {
         platform: 'rednote',
         language_code: 'zh-Hant',
         scheduled_at: scheduledAt,
-        completed_at: null,
-        status: 'queued',
+        completed_at: scheduledAt,
+        status: 'completed',
       },
       {
         episode_id: ARTICLE_A,
@@ -602,9 +642,33 @@ describe('NON-NEGOTIABLE episode release cohort contract', () => {
     const enqueued = mocks.enqueueSocialPublishJob.mock.calls.map(
       ([input]) => `${input.platform}|${input.languageCode}`,
     );
-    expect(enqueued).toEqual(
-      expect.arrayContaining(['threads|zh-Hant', 'x|ja']),
+    expect(enqueued).toEqual(['threads|zh-Hant', 'x|ja']);
+    for (const [input] of mocks.enqueueSocialPublishJob.mock.calls) {
+      expect(input.scheduledAt).toBe(scheduledAt);
+    }
+
+    // Once the interrupted writes converge, subsequent ticks must stop writing,
+    // including the completed lane whose platform post must never be resent.
+    mocks.listPendingSocialPublishSchedules.mockResolvedValue(
+      (
+        [
+          ['rednote', 'zh-Hant'],
+          ['threads', 'zh-Hant'],
+          ['x', 'ja'],
+          ['youtube', 'en'],
+        ] as const
+      ).map(([platform, language_code]) => ({
+        episode_id: ARTICLE_A,
+        platform,
+        language_code,
+        scheduled_at: scheduledAt,
+        completed_at: platform === 'rednote' ? scheduledAt : null,
+        status: platform === 'rednote' ? 'completed' : 'queued',
+      })),
     );
+    mocks.enqueueSocialPublishJob.mockClear();
+    await runSocialDaemonTick({ now: NOW, firstStartedAt: FIRST_STARTED_AT });
+    expect(mocks.enqueueSocialPublishJob).not.toHaveBeenCalled();
   });
 
   it('completes an interrupted experiment-era enqueue without tagging new lanes', async () => {
@@ -640,9 +704,7 @@ describe('NON-NEGOTIABLE episode release cohort contract', () => {
     const enqueued = mocks.enqueueSocialPublishJob.mock.calls.map(
       ([input]) => `${input.platform}|${input.languageCode}`,
     );
-    expect(enqueued).toEqual(
-      expect.arrayContaining(['youtube|en', 'rednote|zh-Hant']),
-    );
+    expect(enqueued).toEqual(['rednote|zh-Hant', 'youtube|en']);
     expect(enqueued).not.toContain('threads|ja');
     expect(enqueued).not.toContain('x|en');
     // The lanes this tick adds are fixed-policy lanes, not new experiment arms.
@@ -653,7 +715,7 @@ describe('NON-NEGOTIABLE episode release cohort contract', () => {
   });
 
   it('holds the whole article when one language cannot produce copy', async () => {
-    // zh-Hant is claimed last on purpose: the red-line judge only runs on it,
+    // zh-Hant is claimed last on purpose: Rednote validation only runs on it,
     // and generating copy inside the publish loop would have shipped ja and en
     // before the rejection was even known.
     mocks.claimReleaseCohortJobs.mockResolvedValue([
@@ -863,9 +925,9 @@ describe('NON-NEGOTIABLE episode release cohort contract', () => {
       expect.arrayContaining([
         'rednote|zh-Hant',
         'threads|zh-Hant',
-        'x|ja',
         'youtube|en',
       ]),
     );
+    expect(mocks.enqueueSocialPublishJob).toHaveBeenCalledTimes(3);
   });
 });

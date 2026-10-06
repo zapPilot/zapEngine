@@ -64,26 +64,14 @@ export interface DemoData {
     latestChangePct: number | null;
     latestChangeUsd: number | null;
     latestSnapshotDate: string | null;
-    sparkline: number[];
     trendPoints: DailyValuePoint[];
     assets: DemoAsset[];
   };
+  /** The Home strategy card's demo state. */
   strategy: {
-    estApyLabel: string;
     quote: string;
-    marketModeLabel: string;
-    /** Allocation pillars for the home strategy card (flex weights). */
-    pillars: { label: string; weight: number; color: string }[];
-    backtest: {
-      returnLabel: string;
-      vsBtcLabel: string;
-      vsEthLabel: string;
-      metrics: { label: string; value: string; tone: MetricTone }[];
-      currentModeLabel: string;
-      allocation: { label: string; pct: number; color: string }[];
-      /** Sentiment marker position 0–100 (fear → greed). */
-      sentiment: number | null;
-    };
+    /** Sentiment marker position 0–100 (fear → greed). */
+    sentiment: number | null;
   };
   portfolio: {
     positionValue: number;
@@ -92,7 +80,6 @@ export interface DemoData {
     changePctToday: number;
     metrics: { label: string; value: string; tone: MetricTone }[];
     allocation: { label: string; pct: number; color: string }[];
-    lastRebalancedLabel: string;
   };
 }
 
@@ -107,9 +94,6 @@ export const DEMO: DemoData = {
     latestChangePct: 2.6,
     latestChangeUsd: 612.4,
     latestSnapshotDate: '2026-08-22',
-    sparkline: [42, 44, 38, 41, 33, 36, 27, 31, 23, 27, 17, 22, 13, 11, 9].map(
-      (y) => 54 - y,
-    ),
     trendPoints: buildDemoTrendPoints([
       22_100, 22_250, 21_980, 22_330, 22_020, 22_460, 22_180, 22_760, 22_540,
       23_050, 22_830, 23_620, 23_950, 24_203.2, 24_815.6,
@@ -139,36 +123,8 @@ export const DEMO: DemoData = {
     ],
   },
   strategy: {
-    estApyLabel: '6–12%',
-    quote: 'Buy in fear. Defend in greed.',
-    marketModeLabel: 'Market mode · Cautious — defensive tilt',
-    pillars: [
-      { label: 'Equities', weight: 5, color: tokens.color.pillar.spy },
-      { label: 'Crypto', weight: 3, color: tokens.color.pillar.btc },
-      { label: 'Stables', weight: 4, color: tokens.color.pillar.usd },
-    ],
-    backtest: {
-      returnLabel: '+147.2%',
-      vsBtcLabel: 'vs BTC +98%',
-      vsEthLabel: 'vs ETH +61%',
-      metrics: [
-        { label: 'CAGR', value: '+38.4%', tone: 'positive' },
-        { label: 'Max drawdown', value: '−17.2%', tone: 'negative' },
-        { label: 'Volatility', value: '24.1%', tone: 'neutral' },
-        { label: 'Sharpe', value: '1.84', tone: 'accent' },
-        { label: 'Sortino', value: '2.31', tone: 'accent' },
-        { label: 'Win rate', value: '63%', tone: 'neutral' },
-        { label: 'Worst month', value: '−9.4%', tone: 'negative' },
-        { label: 'Best month', value: '+18.6%', tone: 'positive' },
-      ],
-      currentModeLabel: 'Cautious · defensive tilt',
-      allocation: [
-        { label: 'Equities', pct: 40, color: tokens.color.pillar.spy },
-        { label: 'Crypto', pct: 25, color: tokens.color.pillar.btc },
-        { label: 'Stables', pct: 35, color: tokens.color.pillar.usd },
-      ],
-      sentiment: 34,
-    },
+    quote: 'Reference strategy philosophy: buy in fear, defend in greed.',
+    sentiment: 34,
   },
   portfolio: {
     positionValue: 12_840.2,
@@ -188,7 +144,5 @@ export const DEMO: DemoData = {
       { label: 'BTC', pct: 20, color: tokens.color.pillar.btc },
       { label: 'DeFi yield', pct: 21, color: tokens.color.accent },
     ],
-    lastRebalancedLabel:
-      'Auto-managed by Zap Strategy · last rebalanced 2 days ago',
   },
 };

@@ -168,7 +168,12 @@ function buildIssueSignals(
   return [...byProject]
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([slug, projectIssues]) =>
-      buildProjectSignal(slug, projectIssues, now),
+      buildProjectSignal(
+        slug,
+        projectIssues,
+        now,
+        issues.length >= ISSUE_LIMIT,
+      ),
     );
 }
 
@@ -176,6 +181,7 @@ function buildProjectSignal(
   slug: string,
   issues: readonly SentryIssue[],
   now: Date,
+  inventoryTruncated: boolean,
 ): OperationalSignal {
   const eventCount = issues.reduce((sum, issue) => sum + issue.count, 0);
   const loudest = issues.reduce((worst, issue) =>
@@ -195,6 +201,8 @@ function buildProjectSignal(
     // `eventCount`: the priority engine boosts on it, and one issue firing ten
     // thousand times is still one thing for a human to go and fix.
     evidence: {
+      ...issueIdentities(issues),
+      inventoryTruncated,
       issueCount: issues.length,
       eventCount,
       topIssue: loudestLabel,
@@ -251,11 +259,7 @@ function buildStaleSignals(
           'Unresolved in 30d but absent from the 24h result; inspect before classifying or resolving.',
         evidence: {
           staleIssueCount: rows.length,
-          issueIds: rows
-            .slice(0, STALE_ISSUE_ID_LIMIT)
-            .map((issue) => issue.id)
-            .join(','),
-          issueIdsTruncated: rows.length > STALE_ISSUE_ID_LIMIT,
+          ...issueIdentities(rows),
           // `rows` is a non-empty group from `groupByProject`, so `dates` has
           // the same non-zero length. The `?? null` fallback is dead, so the
           // non-null assertion removes unreachable branches.
@@ -270,4 +274,15 @@ function buildStaleSignals(
         url: loudest.permalink ?? null,
       });
     });
+}
+
+function issueIdentities(issues: readonly SentryIssue[]) {
+  const bounded = issues.slice(0, STALE_ISSUE_ID_LIMIT);
+  return {
+    issueIds: bounded.map((issue) => issue.id).join(','),
+    issueIdsTruncated: issues.length > STALE_ISSUE_ID_LIMIT,
+    ...Object.fromEntries(
+      bounded.map((issue) => [`lastSeen:${issue.id}`, issue.lastSeen]),
+    ),
+  };
 }

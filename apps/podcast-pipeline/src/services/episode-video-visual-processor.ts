@@ -51,9 +51,10 @@ import type {
   VisualSceneSubjectAssignment,
   VisualSubjectCatalog,
 } from './video/storyboard/subject-catalog.js';
-import type {
-  VisualAssetPlan,
-  VisualAssetProgress,
+import {
+  publisherImageSlotCount,
+  type VisualAssetPlan,
+  type VisualAssetProgress,
 } from './video/visual-asset-planner.js';
 import {
   appendVisualCheckpointScene,
@@ -177,6 +178,23 @@ export function createEpisodeVideoVisualProcessor(
         searchTitleSource = 'english-localization';
       }
 
+      failureStage = 'scrape-article';
+      const article = await dependencies.scrape(source.sourceUrl, {
+        signal: context.signal,
+        timeoutMs: VISUAL_ARTICLE_SCRAPE_TIMEOUT_MS,
+      });
+      const translationCounts = [
+        source.englishScript,
+        ...(source.japaneseScript ? [source.japaneseScript] : []),
+      ].map((script) => splitCanonicalSentences(script).length);
+      const contentSceneBounds = {
+        min: publisherImageSlotCount(article.images ?? []),
+        max: Math.max(
+          1,
+          Math.min(...translationCounts) - (visualSections.isPackaged ? 1 : 0),
+        ),
+      };
+
       const prepareStoryboard = async (): Promise<PreparedStoryboard> => {
         context.reportProgress(visualStageProgress('analyzing-audio', 0));
         // Analyse a local copy, never the remote playlist. `detectAudioSilences`
@@ -214,6 +232,7 @@ export function createEpisodeVideoVisualProcessor(
           editorialScript,
           editorialSentences,
           isPackaged: visualSections.isPackaged,
+          contentSceneBounds,
           ...(visualSearchTitle ? { searchTitle: visualSearchTitle } : {}),
           searchScript: englishBodyScript,
           durationMs: analysis.durationMs,
@@ -236,6 +255,7 @@ export function createEpisodeVideoVisualProcessor(
           source.script,
           generated.draft,
           analysis.durationMs,
+          contentSceneBounds,
         );
         logBranding(
           dependencies.logger,
@@ -385,11 +405,6 @@ export function createEpisodeVideoVisualProcessor(
         run: context.runId,
         episode: source.episodeId,
         phase: 'start',
-      });
-      failureStage = 'scrape-article';
-      const article = await dependencies.scrape(source.sourceUrl, {
-        signal: context.signal,
-        timeoutMs: VISUAL_ARTICLE_SCRAPE_TIMEOUT_MS,
       });
       const articleImageCandidateCount = article.images?.length ?? 0;
       logVisualProgress(dependencies.logger, 'visual:search', {
@@ -734,6 +749,7 @@ export async function generateVisualStoryboard(input: {
   editorialScript?: string;
   editorialSentences?: readonly import('./video/storyboard/sentences.js').CanonicalSentence[];
   isPackaged?: boolean;
+  contentSceneBounds?: import('./podcast-packaging.js').ContentSceneBounds;
   searchTitle?: string;
   searchScript?: string;
   durationMs: number;
@@ -762,6 +778,9 @@ export async function generateVisualStoryboard(input: {
     script: providerScript,
     durationMs: input.durationMs,
     sentences: providerSentences,
+    ...(input.contentSceneBounds
+      ? { contentSceneBounds: input.contentSceneBounds }
+      : {}),
     ...(isPackaged ? { isPackaged } : {}),
     provider:
       input.provider ??

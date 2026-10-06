@@ -28,6 +28,9 @@ it('keeps partial percentage edits and reveals protocol details on demand', asyn
       onChangePercent={onChange}
     />,
   );
+  expect(container.textContent).toContain(
+    'USDC in lending (Morpho) and market making (HLP). Returns can be negative.',
+  );
   expect(container.textContent).not.toContain('Morpho USDC vault');
   const input = container.querySelector('input')!;
   expect(input.getAttribute('aria-label')).toBe('Stable allocation percentage');

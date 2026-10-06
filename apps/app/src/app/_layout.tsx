@@ -4,7 +4,7 @@ import { AppShell } from '@/components/shell/AppShell';
 import type { ReactElement } from 'react';
 
 import { AnalyticsIdentitySync } from '@/integration/analyticsIdentity';
-import { OwnBundleUrlSync } from '@/integration/bundleShareUrlSync';
+import { BundleUrlSync } from '@/integration/bundleShareUrlSync';
 import {
   DesktopSchedulerContextSync,
   useDesktopBridge,
@@ -19,7 +19,7 @@ export default function RootLayout(): ReactElement | null {
   return (
     <AppProviders>
       <DesktopSchedulerContextSync />
-      <OwnBundleUrlSync />
+      <BundleUrlSync />
       <AnalyticsIdentitySync />
       <SessionHintSync />
       <ThemeProvider

@@ -1,3 +1,4 @@
+import { unavailableContentPackaging } from '../../shared/content-packaging.js';
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
@@ -14,6 +15,7 @@ import { GrowthJourneyPanel } from './GrowthJourneyPanel.js';
 afterEach(cleanup);
 function acquisition(): OperationsGrowthResponse {
   return {
+    packaging: unavailableContentPackaging('offline'),
     observedAt: '2026-09-19T00:00:00Z',
     windowDays: 30,
     status: 'unknown',
@@ -21,7 +23,7 @@ function acquisition(): OperationsGrowthResponse {
     community: unavailableDiscordCommunity('offline', '2026-09-19T00:00:00Z'),
     lanes: [],
     ctaExperiment: {
-      key: 'landing-waitlist-cta-v1',
+      key: 'landing-waitlist-cta-v2',
       status: 'unavailable',
       message: 'not loaded',
       observedAt: '2026-10-03T00:00:00Z',

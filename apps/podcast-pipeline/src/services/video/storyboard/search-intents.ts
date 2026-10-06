@@ -8,6 +8,7 @@ import {
   getOpenRouterConfig,
   messageReasoningCharacterCount,
 } from '../../llm.js';
+import { OPENROUTER_FREE_MODEL } from '../../llm-model-fallback.js';
 import {
   podcastBrandVisualKind,
   splitPodcastVisualSections,
@@ -442,7 +443,10 @@ function normalizedEntityText(value: string): string {
 }
 
 export function createOpenRouterSearchIntentProvider(): SearchIntentProvider {
-  const { openai, model } = getOpenRouterConfig({ thinkingModel: null });
+  const { openai, model } = getOpenRouterConfig({
+    model: OPENROUTER_FREE_MODEL,
+    thinkingModel: null,
+  });
   return {
     model,
     catalog: async (request) => {

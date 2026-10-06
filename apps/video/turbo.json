@@ -1,0 +1,20 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "test": {
+      "inputs": [
+        "$TURBO_EXTENDS$",
+        "$TURBO_ROOT$/apps/kokode-ai/src/styles/base.css",
+        "$TURBO_ROOT$/apps/kokode-ai/public/favicon.svg"
+      ]
+    },
+    "test:coverage": {
+      "inputs": [
+        "$TURBO_EXTENDS$",
+        "$TURBO_ROOT$/apps/kokode-ai/src/styles/base.css",
+        "$TURBO_ROOT$/apps/kokode-ai/public/favicon.svg"
+      ]
+    }
+  }
+}

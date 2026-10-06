@@ -42,9 +42,7 @@ export {
   addWallet,
   loadWallets,
   removeWallet,
-  unsubscribeUserEmail,
   updateManagedWalletLabel,
-  updateUserEmailSubscription,
   verifyWallet,
 } from './walletService';
 

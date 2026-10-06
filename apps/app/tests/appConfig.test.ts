@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { readFileSync } from 'node:fs';
 
 import { getConfig } from 'expo/config';
 import { compileModsAsync } from 'expo/config-plugins';
@@ -12,6 +13,17 @@ function pluginName(plugin: unknown): unknown {
 }
 
 describe('store identity', () => {
+  it('derives canonical store links from store identity', () => {
+    const eas = JSON.parse(
+      readFileSync(path.resolve(__dirname, '../eas.json'), 'utf8'),
+    );
+    expect(appConfig.ios?.appStoreUrl).toBe(
+      `https://apps.apple.com/app/id${eas.submit.production.ios.ascAppId}`,
+    );
+    expect(appConfig.android?.playStoreUrl).toBe(
+      `https://play.google.com/store/apps/details?id=${appConfig.android?.package}`,
+    );
+  });
   // Both stores continue the retired Flutter app's listings rather than opening
   // new records: Google Play under com.fromfedtochain.app, App Store under
   // com.example.fromFedToChainApp (ASC app 6749248542). Only the user-facing

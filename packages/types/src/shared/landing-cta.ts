@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /** Versioned together with the CTA copy and telemetry; never reuse for a new test. */
-export const LANDING_CTA_EXPERIMENT = 'landing-waitlist-cta-v1';
+export const LANDING_CTA_EXPERIMENT = 'landing-waitlist-cta-v2';
 export const landingCtaContextSchema = z.object({
   key: z.literal(LANDING_CTA_EXPERIMENT),
   variant: z.enum(['baseline', 'control', 'value_first']),

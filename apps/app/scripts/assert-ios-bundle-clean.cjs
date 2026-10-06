@@ -49,6 +49,7 @@ const DENYLIST = [
 // Keep the non-iOS action/screen implementations here even though their .ios
 // siblings are expected: Metro must resolve the platform file, not include both.
 const SOURCE_DENYLIST = [
+  { label: 'Android Play updates', patterns: ['/expo-in-app-updates/'] },
   {
     label: 'wallet provider context',
     patterns: [

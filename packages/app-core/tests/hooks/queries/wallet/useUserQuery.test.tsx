@@ -31,7 +31,6 @@ import {
 } from '@core/lib/state/accountBootstrap';
 import {
   useCurrentUser,
-  useUserById,
   useUserByWallet,
 } from '@core/hooks/queries/wallet/useUserQuery';
 
@@ -56,7 +55,7 @@ function mockProfile(isSubscribedToReports: boolean) {
   mocks.getUserProfile.mockResolvedValue({
     user: {
       id: USER_ID,
-      email: 'user@example.com',
+      email: '',
       is_subscribed_to_reports: isSubscribedToReports,
       created_at: '2026-01-01T00:00:00.000Z',
     },
@@ -449,28 +448,28 @@ describe('useUser query mapping', () => {
     });
   });
 
-  it('keeps bundle wallets empty when an id lookup profile has no wallets', async () => {
+  it('uses the searched address when a profile has no wallets', async () => {
     mocks.getUserProfile.mockResolvedValue({
       user: undefined,
       wallets: undefined,
     });
-    const { result } = renderHook(() => useUserById(USER_ID), {
+    const { result } = renderHook(() => useUserByWallet('0xaaa'), {
       wrapper: createWrapper(),
     });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data).toMatchObject({
       email: '',
-      bundleWallets: [],
-      totalWallets: 0,
+      bundleWallets: ['0xaaa'],
+      totalWallets: 1,
       isSubscribedToReports: false,
     });
   });
 });
 
-describe('useUserById report subscription state', () => {
+describe('useUserByWallet report subscription state', () => {
   it('maps a subscribed profile to UserInfo', async () => {
     mockProfile(true);
-    const { result } = renderHook(() => useUserById(USER_ID), {
+    const { result } = renderHook(() => useUserByWallet('0xaaa'), {
       wrapper: createWrapper(),
     });
 
@@ -480,14 +479,14 @@ describe('useUserById report subscription state', () => {
 
   it('keeps an email while mapping an unsubscribed profile as unsubscribed', async () => {
     mockProfile(false);
-    const { result } = renderHook(() => useUserById(USER_ID), {
+    const { result } = renderHook(() => useUserByWallet('0xaaa'), {
       wrapper: createWrapper(),
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data).toEqual(
       expect.objectContaining({
-        email: 'user@example.com',
+        email: '',
         isSubscribedToReports: false,
       }),
     );

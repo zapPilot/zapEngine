@@ -227,5 +227,5 @@ const invokedPath = process.argv[1]
   ? pathToFileURL(process.argv[1]).href
   : null;
 if (invokedPath === import.meta.url) {
-  await deployVercelMain();
+  await deployVercelMain({ sha: process.argv[2] });
 }

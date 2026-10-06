@@ -1,0 +1,368 @@
+{
+  "videoId": "calculator-pitch",
+  "url": "https://www.zap-pilot.org/track-record/calculator/",
+  "capturedAt": "2026-10-03T13:25:22.886Z",
+  "shots": {
+    "identity": {
+      "file": "captures/calculator-pitch/identity.webp",
+      "width": 1440,
+      "height": 810,
+      "deviceScaleFactor": 3,
+      "targets": {
+        "hero": {
+          "x": 170,
+          "y": 71.5,
+          "width": 736,
+          "height": 175.171875
+        },
+        "identity": {
+          "x": 170,
+          "y": 286.671875,
+          "width": 1100,
+          "height": 148
+        },
+        "address": {
+          "x": 333.046875,
+          "y": 307.671875,
+          "width": 132.609375,
+          "height": 45
+        },
+        "codehash": {
+          "x": 521.65625,
+          "y": 307.671875,
+          "width": 238.359375,
+          "height": 45
+        },
+        "source": {
+          "x": 816.015625,
+          "y": 307.671875,
+          "width": 225.453125,
+          "height": 45
+        },
+        "bytecodeCheck": {
+          "x": 170,
+          "y": 392.671875,
+          "width": 251.71875,
+          "height": 21
+        }
+      },
+      "values": {
+        "checkedAtBlock": "315336615"
+      },
+      "checks": [
+        ".calc-identity: text containing \"Arbitrum Sepolia\"",
+        ".calc-identity: text containing \"0x074A6d64…3411Cd\"",
+        ".calc-identity: text containing \"0xc34735d8…7acf50\"",
+        ".calc-identity: text containing \"Vyper 0.4.3\"",
+        ".calc-identity: text containing \"Sourcify (verified)\"",
+        ".calc-identity [role=\"status\"]: checkedAtBlock=315336615"
+      ]
+    },
+    "inputs": {
+      "file": "captures/calculator-pitch/inputs.webp",
+      "width": 1440,
+      "height": 810,
+      "deviceScaleFactor": 3,
+      "targets": {
+        "scenarios": {
+          "x": 170,
+          "y": 57.671875,
+          "width": 1100,
+          "height": 114.1875
+        },
+        "above": {
+          "x": 348.53125,
+          "y": 92.171875,
+          "width": 207.515625,
+          "height": 39
+        },
+        "market": {
+          "x": 170,
+          "y": 287.859375,
+          "width": 652,
+          "height": 348
+        },
+        "btcRow": {
+          "x": 170,
+          "y": 313.859375,
+          "width": 652,
+          "height": 107
+        },
+        "btcPrice": {
+          "x": 298,
+          "y": 368.859375,
+          "width": 176,
+          "height": 38
+        },
+        "btcChart": {
+          "x": 670,
+          "y": 331.609375,
+          "width": 152,
+          "height": 68.5
+        },
+        "real": {
+          "x": 175,
+          "y": 89.171875,
+          "width": 169.53125,
+          "height": 39
+        }
+      },
+      "values": {},
+      "checks": [
+        ".calc-segments button[aria-pressed=\"true\"]: text containing \"2025-10-18 (real data)\"",
+        ".calc-segments button[aria-pressed=\"true\"]: aria-pressed=true",
+        "input[aria-label=\"BTC price on decision day\"]: value \"106,443.61\""
+      ]
+    },
+    "cell": {
+      "file": "captures/calculator-pitch/cell.webp",
+      "width": 1440,
+      "height": 810,
+      "deviceScaleFactor": 3,
+      "targets": {
+        "scenarios": {
+          "x": 170,
+          "y": 56.671875,
+          "width": 1100,
+          "height": 114.1875
+        },
+        "above": {
+          "x": 348.53125,
+          "y": 93.171875,
+          "width": 207.515625,
+          "height": 39
+        },
+        "market": {
+          "x": 170,
+          "y": 285.859375,
+          "width": 652,
+          "height": 348
+        },
+        "btcRow": {
+          "x": 170,
+          "y": 311.859375,
+          "width": 652,
+          "height": 107
+        },
+        "btcPrice": {
+          "x": 298,
+          "y": 368.859375,
+          "width": 176,
+          "height": 38
+        },
+        "btcChart": {
+          "x": 670,
+          "y": 330.609375,
+          "width": 152,
+          "height": 68.5
+        }
+      },
+      "values": {},
+      "checks": [
+        "input[aria-label=\"BTC price on decision day\"]: value \"106443.61194985\""
+      ]
+    },
+    "ready": {
+      "file": "captures/calculator-pitch/ready.webp",
+      "width": 1440,
+      "height": 810,
+      "deviceScaleFactor": 3,
+      "targets": {
+        "answer": {
+          "x": 870,
+          "y": 117.859375,
+          "width": 400,
+          "height": 617.1875
+        },
+        "call": {
+          "x": 895,
+          "y": 658.046875,
+          "width": 350,
+          "height": 48
+        },
+        "reference": {
+          "x": 895,
+          "y": 296.125,
+          "width": 350,
+          "height": 341.921875
+        },
+        "market": {
+          "x": 170,
+          "y": 191.859375,
+          "width": 652,
+          "height": 348
+        }
+      },
+      "values": {},
+      "checks": [
+        "aside.calc-answer: text containing \"Ready to call.\"",
+        ".calc-reference: text containing \"(13.75% of the portfolio)\""
+      ]
+    },
+    "receipt": {
+      "file": "captures/calculator-pitch/receipt.webp",
+      "width": 464,
+      "height": 948.15625,
+      "deviceScaleFactor": 3,
+      "targets": {
+        "answer": {
+          "x": 32,
+          "y": 32,
+          "width": 400,
+          "height": 884.15625
+        },
+        "proof": {
+          "x": 57,
+          "y": 101.5,
+          "width": 350,
+          "height": 167.5
+        },
+        "verdict": {
+          "x": 57,
+          "y": 285,
+          "width": 350,
+          "height": 74.78125
+        },
+        "compare": {
+          "x": 57,
+          "y": 435.15625,
+          "width": 350,
+          "height": 221
+        },
+        "outcomes": {
+          "x": 57,
+          "y": 672.15625,
+          "width": 350,
+          "height": 74.5
+        },
+        "match": {
+          "x": 57,
+          "y": 762.65625,
+          "width": 350,
+          "height": 21
+        }
+      },
+      "values": {
+        "calledAtBlock": "315336671"
+      },
+      "checks": [
+        ".calc-proof: text containing \"Answer returned by the contract\"",
+        ".calc-proof: calledAtBlock=315336671",
+        ".calc-verdict: text containing \"Move BTC and ETH to stablecoins.\"",
+        ".calc-reason: text containing \"BTC crossed below its 200-day average. A BTC trigger also exits ETH.\"",
+        ".calc-compare: text containing \"96.12%\"",
+        ".calc-match: text containing \"Same result as the Python backtest\""
+      ]
+    },
+    "above": {
+      "file": "captures/calculator-pitch/above.webp",
+      "width": 1440,
+      "height": 810,
+      "deviceScaleFactor": 3,
+      "targets": {
+        "scenarios": {
+          "x": 170,
+          "y": 65.671875,
+          "width": 1100,
+          "height": 114.1875
+        },
+        "above": {
+          "x": 348.53125,
+          "y": 102.171875,
+          "width": 207.515625,
+          "height": 39
+        },
+        "market": {
+          "x": 170,
+          "y": 297.859375,
+          "width": 652,
+          "height": 348
+        },
+        "btcRow": {
+          "x": 170,
+          "y": 320.859375,
+          "width": 652,
+          "height": 107
+        },
+        "btcPrice": {
+          "x": 298,
+          "y": 377.859375,
+          "width": 176,
+          "height": 38
+        },
+        "btcChart": {
+          "x": 670,
+          "y": 340.609375,
+          "width": 152,
+          "height": 68.5
+        }
+      },
+      "values": {},
+      "checks": [
+        "role=button[name=\"BTC holds above its average\"]: aria-pressed=true"
+      ]
+    },
+    "hold": {
+      "file": "captures/calculator-pitch/hold.webp",
+      "width": 464,
+      "height": 746.4375,
+      "deviceScaleFactor": 3,
+      "targets": {
+        "answer": {
+          "x": 32,
+          "y": 32,
+          "width": 400,
+          "height": 682.4375
+        },
+        "proof": {
+          "x": 57,
+          "y": 101.5,
+          "width": 350,
+          "height": 167.5
+        },
+        "verdict": {
+          "x": 57,
+          "y": 285,
+          "width": 350,
+          "height": 74.78125
+        },
+        "outcomes": {
+          "x": 57,
+          "y": 471.296875,
+          "width": 350,
+          "height": 74.5
+        }
+      },
+      "values": {},
+      "checks": [
+        ".calc-verdict: text containing \"Hold. No asset crossed below its 200-day average.\"",
+        ".calc-proof: text containing \"Answer returned by the contract\""
+      ]
+    },
+    "limits": {
+      "file": "captures/calculator-pitch/limits.webp",
+      "width": 1180,
+      "height": 210.671875,
+      "deviceScaleFactor": 3,
+      "targets": {
+        "proves": {
+          "x": 40,
+          "y": 61,
+          "width": 526,
+          "height": 97.671875
+        },
+        "notProves": {
+          "x": 614,
+          "y": 61,
+          "width": 526,
+          "height": 97.671875
+        }
+      },
+      "values": {},
+      "checks": [
+        ".calc-limits: text containing \"What this proves\"",
+        ".calc-limits: text containing \"production execution\""
+      ]
+    }
+  }
+}

@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   findEpisodeLocalizationByEpisodeId: vi.fn(),
   generateScriptWithLLM: vi.fn(),
   generateEditorialTitleWithLLM: vi.fn(),
+  buildEditorialTitleVariants: vi.fn(),
   insertEpisode: vi.fn(),
   insertEpisodeLocalization: vi.fn(),
   scrapeArticle: vi.fn(),
@@ -28,6 +29,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../editorial-title.js', () => ({
   generateEditorialTitleWithLLM: mocks.generateEditorialTitleWithLLM,
+  buildEditorialTitleVariants: mocks.buildEditorialTitleVariants,
 }));
 
 vi.mock('../db.js', () => ({
@@ -57,8 +59,12 @@ import { ensureEpisodeLocalizationScript } from './script-stage.js';
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.buildEditorialTitleVariants.mockResolvedValue({
+    titleVariants: {},
+    cost: [],
+  });
   mocks.generateEditorialTitleWithLLM.mockResolvedValue({
-    title: null,
+    title: '市场流动性正在重新定价',
     model: 'test/model',
     provider: 'test-provider',
     costUsd: 0,
@@ -119,9 +125,7 @@ describe('ensureEpisodeLocalizationScript editorial title persistence', () => {
       );
       expect(
         mocks.generateEditorialTitleWithLLM.mock.invocationCallOrder[0],
-      ).toBeGreaterThan(
-        mocks.generateScriptWithLLM.mock.invocationCallOrder[0]!,
-      );
+      ).toBeLessThan(mocks.generateScriptWithLLM.mock.invocationCallOrder[0]!);
       expect(mocks.generateScriptWithLLM).toHaveBeenCalledWith(
         article.title,
         article.text,
@@ -132,10 +136,87 @@ describe('ensureEpisodeLocalizationScript editorial title persistence', () => {
         'script_generated',
         expect.objectContaining({
           title: expectedTitle,
+          titleVariants: {},
           scriptBody: expectedBody,
           script: `${PODCAST_INTRO}\n\n${expectedBody}\n\n${ZAP_PILOT_OUTRO}`,
         }),
       );
+    },
+  );
+
+  it.each(['llm', 'truncate'] as const)(
+    'atomically freezes a %s variant and its cost with Best Title',
+    async (method) => {
+      const existing = localizationRow({ status: 'scraped', script: '' });
+      const best = '标'.repeat(30);
+      const titleVariants = { '20': { title: '你用USDT买到什么？', method } };
+      mocks.generateEditorialTitleWithLLM.mockResolvedValue({
+        title: best,
+        model: 'test/model',
+        provider: 'test-provider',
+        costUsd: 0.01,
+      });
+      mocks.buildEditorialTitleVariants.mockResolvedValue({
+        titleVariants,
+        cost: [
+          {
+            category: 'llm',
+            label: 'LLM title',
+            model: 'test/model',
+            provider: 'test-provider',
+            costUsd: 0.02,
+          },
+        ],
+      });
+      mocks.generateScriptWithLLM.mockResolvedValue(
+        generatedScript({ title: best }),
+      );
+      mocks.updateEpisodeLocalizationStatus.mockResolvedValue(
+        localizationRow({
+          status: 'script_generated',
+          title: best,
+          title_variants: titleVariants,
+          script: PACKAGED_SCRIPT,
+        }),
+      );
+      const cost = [] as import('../cost.js').UsageCostLine[];
+      const result = await ensureEpisodeLocalizationScript(
+        'https://example.com/article',
+        'zh-Hant',
+        cost,
+        { episode: episodeRow(), localization: existing },
+      );
+      expect(mocks.buildEditorialTitleVariants).toHaveBeenCalledWith(
+        best,
+        existing.title,
+        [20],
+      );
+      expect(mocks.updateEpisodeLocalizationStatus).toHaveBeenCalledWith(
+        existing.id,
+        'script_generated',
+        expect.objectContaining({
+          title: best,
+          titleVariants,
+          script: PACKAGED_SCRIPT,
+        }),
+      );
+      expect(cost.map((line) => line.label)).toEqual([
+        'LLM title',
+        'LLM title',
+        'LLM script',
+      ]);
+      expect(mocks.generateEditorialTitleWithLLM).toHaveBeenCalledTimes(1);
+      mocks.generateEditorialTitleWithLLM.mockClear();
+      mocks.buildEditorialTitleVariants.mockClear();
+      const resumed = await ensureEpisodeLocalizationScript(
+        'https://example.com/article',
+        'zh-Hant',
+        [],
+        { episode: episodeRow(), localization: result.localization },
+      );
+      expect(resumed.localization.title_variants).toEqual(titleVariants);
+      expect(mocks.generateEditorialTitleWithLLM).not.toHaveBeenCalled();
+      expect(mocks.buildEditorialTitleVariants).not.toHaveBeenCalled();
     },
   );
 
@@ -183,6 +264,7 @@ describe('ensureEpisodeLocalizationScript editorial title persistence', () => {
       'script_generated',
       {
         title: editorialTitle,
+        titleVariants: {},
         script: PACKAGED_SCRIPT,
         scriptBody: 'Generated script',
         packagingVersion: PODCAST_PACKAGING_VERSION,
@@ -194,41 +276,29 @@ describe('ensureEpisodeLocalizationScript editorial title persistence', () => {
     expect(result.localization.title).toBe(editorialTitle);
   });
 
-  it('omits a fallback title so the scraped title remains unchanged', async () => {
-    const existing = localizationRow({
-      title: '保留現有 canonical 標題',
-      status: 'scraped',
-      script: '',
+  it('stops before script generation on title failure while retaining billed cost', async () => {
+    const existing = localizationRow({ status: 'scraped', script: '' });
+    mocks.generateEditorialTitleWithLLM.mockResolvedValue({
+      title: null,
+      model: 'test/model',
+      provider: 'test-provider',
+      costUsd: 0.02,
     });
-    mocks.generateScriptWithLLM.mockResolvedValue(
-      generatedScript({ title: null }),
-    );
-    mocks.updateEpisodeLocalizationStatus.mockResolvedValue(
-      localizationRow({
-        title: existing.title,
-        script: PACKAGED_SCRIPT,
-        status: 'script_generated',
-      }),
-    );
-
-    const result = await ensureEpisodeLocalizationScript(
-      'https://example.com/article',
-      'zh-Hant',
-      [],
-      { episode: episodeRow(), localization: existing },
-    );
-
-    const updates = mocks.updateEpisodeLocalizationStatus.mock.calls[0]?.[2];
-    expect(updates).toEqual({
-      script: PACKAGED_SCRIPT,
-      scriptBody: 'Generated script',
-      packagingVersion: PODCAST_PACKAGING_VERSION,
-      llmModel: 'test/model',
-      llmThinkingModel: null,
-      llmProvider: 'test-provider',
-    });
-    expect(updates).not.toHaveProperty('title');
-    expect(result.localization.title).toBe(existing.title);
+    const cost: import('../cost.js').UsageCostLine[] = [];
+    await expect(
+      ensureEpisodeLocalizationScript(
+        'https://example.com/article',
+        'zh-Hant',
+        cost,
+        { episode: episodeRow(), localization: existing },
+      ),
+    ).rejects.toThrow('the source title will not be used as Best Title');
+    expect(cost).toEqual([
+      expect.objectContaining({ label: 'LLM title', costUsd: 0.02 }),
+    ]);
+    expect(mocks.generateScriptWithLLM).not.toHaveBeenCalled();
+    expect(mocks.buildEditorialTitleVariants).not.toHaveBeenCalled();
+    expect(mocks.updateEpisodeLocalizationStatus).not.toHaveBeenCalled();
   });
 
   it('runs application packaging inside the observable ingest step', async () => {
@@ -446,7 +516,7 @@ describe('ensureEpisodeLocalizationScript editorial title persistence', () => {
 
 function generatedScript(overrides: { title: string | null }) {
   mocks.generateEditorialTitleWithLLM.mockResolvedValue({
-    title: overrides.title,
+    title: overrides.title ?? '市场流动性正在重新定价',
     model: 'test/model',
     provider: 'test-provider',
     costUsd: 0,

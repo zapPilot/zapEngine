@@ -224,8 +224,108 @@ describe('PodcastDownloadsProvider', () => {
     });
     expect(disk.size).toBe(0);
     expect(stored).toEqual([]);
+    expect(context.states[downloadableEpisode.localizationId]).toEqual({
+      status: 'idle',
+    });
     await act(async () => context.download(downloadableEpisode));
     expect(stored).toHaveLength(1);
+  });
+  it('stamps a running download with the title, cover and length the shelf shows', async () => {
+    let report!: (progress: number) => void;
+    let started!: () => void;
+    const start = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    vi.mocked(files.download).mockImplementationOnce(
+      async (_url, _name, { onProgress, signal }) => {
+        report = onProgress;
+        started();
+        return new Promise<number>((_resolve, reject) =>
+          signal.addEventListener('abort', () => reject(new Error('stop')), {
+            once: true,
+          }),
+        );
+      },
+    );
+    await mount();
+    let pending!: Promise<void>;
+    await act(async () => {
+      pending = context.download(downloadableEpisode);
+      await start;
+    });
+    const snapshot = {
+      title: downloadableEpisode.title,
+      thumbnailUrl: downloadableEpisode.video!.thumbnailUrl,
+      durationSeconds: downloadableEpisode.video!.durationSeconds,
+    };
+    expect(context.states[downloadableEpisode.localizationId]).toEqual({
+      status: 'downloading',
+      progress: 0,
+      ...snapshot,
+    });
+    await act(async () => report(0.5));
+    expect(context.states[downloadableEpisode.localizationId]).toEqual({
+      status: 'downloading',
+      progress: 0.495,
+      ...snapshot,
+    });
+    await act(async () => {
+      context.cancel(downloadableEpisode.localizationId);
+      await pending;
+    });
+  });
+  it('keeps a saved video and says why when its removal cannot be saved', async () => {
+    const record = downloadRecord();
+    stored = [record];
+    disk = new Set([record.videoFileName, record.thumbnailFileName]);
+    await mount();
+    storage.save.mockRejectedValueOnce(new Error('storage full'));
+    await act(async () => context.remove(record.localizationId));
+    expect(context.records).toEqual([record]);
+    expect(disk.size).toBe(2);
+    expect(context.states[record.localizationId]).toEqual({
+      status: 'failed',
+      message: 'storage full',
+    });
+    // Trying again once storage works clears the failure.
+    await act(async () => context.remove(record.localizationId));
+    expect(context.records).toEqual([]);
+    expect(disk.size).toBe(0);
+    expect(context.states[record.localizationId]).toEqual({ status: 'idle' });
+  });
+  it('removing a video that is still downloading stops the transfer and leaves nothing behind', async () => {
+    let started!: () => void;
+    const start = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    vi.mocked(files.download).mockImplementationOnce(
+      async (_url, name, { signal }) => {
+        disk.add(name);
+        started();
+        return new Promise<number>((_resolve, reject) =>
+          signal.addEventListener('abort', () => reject(new Error('stop')), {
+            once: true,
+          }),
+        );
+      },
+    );
+    await mount();
+    let pending!: Promise<void>;
+    await act(async () => {
+      pending = context.download(downloadableEpisode);
+      await start;
+    });
+    await act(async () => {
+      await Promise.all([
+        context.remove(downloadableEpisode.localizationId),
+        pending,
+      ]);
+    });
+    expect(disk.size).toBe(0);
+    expect(stored).toEqual([]);
+    expect(context.states[downloadableEpisode.localizationId]).toEqual({
+      status: 'idle',
+    });
   });
   it('deduplicates concurrent requests and preserves an existing download', async () => {
     await mount();

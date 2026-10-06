@@ -1,11 +1,15 @@
 import { randomUUID } from 'node:crypto';
-
-import { S3Client } from '@aws-sdk/client-s3';
+import { setTimeout as delay } from 'node:timers/promises';
 
 import { getRequiredEnv, trimTrailingSlash } from '../lib/env.js';
 import { errorMessage } from '../lib/errorMessage.js';
-import { classifyArtifactKey, planArtifactGc } from './artifact-retention.js';
 import {
+  type ArtifactCandidate,
+  classifyArtifactKey,
+  planArtifactGc,
+} from './artifact-retention.js';
+import {
+  createR2ClientFromEnv,
   deleteR2Objects,
   listR2Objects,
   type StoredObject,
@@ -21,7 +25,7 @@ interface ReferenceState {
   retirements: Map<string, number>;
 }
 export interface GcDependencies {
-  list: () => Promise<StoredObject[]>;
+  list: (prefix?: string) => Promise<StoredObject[]>;
   readState: () => Promise<ReferenceState>;
   acquire: (owner: string) => Promise<void>;
   release: (owner: string) => Promise<void>;
@@ -33,9 +37,16 @@ export interface GcDependencies {
 
 export async function runArtifactGc(
   deps: GcDependencies,
-  options: { apply?: boolean; now?: number } = {},
+  options: {
+    apply?: boolean;
+    now?: number;
+    owner?: string;
+    maxMinutes?: number;
+  } = {},
 ) {
-  const owner = randomUUID();
+  const owner = options.owner ?? randomUUID();
+  const started = Date.now();
+  const objects = await deps.list();
   const now = options.now ?? Date.now();
   const summary = {
     dryRun: !options.apply,
@@ -45,16 +56,17 @@ export async function runArtifactGc(
     deletedBytes: 0,
     failures: 0,
   };
-  if (options.apply) {
-    deps.log({ event: 'gc:acquire', owner });
-    await deps.acquire(owner);
-  }
+  if (options.apply && !(await acquireGc(deps, owner))) return summary;
   try {
-    const objects = await deps.list();
     const state = await deps.readState();
     const plan = planArtifactGc({ objects, ...state, now });
     summary.candidatePrefixes = plan.length;
     for (const candidate of plan) {
+      if (
+        options.maxMinutes !== undefined &&
+        Date.now() - started >= options.maxMinutes * 60_000
+      )
+        break;
       deps.log({
         event: 'gc:candidate',
         prefix: candidate.prefix,
@@ -73,32 +85,20 @@ export async function runArtifactGc(
         continue;
       }
       if (candidate.decision !== 'eligible') continue;
-      try {
-        // The DB fence remains held throughout the R2 deletion. Re-reading
-        // without that fence would leave a publication/deletion race.
-        await deps.remove(candidate.objects.map((object) => object.key));
-        summary.deletedObjects += candidate.objects.length;
-        summary.deletedBytes += candidate.bytes;
-        await deps.clearObservation(candidate.prefix);
-        deps.log({
-          event: 'gc:deleted',
-          prefix: candidate.prefix,
-          objects: candidate.objects.length,
-          bytes: candidate.bytes,
-        });
-      } catch (error) {
-        summary.failures++;
-        deps.log({
-          event: 'gc:failure',
-          prefix: candidate.prefix,
-          error: errorMessage(error),
-        });
-      }
+      const deleted = await deleteCandidate(
+        deps,
+        candidate,
+        state,
+        options.now ?? Date.now(),
+      );
+      summary.deletedObjects += deleted.objects;
+      summary.deletedBytes += deleted.bytes;
+      summary.failures += deleted.failures;
     }
     deps.log({ event: 'gc:summary', ...summary });
     return summary;
   } finally {
-    if (options.apply) await deps.release(owner);
+    if (options.apply) await releaseArtifactGcOwner(deps, owner);
   }
 }
 
@@ -193,21 +193,28 @@ export function createArtifactGcDependencies(): GcDependencies {
   const db = getPipelineSupabase();
   const Bucket = getRequiredEnv('R2_BUCKET_NAME');
   const base = getRequiredEnv('R2_PUBLIC_BASE_URL');
-  const r2 = new S3Client({
-    region: 'auto',
-    endpoint: getRequiredEnv('R2_ENDPOINT'),
-    forcePathStyle: true,
-    credentials: {
-      accessKeyId: getRequiredEnv('R2_ACCESS_KEY_ID'),
-      secretAccessKey: getRequiredEnv('R2_SECRET_ACCESS_KEY'),
-    },
-  });
+  const r2 = createR2ClientFromEnv();
   async function rpc(name: string, owner: string) {
     const { error } = await db.rpc(name, { p_owner: owner });
-    if (error) throwSupabaseError(error);
+    if (error) {
+      if (
+        name === 'acquire_artifact_gc' &&
+        (error.code === '55P03' ||
+          (error.code === '55000' &&
+            error.message.includes('processing jobs remain')))
+      )
+        throw new ArtifactGcBusyError(error.message);
+      if (
+        name === 'release_artifact_gc' &&
+        error.code === '55000' &&
+        error.message.includes('owner mismatch')
+      )
+        return;
+      throwSupabaseError(error);
+    }
   }
   return {
-    list: () => listR2Objects(r2, Bucket, 'episodes/'),
+    list: (prefix = 'episodes/') => listR2Objects(r2, Bucket, prefix),
     readState: () => readArtifactReferenceState(db, base),
     acquire: (owner) => rpc('acquire_artifact_gc', owner),
     release: (owner) => rpc('release_artifact_gc', owner),
@@ -230,4 +237,78 @@ export function createArtifactGcDependencies(): GcDependencies {
     remove: (keys) => deleteR2Objects(r2, Bucket, keys),
     log: (event) => console.info(JSON.stringify(event)),
   };
+}
+
+export class ArtifactGcBusyError extends Error {}
+
+export async function releaseArtifactGcOwner(
+  deps: Pick<GcDependencies, 'release'>,
+  owner: string,
+): Promise<void> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await deps.release(owner);
+      return;
+    } catch (error) {
+      if (attempt === 3) throw error;
+      await delay(250 * 2 ** attempt);
+    }
+  }
+}
+
+async function acquireGc(
+  deps: GcDependencies,
+  owner: string,
+): Promise<boolean> {
+  deps.log({ event: 'gc:acquire', owner });
+  try {
+    await deps.acquire(owner);
+    return true;
+  } catch (error) {
+    if (!(error instanceof ArtifactGcBusyError)) throw error;
+    deps.log({ event: 'gc:skipped', reason: error.message });
+    console.warn(`::warning::${error.message}`);
+    return false;
+  }
+}
+async function deleteCandidate(
+  deps: GcDependencies,
+  candidate: ArtifactCandidate,
+  state: ReferenceState,
+  now: number,
+) {
+  let objects = 0;
+  let bytes = 0;
+  try {
+    const refreshed = planArtifactGc({
+      objects: await deps.list(`${candidate.prefix}/`),
+      ...state,
+      now,
+    });
+    const current = refreshed.find((item) => item.prefix === candidate.prefix);
+    if (current?.decision !== 'eligible')
+      return { objects: 0, bytes: 0, failures: 0 };
+    await deps.remove(current.objects.map((object) => object.key));
+    objects = current.objects.length;
+    bytes = current.bytes;
+    await deps.clearObservation(current.prefix);
+    deps.log({
+      event: 'gc:deleted',
+      prefix: current.prefix,
+      objects: current.objects.length,
+      bytes: current.bytes,
+    });
+    return {
+      objects: current.objects.length,
+      bytes: current.bytes,
+      failures: 0,
+    };
+  } catch (error) {
+    deps.log({
+      event: 'gc:failure',
+      prefix: candidate.prefix,
+      error: errorMessage(error),
+    });
+    return { objects, bytes, failures: 1 };
+  }
 }

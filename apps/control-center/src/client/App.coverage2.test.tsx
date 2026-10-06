@@ -62,7 +62,24 @@ vi.mock('./components/StatementHeader.js', () => ({
   ),
 }));
 vi.mock('./pages/TodayPage.js', () => ({
-  TodayPage: () => <div>home-ready</div>,
+  TodayPage: (props: {
+    journey: { message: string | null; status: string } | null;
+    queues: { message: string | null; status: string } | null;
+  }) => (
+    <div>
+      <span>home-ready</span>
+      <output data-testid="home-journey">
+        {props.journey
+          ? `${props.journey.status}:${props.journey.message ?? ''}`
+          : 'no-journey'}
+      </output>
+      <output data-testid="home-queues">
+        {props.queues
+          ? `${props.queues.status}:${props.queues.message ?? ''}`
+          : 'no-queues'}
+      </output>
+    </div>
+  ),
 }));
 vi.mock('./pages/PipelinePage.js', () => ({
   PipelineSummary: () => <div>pipeline-summary</div>,
@@ -274,7 +291,7 @@ describe('App coverage2', () => {
     fireEvent.click(screen.getByRole('button', { name: 'go-growth' }));
     await waitFor(() =>
       expect(api.getJson).toHaveBeenCalledWith(
-        '/api/social-performance?window=latest',
+        '/api/social-performance?window=24h',
       ),
     );
     releaseHome(overview);
@@ -319,9 +336,11 @@ describe('App coverage2', () => {
     });
     render(<App />);
     await screen.findByText('home-ready');
-    // Error path through unavailableGrowthJourney + unreadableQueues is covered
-    // by the sibling orchestration test; here we just need the Error branch.
-    expect(screen.getByText('home-ready')).toBeVisible();
+    await waitFor(() =>
+      expect(screen.getByTestId('home-journey')).toHaveTextContent(
+        'unavailable:PostHog down',
+      ),
+    );
   });
 
   it('degrades queues with a non-Error reason', async () => {
@@ -352,6 +371,10 @@ describe('App coverage2', () => {
     });
     render(<App />);
     await screen.findByText('home-ready');
-    expect(screen.getByText('home-ready')).toBeVisible();
+    await waitFor(() =>
+      expect(screen.getByTestId('home-queues')).toHaveTextContent(
+        'error:Queue read failed',
+      ),
+    );
   });
 });

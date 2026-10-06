@@ -95,7 +95,6 @@ export function createStatementsService(input: {
       costHistory,
       product: overview.product,
       socialGrowth,
-      socialPerformance: overview.social,
       customers,
       operationsSocial,
       podcastPipeline,

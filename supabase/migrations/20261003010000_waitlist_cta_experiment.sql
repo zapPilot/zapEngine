@@ -10,7 +10,7 @@ alter table public.waitlist_signups
   add constraint waitlist_cta_experiment_context check (
     (cta_experiment_key is null and cta_experiment_variant is null and cta_exposure_id is null)
     or (cta_experiment_key is not null and cta_experiment_variant is not null and cta_exposure_id is not null
-      and cta_experiment_key = 'landing-waitlist-cta-v1'
+      and cta_experiment_key = 'landing-waitlist-cta-v2'
       and cta_experiment_variant in ('baseline', 'control', 'value_first'))
   );
 create index idx_waitlist_cta_experiment_created

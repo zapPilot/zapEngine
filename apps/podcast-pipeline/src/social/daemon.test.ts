@@ -1,5 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('./daemon-tick-telemetry.js', () => ({
+  withSocialDaemonTickTelemetry: (
+    _options: unknown,
+    run: () => Promise<unknown>,
+  ) => run(),
+  recordSocialEnqueueResult: vi.fn(),
+}));
+
 const mocks = vi.hoisted(() => ({
   claimSocialPublishJob: vi.fn(),
   alignPendingSocialReleaseCohorts: vi.fn().mockResolvedValue({
@@ -11,7 +19,6 @@ const mocks = vi.hoisted(() => ({
   enqueueSocialPublishJob: vi.fn(),
   ensureSocialDaemonStart: vi.fn(),
   failSocialPublishJob: vi.fn(),
-  getActiveSocialStrategies: vi.fn(),
   getSocialQueueSnapshot: vi.fn(),
   listPendingSocialPublishSchedules: vi.fn().mockResolvedValue([]),
   listDueSocialPublishPlatforms: vi.fn().mockResolvedValue([]),
@@ -35,7 +42,6 @@ const mocks = vi.hoisted(() => ({
   createMetricsBrowserSession: vi.fn(),
   closeMetricsBrowserSession: vi.fn(),
   collectX: vi.fn(),
-  refreshSocialStrategies: vi.fn(),
   captureDueAccountSnapshots: vi.fn(),
   capturePrePublishAccountSnapshots: vi.fn(),
   collectRollingPostMetrics: vi.fn(),
@@ -58,7 +64,6 @@ vi.mock('./daemon-store.js', () => ({
   enqueueSocialPublishJob: mocks.enqueueSocialPublishJob,
   ensureSocialDaemonStart: mocks.ensureSocialDaemonStart,
   failSocialPublishJob: mocks.failSocialPublishJob,
-  getActiveSocialStrategies: mocks.getActiveSocialStrategies,
   getSocialQueueSnapshot: mocks.getSocialQueueSnapshot,
   listPendingSocialPublishSchedules: mocks.listPendingSocialPublishSchedules,
   listDueSocialPublishPlatforms: mocks.listDueSocialPublishPlatforms,
@@ -97,10 +102,6 @@ vi.mock('./publish-batch.js', () => ({
 vi.mock('./metric-collectors.js', () => ({
   createMetricCollectors: mocks.createMetricCollectors,
   createMetricsBrowserSession: mocks.createMetricsBrowserSession,
-}));
-vi.mock('./strategy.js', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('./strategy.js')>()),
-  refreshSocialStrategies: mocks.refreshSocialStrategies,
 }));
 vi.mock('../observability/sentry.js', () => ({
   capturePipelineException: mocks.capturePipelineException,
@@ -219,7 +220,6 @@ beforeEach(() => {
         fullCohortCandidates(episodeId, EPISODE_CREATED_AT),
       ),
   );
-  mocks.getActiveSocialStrategies.mockResolvedValue([]);
   mocks.getSocialQueueSnapshot.mockResolvedValue({
     pendingCount: 0,
     episodeQueue: [],
@@ -389,7 +389,7 @@ describe('social daemon', () => {
     await runSocialDaemonTick({
       now: NOW_PUBLISHING,
       firstStartedAt: '2026-08-16T08:00:00.000Z',
-      refreshStrategy: true,
+      reportExperiments: true,
       log,
     });
 
@@ -417,9 +417,7 @@ describe('social daemon', () => {
       completedAt: NOW_PUBLISHING,
       socialPostId: 'post-1',
     });
-    expect(mocks.refreshSocialStrategies).toHaveBeenCalledWith(
-      expect.objectContaining({ now: NOW_PUBLISHING }),
-    );
+    expect(mocks.listLearningSocialMetrics).toHaveBeenCalled();
   });
 
   it('holds back the whole article until every required language is ready', async () => {
@@ -633,7 +631,7 @@ describe('social daemon', () => {
     const oneHourLater = new Date(NOW.getTime() + 60 * 60_000);
     // Read order: the first-start anchor, then per tick a start reading and a
     // completion reading for the heartbeat. Only the start readings decide
-    // whether the strategy refresh is due.
+    // whether the experiment report is due.
     const now = vi
       .fn()
       .mockReturnValueOnce(NOW)
@@ -654,12 +652,12 @@ describe('social daemon', () => {
     expect(mocks.ensureSocialDaemonStart).toHaveBeenCalledWith(NOW);
     expect(sleep).toHaveBeenNthCalledWith(1, 60_000);
     expect(sleep).toHaveBeenNthCalledWith(2, 60_000);
-    expect(mocks.refreshSocialStrategies).toHaveBeenCalledTimes(1);
+    expect(mocks.listLearningSocialMetrics).toHaveBeenCalledTimes(1);
     expect(log).toHaveBeenCalledWith(
       expect.stringContaining('[social-daemon] started as'),
     );
     expect(log).toHaveBeenCalledWith(
-      '🔄 [social-daemon] checking discovery · publishing · metrics · strategy',
+      '🔄 [social-daemon] checking discovery · publishing · metrics · experiments',
     );
     expect(log).toHaveBeenCalledWith(
       '📥 [social-daemon] queue · 0 jobs · 0 articles',
@@ -668,6 +666,35 @@ describe('social daemon', () => {
       '✅ [social-daemon] check complete · next check in 60s.',
     );
   });
+
+  it.each([true, false])(
+    'reports experiments every six hours only in verbose mode (%s)',
+    async (verbose) => {
+      const later = new Date(NOW.getTime() + 7 * 60 * 60_000);
+      const now = vi
+        .fn()
+        .mockReturnValueOnce(NOW)
+        .mockReturnValueOnce(NOW)
+        .mockReturnValueOnce(NOW)
+        .mockReturnValue(later);
+      const sleep = vi
+        .fn()
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error('stop-loop'));
+      await expect(
+        runSocialDaemon({
+          now,
+          sleep,
+          verbose,
+          log: vi.fn(),
+          recordTick: vi.fn(),
+        }),
+      ).rejects.toThrow('stop-loop');
+      expect(mocks.listLearningSocialMetrics).toHaveBeenCalledTimes(
+        verbose ? 2 : 0,
+      );
+    },
+  );
 
   it('logs the pending queue and next scheduled post per platform', async () => {
     mocks.getSocialQueueSnapshot.mockResolvedValue({
@@ -1055,22 +1082,11 @@ describe('social daemon', () => {
     );
   });
 
-  it('records the strategy version a publish actually used', async () => {
+  it('completes publishes without a strategy version', async () => {
     mocks.claimSocialPublishJob.mockResolvedValue(
       publishJob({ strategy_version_id: null }),
     );
-    mocks.getActiveSocialStrategies.mockResolvedValue([
-      {
-        id: 'strategy-live',
-        platform: 'x',
-        version: 7,
-        config: { preferredHookTypes: ['question'] },
-        based_on_samples: 9,
-        active: true,
-        activated_at: NOW.toISOString(),
-        created_at: NOW.toISOString(),
-      },
-    ]);
+
     mocks.publishSocialBatch.mockResolvedValue([
       { platform: 'x', status: 'published', url: 'https://x.com/zap/status/1' },
     ]);
@@ -1084,15 +1100,13 @@ describe('social daemon', () => {
     });
 
     expect(mocks.completeSocialPublishJob).toHaveBeenCalledWith(
-      expect.objectContaining({ strategyVersionId: 'strategy-live' }),
+      expect.not.objectContaining({ strategyVersionId: expect.anything() }),
     );
   });
 
-  it('publishes without guidance when the active strategy read fails', async () => {
+  it('publishes without learned guidance', async () => {
     mocks.claimSocialPublishJob.mockResolvedValue(publishJob());
-    mocks.getActiveSocialStrategies.mockRejectedValue(
-      new Error('strategy read down'),
-    );
+
     mocks.publishSocialBatch.mockResolvedValue([
       { platform: 'x', status: 'published', url: 'https://x.com/zap/status/1' },
     ]);
@@ -1112,11 +1126,6 @@ describe('social daemon', () => {
     );
     expect(mocks.completeSocialPublishJob).toHaveBeenCalledWith(
       expect.not.objectContaining({ strategyVersionId: expect.anything() }),
-    );
-    expect(log.mock.calls.map(([line]) => String(line))).toEqual(
-      expect.arrayContaining([
-        expect.stringContaining('publishing without strategy guidance'),
-      ]),
     );
   });
 
@@ -1219,9 +1228,11 @@ describe('social daemon', () => {
     );
   });
 
-  it('isolates metric and strategy failures so one subsystem cannot stop a tick', async () => {
-    mocks.listLearningSocialPosts.mockRejectedValue(new Error('metrics down'));
-    mocks.refreshSocialStrategies.mockRejectedValue('strategy down');
+  it('isolates metric and experiment report failures so one subsystem cannot stop a tick', async () => {
+    mocks.listLearningSocialPosts.mockRejectedValueOnce(
+      new Error('metrics down'),
+    );
+    mocks.listLearningSocialMetrics.mockRejectedValue('report down');
     const log = vi.fn();
 
     await expect(
@@ -1229,7 +1240,7 @@ describe('social daemon', () => {
         now: NOW,
         firstStartedAt: '2026-08-16T08:00:00.000Z',
         log,
-        refreshStrategy: true,
+        reportExperiments: true,
       }),
     ).resolves.toBeUndefined();
 
@@ -1237,7 +1248,7 @@ describe('social daemon', () => {
     expect(messages).toEqual(
       expect.arrayContaining([
         expect.stringMatching(/metrics failed.*metrics down/),
-        expect.stringMatching(/strategy failed.*strategy down/),
+        expect.stringMatching(/experiment report failed.*report down/),
       ]),
     );
     expect(mocks.capturePipelineException).toHaveBeenCalledWith(
@@ -1248,14 +1259,11 @@ describe('social daemon', () => {
         level: 'warning',
       },
     );
-    expect(mocks.capturePipelineException).toHaveBeenCalledWith(
-      'strategy down',
-      {
-        component: 'social-daemon',
-        tags: { operation: 'strategy' },
-        level: 'warning',
-      },
-    );
+    expect(mocks.capturePipelineException).toHaveBeenCalledWith('report down', {
+      component: 'social-daemon',
+      tags: { operation: 'experiment report' },
+      level: 'warning',
+    });
   });
 
   it('uses the default clock and returns idle when one-shot catch-up has no durable or discoverable work', async () => {
@@ -1263,7 +1271,7 @@ describe('social daemon', () => {
     await expect(runSocialCatchUpOnce({ log: vi.fn() })).resolves.toBe('idle');
   });
 
-  it('logs a populated experiment report during a verbose strategy refresh', async () => {
+  it('logs a populated experiment report during a verbose report', async () => {
     const en = {
       ...socialPost({
         id: 'post-en',
@@ -1309,7 +1317,7 @@ describe('social daemon', () => {
       now: NOW,
       firstStartedAt: '2026-08-16T08:00:00.000Z',
       log,
-      refreshStrategy: true,
+      reportExperiments: true,
       verbose: true,
     });
 
@@ -1320,7 +1328,7 @@ describe('social daemon', () => {
     );
   });
 
-  it('does not run metrics, snapshots, or strategy when the publish stage fails fatally', async () => {
+  it('does not run metrics, snapshots, or experiment reporting when the publish stage fails fatally', async () => {
     mocks.alignPendingSocialReleaseCohorts.mockRejectedValue(
       new Error('cohort alignment read down'),
     );
@@ -1329,7 +1337,7 @@ describe('social daemon', () => {
       runSocialDaemonTick({
         now: NOW,
         firstStartedAt: '2026-08-16T08:00:00.000Z',
-        refreshStrategy: true,
+        reportExperiments: true,
       }),
     ).rejects.toThrow('cohort alignment read down');
 
@@ -1337,6 +1345,6 @@ describe('social daemon', () => {
     expect(mocks.publishSocialBatch).not.toHaveBeenCalled();
     expect(mocks.listLearningSocialPosts).not.toHaveBeenCalled();
     expect(mocks.captureDueAccountSnapshots).not.toHaveBeenCalled();
-    expect(mocks.refreshSocialStrategies).not.toHaveBeenCalled();
+    expect(mocks.listLearningSocialMetrics).not.toHaveBeenCalled();
   });
 });

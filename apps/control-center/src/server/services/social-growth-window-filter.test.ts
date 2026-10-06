@@ -263,6 +263,13 @@ function clientFactory(input: {
         order() {
           return chain;
         },
+        range(from: number, to: number) {
+          return Promise.resolve({
+            data: rows.slice(from, to + 1),
+            count: rows.length,
+            error: null,
+          });
+        },
         limit() {
           return Promise.resolve({
             data: rows,

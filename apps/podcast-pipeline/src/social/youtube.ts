@@ -160,7 +160,7 @@ export async function assertYouTubeChannel(input: {
   return channelId;
 }
 
-function readExpectedChannelId(env: NodeJS.ProcessEnv): string {
+export function readExpectedChannelId(env: NodeJS.ProcessEnv): string {
   const channelId = env['YOUTUBE_CHANNEL_ID']?.trim();
   if (!channelId) {
     throw new Error(

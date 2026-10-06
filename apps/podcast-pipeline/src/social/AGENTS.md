@@ -49,8 +49,6 @@ rotation, v3 D/E swap) that was concluded on **2026-09-14**. Its allocators were
 deleted rather than kept as dead recovery paths; jobs queued before that date
 keep their own languages through the durable-lane rule above, and published
 experiment posts, metrics, and assignments remain in the database for analysis.
-`daemon.ts` still recognises the historical experiment keys for one purpose
-only: freezing learned copy guidance on those not-yet-published lanes.
 
 Reintroducing a language experiment is a product decision, not a refactor. It
 needs a new design in this file first — do not resurrect the deleted profiles.
@@ -81,15 +79,26 @@ The contract separates pre-scheduling readiness from lane creation:
    backoff) while every other episode still publishes.
 6. `holdCohortsMissingCopy()` generates every claimed language's copy before the
    first transport call. Copy is the last pre-transport step that can fail for
-   one language alone — the Rednote red-line judge runs on `zh-Hant` only — so
-   generating it inside the publish loop shipped `ja` and `en` before the verdict
-   on `zh-Hant` was known. A rejected note holds that whole article the same way
+   one language alone — Rednote lexicon validation runs on `zh-Hant` only — so
+   generating it inside the publish loop can ship `ja` and `en` before the
+   rejection on `zh-Hant` is known. A rejected note holds that whole article the same way
    missing media does.
 
 `social_waiting_media` is an episode-language readiness signal, not a future
 platform-lane assignment table. Once an episode has any durable publish job or
 social post, the waiting-media view stops representing it; durable release state
 owns recovery from that point onward.
+
+## Backlog-aware article cadence
+
+Normal daemon scheduling chooses one shared article cadence from the count of
+wholly unpublished durable episode cohorts: 0-9 queued articles use 4/day
+(09:30, 12:00, 16:00, 21:00 JST), 10-20 use 5/day (09:00, 12:00, 15:00,
+18:00, 21:00), and 21+ use 6/day (09:00, 11:30, 14:00, 16:30, 19:00,
+21:30). A partially published episode is recovery state, not fresh backlog: it
+still fences the queue but does not inflate the cadence tier. Reconciliation may
+move wholly unpublished future cohorts when the tier changes; it must never move
+a live `processing` cohort or reshape a partial release.
 
 ## Manual catch-up exception
 
@@ -125,30 +134,31 @@ insert against a legacy cohort.
 
 ## Experiment isolation and evaluation
 
-- Language is no longer an experiment arm, so current lanes must not suppress
-  learned copy guidance. Only the historical keys in `daemon.ts` do that, and
-  only for jobs queued before the decision.
+- No lane receives learned guidance.
 - Historical language results are still evaluated **within the same platform**
   using standardized metric windows (especially 24h). Do not compare raw X vs
   Threads vs YouTube view counts as though their distributions were
   interchangeable.
 - Platform-specific packaging experiments are disabled.
   `packaging-experiments.ts` intentionally returns no assignments.
-- `episode_localizations.title` is the only normal visible title authority.
-  The independent title call (`prompts/title-system-prompt.txt`) is asked to keep it within 20 Unicode characters, but
-  an over-limit title must never fail ingest. Rednote and YouTube deterministically
-  truncate that same canonical title only at their final transport boundaries
-  (20 and 100 Unicode characters respectively); X and Threads generate no title.
-  Never reintroduce a platform headline prompt, experiment, or title field in
-  `GeneratedSocialCopy`.
+- `episode_localizations.title` is the Best Title and editorial source of truth.
+  It has no 20-character target; valid generated titles retain the 4..60 code-point
+  guard and must never be identical to the source after normalization.
+  Title and variants precede script generation; failures stop ingest without a scraped-title fallback.
+  Semantically equivalent compression variants are generated in ingest by character
+  budget and persisted atomically in `title_variants`; they are never recomputed
+  by social or after resume. Social never generates titles or calls a title LLM.
+  Transport reads a stored budget variant, otherwise deterministic fitting at word
+  or clause boundaries (Rednote 20, YouTube 100); X and Threads have no title field.
+  Platform audience, per-platform hook, thesis, and learned headline strategies
+  are forbidden. Never add a title field to `GeneratedSocialCopy`.
 - `social_publish_jobs.legacy_title_override` is migration-only for the finite
-  queue that predated the 20-character canonical-title contract. New enqueue
+  legacy queue. New enqueue
   paths must never populate it.
-- Strategy learning may adapt body-copy guidance for a platform-language lane
-  but cannot alter title, lane allocation, readiness, or release timing.
+- No lane receives learned guidance.
 
 Any change to the fixed mapping, the coverage rule, the back-catalogue fence,
-the durable-lane rule, or the one-article/one-timestamp transaction boundary
+the durable-lane rule, the social optimization contract, or the one-article/one-timestamp transaction boundary
 requires an explicit product decision plus updates to this file,
 `src/social/README.md`, and the executable contract tests.
 
@@ -157,3 +167,19 @@ attempts, leases, and visual versions. Consumers must not interpret every
 nonempty result as media merely catching up: terminal or unclaimable producers
 need operator intervention. The view supplies facts; shared TypeScript retry
 eligibility owns the version policy.
+
+## Social optimization contract
+
+**NON-NEGOTIABLE PRODUCT CONTRACT: one universal packaging strategy, never a strategy per platform.**
+
+- Topics and article selection are decided solely by the owner's interest. Platform audiences cannot change which articles publish. Every platform expresses the same episode thesis and topic. Only transport constraints (language, length, native fields, moderation, API format) may vary; these are not content strategies.
+- Best Title packaging lives in `prompts/title-system-prompt.txt`. Budget compression lives in `prompts/title-compression-system-prompt.txt`. The title runtime reads those files, never the persuasive-messaging skill; deliberately synchronize both when changing packaging. Packaging never participates in topic selection.
+- Improve the same packaging across all lanes to direct attention to Kokode AI and Zap Pilot. Kokode AI has no canonical destination yet: never invent a URL.
+- Prioritize cover image → title → video opening. Platform hashtag/hook details cannot outrank those priorities or become learned platform preferences.
+- Never infer which topic suits a platform, choose different articles per platform, or create platform-specific best topic, headline, hook, or publishing-slot strategies. Never inject learned per-platform copy guidance. `social_posts.topic` and `social_posts.hook_type` are descriptive labels, never inputs to platform preference learning. Neither global nor platform best/worst lists may guide topic selection.
+- Normalize within each platform × language lane before using views as optimization evidence. Never compare or aggregate raw views across platforms into optimization evidence or strategy scores. Operational volume totals such as public reach remain permitted.
+- Rednote is the primary signal for one global packaging insight, never a Rednote strategy. Exclude under_review, rejected and self_only notes. Report the ≤20 views distribution gate separately as an account/platform issue; calculate packaging lift only among distributed notes. See [distribution diagnosis](../../../../docs/operations/rednote-distribution-diagnosis.md).
+- Every presentation must say observed association / 相關, never causation. Two or three high-view samples cannot automatically change prompts. Feeding evidence back into title/cover generation requires sufficient evidence and a deliberate prompt change. Titles always obey factual fidelity.
+- The only implementation location is Control Center's shared growth read model (`/api/growth` + `ops_growth`, 15-minute cache). `ops_social` owns daemon/queue only. Packaging never becomes an `ops_status` signal or priority.
+- Future packaging experiments randomize by article, with the same variant across every lane, and require a design recorded here first. `packaging-experiments.ts` remains disabled.
+- History: the per-platform learner was removed on 2026-10-03. Preserve `social_strategy_versions`, historical rows and nullable `social_publish_jobs.strategy_version_id` (ON DELETE SET NULL). New jobs leave the field null. Never drop the table or resurrect the learner under another name.

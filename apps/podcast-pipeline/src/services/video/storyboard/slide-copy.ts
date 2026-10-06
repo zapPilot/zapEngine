@@ -6,6 +6,7 @@ import {
   createCompletionWithRetry,
   getOpenRouterConfig,
 } from '../../llm.js';
+import { OPENROUTER_FREE_MODEL } from '../../llm-model-fallback.js';
 import {
   containsEntityPhrase,
   englishWords,
@@ -66,7 +67,14 @@ export async function writeConceptCardCopy(
 }
 
 export function createOpenRouterConceptCardCopyProvider(): ConceptCardCopyProvider {
-  const { openai, model } = getOpenRouterConfig({ thinkingModel: null });
+  // Keep the cost choice explicit at each workload boundary; sharing this
+  // configuration would hide which providers intentionally use the free primary.
+  // jscpd:ignore-start
+  const { openai, model } = getOpenRouterConfig({
+    model: OPENROUTER_FREE_MODEL,
+    thinkingModel: null,
+  });
+  // jscpd:ignore-end
   return {
     model,
     complete: (request) => completeConceptCardCopy(openai, model, request),

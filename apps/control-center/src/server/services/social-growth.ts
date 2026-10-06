@@ -1,5 +1,6 @@
 import type { createClient } from '@supabase/supabase-js';
 
+import { readAllPages } from './supabase-reads.js';
 import { loadWaitlistGrowth } from './waitlist-growth.js';
 import { unavailableWaitlist } from '../../shared/waitlist-growth.js';
 import type {
@@ -7,6 +8,7 @@ import type {
   SocialExperimentStatus,
   SocialExperimentSummary,
   SocialGrowthLane,
+  SocialAudienceHistory,
   SocialGrowthPlatform,
   SocialGrowthResponse,
 } from '../../shared/types.js';
@@ -68,6 +70,7 @@ export async function loadSocialGrowth(input: {
       status,
       message,
       generatedAt,
+      audience: { days: [], series: [] },
       platforms: [],
       experiments: [],
       attribution: [],
@@ -100,63 +103,62 @@ export async function loadSocialGrowth(input: {
     const metricSince = new Date(
       input.now.getTime() - (EXPERIMENT_HORIZON_DAYS + 1) * DAY_MS,
     ).toISOString();
-    const [
-      snapshotsResult,
-      postsResult,
-      standardizedResult,
-      observationsResult,
-    ] = await Promise.all([
-      client
-        .from('social_account_snapshots')
-        .select('platform,captured_at,followers')
-        .gte('captured_at', attributionSince)
-        .order('captured_at', { ascending: true })
-        .limit(1_500),
-      client
-        .from('social_posts')
-        .select(
-          'id,episode_id,platform,language_code,published_at,content_features,experiment_key,experiment_variant',
-        )
-        .gte('published_at', experimentSince)
-        .order('published_at', { ascending: false })
-        .limit(500),
-      client
-        .from('social_post_metrics')
-        .select(
-          'social_post_id,captured_at,age_hours,measurement_window,collection_status,views,impressions,likes,comments,shares,saves,profile_visits,followers_gained',
-        )
-        .gte('captured_at', metricSince)
-        .eq('collection_status', 'collected')
-        .not('measurement_window', 'is', null)
-        .order('captured_at', { ascending: true })
-        .limit(3_000),
-      client
-        .from('social_post_metrics')
-        .select(
-          'social_post_id,captured_at,age_hours,measurement_window,collection_status,views,impressions,likes,comments,shares,saves,profile_visits,followers_gained',
-        )
-        .gte('captured_at', attributionSince)
-        .eq('collection_status', 'collected')
-        .order('captured_at', { ascending: true })
-        .limit(4_000),
-    ]);
+    const [snapshotRows, postsResult, standardizedResult, observationsResult] =
+      await Promise.all([
+        readAllPages(() =>
+          client
+            .from('social_account_snapshots')
+            .select('id,platform,captured_at,followers')
+            .gte(
+              'captured_at',
+              new Date(input.now.getTime() - 31 * DAY_MS).toISOString(),
+            ),
+        ),
+        client
+          .from('social_posts')
+          .select(
+            'id,episode_id,platform,language_code,published_at,content_features,experiment_key,experiment_variant',
+          )
+          .gte('published_at', experimentSince)
+          .order('published_at', { ascending: false })
+          .limit(500),
+        client
+          .from('social_post_metrics')
+          .select(
+            'social_post_id,captured_at,age_hours,measurement_window,collection_status,views,impressions,likes,comments,shares,saves,profile_visits,followers_gained',
+          )
+          .gte('captured_at', metricSince)
+          .eq('collection_status', 'collected')
+          .not('measurement_window', 'is', null)
+          .order('captured_at', { ascending: true })
+          .limit(3_000),
+        client
+          .from('social_post_metrics')
+          .select(
+            'social_post_id,captured_at,age_hours,measurement_window,collection_status,views,impressions,likes,comments,shares,saves,profile_visits,followers_gained',
+          )
+          .gte('captured_at', attributionSince)
+          .eq('collection_status', 'collected')
+          .order('captured_at', { ascending: true })
+          .limit(4_000),
+      ]);
     const error =
-      snapshotsResult.error ??
-      postsResult.error ??
-      standardizedResult.error ??
-      observationsResult.error;
+      postsResult.error ?? standardizedResult.error ?? observationsResult.error;
     if (error) {
       throw error;
     }
 
-    const snapshots = (snapshotsResult.data ?? []) as AttributionSnapshot[];
+    const snapshots = (snapshotRows as AttributionSnapshot[]).sort(
+      (a, b) => Date.parse(a.captured_at) - Date.parse(b.captured_at),
+    );
+    const snapshotsByPlatform = groupBy(snapshots, (row) => row.platform);
     const posts = (postsResult.data ?? []) as GrowthPost[];
     const standardized = (standardizedResult.data ??
       []) as AttributionObservation[];
     const observations = (observationsResult.data ??
       []) as AttributionObservation[];
     const attribution = buildFollowerAttribution({
-      snapshots,
+      snapshots: snapshots.filter((row) => row.captured_at >= attributionSince),
       posts,
       observations,
     });
@@ -165,8 +167,9 @@ export async function loadSocialGrowth(input: {
       status: 'ok',
       message: null,
       generatedAt,
+      audience: buildAudience(snapshotsByPlatform, input.now),
       platforms: buildPlatforms({
-        snapshots,
+        snapshotsByPlatform,
         posts,
         standardized,
         attribution,
@@ -194,7 +197,7 @@ export async function loadSocialGrowth(input: {
 }
 
 function buildPlatforms(input: {
-  snapshots: AttributionSnapshot[];
+  snapshotsByPlatform: Map<string, AttributionSnapshot[]>;
   posts: GrowthPost[];
   standardized: AttributionObservation[];
   attribution: ReturnType<typeof buildFollowerAttribution>;
@@ -203,9 +206,7 @@ function buildPlatforms(input: {
 }): SocialGrowthPlatform[] {
   const sevenDaysAgo = input.now.getTime() - 7 * DAY_MS;
   return PLATFORMS.map((platform) => {
-    const snapshots = input.snapshots.filter(
-      (row) => row.platform === platform,
-    );
+    const snapshots = input.snapshotsByPlatform.get(platform) ?? [];
     const latest = snapshots.at(-1);
     const recentPosts = input.posts.filter(
       (post) =>
@@ -519,4 +520,36 @@ function median(values: number[]): number {
   return ordered.length % 2
     ? ordered[midpoint]!
     : (ordered[midpoint - 1]! + ordered[midpoint]!) / 2;
+}
+
+function jstDay(timestamp: number): string {
+  // JST has no daylight saving time.
+  return new Date(timestamp + 9 * 3_600_000).toISOString().slice(0, 10);
+}
+
+function buildAudience(
+  grouped: Map<string, AttributionSnapshot[]>,
+  now: Date,
+): SocialAudienceHistory {
+  const days = Array.from({ length: 30 }, (_, index) =>
+    jstDay(now.getTime() - (29 - index) * DAY_MS),
+  );
+  return {
+    days,
+    series: PLATFORMS.map((platform) => {
+      const rows = grouped.get(platform) ?? [];
+      const latest = rows.at(-1);
+      const daily = new Map(
+        rows.map((row) => [jstDay(Date.parse(row.captured_at)), row.followers]),
+      );
+      return {
+        platform,
+        followersNow: latest?.followers ?? null,
+        capturedAt: latest?.captured_at ?? null,
+        delta7d: snapshotDelta(rows, now, 7 * DAY_MS),
+        delta30d: snapshotDelta(rows, now, 30 * DAY_MS),
+        followersByDay: days.map((day) => daily.get(day) ?? null),
+      };
+    }),
+  };
 }

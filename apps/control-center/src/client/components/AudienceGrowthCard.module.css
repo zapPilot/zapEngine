@@ -1,0 +1,36 @@
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+.platform {
+  min-width: 0;
+}
+.platform p {
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+.platform svg {
+  width: 100%;
+  color: var(--ink);
+  fill: currentColor;
+}
+.line {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+.zero {
+  stroke: var(--line);
+  stroke-dasharray: 3 3;
+}
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 500px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -333,7 +333,7 @@ describe('createEpisodeVideoVisualProcessor', () => {
       ...source(),
       sourceTitle: null,
       englishTitle: '',
-      englishScript: '',
+      englishScript: 'First sentence. Second sentence.',
     };
     const bareJob: EpisodeVideoVisualJobRow = {
       ...job(),
@@ -375,7 +375,8 @@ describe('createEpisodeVideoVisualProcessor', () => {
 
     expect(generateStoryboard).toHaveBeenCalledWith(
       expect.objectContaining({
-        searchScript: '',
+        searchScript: 'First sentence. Second sentence.',
+        contentSceneBounds: { min: 0, max: 2 },
       }),
     );
     expect(generateStoryboard.mock.calls[0]?.[0]).not.toHaveProperty(
@@ -386,6 +387,7 @@ describe('createEpisodeVideoVisualProcessor', () => {
         draft: storyboard().draft,
         title: bareSource.title,
         script: bareSource.script,
+        searchScript: bareSource.englishScript,
       },
       { signal: expect.any(AbortSignal) },
     );
@@ -848,7 +850,7 @@ describe('createEpisodeVideoVisualProcessor', () => {
 });
 
 describe('visual search debug checkpoints', () => {
-  it('checkpoints the planned queries before scraping or searching', async () => {
+  it('scrapes before planning and checkpoints queries before searching', async () => {
     const order: string[] = [];
     const persistDebug = vi.fn().mockImplementation(async () => {
       order.push('persistDebug');
@@ -875,7 +877,7 @@ describe('visual search debug checkpoints', () => {
 
     // A failure inside image search is the only case with no completed payload
     // to read, so the checkpoint has to be durable before search starts.
-    expect(order).toEqual(['persistDebug', 'scrape', 'planAssets']);
+    expect(order).toEqual(['scrape', 'persistDebug', 'planAssets']);
     expect(persistDebug).toHaveBeenCalledWith(episodeId, 'worker-1', {
       schemaVersion: 'visual-search-debug-v1',
       phase: 'planned',
@@ -1865,4 +1867,68 @@ describe('episode video visual processor coverage gaps', () => {
       expect.stringContaining('kind=zap-pilot-outro'),
     );
   });
+});
+
+describe('publisher density and translation alignment', () => {
+  it.each([
+    { englishScript: '', japaneseScript: undefined, max: 1 },
+    {
+      englishScript: 'First sentence. Second sentence. Third sentence.',
+      japaneseScript: '最初の文。次の文。',
+      max: 2,
+    },
+  ])(
+    'scrapes before generation and propagates alignment cap $max',
+    async ({ englishScript, japaneseScript, max }) => {
+      const visualSource = {
+        ...source(),
+        englishScript,
+        ...(japaneseScript ? { japaneseScript } : {}),
+      };
+      const visualJob = {
+        ...job(),
+        source_hash: hashEpisodeVideoVisualSource(
+          visualSource.script,
+          englishScript,
+        ),
+      };
+      const generateStoryboard = vi.fn(generateVisualStoryboard);
+      const scrape = vi.fn().mockResolvedValue({
+        title: 'PANews',
+        text: 'body',
+        images: Array.from({ length: 3 }, (_, index) => ({
+          ...articleCandidate(),
+          imageUrl: `https://images.example.test/body-${index}.jpg`,
+          sourceUrl: 'https://www.panewslab.com/articles/story',
+          origin: 'article',
+        })),
+      });
+      const enrichSearchIntents = vi
+        .fn()
+        .mockRejectedValue(new Error('stop after valid storyboard'));
+      const processor = createEpisodeVideoVisualProcessor(
+        checkpointDependencies({
+          generateStoryboard,
+          scrape,
+          enrichSearchIntents,
+        }),
+      );
+      await expect(
+        processor(visualJob, visualSource, context()),
+      ).rejects.toThrow('stop after valid storyboard');
+      expect(scrape.mock.invocationCallOrder[0]).toBeLessThan(
+        generateStoryboard.mock.invocationCallOrder[0]!,
+      );
+      expect(generateStoryboard).toHaveBeenCalledWith(
+        expect.objectContaining({ contentSceneBounds: { min: 3, max } }),
+      );
+      expect(enrichSearchIntents.mock.calls[0]![0].draft.scenes).toHaveLength(
+        max,
+      );
+      if (!englishScript)
+        expect(enrichSearchIntents.mock.calls[0]![0]).not.toHaveProperty(
+          'searchScript',
+        );
+    },
+  );
 });

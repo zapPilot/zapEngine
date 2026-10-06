@@ -3,10 +3,10 @@ import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { OwnBundleUrlSync } from '@/integration/bundleShareUrlSync.web';
+import { BundleUrlSync } from '@/integration/bundleShareUrlSync.web';
 
 const mocks = vi.hoisted(() => ({
-  account: { userId: null as string | null },
+  account: { viewingUserId: null as string | null },
   getBundleViewUserId: vi.fn(() => null as string | null),
   pathname: '/home',
   resolve: vi.fn(() => null as string | null),
@@ -20,7 +20,7 @@ vi.mock('@/integration/bundleViewParam', () => ({
   getBundleViewUserId: mocks.getBundleViewUserId,
 }));
 vi.mock('@/integration/bundleShareModel', () => ({
-  resolveOwnBundleUrlSearch: mocks.resolve,
+  resolveBundleUrlSearch: mocks.resolve,
 }));
 
 (
@@ -38,7 +38,7 @@ async function render(): Promise<void> {
     document.body.appendChild(container);
     root = createRoot(container);
   }
-  await act(async () => root?.render(createElement(OwnBundleUrlSync)));
+  await act(async () => root?.render(createElement(BundleUrlSync)));
 }
 
 async function flushFirstFrame(): Promise<void> {
@@ -48,11 +48,18 @@ async function flushFirstFrame(): Promise<void> {
   if (!entry) throw new Error('No animation frame was scheduled');
   frames.delete(entry[0]);
   await act(async () => entry[1](0));
+  const next = frames.entries().next().value as
+    | [number, FrameRequestCallback]
+    | undefined;
+  if (next) {
+    frames.delete(next[0]);
+    await act(async () => next[1](0));
+  }
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.account.userId = null;
+  mocks.account.viewingUserId = null;
   mocks.pathname = '/home';
   mocks.resolve.mockReturnValue(null);
   mocks.getBundleViewUserId.mockReturnValue(null);
@@ -75,8 +82,8 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
-describe('OwnBundleUrlSync web', () => {
-  it('waits one frame before consulting or changing the router-owned URL', async () => {
+describe('BundleUrlSync web', () => {
+  it('waits for the router handoff before consulting or changing the URL', async () => {
     await render();
     expect(mocks.resolve).not.toHaveBeenCalled();
 
@@ -84,13 +91,12 @@ describe('OwnBundleUrlSync web', () => {
     expect(mocks.resolve).toHaveBeenCalledWith({
       pathname: '/home',
       search: '',
-      latchedUrlUserId: null,
-      ownUserId: null,
+      viewingUserId: null,
     });
   });
 
   it('adds and removes query strings without losing the hash', async () => {
-    mocks.account.userId = 'user-1';
+    mocks.account.viewingUserId = 'user-1';
     mocks.resolve.mockReturnValue('tab=portfolio&userId=user-1');
     const replace = vi.spyOn(window.history, 'replaceState');
     await render();
@@ -106,6 +112,7 @@ describe('OwnBundleUrlSync web', () => {
     mocks.resolve.mockReturnValue('');
     window.history.replaceState({}, '', '/portfolio?userId=user-1#next');
     await render();
+    await flushFirstFrame();
     expect(replace).toHaveBeenLastCalledWith(
       window.history.state,
       '',

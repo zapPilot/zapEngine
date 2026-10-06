@@ -1,4 +1,27 @@
 export const en = {
+  'home.reclaimTitle': 'Claim wallet',
+  'home.reclaimBody': 'Move this address into your own new bundle?',
+  'home.reclaimConfirm': 'Move to my bundle',
+  'home.ownerClaimed': 'Review your wallets, email and Telegram settings',
+  'home.telegramLocked': 'Sign to manage notifications',
+  'home.signIn': 'Sign in',
+  'home.cancel': 'Cancel',
+
+  'home.searchWallet': 'Search wallet address',
+  'home.clearWalletSearch': 'Clear wallet search',
+  'home.searchSubmit': 'Search',
+  'home.searchInvalid': 'Enter a valid Ethereum address.',
+  'home.searchNotFound': 'Portfolio not found.',
+  'home.searchError': 'Could not search. Please try again.',
+  'home.readOnlyBundle': 'Read-only view · {address} · {count} wallets',
+  'home.returnOwnBundle': 'Back to my portfolio',
+  'home.bundleLogin': 'Sign in',
+  'home.sharePortfolio': 'Share portfolio',
+  'home.shareTitle': 'Zap Pilot portfolio',
+  'home.shareCopied': 'Link copied',
+  'home.sharePublic': 'Anyone with this link can view the portfolio read-only.',
+  'home.shareError': 'Could not copy the link.',
+
   'home.iosReadOnlyConnectTitle': 'View your portfolio',
   'home.iosReadOnlyConnectBody':
     'Sign in with Privy to view your Zap Pilot portfolio. If your account has no portfolio, you can enter an address to track from the Account tab.',
@@ -78,6 +101,29 @@ export const en = {
 } as const;
 
 export const zhHant = {
+  'home.reclaimTitle': '認領錢包',
+  'home.reclaimBody': '把這個地址移到你自己的新 bundle？',
+  'home.reclaimConfirm': '移到我的 bundle',
+  'home.ownerClaimed': '請檢查錢包、email 和 Telegram 設定',
+  'home.telegramLocked': '簽名後即可管理通知',
+  'home.signIn': '簽名',
+  'home.cancel': '取消',
+
+  'home.searchWallet': '搜尋錢包地址',
+  'home.clearWalletSearch': '清除錢包搜尋',
+  'home.searchSubmit': '搜尋',
+  'home.searchInvalid': '請輸入有效的 Ethereum 地址。',
+  'home.searchNotFound': '查無投資組合。',
+  'home.searchError': '搜尋失敗，請再試一次。',
+  'home.readOnlyBundle': '唯讀檢視 · {address} · {count} 個錢包',
+  'home.returnOwnBundle': '回到我的投資組合',
+  'home.bundleLogin': '登入',
+  'home.sharePortfolio': '分享投資組合',
+  'home.shareTitle': 'Zap Pilot 投資組合',
+  'home.shareCopied': '已複製連結',
+  'home.sharePublic': '任何拿到連結的人都能唯讀查看',
+  'home.shareError': '無法複製連結。',
+
   'home.iosReadOnlyConnectTitle': '查看你的投資組合',
   'home.iosReadOnlyConnectBody':
     '使用 Privy 登入即可查看 Zap Pilot 投資組合；如果帳號沒有投資組合，也可以到「帳戶」分頁輸入想追蹤的位址。',
@@ -152,6 +198,29 @@ export const zhHant = {
 } satisfies Record<keyof typeof en, string>;
 
 export const ja = {
+  'home.reclaimTitle': 'ウォレットを取得',
+  'home.reclaimBody': 'このアドレスを自分の新しいバンドルに移動しますか？',
+  'home.reclaimConfirm': '自分のバンドルに移動',
+  'home.ownerClaimed': 'ウォレット、メールと Telegram の設定をご確認ください',
+  'home.telegramLocked': '署名すると通知を管理できます',
+  'home.signIn': '署名する',
+  'home.cancel': 'キャンセル',
+
+  'home.searchWallet': 'ウォレットアドレスを検索',
+  'home.clearWalletSearch': '検索をクリア',
+  'home.searchSubmit': '検索',
+  'home.searchInvalid': '有効な Ethereum アドレスを入力してください。',
+  'home.searchNotFound': 'ポートフォリオが見つかりません。',
+  'home.searchError': '検索に失敗しました。もう一度お試しください。',
+  'home.readOnlyBundle': '読み取り専用 · {address} · {count} ウォレット',
+  'home.returnOwnBundle': '自分のポートフォリオに戻る',
+  'home.bundleLogin': 'ログイン',
+  'home.sharePortfolio': 'ポートフォリオを共有',
+  'home.shareTitle': 'Zap Pilot ポートフォリオ',
+  'home.shareCopied': 'リンクをコピーしました',
+  'home.sharePublic': 'リンクを持つ人は誰でも読み取り専用で閲覧できます。',
+  'home.shareError': 'リンクをコピーできませんでした。',
+
   'home.iosReadOnlyConnectTitle': 'ポートフォリオを表示',
   'home.iosReadOnlyConnectBody':
     'PrivyでサインインするとZap Pilotのポートフォリオを表示できます。ポートフォリオがない場合は、アカウントタブで追跡するアドレスを入力できます。',

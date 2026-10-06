@@ -21,7 +21,7 @@ export const INVEST_SECTORS: readonly InvestSector[] = [
   {
     id: 'crypto',
     label: 'Crypto',
-    description: 'BTC and ETH market exposure',
+    description: 'Liquidity in GMX BTC/USD and ETH/USD pools.',
     colorKey: 'btc',
     executable: true,
     lockedReason: null,
@@ -30,7 +30,8 @@ export const INVEST_SECTORS: readonly InvestSector[] = [
   {
     id: 'stable',
     label: 'Stable',
-    description: 'Dollar-denominated yield',
+    description:
+      'USDC in lending (Morpho) and market making (HLP). Returns can be negative.',
     colorKey: 'usd',
     executable: true,
     lockedReason: null,

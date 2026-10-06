@@ -1,6 +1,6 @@
-import { tokens } from '@zapengine/design-tokens/tokens';
+import { Callout } from '@/components/ui/Callout';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowRight, TriangleAlert } from 'lucide-react-native';
+import { ArrowRight } from 'lucide-react-native';
 import { useEffect, useRef, useState } from 'react';
 import { type LayoutChangeEvent, ScrollView, Text, View } from 'react-native';
 
@@ -12,12 +12,12 @@ import { AllocationBar } from '@/components/charts/AllocationBar';
 import { Badge } from '@/components/ui/Badge';
 import { StatGrid } from '@/components/ui/StatGrid';
 import { Button } from '@/components/ui/Button';
+import { Text as KitText } from '@/components/ui/Text';
 
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { Sparkline } from '@/components/charts/Sparkline';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
-import { DEMO } from '@/data/demo';
 import {
   RANGE_OPTIONS,
   type StrategyRange,
@@ -43,19 +43,15 @@ export function StrategyScreen() {
   const account = useAccount();
   const result = useStrategyData(
     account.userId,
-    account.isConnected,
     strategyBacktestDaysForRange(range),
   );
   const decision = useStrategyDecisionPacket(account.userId);
   const signals = useMarketSignals();
 
-  const isDemo = !account.isConnected;
-  const strategy = result.data ?? DEMO.strategy;
-  const loading = !isDemo && result.isLoading;
-  const chartData =
-    result.data?.backtest.chartData && result.data.backtest.chartData.length > 1
-      ? result.data.backtest.chartData
-      : DEMO.home.sparkline;
+  const strategy = result.data;
+  const loading = result.isLoading;
+  const chartData = strategy.backtest.chartData;
+  const displayName = strategy.backtest.displayName;
   const allocation = strategy.backtest.allocation;
   const startStrategy = createStrategyStartAction(authAction.run, () =>
     router.push('/invest/amount'),
@@ -90,15 +86,18 @@ export function StrategyScreen() {
   return (
     <ScreenScrollView width="dashboard" scrollRef={scrollRef}>
       <PageHeader title={t('tabs.strategy')} />
-
-      {!isDemo ? (
-        <View onLayout={measureDecisionPacket}>
-          <DecisionPacketCard
-            packet={decision.data}
-            loading={decision.isLoading}
-          />
-        </View>
+      {displayName ? (
+        <KitText variant="body-sm" tone="secondary">
+          {t('strategy.subtitle', { name: displayName })}
+        </KitText>
       ) : null}
+
+      <View onLayout={measureDecisionPacket}>
+        <DecisionPacketCard
+          packet={decision.data}
+          loading={decision.isLoading}
+        />
+      </View>
 
       <MarketSignalsCard
         signals={signals.data}
@@ -106,7 +105,7 @@ export function StrategyScreen() {
         highlightedSignalId={decision.data?.trigger.chartSeriesId ?? null}
       />
 
-      <View className="mx-5 mt-6 flex-row items-center justify-between">
+      <View className="mt-6 flex-row items-center justify-between">
         <Text className="font-sans-semibold text-[14px] text-ink">
           {t('strategy.backtest')}
         </Text>
@@ -122,11 +121,11 @@ export function StrategyScreen() {
         />
       </View>
 
-      <Card className="mx-5 mt-3 p-[15px]">
+      <Card className="mt-3 p-[15px]">
         <View className="flex-row items-end justify-between">
           <View>
             <Text className="font-mono text-[9px] uppercase tracking-[0.9px] text-[#9a8f78]">
-              {isDemo ? 'Zap Strategy · 1Y return' : 'Default backtest · ROI'}
+              {t('strategy.backtestLabel')}
             </Text>
             {loading ? (
               <SkeletonBlock className="mt-1 h-8 w-24 rounded-lg" />
@@ -146,25 +145,32 @@ export function StrategyScreen() {
           </View>
         </View>
         <View className="mt-4 h-[150px] justify-center">
-          {loading && chartData.length < 2 ? (
+          {loading ? (
             <SkeletonBlock className="h-[138px] w-full rounded-2xl" />
-          ) : (
+          ) : chartData.length > 1 ? (
             <Sparkline
               data={chartData}
               height={138}
               gradientId="strategyBacktestSpark"
             />
+          ) : (
+            <KitText variant="body-sm" tone="muted" className="text-center">
+              {t('strategy.backtestUnavailable')}
+            </KitText>
           )}
         </View>
+        <KitText variant="caption" tone="muted" className="mt-3">
+          {t('strategy.backtestDisclaimer')}
+        </KitText>
       </Card>
 
       {loading ? (
-        <StatGrid loading className="mt-5 px-5" count={8} />
+        <StatGrid loading className="mt-5" count={8} />
       ) : (
-        <StatGrid className="mt-5 px-5" metrics={strategy.backtest.metrics} />
+        <StatGrid className="mt-5" metrics={strategy.backtest.metrics} />
       )}
 
-      <Card className="mx-5 mt-6 p-4">
+      <Card className="mt-6 p-4">
         <View className="flex-row items-center justify-between">
           <Text className="font-sans-semibold text-[15px] text-ink">
             {t('strategy.currentPositioning')}
@@ -202,20 +208,15 @@ export function StrategyScreen() {
         </View>
       </Card>
 
-      {result.data && !result.data.hasTargetAllocation && !isDemo ? (
-        <View className="mx-5 mt-4 flex-row gap-2 rounded-2xl border border-[rgba(255,111,97,.25)] bg-[rgba(255,111,97,.08)] p-3">
-          <TriangleAlert
-            size={17}
-            strokeWidth={1.8}
-            color={tokens.color.danger}
-          />
-          <Text className="flex-1 text-[12px] leading-[18px] text-danger">
-            {t('strategy.allocationUnavailable')}
-          </Text>
-        </View>
+      {!strategy.hasTargetAllocation ? (
+        <Callout
+          tone="danger"
+          body={t('strategy.allocationUnavailable')}
+          className="mt-4"
+        />
       ) : null}
 
-      <View className="mx-5 mt-5">
+      <View className="mt-5">
         <Button onPress={startStrategy}>
           <Text className="font-sans-semibold text-[15.5px] text-[#0a0a0a]">
             {t('strategy.start')}

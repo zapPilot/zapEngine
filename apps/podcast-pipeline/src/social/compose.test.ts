@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { composeSocialContent } from './compose.js';
+import { fitTitleToBudget } from '../services/title-variants.js';
+import { composeSocialContent, rednoteTransportTitle } from './compose.js';
 import { applyPlatformCta } from './platforms.js';
 import type { GeneratedSocialCopy, SocialEpisode } from './types.js';
 
@@ -47,7 +48,53 @@ describe('composeSocialContent', () => {
     });
   });
 
-  it('hard-truncates an over-limit Rednote title only at the transport projection', () => {
+  it('uses the frozen budget variant without deriving a new headline', () => {
+    const frozen = {
+      ...episode,
+      title: '标'.repeat(30),
+      titleVariants: {
+        '20': { title: '你用USDT买到什么？', method: 'llm' },
+        '100': { title: 'English budget variant', method: 'truncate' },
+      },
+    };
+    expect(
+      composeSocialContent('rednote', { copy, episode: frozen }).title,
+    ).toBe('你用USDT买到什么？');
+    expect(rednoteTransportTitle(frozen)).toBe('你用USDT买到什么？');
+    expect(
+      composeSocialContent('youtube', { copy, episode: frozen }).title,
+    ).toBe('English budget variant');
+    expect(
+      composeSocialContent('youtube', {
+        copy,
+        episode: {
+          ...episode,
+          title: 'A faithful English title',
+          titleVariants: {},
+        },
+      }).title,
+    ).toBe('A faithful English title');
+  });
+  it('preserves deterministic legacy fitting for empty or invalid variants', () => {
+    for (const title of [
+      'Dan Koe 最新長文：要想成功，你就得活在幻想中',
+      '駁以太坊「拋棄」ETH論：不用ETH支付Gas，究竟意味著什麼？',
+    ]) {
+      for (const titleVariants of [
+        {},
+        { '20': { title: '标'.repeat(21), method: 'llm' } },
+      ]) {
+        expect(
+          composeSocialContent('rednote', {
+            copy,
+            episode: { ...episode, title, titleVariants },
+          }).title,
+        ).toBe(fitTitleToBudget(title, 20));
+      }
+    }
+  });
+
+  it('fits an over-limit Rednote title only at the transport projection', () => {
     const composed = composeSocialContent('rednote', {
       copy,
       episode: { ...episode, title: '標'.repeat(21) },
@@ -55,6 +102,42 @@ describe('composeSocialContent', () => {
 
     expect(composed.title).toBe('標'.repeat(20));
     expect(Array.from(composed.title ?? '')).toHaveLength(20);
+  });
+
+  it.each([
+    ['Quant一周暴涨300% 代币化存款赛道为何火了', 'Quant一周暴涨300%'],
+    [
+      'Compound基金会“坚守自盗”？社区要求解散基金会',
+      'Compound基金会“坚守自盗”？',
+    ],
+    ['「' + 'A'.repeat(25), '「' + 'A'.repeat(19)],
+    [
+      '这是一个关于科技公司未来的押注OpenAI新故事',
+      '这是一个关于科技公司未来的押注',
+    ],
+    ['Uniswap向Curve宣戰，不再讓機器人搶先交易', 'Uniswap向Curve宣戰'],
+    ['Bitget被盗3.5亿美元：事件后续还有哪些问题', 'Bitget被盗3.5亿美元'],
+    ['Arthur Hayes：AI AI AI AI AI AI', 'Arthur Hayes：AI AI'],
+    ['abcdefghijkl3.5，AI AI AI AI', 'abcdefghijkl3.5'],
+    ['AI，AI AI AI AI AI AI AI AI', 'AI，AI AI AI AI AI AI'],
+    ['abcdefghijklmnopqrstu', 'abcdefghijklmnopqrst'],
+    ['😀'.repeat(21), '😀'.repeat(20)],
+    ['AI '.repeat(8), 'AI AI AI AI AI AI AI'],
+    [
+      '这是一个关于科技公司未来的押注「OpenAI新故事',
+      '这是一个关于科技公司未来的押注',
+    ],
+  ])(
+    'fits %s without splitting words or leaving punctuation',
+    (title, expected) => {
+      expect(fitTitleToBudget(title, 20)).toBe(expected);
+    },
+  );
+
+  it('preserves an in-budget title including its hook punctuation', () => {
+    expect(fitTitleToBudget('Fomo为何挑战Vector？', 20)).toBe(
+      'Fomo为何挑战Vector？',
+    );
   });
 
   it('assembles YouTube metadata from the episode, preferring the article description', () => {
@@ -73,7 +156,7 @@ describe('composeSocialContent', () => {
     ).toBe('本集摘要。\n\n更多市场洞察与工具：https://www.zap-pilot.org');
   });
 
-  it('hard-truncates overlong canonical titles to YouTube limits and truncates the description to 4500', () => {
+  it('fits overlong canonical titles to YouTube limits and truncates the description to 4500', () => {
     const composed = composeSocialContent('youtube', {
       copy,
       episode: {

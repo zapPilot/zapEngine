@@ -1,13 +1,15 @@
 import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 
 import { errorMessage } from '../lib/errorMessage.js';
+import { buildLlmCostLine, type UsageCostLine } from './cost.js';
 import { logIngestEvent } from './ingest/step.js';
 import {
   completionMetadata,
   createCompletionWithRetry,
   getOpenRouterConfig,
 } from './llm.js';
+import { convertTextToZhCN } from './opencc.js';
+import { fitTitleToBudget, type TitleVariants } from './title-variants.js';
 
 export function normalizeEditorialTitle(value: unknown): string | null {
   if (typeof value !== 'string') return null;
@@ -46,25 +48,66 @@ export function normalizeEditorialTitle(value: unknown): string | null {
   return normalized;
 }
 
-export async function generateEditorialTitleWithLLM(
-  sourceTitle: string,
-): Promise<{
+export function isSameEditorialTitle(
+  candidate: string,
+  source: string,
+): boolean {
+  const normalized = canonicalizeEditorialTitle(candidate);
+  return (
+    normalized.length > 0 && normalized === canonicalizeEditorialTitle(source)
+  );
+}
+
+function canonicalizeEditorialTitle(value: string): string {
+  return convertTextToZhCN(value)
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[\p{P}\p{S}\p{Z}\p{C}]/gu, '');
+}
+
+function titleRejectionReason(
+  title: string,
+  budget: number | undefined,
+  rejectEqualTo: string | undefined,
+): string | null {
+  if (budget !== undefined && [...title].length > budget) {
+    return `超过 ${budget} 字（${[...title].length}）`;
+  }
+  if (
+    rejectEqualTo !== undefined &&
+    isSameEditorialTitle(title, rejectEqualTo)
+  ) {
+    return '与来源标题相同或仅有标点、空格差异，必须换切入点或句式重新改写';
+  }
+  return null;
+}
+
+interface EditorialTitleResult {
   title: string | null;
   model: string;
   provider: string;
   costUsd: number;
-}> {
+}
+
+async function requestEditorialTitle(input: {
+  promptName: 'title' | 'title-compression';
+  message: string;
+  operation: 'generateEditorialTitle' | 'compressEditorialTitle';
+  budget?: number;
+  rejectEqualTo?: string;
+}): Promise<EditorialTitleResult> {
   let model = 'unknown';
   let provider = 'unknown';
   let costUsd = 0;
-  let previousTitle: string | null = null;
   let reason = 'invalid_title';
   try {
+    // Title intentionally uses LLM_MODEL: CTR-critical copy with short, low-cost input.
     const config = getOpenRouterConfig({ thinkingModel: null });
     model = config.model;
     const system = readFileSync(
-      fileURLToPath(
-        new URL('../../prompts/title-system-prompt.txt', import.meta.url),
+      new URL(
+        `../../prompts/${input.promptName}-system-prompt.txt`,
+        import.meta.url,
       ),
       'utf8',
     );
@@ -79,15 +122,15 @@ export async function generateEditorialTitleWithLLM(
               role: 'user',
               content:
                 attempt === 1
-                  ? sourceTitle
-                  : `${sourceTitle}\n\n上一个标题不符合要求（${reason}）。请只输出标题这一行，控制在 20 个 Unicode 字符以内。`,
+                  ? input.message
+                  : `${input.message}\n\n上一个标题不符合要求（${reason}）。请更正，只输出有效、完整的标题这一行。`,
             },
           ],
           temperature: 0.3,
           max_tokens: 200,
         },
         null,
-        'generateEditorialTitle',
+        input.operation,
         { reasoning: { enabled: false } },
       );
       const metadata = completionMetadata(completion, config.model, null);
@@ -95,25 +138,89 @@ export async function generateEditorialTitleWithLLM(
       provider = metadata.provider;
       costUsd += metadata.costUsd;
       const choice = completion.choices[0]!;
-      const title =
+      const normalized =
         choice.finish_reason === 'length'
           ? null
           : normalizeEditorialTitle(choice.message.content);
-      if (title !== null) {
-        if (attempt === 2 || [...title].length <= 20)
-          return { title, model, provider, costUsd };
-        previousTitle = title;
-        reason = `上一个标题 ${[...title].length} 个字，超过 20 字`;
-      } else {
+      if (normalized === null) {
         reason =
           choice.finish_reason === 'length' ? 'truncated' : 'invalid_title';
+        continue;
       }
+      const title =
+        input.budget === undefined ? normalized : convertTextToZhCN(normalized);
+      const rejection = titleRejectionReason(
+        title,
+        input.budget,
+        input.rejectEqualTo,
+      );
+      if (rejection !== null) {
+        reason = rejection;
+        continue;
+      }
+      return { title, model, provider, costUsd };
     }
   } catch (error) {
     reason = `transport: ${errorMessage(error)}`;
-    logIngestEvent('llm:title-fallback', { reason });
-    return { title: null, model, provider, costUsd };
   }
-  if (previousTitle === null) logIngestEvent('llm:title-fallback', { reason });
-  return { title: previousTitle, model, provider, costUsd };
+  logIngestEvent(
+    input.budget === undefined
+      ? 'llm:title-failed'
+      : 'llm:title-compression-fallback',
+    { reason, ...(input.budget === undefined ? {} : { budget: input.budget }) },
+  );
+  return { title: null, model, provider, costUsd };
+}
+
+export async function generateEditorialTitleWithLLM(
+  sourceTitle: string,
+): Promise<EditorialTitleResult> {
+  return requestEditorialTitle({
+    promptName: 'title',
+    message: sourceTitle,
+    rejectEqualTo: sourceTitle,
+    operation: 'generateEditorialTitle',
+  });
+}
+
+export async function compressEditorialTitleWithLLM(
+  best: string,
+  source: string,
+  budget: number,
+): Promise<
+  Omit<EditorialTitleResult, 'title'> & {
+    title: string;
+    method: 'llm' | 'truncate';
+  }
+> {
+  const result = await requestEditorialTitle({
+    promptName: 'title-compression',
+    message: `Best Title: ${best}\n来源标题: ${source}\n上限 N: ${budget} 个 Unicode 字符`,
+    operation: 'compressEditorialTitle',
+    budget,
+  });
+  return {
+    ...result,
+    title: result.title ?? fitTitleToBudget(convertTextToZhCN(best), budget),
+    method: result.title === null ? 'truncate' : 'llm',
+  };
+}
+
+export async function buildEditorialTitleVariants(
+  best: string,
+  source: string,
+  budgets: readonly number[],
+): Promise<{ titleVariants: TitleVariants; cost: UsageCostLine[] }> {
+  const titleVariants: TitleVariants = {};
+  const cost: UsageCostLine[] = [];
+  for (const budget of new Set(budgets)) {
+    if ([...best].length <= budget) continue;
+    const result = await compressEditorialTitleWithLLM(best, source, budget);
+    titleVariants[String(budget)] = {
+      title: result.title,
+      method: result.method,
+    };
+    cost.push(buildLlmCostLine('LLM title', result));
+  }
+  return { titleVariants, cost };
 }

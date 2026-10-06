@@ -369,6 +369,7 @@ describe('writeConceptCardCopy', () => {
       costUsd: 0.0007,
     });
     expect(llm.getOpenRouterConfig).toHaveBeenCalledWith({
+      model: 'openrouter/free',
       thinkingModel: null,
     });
   });

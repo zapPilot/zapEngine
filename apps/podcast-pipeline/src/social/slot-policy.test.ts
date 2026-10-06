@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   SOCIAL_PUBLISH_WINDOW_JST,
-  SOCIAL_RELEASE_DAILY_CAP,
-  SOCIAL_RELEASE_SLOTS,
+  SOCIAL_RELEASE_CADENCES,
+  socialReleaseCadenceForBacklog,
 } from './policy.js';
 import {
   nextReleaseSlot,
@@ -16,47 +16,73 @@ import {
 const READY = new Date('2026-09-01T00:00:00.000Z');
 const DAY_MS = 24 * 60 * 60_000;
 
-/** Every configured article time on one JST day, derived from the policy. */
-function slotsOfDay(dayStart: Date): Date[] {
-  return SOCIAL_RELEASE_SLOTS.map(
+function slotsOfDay(dayStart: Date, backlogArticles = 0): Date[] {
+  return socialReleaseCadenceForBacklog(backlogArticles).slots.map(
     (slot) =>
       new Date(dayStart.getTime() + (slot.hour * 60 + slot.minute) * 60_000),
   );
 }
 
 describe('article release policy shape', () => {
-  it('offers at least one candidate time per article the day may release', () => {
-    // Raising the cap without adding slots silently leaves the extra articles
-    // unschedulable: nextReleaseSlot can only place one article per slot.
-    expect(SOCIAL_RELEASE_SLOTS.length).toBeGreaterThanOrEqual(
-      SOCIAL_RELEASE_DAILY_CAP,
+  it.each([
+    [0, 4],
+    [9, 4],
+    [10, 5],
+    [20, 5],
+    [21, 6],
+    [100, 6],
+    [-1, 4],
+    [9.9, 4],
+    [20.9, 5],
+    [Number.NaN, 4],
+  ])('uses %i queued articles => %i releases/day', (backlog, dailyCap) => {
+    expect(socialReleaseCadenceForBacklog(backlog).slots).toHaveLength(
+      dailyCap,
     );
   });
 
-  it('lists article slots in ascending order without repeats', () => {
-    // nextReleaseSlot returns the first slot at or after `after`, so an
-    // out-of-order list would hand back a later time than the day still has.
-    const minutes = SOCIAL_RELEASE_SLOTS.map(
-      (slot) => slot.hour * 60 + slot.minute,
-    );
-    expect(minutes).toEqual([...new Set(minutes)].sort((a, b) => a - b));
+  it('lists every cadence in ascending slot order without repeats', () => {
+    for (const cadence of SOCIAL_RELEASE_CADENCES) {
+      const minutes = cadence.slots.map((slot) => slot.hour * 60 + slot.minute);
+      expect(minutes).toEqual([...new Set(minutes)].sort((a, b) => a - b));
+    }
   });
 
   it('keeps every article slot inside the watched publish window', () => {
-    for (const slot of SOCIAL_RELEASE_SLOTS) {
-      expect(slot.hour).toBeGreaterThanOrEqual(
-        SOCIAL_PUBLISH_WINDOW_JST.startHour,
-      );
-      expect(slot.hour).toBeLessThan(SOCIAL_PUBLISH_WINDOW_JST.endHour);
+    for (const cadence of SOCIAL_RELEASE_CADENCES) {
+      for (const slot of cadence.slots) {
+        expect(slot.hour).toBeGreaterThanOrEqual(
+          SOCIAL_PUBLISH_WINDOW_JST.startHour,
+        );
+        expect(slot.hour).toBeLessThan(SOCIAL_PUBLISH_WINDOW_JST.endHour);
+      }
     }
   });
 });
 
 describe('nextReleaseSlot', () => {
-  it('takes the next free time the same day before rolling over', () => {
+  it('takes the next free low-backlog time the same day before rolling over', () => {
     const taken = new Date('2026-09-01T00:30:00.000Z');
     const slot = nextReleaseSlot({ after: READY, scheduled: [taken] });
     expect(slot?.toISOString()).toBe('2026-09-01T03:00:00.000Z');
+  });
+
+  it('uses the six-slot cadence when backlog is above 20 articles', () => {
+    const slot = nextReleaseSlot({
+      after: READY,
+      scheduled: [],
+      backlogArticles: 21,
+    });
+    expect(slot?.toISOString()).toBe('2026-09-01T00:00:00.000Z');
+  });
+
+  it('uses the five-slot cadence at the 10-article threshold', () => {
+    const slot = nextReleaseSlot({
+      after: READY,
+      scheduled: [],
+      backlogArticles: 10,
+    });
+    expect(slot?.toISOString()).toBe('2026-09-01T00:00:00.000Z');
   });
 
   it('moves the next article to the next day once today is full', () => {
@@ -67,17 +93,16 @@ describe('nextReleaseSlot', () => {
     expect(slot?.toISOString()).toBe('2026-09-02T00:30:00.000Z');
   });
 
-  it('counts articles parked off-slot against the day budget', () => {
-    // Legacy rows sit at times that are not article slots. They are still
-    // articles released that day, so they consume the day's budget instead of
-    // leaving its slots open for a fourth one.
+  it('counts articles parked off-slot against the selected day budget', () => {
     const offSlot = [
       new Date('2026-09-01T05:30:00.000Z'),
       new Date('2026-09-01T06:00:00.000Z'),
       new Date('2026-09-01T08:15:00.000Z'),
       new Date('2026-09-01T08:45:00.000Z'),
     ];
-    expect(offSlot).toHaveLength(SOCIAL_RELEASE_DAILY_CAP);
+    expect(offSlot).toHaveLength(
+      socialReleaseCadenceForBacklog(0).slots.length,
+    );
 
     const slot = nextReleaseSlot({ after: READY, scheduled: offSlot });
     expect(slot?.toISOString()).toBe('2026-09-02T00:30:00.000Z');

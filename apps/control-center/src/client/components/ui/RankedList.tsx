@@ -4,7 +4,7 @@ import { toneClass, type Tone } from './tone.js';
 
 export interface RankedItem {
   aside?: ReactNode;
-  detail?: string | null;
+  detail?: ReactNode;
   id: string;
   meta?: ReactNode;
   title: string;
@@ -30,7 +30,7 @@ export function RankedList(props: { empty: ReactNode; items: RankedItem[] }) {
           <div>
             <span className="cc-list-title">{item.title}</span>
             {item.detail ? (
-              <span className="cc-list-detail">{item.detail}</span>
+              <div className="cc-list-detail">{item.detail}</div>
             ) : null}
             {item.meta ? (
               <span className="cc-list-meta">{item.meta}</span>

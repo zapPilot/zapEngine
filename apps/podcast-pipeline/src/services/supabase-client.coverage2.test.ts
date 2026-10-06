@@ -7,7 +7,11 @@ describe('createRetryingSupabaseFetch coverage', () => {
     const cancel = vi.fn().mockRejectedValue(new Error('cancel failed'));
     const statusFetcher = vi
       .fn()
-      .mockResolvedValueOnce({ status: 503, body: { cancel } })
+      .mockResolvedValueOnce({
+        status: 503,
+        body: { cancel },
+        clone: () => ({ text: async () => '{}' }),
+      })
       .mockResolvedValueOnce({ status: 200 });
     const sleep = vi.fn().mockResolvedValue(undefined);
 

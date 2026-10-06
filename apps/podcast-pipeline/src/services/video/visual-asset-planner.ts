@@ -1,9 +1,10 @@
-/* eslint-disable sonarjs/no-duplicate-string -- 'generated-slide' is a domain literal intentionally repeated in asset planning logic */
 import { rm } from 'node:fs/promises';
 
 import sharp from 'sharp';
 
 import { errorMessage, toError } from '../../lib/errorMessage.js';
+/* eslint-disable sonarjs/no-duplicate-string -- 'generated-slide' is a domain literal intentionally repeated in asset planning logic */
+import { isPanewsHostname } from '../../lib/panews.js';
 import type { ImageCandidate } from '../../types.js';
 import {
   type AcquiredRemoteImage,
@@ -56,6 +57,10 @@ import {
   partitionViableCandidates,
   searchCueScore,
 } from './search-candidate-ranking.js';
+import {
+  PODCAST_INTRO_ASSET_ID,
+  PODCAST_OUTRO_ASSET_ID,
+} from './visual-asset-shared.js';
 
 /**
  * How many photos of its own a subject may take from the pool. Scenes of the
@@ -65,7 +70,7 @@ import {
  * publisher image or one borrowed from another subject cost it no budget and
  * must not push it into repeating a photo it has already shown.
  */
-const MAX_DISTINCT_SEARCHED_ASSETS_PER_SUBJECT = 6;
+export const MAX_DISTINCT_SEARCHED_ASSETS_PER_SUBJECT = 20;
 const PERCEPTUAL_HASH_DISTANCE_LIMIT = 6;
 /**
  * The message string is the only channel out of the planner an alert reads, and
@@ -440,17 +445,44 @@ function mandatoryLeadCoverError(reason: string): Error {
   );
 }
 
-const ARTICLE_IMAGE_ORIGINS = ['openGraph', 'article', 'figure'] as const;
+const OPEN_GRAPH_IMAGE_ORIGINS = ['openGraph'] as const;
+
+function isPublisherBodyImage(candidate: ImageCandidate): boolean {
+  return candidate.origin === 'article' || candidate.origin === 'figure';
+}
+
+function isPanewsPublisherImage(candidate: ImageCandidate): boolean {
+  try {
+    return isPanewsHostname(new URL(candidate.sourceUrl).hostname);
+  } catch {
+    return false;
+  }
+}
+
+function requiredPanewsBodyImages(
+  candidates: readonly ImageCandidate[],
+): ImageCandidate[] {
+  return candidates.filter(
+    (candidate) =>
+      isPublisherBodyImage(candidate) &&
+      isPanewsPublisherImage(candidate) &&
+      canonicalCandidateUrl(candidate.imageUrl) !== null,
+  );
+}
 
 /**
  * The publisher's own `og:image` is what every share card, feed preview and
  * video cover already shows, so the first content scene has to render that same
- * image rather than an independently searched one. Hoisting it to the front of
- * the cursor is all that takes: scene 0 draws first.
+ * image rather than an independently searched one.
  *
- * The decorative filter still judges it. An `og:image` served from a path the
- * filter reads as an icon or a thumbnail is worse than no lead image at all, so
- * a rejected one falls through to the ordinary ladder under its named reason.
+ * PANews body images follow a stronger rule: every valid body image is kept in
+ * publisher order and offered to content scenes before Brave may run. They
+ * deliberately bypass the decorative URL filter; if PANews put an image in the
+ * article body and we can acquire/render it, the video must use it. Other
+ * publishers keep the existing viability filter.
+ *
+ * The cover rule stays unchanged: the decorative filter still judges
+ * `og:image`, because a thumbnail/icon is not a valid lead cover.
  */
 function leadCoverOrderedArticleImages(
   candidates: readonly ImageCandidate[],
@@ -458,43 +490,68 @@ function leadCoverOrderedArticleImages(
   VisualAssetPlannerState,
   'articleImages' | 'leadCoverCandidateUrl' | 'leadCoverFallbackReason'
 > {
-  const { candidates: viable, dropReasons } = partitionViableCandidates(
+  const panewsBodyImages = requiredPanewsBodyImages(candidates);
+  const { candidates: ordinaryViable, dropReasons } = partitionViableCandidates(
     candidates,
-    ARTICLE_IMAGE_ORIGINS,
+    ['openGraph', 'article', 'figure'] as const,
   );
   const openGraph = candidates.find(
     (candidate) => candidate.origin === 'openGraph',
   );
+  const required = new Set(panewsBodyImages);
+  const viable = new Set(ordinaryViable);
+  const seen = new Set<string>();
+  const bodyImages = candidates.filter((candidate) => {
+    const url = canonicalCandidateUrl(candidate.imageUrl);
+    if (
+      !url ||
+      seen.has(url) ||
+      (!required.has(candidate) && !viable.has(candidate))
+    )
+      return false;
+    seen.add(url);
+    return true;
+  });
   if (!openGraph) {
     return {
-      articleImages: viable,
+      articleImages: bodyImages,
       leadCoverCandidateUrl: null,
       leadCoverFallbackReason: 'missing-open-graph-image',
     };
   }
 
-  const canonicalUrl = canonicalCandidateUrl(openGraph.imageUrl);
-  const leadIndex = viable.findIndex(
-    (candidate) => canonicalCandidateUrl(candidate.imageUrl) === canonicalUrl,
+  const { candidates: viableCover } = partitionViableCandidates(
+    [openGraph],
+    OPEN_GRAPH_IMAGE_ORIGINS,
   );
-  if (leadIndex === -1) {
+  const lead = viableCover[0];
+  if (!lead) {
     return {
-      articleImages: viable,
+      articleImages: bodyImages,
       leadCoverCandidateUrl: null,
       leadCoverFallbackReason: dropReasons.get(openGraph.imageUrl)!,
     };
   }
 
-  const lead = viable[leadIndex]!;
+  const leadCanonicalUrl = canonicalCandidateUrl(lead.imageUrl);
   return {
     articleImages: [
       lead,
-      ...viable.slice(0, leadIndex),
-      ...viable.slice(leadIndex + 1),
+      ...bodyImages.filter(
+        (candidate) =>
+          canonicalCandidateUrl(candidate.imageUrl) !== leadCanonicalUrl,
+      ),
     ],
     leadCoverCandidateUrl: lead.imageUrl,
     leadCoverFallbackReason: null,
   };
+}
+
+export function publisherImageSlotCount(
+  candidates: readonly ImageCandidate[],
+): number {
+  if (requiredPanewsBodyImages(candidates).length === 0) return 0;
+  return leadCoverOrderedArticleImages(candidates).articleImages.length;
 }
 
 /**
@@ -929,7 +986,14 @@ function nextAssetId(assets: readonly PlannedVisualImage[]): string {
     const match = /^image-(\d+)$/u.exec(asset.assetId);
     return match ? Math.max(current, Number.parseInt(match[1]!, 10)) : current;
   }, 0);
-  return `image-${String(max + 1).padStart(2, '0')}`;
+  let next = max + 1;
+  while (
+    [PODCAST_INTRO_ASSET_ID, PODCAST_OUTRO_ASSET_ID].includes(
+      `image-${String(next).padStart(2, '0')}`,
+    )
+  )
+    next += 1;
+  return `image-${String(next).padStart(2, '0')}`;
 }
 
 function rememberSubjectAsset(
@@ -1028,6 +1092,12 @@ async function acquireNextArticleImage(
       state.leadCoverCandidateUrl !== null &&
       canonicalCandidateUrl(candidate.imageUrl) ===
         canonicalCandidateUrl(state.leadCoverCandidateUrl);
+    const isRequiredBodyImage =
+      isPublisherBodyImage(candidate) && isPanewsPublisherImage(candidate);
+    let duplicateCheck: 'similar' | 'identical' | 'none' = isRequiredBodyImage
+      ? 'identical'
+      : 'similar';
+    if (isMandatoryLead) duplicateCheck = 'none';
     const acquired = await tryAcquireUniqueImage({
       candidate,
       provider: 'article',
@@ -1037,7 +1107,8 @@ async function acquireNextArticleImage(
       assets: state.assets,
       attemptedUrls: state.attemptedUrls,
       rejections,
-      allowSmallDimensions: isMandatoryLead,
+      allowSmallDimensions: isMandatoryLead || isRequiredBodyImage,
+      duplicateCheck,
     });
     if (acquired) return acquired;
     if (isMandatoryLead) {
@@ -1254,6 +1325,7 @@ async function tryAcquireUniqueImage(input: {
   attemptedUrls: Set<string>;
   rejections: CandidateRejections;
   allowSmallDimensions?: boolean;
+  duplicateCheck?: 'similar' | 'identical' | 'none';
 }): Promise<PlannedVisualImage | null> {
   const canonicalUrl = canonicalCandidateUrl(input.candidate.imageUrl)!;
   if (input.attemptedUrls.has(canonicalUrl)) {
@@ -1301,12 +1373,15 @@ async function tryAcquireUniqueImage(input: {
     );
     return null;
   }
-  const duplicate = input.assets.some(
-    (asset) =>
-      asset.sha256 === acquired.sha256 ||
-      perceptualHashDistance(asset.perceptualHash, perceptualHash) <=
-        PERCEPTUAL_HASH_DISTANCE_LIMIT,
-  );
+  const duplicate =
+    input.duplicateCheck !== 'none' &&
+    input.assets.some(
+      (asset) =>
+        asset.sha256 === acquired.sha256 ||
+        (input.duplicateCheck !== 'identical' &&
+          perceptualHashDistance(asset.perceptualHash, perceptualHash) <=
+            PERCEPTUAL_HASH_DISTANCE_LIMIT),
+    );
   if (duplicate) {
     await rm(acquired.path, { force: true });
     recordCandidateRejection(input.rejections, 'duplicate-image');

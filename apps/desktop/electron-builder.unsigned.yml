@@ -1,0 +1,6 @@
+extends: ./electron-builder.yml
+forceCodeSigning: false
+mac:
+  identity: null
+  notarize: false
+publish: null

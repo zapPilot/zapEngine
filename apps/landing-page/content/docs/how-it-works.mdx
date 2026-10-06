@@ -1,59 +1,59 @@
 ---
-title: How it works
-description: Sense the regime, decide the allocation, sign one bundle from your own wallet.
+title: How the runtime works
+description: Six stages from market signal to your signature, and which of them run today.
 ---
 
-import { Steps, Step } from 'fumadocs-ui/components/steps';
 import { Tabs, Tab } from 'fumadocs-ui/components/tabs';
 import { Callout } from 'fumadocs-ui/components/callout';
-import { AssetPairLabel } from '@/components/docs/AssetLabel';
+import { StatusBadge } from '@/components/StatusBadge';
 
-Every regime shift becomes one signed bundle in your own EOA. The flow has three parts:
+The runtime is a loop of six stages. Each stage does one job and can be checked on its own. Rules decide; your signature is the last step before money moves. Not every stage runs today, so each one below carries its status from the [status table](/docs#status-of-every-capability).
 
-<Steps>
+## Observe
 
-<Step>
+<StatusBadge capability="market-signals" qualifier="hosted" />
 
-### Sense
+Every day, Zap Pilot-hosted jobs collect token and stock prices, crypto Fear & Greed, the CNN US-equity Fear & Greed index, and the positions of connected wallets from DeBank and the Hyperliquid API. From these the strategy reads three signal families: 200-day moving averages, Fear & Greed, and ETH/BTC relative strength.
 
-Three signal _categories_ are evaluated continuously:
+## Evaluate
 
-- **200-Day Moving Average** — long-term trend filter.
-- **Fear & Greed Index** — sentiment filter (CNN macro plus crypto-native sources).
-- <strong>
-    <AssetPairLabel
-      first="ETH"
-      second="BTC"
-      label="ETH / BTC relative strength"
-    />
-  </strong>
-  — in-crypto rotation overlay.
+<StatusBadge capability="reference-strategy" qualifier="advisory" />
 
-The signal categories are stable. The exact thresholds, weights, and cooldowns are tuned in `apps/analytics-engine` and may change between releases — they live in code, not in this page.
+The reference strategy, [DMA/FGI Portfolio Rules](/docs/track-record/dma-fgi-portfolio-rules-v1), runs once a day on Zap Pilot-hosted servers. It walks six rules in priority order; the first rule that fires sets the day's target allocation, and guards limit churn. The output is a decision packet: the target, the rule that fired, and the raw signals behind it. It is advisory. Nothing executes because a rule fired.
 
-</Step>
+## Plan
 
-<Step>
+<StatusBadge capability="rebalance-plans" />
 
-### Decide
+The planner will turn the gap between a strategy target and your current positions into transactions. It does not exist yet.
 
-When the regime shifts, the rules engine produces a target allocation across the three pillars. Idle capital between rebalances is parked in baseline-yield venues so the portfolio is never doing nothing — but yield is the icing, not the strategy. Current performance figures are backtest results; the live pipeline is still pending.
+What runs today is narrower: when you start a deposit, the hosted plan service builds a deposit plan <StatusBadge capability="deposit-plans" /> into positions you hold directly — the Spark USDC vault on Morpho (Base), GMX v2 BTC/USD and ETH/USD GM pools (Arbitrum) and Hyperliquid HLP — routed through LI.FI where funds must be swapped or bridged. The default mix is a fixed starting point you can edit; it does not follow the strategy's target. Withdrawals have a server endpoint but are not offered in the app yet <StatusBadge capability="withdrawals" />.
 
-The engine is a **first-match-wins priority stack** of six rule types in two output shapes — decisive _cross-based_ moves and incremental _DCA-based_ nudges. The full breakdown is in [The rules, in priority order](#the-rules-in-priority-order) below.
+## Check
 
-</Step>
+<StatusBadge capability="pre-sign-checks" />
 
-<Step>
+Every plan passes a fail-closed gate before it is returned to you:
 
-### Sign
+- **Approvals are capped.** An unlimited approval fails the plan, and an approval of the token you deposit can never exceed the amount you entered.
+- **Minimum received.** Every routed swap or bridge must quote a positive minimum received within 1% of its estimate.
+- **Simulation.** The source-chain batch of approvals and calls is simulated with Tenderly. A batch that fails simulation is rejected. Production requires the simulator to be configured; if the provider itself times out, the plan is not blocked.
 
-A pre-built transaction bundle is delivered to you (today: via Telegram). You review it from your own wallet, and the rebalance is executed through the safest path your wallet supports:
+Hyperliquid's HyperCore follow-up steps are not EVM transactions and are not simulated.
 
-<Tabs items={['EIP-7702 (preferred)', 'Sequential fallback']}>
+A policy of your own — limits, allowlists, a kill switch — checked before anything is signed is planned <StatusBadge capability="policy-engine" />.
+
+## Sign
+
+<StatusBadge capability="wallet-signing" />
+
+The plan is handed to your wallet, where it does nothing until you sign. The app picks the safest path your wallet supports:
+
+<Tabs items={['Atomic batch (EIP-5792 / 7702)', 'Sequential fallback']}>
 
 <Tab>
 
-Wallets that advertise the EIP-5792 atomic capability (`wallet_getCapabilities` returns `atomic.status: "supported"`) get a true atomic batch via viem's `sendCalls`. All legs of the rebalance succeed together or revert together — no half-applied state.
+Wallets that advertise the EIP-5792 atomic capability (`wallet_getCapabilities` returns `atomic.status: "supported"`) get a true atomic batch via viem's `sendCalls`. Every call succeeds together or reverts together, with no half-applied state.
 
 Implementation: `packages/intent-engine/src/execution/eip7702.executor.ts`.
 
@@ -61,7 +61,7 @@ Implementation: `packages/intent-engine/src/execution/eip7702.executor.ts`.
 
 <Tab>
 
-Wallets without atomic capability send the same plan as sequential EOA transactions: approval first when required, then each prepared execution transaction. This preserves the caller identity that LI.FI and ERC-4626 vaults expect.
+Wallets without atomic capability send the same plan as sequential transactions from your address: the approval first when required, then each prepared call. This preserves the caller identity that LI.FI and ERC-4626 vaults expect.
 
 Implementation: `packages/app-core/src/lib/wallet/executeDepositPlan.ts`.
 
@@ -69,56 +69,31 @@ Implementation: `packages/app-core/src/lib/wallet/executeDepositPlan.ts`.
 
 </Tabs>
 
-Capability detection — and the EIP-7702 → sequential fallback decision — is handled by `packages/intent-engine/src/execution/capability.detector.ts`.
+Capability detection, and the choice between the two paths, is handled by `packages/intent-engine/src/execution/capability.detector.ts`. Privy embedded wallets also sign an EIP-712 `ZapPilotIntent` message bound to the batch before it is sent.
 
-</Step>
+Hyperliquid deposits are the one place with a standing permission <StatusBadge capability="device-agent-key" />: they use an agent key that is created and stored on your device (browser storage on the web). You approve that key once, and the approval may not expire.
 
-</Steps>
+## Verify
 
-## The rules, in priority order
+<StatusBadge capability="snapshot-chain" />
 
-On each daily snapshot, the engine walks this list top-down. The first rule whose trigger conditions are met produces that day's target allocation; the rest are skipped. Per-rule cooldowns prevent the same rule from re-firing on consecutive eligible days, and a same-day cross-down always wins over a same-day cross-up.
+Every day a snapshot of one reference address is published to IPFS and linked to the previous one by CID. The snapshots are unsigned today. Separately, one of the six rules can be recomputed on-chain <StatusBadge capability="verifiable-rule" /> with the [verifiable strategy calculator](/docs/track-record/verifiable-strategy).
 
-### 1. Cross-down exit
+## The gate in front of unattended
 
-When a risk asset's price closes below its long-term trend line, the engine moves out of that asset — and its peers in the same risk class — into the defensive leg, full size, immediately. This is the highest-priority rule in the stack: when a sell and a buy signal collide on the same day, the sell wins.
+<StatusBadge capability="unattended-runs" />
 
-### 2. Cross-up equal-weight
+Running without you is not the same as having a wallet that can batch. Ordinary EIP-7702 delegation is not a scoped session key. Unattended runs will require on-chain target and method restrictions, native and ERC-20 spend limits, expiry, and revocation you control independently of Zap Pilot's servers — and a prototype and audit review before they are enabled.
 
-When one or more risk assets close back above the trend line, the engine resets risk to an equal split across whichever assets are above the line that day. It reactivates exposure in a balanced way without trying to pick a winner among the assets that just turned.
+## Deterministic first
 
-### 3. ETH/BTC ratio rotation
+<StatusBadge capability="ai-exception-layer" />
 
-When the ETH/BTC strength ratio crosses its long-term trend line, the crypto leg flips entirely between the two. The leg is one-or-the-other under this rule — once it has fired, the portfolio does not hold both BTC and ETH simultaneously until the next ratio cross.
-
-### 4. ETH/BTC deviation DCA
-
-When ETH/BTC deviates far from its long-term mean, the engine incrementally
-leans toward the relatively cheap side of the pair. The adjustment is gradual
-and symmetric: unusually cheap ETH shifts toward ETH, while unusually expensive
-ETH shifts toward BTC.
-
-### 5. DMA overextension DCA sell
-
-When a risk asset trades well above its long-term trend line, the engine begins trimming a small, fixed-percentage slice on each eligible day, redistributing the proceeds between the defensive leg and the equity leg. Acting gradually here lets a strong trend continue running without being cut short on the first sign of overextension.
-
-### 6. FGI downshift DCA sell
-
-When sentiment transitions out of greed back into a more neutral or fearful regime, the engine trims risk in small increments back into the defensive leg. The asymmetric "defend on greed unwind" arm — designed to start dialing back exposure before the trend itself breaks, not after.
-
-### What stops the engine from churning
-
-Two stabilizers sit on top of the rule stack:
-
-- **Per-rule cooldowns** — once a rule fires, it sits out for a configured window before it can fire again (per-symbol for the cross-down exit, so SPY and BTC cooldowns are independent). Prevents whipsaw on indicator noise.
-- **Trade quota guards** — post-decision guards cap the minimum spacing between any two trades and the total number of trades over rolling short and longer windows, regardless of which rule produced the intent. The strategy cannot accidentally trade itself into the ground.
-
-When no rule's trigger conditions are met on a given day, the engine **holds** — no trade is prepared and you receive no signing prompt. That is the common case and it is intentional: most days, the right move is to do nothing.
+Today every decision comes from deterministic rules, and the same inputs always produce the same target. An optional AI layer that handles exceptions, bounded by your policy, may come later. It will never be the thing that decides your allocation.
 
 <Callout type="warn" title="What changes vs. what stays">
-  Strategy parameters — thresholds, target weights, cooldown lengths, and the
-  specific yield venues used between trades — are tuned in
-  `apps/analytics-engine` and change between releases. The execution model
-  (atomic EIP-7702 where supported, sequential wallet transactions otherwise)
-  and the signal categories (200MA, Fear & Greed, ETH/BTC RS) are stable.
+  Strategy parameters — thresholds, cooldowns and guard settings — live in
+  `apps/analytics-engine` and can change in place; the strategy is not versioned
+  yet. The signal families (200-day moving averages, Fear & Greed, ETH/BTC) and
+  the signing paths described here are stable.
 </Callout>

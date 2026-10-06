@@ -135,9 +135,9 @@ function sceneFixture(
 function renderEvidence(input: {
   pipelineDebug?: PodcastPipelineVisualDebug | null;
   data?: PodcastVisualDebugResponse | undefined;
-  onLoadVisualDebug?: ReturnType<typeof vi.fn>;
-  onSubmitReview?: ReturnType<typeof vi.fn>;
-  onResolveReview?: ReturnType<typeof vi.fn>;
+  onLoadVisualDebug?: PodcastVisualReviewHandlers['onLoadVisualDebug'];
+  onSubmitReview?: PodcastVisualReviewHandlers['onSubmitReview'];
+  onResolveReview?: PodcastVisualReviewHandlers['onResolveReview'];
   extra?: Record<string, unknown>;
 }) {
   const onLoadVisualDebug =
@@ -150,15 +150,9 @@ function renderEvidence(input: {
     <VisualEvidence
       data={'data' in input ? input.data : debugResponse()}
       episodeId={episodeId}
-      onLoadVisualDebug={
-        onLoadVisualDebug as unknown as PodcastVisualReviewHandlers['onLoadVisualDebug']
-      }
-      onResolveReview={
-        onResolveReview as unknown as PodcastVisualReviewHandlers['onResolveReview']
-      }
-      onSubmitReview={
-        onSubmitReview as unknown as PodcastVisualReviewHandlers['onSubmitReview']
-      }
+      onLoadVisualDebug={onLoadVisualDebug}
+      onResolveReview={onResolveReview}
+      onSubmitReview={onSubmitReview}
       pipelineDebug={input.pipelineDebug ?? null}
       {...(input.extra ?? {})}
     />,
@@ -408,7 +402,7 @@ describe('VisualEvidence coverage2 searches', () => {
           braveRequest({
             sceneId: null,
             subjectLabel: null,
-            kind: null as never,
+            kind: null,
             provider: 'brave',
             query: 'mystery',
             candidates: [
@@ -448,7 +442,7 @@ describe('VisualEvidence coverage2 searches', () => {
           {
             sceneId: 'scene-09',
             subjectIds: [],
-            selectionReason: null as unknown as string,
+            selectionReason: null,
             queries: ['q1', 'q2'],
           },
         ],

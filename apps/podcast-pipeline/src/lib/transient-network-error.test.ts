@@ -55,6 +55,21 @@ describe('isTransientNetworkError', () => {
     expect(isTransientNetworkError(error)).toBe(true);
   });
 
+  it.each(['PGRST002', 'PGRST003'])('matches pre-execution code %s', (code) => {
+    let err: unknown;
+    try {
+      throwSupabaseError({
+        message: 'Could not query the database for the schema cache. Retrying.',
+        details: '',
+        hint: '',
+        code,
+      });
+    } catch (e) {
+      err = e;
+    }
+    expect(isTransientNetworkError(err)).toBe(true);
+  });
+
   it('does not match PGRST202', () => {
     let err: unknown;
     try {

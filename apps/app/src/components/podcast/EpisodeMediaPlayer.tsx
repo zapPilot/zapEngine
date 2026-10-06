@@ -83,13 +83,25 @@ interface VideoClockState {
   failureHandled: boolean;
 }
 
+const ICON_BUTTON_TONES = {
+  accent: 'border-[rgba(212,197,163,.28)] bg-[rgba(212,197,163,.12)]',
+  success: 'border-success-line bg-success-soft',
+  danger: 'border-danger-line bg-danger-soft',
+} as const;
+
 export function PodcastIconButton({
   label,
+  hint,
+  tone = 'accent',
+  busy = false,
   disabled = false,
   onPress,
   children,
 }: {
   label: string;
+  hint?: string | undefined;
+  tone?: keyof typeof ICON_BUTTON_TONES;
+  busy?: boolean;
   disabled?: boolean;
   onPress: () => void;
   children: ReactNode;
@@ -98,13 +110,15 @@ export function PodcastIconButton({
     <Tap
       accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityHint={hint}
+      accessibilityState={{ busy }}
       disabled={disabled}
       onPress={onPress}
       className={cn(
         'h-11 w-11 items-center justify-center rounded-full border',
         disabled
           ? 'border-line bg-[rgba(255,255,255,.03)] opacity-40'
-          : 'border-[rgba(212,197,163,.28)] bg-[rgba(212,197,163,.12)]',
+          : ICON_BUTTON_TONES[tone],
       )}
     >
       {children}
@@ -381,7 +395,7 @@ function AudioPlaybackControls({
         </Text>
       </View>
 
-      <View className="mt-5 flex-row items-center justify-between">
+      <View className="mt-5 w-full max-w-[360px] self-center flex-row items-center justify-between">
         <PodcastIconButton
           label="Rewind 15 seconds"
           disabled={!isCurrent}
@@ -787,7 +801,7 @@ export function EpisodeMediaPlayer({
         }
       >
         {activeAudioSection === 'classroom' && classroomSections.length > 1 ? (
-          <View className="flex-row flex-wrap gap-2 px-5 pt-4">
+          <View className="flex-row flex-wrap gap-2 pt-4">
             {classroomSections.map((section) => {
               const language = section.languageCode;
               if (language === null) return null;
@@ -834,7 +848,7 @@ export function EpisodeMediaPlayer({
   };
 
   return (
-    <View className="px-5 pt-5">
+    <View className="pt-5">
       <View className="overflow-hidden rounded-[28px] border border-line bg-surface">
         <View className="border-b border-line p-3">
           <View

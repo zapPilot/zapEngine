@@ -12,6 +12,8 @@ import RebalancesPage from '../rebalances/page';
 import VerificationPage from '../verification/page';
 
 const useTrackRecord = vi.hoisted(() => vi.fn());
+const pathname = vi.hoisted(() => ({ value: '/track-record' }));
+vi.mock('next/navigation', () => ({ usePathname: () => pathname.value }));
 vi.mock('@/hooks/useTrackRecord', () => ({ useTrackRecord }));
 vi.mock('next/link', () => ({
   default: ({
@@ -67,13 +69,14 @@ function state(
 
 beforeEach(() => {
   vi.clearAllMocks();
+  pathname.value = '/track-record';
   useTrackRecord.mockReturnValue(state());
 });
 
 describe('track-record layout', () => {
   it.each([
     ['backtest', 'Backtest'],
-    ['live', 'Live'],
+    ['live', 'Snapshots · unsigned'],
   ] as const)('renders the %s source state', (source, label) => {
     useTrackRecord.mockReturnValue(state({ source }));
     render(
@@ -81,8 +84,8 @@ describe('track-record layout', () => {
         <p>child route</p>
       </TrackRecordLayout>,
     );
-    // The toggle button and the source badge render the same label, so the
-    // page intentionally contains duplicates.
+    // The backtest toggle and its source badge share a label, so the page
+    // intentionally contains duplicates.
     expect(screen.getAllByText(label).length).toBeGreaterThan(0);
     expect(screen.getByText('child route')).toBeInTheDocument();
   });
@@ -100,7 +103,7 @@ describe('track-record layout', () => {
         <p>child</p>
       </TrackRecordLayout>,
     );
-    expect(screen.getByText('Live unavailable')).toBeInTheDocument();
+    expect(screen.getByText('Snapshots unavailable')).toBeInTheDocument();
   });
 });
 
@@ -189,4 +192,22 @@ describe('track-record subroutes', () => {
     render(<VerificationPage />);
     expect(screen.getByText(/committed backtest dataset/)).toBeInTheDocument();
   });
+});
+
+it('shows calculator navigation and hides unrelated source controls on its route', () => {
+  pathname.value = '/track-record/calculator/';
+  render(
+    <TrackRecordLayout>
+      <p>calculator</p>
+    </TrackRecordLayout>,
+  );
+  expect(
+    screen.getByRole('link', { name: 'On-chain Calculator' }),
+  ).toHaveAttribute('href', '/track-record/calculator');
+  expect(
+    screen.queryByRole('button', { name: 'Backtest' }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole('button', { name: 'Snapshots' }),
+  ).not.toBeInTheDocument();
 });

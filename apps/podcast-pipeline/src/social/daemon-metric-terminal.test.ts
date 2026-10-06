@@ -1,5 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('./daemon-tick-telemetry.js', () => ({
+  withSocialDaemonTickTelemetry: (
+    _options: unknown,
+    run: () => Promise<unknown>,
+  ) => run(),
+  recordSocialEnqueueResult: vi.fn(),
+}));
+
 const mocks = vi.hoisted(() => ({
   listLearningSocialPosts: vi.fn(),
   listLearningSocialMetrics: vi.fn(),
@@ -18,13 +26,11 @@ const mocks = vi.hoisted(() => ({
   reconcileSocialPublishJob: vi.fn(),
   listSocialPublishCandidates: vi.fn(),
   listSocialPublishCandidatesForEpisodes: vi.fn(),
-  getActiveSocialStrategies: vi.fn(),
   claimSocialPublishJob: vi.fn(),
   listPendingSocialPublishSchedules: vi.fn().mockResolvedValue([]),
   listDueSocialPublishPlatforms: vi.fn().mockResolvedValue([]),
   captureDueAccountSnapshots: vi.fn(),
   capturePrePublishAccountSnapshots: vi.fn(),
-  refreshSocialStrategies: vi.fn(),
   publishSocialBatch: vi.fn(),
   prepareSocialBatchCopy: vi.fn().mockResolvedValue({}),
 }));
@@ -36,7 +42,6 @@ vi.mock('./daemon-store.js', () => ({
     .fn()
     .mockResolvedValue('2026-08-16T08:00:00.000Z'),
   failSocialPublishJob: vi.fn(),
-  getActiveSocialStrategies: mocks.getActiveSocialStrategies,
   getSocialQueueSnapshot: mocks.getSocialQueueSnapshot,
   listPendingSocialPublishSchedules: mocks.listPendingSocialPublishSchedules,
   listDueSocialPublishPlatforms: mocks.listDueSocialPublishPlatforms,
@@ -107,14 +112,8 @@ vi.mock('./publish-batch.js', () => ({
   prepareSocialBatchCopy: mocks.prepareSocialBatchCopy,
 }));
 
-vi.mock('./strategy.js', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('./strategy.js')>()),
-  refreshSocialStrategies: mocks.refreshSocialStrategies,
-}));
-
 import type { SocialPostRow } from '../types.js';
 import { collectDueMetricWindows, earliestDueWindow } from './daemon.js';
-import { learnSocialStrategies } from './strategy.js';
 
 function post(overrides: Partial<SocialPostRow> = {}): SocialPostRow {
   return {
@@ -155,7 +154,6 @@ beforeEach(() => {
   mocks.prepareSocialBatchCopy.mockResolvedValue({});
   mocks.listSocialPublishCandidates.mockResolvedValue([]);
   mocks.listSocialPublishCandidatesForEpisodes.mockResolvedValue([]);
-  mocks.getActiveSocialStrategies.mockResolvedValue([]);
   mocks.getSocialQueueSnapshot.mockResolvedValue({
     pendingCount: 0,
     episodeQueue: [],
@@ -335,153 +333,6 @@ describe('collectDueMetricWindows unavailable handling', () => {
     const inserted = await collectDueMetricWindows(NOW_72H, vi.fn());
     expect(inserted).toBe(0);
     expect(mocks.collectRednote).not.toHaveBeenCalled();
-  });
-});
-
-describe('strategy learning excludes suppressed', () => {
-  it('excludes rejected/self_only rednote metrics', () => {
-    const metrics = [
-      {
-        id: 'm1',
-        social_post_id: 'p1',
-        captured_at: '2026-08-16T10:00:00.000Z',
-        age_hours: 24,
-        measurement_window: '24h' as const,
-        views: 100,
-        impressions: null,
-        likes: 10,
-        comments: 2,
-        shares: 1,
-        saves: 3,
-        profile_visits: null,
-        followers_gained: null,
-        details: {},
-        created_at: '2026-08-16T10:00:00.000Z',
-      },
-      {
-        id: 'm2',
-        social_post_id: 'p2',
-        captured_at: '2026-08-16T10:00:00.000Z',
-        age_hours: 24,
-        measurement_window: '24h' as const,
-        views: 200,
-        impressions: null,
-        likes: 20,
-        comments: 5,
-        shares: 2,
-        saves: 4,
-        profile_visits: null,
-        followers_gained: null,
-        details: {},
-        created_at: '2026-08-16T10:00:00.000Z',
-      },
-    ];
-    // need 5 samples per platform variant to trigger strategy, so duplicate visible post metrics to pass MIN_PLATFORM_SAMPLES=5 threshold. Instead test isLearnable directly via counts? Simplify: test that visible contributes but rejected does not by checking learned config vs all suppressed.
-    const manyVisible = Array.from({ length: 5 }, (_, i) => ({
-      ...metrics[1]!,
-      id: `m2-${i}`,
-      social_post_id: `p2-${i}`,
-    }));
-    const manyPosts = Array.from({ length: 5 }, (_, i) =>
-      post({
-        id: `p2-${i}`,
-        review_status: 'visible',
-        hashtags: [`tag${i}`],
-        hook_type: 'question' as const,
-      }),
-    );
-    // Also add rejected posts that should be ignored
-    const rejectedPosts = Array.from({ length: 5 }, (_, i) =>
-      post({
-        id: `p1-${i}`,
-        review_status: 'rejected',
-        hashtags: [`bad${i}`],
-        hook_type: 'contrarian' as const,
-      }),
-    );
-    const rejectedMetrics = Array.from({ length: 5 }, (_, i) => ({
-      ...metrics[0]!,
-      id: `m1-${i}`,
-      social_post_id: `p1-${i}`,
-      views: 1,
-    }));
-    const learned = learnSocialStrategies({
-      posts: [...manyPosts, ...rejectedPosts],
-      metrics: [...manyVisible, ...rejectedMetrics],
-    });
-    // Should learn from visible only, not include rejected hashtags. The preferred hashtags should be from visible tags, not bad*
-    expect(learned.length).toBeGreaterThan(0);
-    for (const s of learned) {
-      expect(s.config.avoidHashtags ?? []).not.toEqual(
-        expect.arrayContaining(['bad0']),
-      );
-    }
-  });
-
-  it('excludes unavailable metric rows', () => {
-    const p = post({ id: 'p1', review_status: 'visible' });
-    const unavailableMetric = {
-      id: 'm1',
-      social_post_id: 'p1',
-      captured_at: '2026-08-16T10:00:00.000Z',
-      age_hours: 24,
-      measurement_window: '24h' as const,
-      collection_status: 'unavailable' as const,
-      views: null,
-      impressions: null,
-      likes: null,
-      comments: null,
-      shares: null,
-      saves: null,
-      profile_visits: null,
-      followers_gained: null,
-      details: {},
-      created_at: '2026-08-16T10:00:00.000Z',
-    };
-    const visibleMetric = {
-      id: 'm2',
-      social_post_id: 'p1',
-      captured_at: '2026-08-16T10:00:00.000Z',
-      age_hours: 24,
-      measurement_window: '24h' as const,
-      collection_status: 'collected' as const,
-      views: 500,
-      impressions: null,
-      likes: 10,
-      comments: 2,
-      shares: 1,
-      saves: 1,
-      profile_visits: null,
-      followers_gained: null,
-      details: {},
-      created_at: '2026-08-16T10:00:00.000Z',
-    };
-    const manyPosts = Array.from({ length: 5 }, (_, i) => ({
-      ...p,
-      id: `p1-${i}`,
-    }));
-    const manyUnavailable = Array.from({ length: 5 }, (_, i) => ({
-      ...unavailableMetric,
-      id: `m1-${i}`,
-      social_post_id: `p1-${i}`,
-    }));
-    const manyVisible = Array.from({ length: 5 }, (_, i) => ({
-      ...visibleMetric,
-      id: `m2-${i}`,
-      social_post_id: `p1-${i}`,
-    }));
-    const learned = learnSocialStrategies({
-      posts: manyPosts,
-      metrics: [...manyUnavailable, ...manyVisible],
-    });
-    // Should still learn because visible metrics count =5, unavailable ignored
-    expect(learned.length).toBeGreaterThan(0);
-    // If unavailable had views, it would inflate samples, but we ensure its filtered
-    const allUnavailable = learnSocialStrategies({
-      posts: manyPosts,
-      metrics: manyUnavailable,
-    });
-    expect(allUnavailable).toEqual([]);
   });
 });
 

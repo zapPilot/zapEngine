@@ -1,0 +1,67 @@
+{
+  "videoId": "kokode-clinic",
+  "engine": "s2.1-pro-free",
+  "voiceKey": "0478e5e65966",
+  "lines": {
+    "hook-patient": {
+      "file": "vo/kokode-clinic/5648f709ef66bca1.mp3",
+      "fingerprint": "232d5c889ed947da",
+      "durationSeconds": 5.472
+    },
+    "hook-content": {
+      "file": "vo/kokode-clinic/3a818a4b78d3cf36.mp3",
+      "fingerprint": "bad67bc5d38c72fb",
+      "durationSeconds": 4.8
+    },
+    "turn-desire": {
+      "file": "vo/kokode-clinic/fc839ef5889af9ce.mp3",
+      "fingerprint": "d86a19e37a253d08",
+      "durationSeconds": 5.64
+    },
+    "turn-solution": {
+      "file": "vo/kokode-clinic/510b921c45c154d8.mp3",
+      "fingerprint": "737c8ace593f11df",
+      "durationSeconds": 5.88
+    },
+    "turn-experience": {
+      "file": "vo/kokode-clinic/1e6b5493efb73275.mp3",
+      "fingerprint": "513fa8db28075b75",
+      "durationSeconds": 4.32
+    },
+    "demo-patient-flow": {
+      "file": "vo/kokode-clinic/12a3fd98175e711d.mp3",
+      "fingerprint": "6b7d05e28362c7f7",
+      "durationSeconds": 4.224
+    },
+    "demo-patient-draft": {
+      "file": "vo/kokode-clinic/e5ef663ed77e8829.mp3",
+      "fingerprint": "7234f250e8f5e6e3",
+      "durationSeconds": 5.208
+    },
+    "demo-image": {
+      "file": "vo/kokode-clinic/931ffb90cc943871.mp3",
+      "fingerprint": "88e5f1067253102b",
+      "durationSeconds": 5.904
+    },
+    "reveal": {
+      "file": "vo/kokode-clinic/72163617929659ab.mp3",
+      "fingerprint": "f76705515850beee",
+      "durationSeconds": 10.944
+    },
+    "boundary": {
+      "file": "vo/kokode-clinic/e61cbbff06afe1c9.mp3",
+      "fingerprint": "e29085f4aa88d792",
+      "durationSeconds": 6
+    },
+    "cta-ask": {
+      "file": "vo/kokode-clinic/c17e2dbd407d8840.mp3",
+      "fingerprint": "d3a4f059dea06aae",
+      "durationSeconds": 7.296
+    },
+    "cta-brand": {
+      "file": "vo/kokode-clinic/efadb140ced34779.mp3",
+      "fingerprint": "7153c7dea67e4cc4",
+      "durationSeconds": 3.192
+    }
+  }
+}

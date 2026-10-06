@@ -1,3 +1,4 @@
+import { useBundleView } from './bundleViewStore';
 import { usePrivy } from '@privy-io/expo';
 import { useLogin } from '@privy-io/expo/ui';
 import {
@@ -45,6 +46,7 @@ type Profile = Awaited<ReturnType<typeof getUserProfile>>;
 
 export function useAccount(): DesktopAccount {
   const { isReady, user, logout } = usePrivy();
+  const bundleView = useBundleView();
   const { login } = useLogin();
   const [watchAddress, setWatchAddress] = useState<string | null>(null);
   const [watchHydrated, setWatchHydrated] = useState(false);
@@ -186,12 +188,17 @@ export function useAccount(): DesktopAccount {
     userId,
     etlJobId: null,
     isNewUser: false,
-    viewingUserId: userId,
-    isOwnBundle: subjectSource === 'privy',
+    bundleView,
+    viewingUserId: bundleView?.userId ?? userId,
+    isOwnBundle:
+      subjectSource === 'privy' &&
+      (!bundleView || bundleView.userId === userId),
     isResolvingViewingUser,
     isUserResolutionFailed,
-    isDemo,
-    email: profile?.user.email ?? null,
+    isDemo: !bundleView && isDemo,
+    email:
+      (user?.linked_accounts ?? []).find((linked) => linked.type === 'email')
+        ?.address ?? null,
     loadingUser,
     connectionError,
     userResolutionError,

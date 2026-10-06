@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { LandingPageResponse } from '../src/services';
+import type { BacktestTimelinePoint } from '../src/types/backtesting';
 import { sampleTimelineData } from '../src/services/backtestingTimelineService';
 import { extractROIChanges } from '../src/lib/portfolio/portfolioUtils';
 import { transformToWalletPortfolioData } from '../src/adapters/walletPortfolioDataAdapter';
@@ -16,14 +18,54 @@ import { getDefaultQuoteForRegime } from '../src/lib/domain/regime';
 import { isClientError, isNotFoundError } from '../src/lib/errors/errorHelpers';
 import { formatCurrency } from '../src/utils/formatting/currencyNumber';
 
-const landing = (value: unknown) => value as never;
-const timelinePoint = (date: string, transfers: unknown[] = []) =>
+const zeroCategory = {
+  total_value: 0,
+  percentage_of_portfolio: 0,
+  wallet_tokens_value: 0,
+  other_sources_value: 0,
+};
+
+const landing = (
+  portfolioRoi?: LandingPageResponse['portfolio_roi'],
+): LandingPageResponse => ({
+  total_net_usd: 0,
+  net_portfolio_value: 0,
+  portfolio_allocation: {
+    btc: zeroCategory,
+    eth: zeroCategory,
+    stablecoins: zeroCategory,
+    others: zeroCategory,
+  },
+  ...(portfolioRoi ? { portfolio_roi: portfolioRoi } : {}),
+});
+
+const timelinePoint = (
+  date: string,
+  hasTransfer = false,
+): BacktestTimelinePoint =>
   ({
-    date,
-    strategies: {
-      primary: { execution: { transfers } },
+    market: {
+      date,
+      token_price: {},
+      sentiment: null,
+      sentiment_label: null,
     },
-  }) as never;
+    strategies: {
+      primary: {
+        portfolio: {},
+        signal: null,
+        decision: {},
+        execution: {
+          event: null,
+          transfers: hasTransfer ? [{}] : [],
+          blocked_reason: null,
+          step_count: 0,
+          steps_remaining: 0,
+          interval_days: 0,
+        },
+      },
+    },
+  }) as BacktestTimelinePoint;
 
 describe('coverage handoff: pure app-core boundary behavior', () => {
   afterEach(() => vi.restoreAllMocks());
@@ -37,12 +79,12 @@ describe('coverage handoff: pure app-core boundary behavior', () => {
     const timeline = Array.from({ length: 8 }, (_, index) =>
       timelinePoint(
         `2026-01-${String(index + 1).padStart(2, '0')}`,
-        index === 3 ? [{}] : [],
+        index === 3,
       ),
     );
     expect(
       sampleTimelineData(timeline, 'primary', 5).map(
-        (point: any) => point.date,
+        (point) => point.market.date,
       ),
     ).toEqual([
       '2026-01-01',
@@ -57,32 +99,34 @@ describe('coverage handoff: pure app-core boundary behavior', () => {
     expect(
       extractROIChanges(
         landing({
-          portfolio_roi: { windows: { '7d': {}, '30d': { value: 3 } } },
-        }),
+          windows: {
+            '7d': { value: 0, data_points: 0 },
+            '30d': { value: 3, data_points: 1 },
+          },
+        } as LandingPageResponse['portfolio_roi']),
       ),
     ).toEqual({ change7d: 0, change30d: 3 });
     expect(
       extractROIChanges(
-        landing({ portfolio_roi: { windows: { '7d': { value: 2 } } } }),
+        landing({
+          windows: { '7d': { value: 2, data_points: 1 } },
+        } as LandingPageResponse['portfolio_roi']),
       ),
     ).toEqual({ change7d: 2, change30d: 0 });
+    expect(
+      extractROIChanges(
+        landing({
+          windows: { '30d': { value: 5, data_points: 1 } },
+        } as LandingPageResponse['portfolio_roi']),
+      ),
+    ).toEqual({ change7d: 0, change30d: 5 });
   });
 
   it('defaults absent portfolio balances in both public transformers', () => {
-    const zeroCategory = {
-      total_value: 0,
-      percentage_of_portfolio: 0,
-      wallet_tokens_value: 0,
-      other_sources_value: 0,
-    };
-    const input = landing({
-      portfolio_allocation: {
-        btc: zeroCategory,
-        eth: zeroCategory,
-        stablecoins: zeroCategory,
-        others: zeroCategory,
-      },
-    });
+    const input = {
+      ...landing(),
+      net_portfolio_value: undefined,
+    } as unknown as LandingPageResponse;
     expect(transformToWalletPortfolioData(input, null).balance).toBe(0);
     expect(extractBalanceData(input).balance).toBe(0);
   });

@@ -1,5 +1,6 @@
 import { podcastEpisodeHref } from '@/integration/podcastRoutes';
 import { EpisodeDownloadButton } from '@/components/podcast/EpisodeDownloadButton';
+import { EpisodeDownloadStatus } from '@/components/podcast/EpisodeDownloadStatus';
 import { downloadedEpisodeRows } from '@/integration/podcastVideoDownloads';
 import { usePodcastDownloads } from '@/providers/PodcastDownloadsProvider';
 import { useRouter } from 'expo-router';
@@ -60,7 +61,7 @@ function EpisodeDetailHeader({
   };
 
   return (
-    <View className="flex-row items-center justify-between px-5 pb-3">
+    <View className="flex-row items-center justify-between pb-3">
       <View className="flex-row items-center gap-3">
         <PodcastIconButton label={t('common.back')} onPress={onBack}>
           <ChevronLeft size={20} strokeWidth={2} color="#d4c5a3" />
@@ -68,12 +69,17 @@ function EpisodeDetailHeader({
         <PodcastLanguageDropdown onLanguageSelected={onLanguageSelected} />
       </View>
       <Text className="min-w-0 flex-1 px-3 text-center font-sans-semibold text-[14px] text-ink">
-        Podcast
+        {t('podcast.title')}
       </Text>
-      <EpisodeDownloadButton episode={episode} />
-      <PodcastIconButton label="Share episode" onPress={shareEpisode}>
-        <Share2 size={18} strokeWidth={2} color="#d4c5a3" />
-      </PodcastIconButton>
+      <View className="flex-row items-center gap-2">
+        <EpisodeDownloadButton episode={episode} />
+        <PodcastIconButton
+          label={t('podcast.shareEpisode')}
+          onPress={shareEpisode}
+        >
+          <Share2 size={18} strokeWidth={2} color="#d4c5a3" />
+        </PodcastIconButton>
+      </View>
     </View>
   );
 }
@@ -83,29 +89,28 @@ function EpisodeHeroCard({ episode }: { episode: PodcastEpisode }) {
   const date = formatPodcastEpisodeDate(episode.createdAt, 'long');
 
   return (
-    <View className="px-5">
-      <Card className="overflow-hidden p-5">
-        <View className="absolute -right-7 top-5 h-28 w-28 rounded-full border border-[rgba(212,197,163,.13)] bg-[rgba(212,197,163,.05)]" />
-        <Text className="font-sans-bold text-[25px] leading-[31px] text-ink">
-          {episode.title}
-        </Text>
-        <View className="mt-4 flex-row flex-wrap items-center gap-2">
-          {date !== '' ? (
-            <Text className="font-mono text-[10px] uppercase tracking-[1px] text-ink-faint">
-              {date}
-            </Text>
-          ) : null}
+    <Card className="overflow-hidden p-5">
+      <View className="absolute -right-7 top-5 h-28 w-28 rounded-full border border-[rgba(212,197,163,.13)] bg-[rgba(212,197,163,.05)]" />
+      <Text className="font-sans-bold text-[25px] leading-[31px] text-ink">
+        {episode.title}
+      </Text>
+      <View className="mt-4 flex-row flex-wrap items-center gap-2">
+        {date !== '' ? (
           <Text className="font-mono text-[10px] uppercase tracking-[1px] text-ink-faint">
-            {episode.listened ? t('podcast.listened') : t('podcast.unheard')}
+            {date}
           </Text>
-          {episode.likeCount > 0 ? (
-            <Text className="font-mono text-[10px] uppercase tracking-[1px] text-ink-faint">
-              {episode.likeCount} likes
-            </Text>
-          ) : null}
-        </View>
-      </Card>
-    </View>
+        ) : null}
+        <Text className="font-mono text-[10px] uppercase tracking-[1px] text-ink-faint">
+          {episode.listened ? t('podcast.listened') : t('podcast.unheard')}
+        </Text>
+        {episode.likeCount > 0 ? (
+          <Text className="font-mono text-[10px] uppercase tracking-[1px] text-ink-faint">
+            {episode.likeCount} likes
+          </Text>
+        ) : null}
+      </View>
+      <EpisodeDownloadStatus episode={episode} />
+    </Card>
   );
 }
 
@@ -126,7 +131,7 @@ function LanguageClassroomSection({
   if (lessons.length === 0) return null;
 
   return (
-    <View className="px-5 pt-7">
+    <View className="pt-7">
       <Text className="font-sans-semibold text-[17px] text-ink">
         {t('podcast.languageClassroom')}
       </Text>
@@ -170,7 +175,7 @@ function LanguageClassroomSection({
 
 function DetailSkeleton() {
   return (
-    <View className="px-5 pt-4" accessibilityRole="progressbar">
+    <View className="pt-4" accessibilityRole="progressbar">
       <SkeletonBlock className="h-[210px] rounded-[28px]" />
       <SkeletonBlock className="mt-5 h-[210px] rounded-[28px]" />
       <SkeletonBlock className="mt-7 h-5 w-32" />
@@ -256,11 +261,8 @@ export function EpisodeDetailScreen() {
 
   if (episode === null) {
     return (
-      <View
-        className="flex-1 bg-bg"
-        style={{ paddingTop: Math.max(insets.top, 12) }}
-      >
-        <View className="flex-row items-center px-5 pb-3">
+      <ScreenScrollView width="reading" bottomPadding={36 + insets.bottom}>
+        <View className="flex-row items-center pb-3">
           <PodcastIconButton label={t('common.back')} onPress={goBack}>
             <ChevronLeft size={20} strokeWidth={2} color="#d4c5a3" />
           </PodcastIconButton>
@@ -268,7 +270,7 @@ export function EpisodeDetailScreen() {
         {isLoading ? (
           <DetailSkeleton />
         ) : (
-          <View className="px-5 pt-4">
+          <View className="pt-4">
             <Card className="p-5">
               <Text className="font-sans-semibold text-[16px] text-ink">
                 {isError
@@ -283,7 +285,7 @@ export function EpisodeDetailScreen() {
             </Card>
           </View>
         )}
-      </View>
+      </ScreenScrollView>
     );
   }
 
@@ -294,7 +296,7 @@ export function EpisodeDetailScreen() {
 
   return (
     <View className="flex-1 bg-bg">
-      <ScreenScrollView width="reading" bottomPadding={36}>
+      <ScreenScrollView width="reading" bottomPadding={36 + insets.bottom}>
         <EpisodeDetailHeader
           episode={episode}
           onBack={goBack}

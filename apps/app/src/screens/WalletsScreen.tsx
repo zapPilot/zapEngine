@@ -55,7 +55,7 @@ export function WalletsScreen() {
         }
       />
 
-      <View className="px-5 pt-5">
+      <View className="pt-5">
         <ListGroup className="p-5">
           <Text className="font-sans-semibold text-[15px] text-ink">
             {account.email || truncateAddress(account.address ?? '')}

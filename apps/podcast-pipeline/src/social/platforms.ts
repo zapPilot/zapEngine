@@ -3,7 +3,11 @@ import type { PrimaryLanguageCode } from '../types.js';
 
 export const THREADS_TOTAL_MAX_CHARACTERS = 500;
 
-export type SocialVideoMode = 'teaser' | 'full';
+// Meta Threads API Media Specifications, verified 2026-10-04:
+// https://developers.facebook.com/documentation/threads/posts#video-specifications
+export const THREADS_VIDEO_LIMIT_SECONDS = 300;
+
+export type SocialVideoMode = 'teaser' | 'full-or-teaser' | 'full';
 export type SocialCtaMode = 'brand' | 'none';
 
 export const SOCIAL_PLATFORM_CONFIG = {
@@ -18,7 +22,7 @@ export const SOCIAL_PLATFORM_CONFIG = {
     label: 'Threads',
     reviewShortcut: 't',
     requiresLocalVideo: false,
-    videoMode: 'teaser',
+    videoMode: 'full-or-teaser',
     ctaMode: 'brand',
   },
   rednote: {

@@ -50,7 +50,7 @@ export function SideNav() {
             active === tab.name && 'bg-accent-soft',
           );
           return tab.accessible ? (
-            <Link key={tab.name} href={tab.href} dismissTo asChild>
+            <Link key={tab.name} href={tab.href} asChild>
               <Tap
                 feedback="highlight"
                 accessibilityRole="link"
@@ -79,7 +79,7 @@ export function SideNav() {
       <View className="mt-auto gap-4 pt-8">
         <NowPlayingBarHost layout="card" />
         {account.isConnected ? (
-          <Link href="/account" dismissTo asChild>
+          <Link href="/account" asChild>
             <Tap
               accessibilityRole="link"
               accessibilityLabel={t('tabs.account')}
@@ -87,7 +87,7 @@ export function SideNav() {
               className="min-h-hit rounded-control px-3 py-3"
             >
               <Text variant="body-sm" numberOfLines={1}>
-                {account.email ??
+                {account.address ??
                   (account.address
                     ? truncateAddress(account.address)
                     : t('tabs.account'))}

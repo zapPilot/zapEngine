@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const root = process.cwd();
@@ -154,31 +154,47 @@ requireMatch(
   /into\s+seed_episode_id[\s\S]*limit\s+1/i,
 );
 
-const policySlotsBlock =
+const policyCadenceBlock =
   policy.match(
-    /export const SOCIAL_RELEASE_SLOTS = \[([\s\S]*?)\]\s+as const/,
+    /export const SOCIAL_RELEASE_CADENCES = \[([\s\S]*?)\]\s+as const/,
   )?.[1] ?? '';
-const policyReleaseSlots = [
-  ...policySlotsBlock.matchAll(/\{\s*hour:\s*(\d+),\s*minute:\s*(\d+)\s*\}/g),
-].map(
-  ([, hour, minute]) => `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`,
-);
-const growthSlotsBlock =
-  growthView.match(/CURRENT_RELEASE_SLOTS_JST = \[([^\]]+)\]/)?.[1] ?? '';
-const growthReleaseSlots = [
-  ...growthSlotsBlock.matchAll(/'(\d{2}:\d{2})'/g),
-].map(([, slot]) => slot);
-const dailyCap = Number(
-  policy.match(/SOCIAL_RELEASE_DAILY_CAP\s*=\s*(\d+)/)?.[1] ?? Number.NaN,
-);
-if (JSON.stringify(policyReleaseSlots) !== JSON.stringify(growthReleaseSlots)) {
+const growthCadenceBlock =
+  growthView.match(
+    /CURRENT_RELEASE_CADENCES_JST = \[([\s\S]*?)\]\s+as const/,
+  )?.[1] ?? '';
+const cadencePattern =
+  /\{\s*minBacklogArticles:\s*(\d+),\s*slots:\s*\[([\s\S]*?)\]\s*,?\s*\}/g;
+const parsePolicyCadences = (block) =>
+  [...block.matchAll(cadencePattern)].map(
+    ([, minBacklogArticles, slotsBlock]) => ({
+      minBacklogArticles: Number(minBacklogArticles),
+      slots: [
+        ...slotsBlock.matchAll(/\{\s*hour:\s*(\d+),\s*minute:\s*(\d+)\s*\}/g),
+      ].map(
+        ([, hour, minute]) =>
+          `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`,
+      ),
+    }),
+  );
+const parseGrowthCadences = (block) =>
+  [...block.matchAll(cadencePattern)].map(
+    ([, minBacklogArticles, slotsBlock]) => ({
+      minBacklogArticles: Number(minBacklogArticles),
+      slots: [...slotsBlock.matchAll(/'(\d{2}:\d{2})'/g)].map(
+        ([, slot]) => slot,
+      ),
+    }),
+  );
+const policyCadences = parsePolicyCadences(policyCadenceBlock);
+const growthCadences = parseGrowthCadences(growthCadenceBlock);
+if (JSON.stringify(policyCadences) !== JSON.stringify(growthCadences)) {
   failures.push(
-    `Control Center GrowthView release slots ${JSON.stringify(growthReleaseSlots)} do not match policy ${JSON.stringify(policyReleaseSlots)}`,
+    `Control Center GrowthView release cadences ${JSON.stringify(growthCadences)} do not match policy ${JSON.stringify(policyCadences)}`,
   );
 }
-if (dailyCap !== growthReleaseSlots.length) {
+if (policyCadences.length !== 3) {
   failures.push(
-    `Control Center GrowthView exposes ${growthReleaseSlots.length} slots but SOCIAL_RELEASE_DAILY_CAP is ${dailyCap}`,
+    `Expected 3 backlog-aware release cadences, found ${policyCadences.length}`,
   );
 }
 
@@ -198,6 +214,95 @@ for (const path of [
   if (!existsSync(resolve(root, path))) {
     failures.push(`${path}: required executable contract test is missing`);
   }
+}
+
+// Social optimization contract: global packaging only.
+requireMatch(
+  'social optimization contract',
+  socialAgents,
+  /NON-NEGOTIABLE PRODUCT CONTRACT: one universal packaging strategy/,
+);
+requireMatch(
+  'same thesis copy',
+  read('apps/podcast-pipeline/src/social/copy.ts'),
+  /same underlying episode thesis/,
+);
+requireMatch(
+  'growth packaging read model',
+  read('apps/control-center/src/server/services/operations/growth.ts'),
+  /readContentPackagingEvidence/,
+);
+for (const file of ['copy.ts', 'publish-batch.ts']) {
+  forbidMatch(
+    file,
+    read(`apps/podcast-pipeline/src/social/${file}`),
+    /Performance guidance|strategyGuidance/,
+  );
+}
+forbidMatch(
+  'daemon optimization',
+  daemon,
+  /refreshSocialStrategies|buildStrategyGuidance|strategyVersionId/,
+);
+forbidMatch(
+  'Growth recommendations',
+  growthView,
+  /內容題材參考|最佳題材|bestTopic|publishSlotsJst|preferredHookTypes/,
+);
+for (const file of ['server/services/social.ts', 'shared/types.ts']) {
+  forbidMatch(
+    file,
+    read(`apps/control-center/src/${file}`),
+    /SocialDecision|bestTopic|LiftVsPlatformMedian|social_strategy_versions/,
+  );
+}
+forbidMatch(
+  'statement recommendations',
+  read('apps/control-center/src/server/services/statements/rules.ts'),
+  /publish the next one/,
+);
+for (const file of [
+  'DistributionChain.tsx',
+  'DistributionChannels.tsx',
+  'DistributionReliability.tsx',
+]) {
+  forbidMatch(
+    file,
+    read(`apps/landing-page/src/components/distribution/${file}`),
+    /publishing strategy|strategyVersions/,
+  );
+}
+
+// Titles are frozen during ingest, never generated in social.
+function checkSocialTitleImports(directory) {
+  for (const entry of readdirSync(resolve(root, directory), {
+    withFileTypes: true,
+  })) {
+    const path = `${directory}/${entry.name}`;
+    if (entry.isDirectory()) checkSocialTitleImports(path);
+    else if (/\.[cm]?tsx?$/.test(entry.name) && !/\.test\./.test(entry.name)) {
+      forbidMatch(
+        path,
+        read(path),
+        /generateEditorialTitleWithLLM|compressEditorialTitleWithLLM|title-[\w-]*system-prompt/,
+      );
+    }
+  }
+}
+checkSocialTitleImports('apps/podcast-pipeline/src/social');
+forbidMatch(
+  'compression prompt platform names',
+  read('apps/podcast-pipeline/prompts/title-compression-system-prompt.txt'),
+  /rednote|youtube|threads|小红书|小紅書|twitter|\bx\b|\bplatform\b/iu,
+);
+for (const anchor of [
+  /Best Title and editorial source of truth/,
+  /generated in ingest by character/,
+  /never recomputed/,
+  /Social never generates titles/,
+  /per-platform hook, thesis, and learned headline/,
+]) {
+  requireMatch('frozen budget title contract', socialAgents, anchor);
 }
 
 if (failures.length > 0) {

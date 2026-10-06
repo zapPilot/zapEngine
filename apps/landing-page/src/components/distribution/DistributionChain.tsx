@@ -61,7 +61,8 @@ function chainSteps(snapshot: DistributionSnapshot): ChainStep[] {
       output: `${formatCount(reliability.metricSnapshots)} metric snapshots`,
       role: 'an analyst',
       roleSuffix: 'opening every post on every platform.',
-      detail: `Read back per post at fixed ages, then folded into ${formatCount(reliability.strategyVersions)} versions of the per-platform publishing strategy.`,
+      detail:
+        'Read back per post at fixed ages: 1 hour, 6 hours, 1 day, 3 days and 7 days.',
     },
   ];
 }

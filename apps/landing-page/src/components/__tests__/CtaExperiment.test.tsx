@@ -93,14 +93,16 @@ describe('CTA experiment exposure and signup', () => {
     renderCta();
     flags();
     expect(
-      screen.getByRole('button', { name: 'Get launch access' }),
+      screen.getByRole('button', { name: 'Get launch updates' }),
     ).toBeVisible();
     visible(0.2);
     expect(events()).not.toContain('waitlist_cta_visible');
     visible();
     visible();
-    fireEvent.click(screen.getByRole('button', { name: 'Get launch access' }));
-    expect(screen.getByText(/Get notified when you can track/)).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Get launch updates' }));
+    expect(
+      screen.getByText(/Follow the programmable portfolio runtime/),
+    ).toBeVisible();
     const email = screen.getByPlaceholderText('you@example.com');
     expect(email.closest('form')).toHaveClass('ph-no-capture');
     fireEvent.change(email, { target: { value: 'private@example.com' } });
@@ -119,7 +121,7 @@ describe('CTA experiment exposure and signup', () => {
     expect(JSON.stringify(sdk.capture.mock.calls)).not.toContain('private');
     const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
     expect(body.ctaExperiment).toMatchObject({
-      key: 'landing-waitlist-cta-v1',
+      key: 'landing-waitlist-cta-v2',
       variant: 'value_first',
     });
     expect(body.ctaExperiment.exposureId).toBe(
@@ -136,7 +138,7 @@ describe('CTA experiment exposure and signup', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Join waitlist' }));
     flags();
     expect(
-      screen.queryByRole('button', { name: 'Get launch access' }),
+      screen.queryByRole('button', { name: 'Get launch updates' }),
     ).toBeNull();
     expect(sdk.capture.mock.calls[0]?.[1]).toMatchObject({
       cta_variant: 'baseline',
@@ -174,7 +176,7 @@ describe('CTA experiment exposure and signup', () => {
       renderCta();
       flags();
       fireEvent.click(
-        screen.getByRole('button', { name: 'Get launch access' }),
+        screen.getByRole('button', { name: 'Get launch updates' }),
       );
       const email = screen.getByPlaceholderText('you@example.com');
       fireEvent.change(email, { target: { value: 'test@example.com' } });
@@ -202,7 +204,7 @@ describe('CTA experiment exposure and signup', () => {
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('secret body'));
     renderCta();
     flags();
-    fireEvent.click(screen.getByRole('button', { name: 'Get launch access' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Get launch updates' }));
     const email = screen.getByPlaceholderText('you@example.com');
     fireEvent.invalid(email);
     expect(sdk.capture).toHaveBeenLastCalledWith(
@@ -246,7 +248,7 @@ describe('CTA experiment exposure and signup', () => {
     );
     renderCta();
     flags();
-    fireEvent.click(screen.getByRole('button', { name: 'Get launch access' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Get launch updates' }));
     const email = screen.getByPlaceholderText('you@example.com');
     fireEvent.change(email, { target: { value: 'test@example.com' } });
     fireEvent.submit(email.closest('form')!);
@@ -295,7 +297,7 @@ it('prevents another submit while the first request is pending', async () => {
   );
   renderCta();
   flags();
-  fireEvent.click(screen.getByRole('button', { name: 'Get launch access' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Get launch updates' }));
   const email = screen.getByPlaceholderText('you@example.com');
   fireEvent.change(email, { target: { value: 'pending@example.com' } });
   fireEvent.submit(email.closest('form')!);

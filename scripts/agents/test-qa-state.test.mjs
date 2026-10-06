@@ -2,10 +2,9 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { classifyScope } from './test-qa-select.mjs';
 
-import { emptyState, MAX_RECORD_PAYLOAD_BYTES } from './test-qa-lib.mjs';
+import { emptyState } from './test-qa-lib.mjs';
 import {
   mergeState,
-  parseRecords,
   renderStateMarkdown,
   validateRecord,
 } from './test-qa-state.mjs';
@@ -15,6 +14,7 @@ function scope({
   status = 'clean',
   at = '2026-09-30T00:00:00.000Z',
   fingerprint = 'a'.repeat(64),
+  pathShas,
   pr,
   findings = [],
 }) {
@@ -23,7 +23,8 @@ function scope({
     status,
     auditedAt: at,
     auditedCommit: 'abc123',
-    fingerprint,
+    ...(fingerprint ? { fingerprint } : {}),
+    ...(pathShas ? { pathShas } : {}),
     files: [key.endsWith('.test.ts') ? key : key.replace(/\.ts$/u, '.test.ts')],
     relatedPaths: key.endsWith('.test.ts') ? [] : [key],
     ...(pr ? { pr } : {}),
@@ -62,25 +63,30 @@ test('validateRecord rejects unknown fields and unsafe paths', () => {
     () => validateRecord({ ...record({}), surprise: true }),
     /unknown fields/u,
   );
-  const invalid = record({
-    scope: scope({ key: 'apps/foo/src/a.ts' }),
-  });
+  const invalid = record({ scope: scope({ key: 'apps/foo/src/a.ts' }) });
   invalid.scope.files = ['../escape.test.ts'];
   assert.throws(() => validateRecord(invalid), /files is invalid/u);
 });
 
-test('parseRecords rejects payloads over the dispatch safety budget', () => {
-  assert.throws(
-    () =>
-      parseRecords(JSON.stringify(['x'.repeat(MAX_RECORD_PAYLOAD_BYTES + 1)])),
-    /exceeds/u,
-  );
+test('validateRecord accepts connector blob snapshots without a content fingerprint', () => {
+  const key = 'apps/foo/src/a.ts';
+  const value = record({
+    scope: scope({
+      key,
+      fingerprint: null,
+      pathShas: {
+        [key]: 'a'.repeat(40),
+        'apps/foo/src/a.test.ts': 'b'.repeat(40),
+      },
+    }),
+  });
+  assert.equal(validateRecord(value), value);
+  value.scope.pathShas[key] = 'not-a-sha';
+  assert.throws(() => validateRecord(value), /pathShas is invalid/u);
 });
 
-test('mergeState deduplicates a worker run while preserving all audited scopes', () => {
-  const first = record({
-    scope: scope({ key: 'apps/foo/src/a.ts' }),
-  });
+test('mergeState deduplicates a worker run while preserving audited scopes', () => {
+  const first = record({ scope: scope({ key: 'apps/foo/src/a.ts' }) });
   const second = record({
     at: '2026-09-30T00:00:01.000Z',
     scope: scope({
@@ -92,7 +98,7 @@ test('mergeState deduplicates a worker run while preserving all audited scopes',
   const state = mergeState({
     previous: previousState(),
     records: [first, second],
-    github: { runId: 9, runAttempt: 1, sha: 'main-sha' },
+    github: { runId: 0, runAttempt: 1, sha: 'main-sha' },
     now: new Date('2026-09-30T00:01:00.000Z'),
   });
 
@@ -105,38 +111,6 @@ test('mergeState deduplicates a worker run while preserving all audited scopes',
     'apps/foo/src/a.ts',
     'apps/foo/src/b.ts',
   ]);
-  assert.equal(state.runs[0].at, '2026-09-30T00:00:01.000Z');
-  assert.deepEqual(state.github, {
-    runId: 9,
-    runAttempt: 1,
-    sha: 'main-sha',
-  });
-});
-
-test('newer auditedAt wins when the same scope is resent', () => {
-  const state = previousState();
-  state.scopes['apps/foo/src/a.ts'] = stateScope({
-    key: 'apps/foo/src/a.ts',
-    at: '2026-09-30T00:00:00.000Z',
-    fingerprint: 'a'.repeat(64),
-  });
-  const newer = record({
-    workerRunId: 'run-2',
-    at: '2026-09-30T00:05:00.000Z',
-    scope: scope({
-      key: 'apps/foo/src/a.ts',
-      at: '2026-09-30T00:05:00.000Z',
-      fingerprint: 'b'.repeat(64),
-    }),
-  });
-
-  const merged = mergeState({
-    previous: state,
-    records: [newer],
-    github: { runId: 10, runAttempt: 1, sha: 'main-sha-2' },
-  });
-
-  assert.equal(merged.scopes['apps/foo/src/a.ts'].fingerprint, 'b'.repeat(64));
 });
 
 test('pending PRs reconcile to clean after merge and rejected after closure', () => {
@@ -155,9 +129,13 @@ test('pending PRs reconcile to clean after merge and rejected after closure', ()
   const merged = mergeState({
     previous: state,
     records: [record({ workerRunId: 'heartbeat' })],
-    github: { runId: 11, runAttempt: 1, sha: 'main-sha-3' },
+    github: { runId: 0, runAttempt: 1, sha: 'main-sha-3' },
     mainScopeReader: (key) => ({
-      ...stateScope({ key, fingerprint: 'b'.repeat(64) }),
+      ...stateScope({
+        key,
+        fingerprint: 'b'.repeat(64),
+        pathShas: { [key]: 'c'.repeat(40) },
+      }),
       auditedCommit: 'main-sha-3',
     }),
     prReader: (number) =>
@@ -171,27 +149,31 @@ test('pending PRs reconcile to clean after merge and rejected after closure', ()
   });
 
   assert.equal(merged.scopes['apps/foo/src/a.ts'].status, 'clean');
-  assert.equal(
-    merged.scopes['apps/foo/src/a.ts'].auditedCommit,
-    'merge-commit',
-  );
   const rejected = merged.scopes['apps/foo/src/b.ts'];
   assert.equal(rejected.status, 'rejected');
-  assert.equal(rejected.auditedCommit, 'main-sha-3');
+  assert.deepEqual(rejected.pathShas, {
+    'apps/foo/src/b.ts': 'c'.repeat(40),
+  });
   assert.equal(
-    classifyScope({ fingerprint: 'b'.repeat(64) }, rejected).kind,
+    classifyScope(
+      {
+        fingerprint: 'different',
+        pathShas: { 'apps/foo/src/b.ts': 'c'.repeat(40) },
+      },
+      rejected,
+    ).kind,
     'rejected',
   );
   assert.equal(
-    classifyScope({ fingerprint: 'c'.repeat(64) }, rejected).kind,
+    classifyScope(
+      {
+        fingerprint: rejected.fingerprint,
+        pathShas: { 'apps/foo/src/b.ts': 'd'.repeat(40) },
+      },
+      rejected,
+    ).kind,
     'changed',
   );
-  const retried = mergeState({
-    previous: merged,
-    records: [],
-    github: merged.github,
-  });
-  assert.deepEqual(retried.scopes['apps/foo/src/b.ts'], rejected);
 });
 
 test('STATE.md is compact and human-readable', () => {
@@ -216,50 +198,4 @@ test('STATE.md is compact and human-readable', () => {
   const markdown = renderStateMarkdown(state);
   assert.match(markdown, /\| finding \| 1 \|/u);
   assert.match(markdown, /run-1/u);
-});
-
-test('event parsing and payload generation enforce the dispatch contract', async () => {
-  const { parseEvent, createPayload } = await import('./test-qa-state.mjs');
-  const payload = createPayload([record({})]);
-  assert.deepEqual(payload, {
-    event_type: 'test-qa-state',
-    client_payload: { records: [record({})] },
-  });
-  assert.equal(parseEvent(createPayload([], true)).bootstrap, true);
-  for (const client_payload of [
-    { records: [], unknown: true },
-    { records: {} },
-    { records: [], bootstrap: 'true' },
-  ]) {
-    assert.throws(() => parseEvent({ client_payload }));
-  }
-  const records = Array.from({ length: 800 }, (_, i) =>
-    record({ workerRunId: `run-${i}` }),
-  );
-  assert.throws(() => createPayload(records), /exceeds/u);
-  assert.throws(() => parseEvent({ client_payload: { records } }), /exceeds/u);
-});
-
-test('bootstrap is explicit and never replaces existing state', async () => {
-  const { loadPrevious } = await import('./test-qa-state.mjs');
-  const { mkdtempSync, writeFileSync, rmSync } = await import('node:fs');
-  const { tmpdir } = await import('node:os');
-  const { join } = await import('node:path');
-  const root = mkdtempSync(join(tmpdir(), 'qa-state-'));
-  try {
-    const path = join(root, 'state.json');
-    assert.throws(() => loadPrevious(path), /payload --bootstrap/u);
-    assert.deepEqual(loadPrevious(path, true), emptyState());
-    const state = previousState();
-    state.runs.push({
-      workerRunId: 'retained',
-      at: '2026-09-30T00:00:00Z',
-      outcome: 'clean',
-      scopes: [],
-    });
-    writeFileSync(path, JSON.stringify(state));
-    assert.deepEqual(loadPrevious(path, true), state);
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
 });

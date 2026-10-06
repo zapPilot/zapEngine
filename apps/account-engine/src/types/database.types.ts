@@ -1,3 +1,5 @@
+type AccountAuthPurpose = 'session' | 'binding' | 'deletion' | 'reclaim';
+
 export type Json =
   | string
   | number
@@ -14,6 +16,97 @@ export interface Database {
   };
   public: {
     Tables: {
+      account_auth_challenges: {
+        Row: {
+          id: string;
+          purpose: AccountAuthPurpose;
+          user_id: string;
+          wallet_id: string | null;
+          wallet: string;
+          message: string;
+          expires_at: string;
+          consumed_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          purpose: AccountAuthPurpose;
+          user_id: string;
+          wallet_id?: string | null;
+          wallet: string;
+          message: string;
+          expires_at: string;
+          consumed_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          purpose?: AccountAuthPurpose;
+          user_id?: string;
+          wallet_id?: string | null;
+          wallet?: string;
+          message?: string;
+          expires_at?: string;
+          consumed_at?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'account_auth_challenges_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'users';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'account_auth_challenges_wallet_id_fkey';
+            columns: ['wallet_id'];
+            isOneToOne: false;
+            referencedRelation: 'user_crypto_wallets';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      account_sessions: {
+        Row: {
+          token_hash: string;
+          user_id: string;
+          wallet_id: string;
+          created_at: string;
+          expires_at: string;
+        };
+        Insert: {
+          token_hash: string;
+          user_id: string;
+          wallet_id: string;
+          created_at?: string;
+          expires_at: string;
+        };
+        Update: {
+          token_hash?: string;
+          user_id?: string;
+          wallet_id?: string;
+          created_at?: string;
+          expires_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'account_sessions_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'users';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'account_sessions_wallet_id_fkey';
+            columns: ['wallet_id'];
+            isOneToOne: false;
+            referencedRelation: 'user_crypto_wallets';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+
       job_logs: {
         Row: {
           created_at: string;
@@ -422,6 +515,7 @@ export interface Database {
           id: string;
           label: string | null;
           last_portfolio_update_at: string | null;
+          owner_bound_at: string | null;
           ownership_verified_at: string | null;
           user_id: string;
           wallet: string;
@@ -431,6 +525,7 @@ export interface Database {
           id?: string;
           label?: string | null;
           last_portfolio_update_at?: string | null;
+          owner_bound_at?: string | null;
           ownership_verified_at?: string | null;
           user_id: string;
           wallet: string;
@@ -440,6 +535,7 @@ export interface Database {
           id?: string;
           label?: string | null;
           last_portfolio_update_at?: string | null;
+          owner_bound_at?: string | null;
           ownership_verified_at?: string | null;
           user_id?: string;
           wallet?: string;
@@ -581,6 +677,19 @@ export interface Database {
       };
     };
     Functions: {
+      claim_bundle_owner: {
+        Args: { p_user_id: string; p_wallet_id: string };
+        Returns: Json;
+      };
+      reclaim_bundle_wallet: {
+        Args: { p_user_id: string; p_wallet_id: string };
+        Returns: Json;
+      };
+      remove_bundle_wallet: {
+        Args: { p_user_id: string; p_wallet_id: string; p_recent: boolean };
+        Returns: undefined;
+      };
+
       classify_token_category: { Args: { symbol: string }; Returns: string };
       cleanup_expired_telegram_tokens: {
         Args: Record<PropertyKey, never>;

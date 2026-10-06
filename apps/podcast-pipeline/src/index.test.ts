@@ -114,6 +114,10 @@ const {
 
 vi.mock('./services/editorial-title.js', () => ({
   generateEditorialTitleWithLLM: mockGenerateEditorialTitleWithLLM,
+  buildEditorialTitleVariants: vi.fn(async () => ({
+    titleVariants: {},
+    cost: [],
+  })),
 }));
 
 vi.mock('@hono/node-server', () => ({
@@ -2534,7 +2538,7 @@ function configureFreshTelegramIngest(): void {
     },
   );
   mockGenerateEditorialTitleWithLLM.mockResolvedValue({
-    title: null,
+    title: '软件更新的新变化',
     model: 'test-model',
     provider: 'test-provider',
     costUsd: 0,

@@ -44,7 +44,6 @@ const overview: OverviewResponse = {
     window: 'latest',
     generatedAt: '2026-08-16T12:00:00.000Z',
     accounts: [],
-    decisions: [],
     episodes: [],
   },
 };
@@ -110,6 +109,7 @@ const socialGrowth: SocialGrowthResponse = {
   platforms: [],
   experiments: [],
   waitlist: unavailableWaitlist('Not collected'),
+  audience: { days: [], series: [] },
   attribution: [],
 };
 
@@ -182,6 +182,7 @@ function createTestApp(
           gaps: [],
         }),
       resolveSentryIssue: operationsOverrides.resolveSentryIssue ?? vi.fn(),
+      reconcileSentryIssue: operationsOverrides.reconcileSentryIssue ?? vi.fn(),
       investigate: operationsOverrides.investigate ?? vi.fn(),
     },
     service: {

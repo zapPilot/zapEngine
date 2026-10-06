@@ -7,12 +7,12 @@ import type {
   TtsSynthesizeOptions,
 } from '../tts.js';
 import { concatMp3Buffers } from './audio-concat.js';
-import type { FishAudioTtsConfig } from './tts-config.js';
+import {
+  type FishAudioTtsConfig,
+  resolveFishAudioEngine,
+} from './tts-config.js';
 
 const FISH_AUDIO_TTS_URL = 'https://api.fish.audio/v1/tts';
-const FISH_AUDIO_PRICE_USD_PER_MILLION_UTF8_BYTES = 15;
-const FISH_AUDIO_PRICE_USD_PER_UTF8_BYTE =
-  FISH_AUDIO_PRICE_USD_PER_MILLION_UTF8_BYTES / 1_000_000;
 const ERROR_BODY_LIMIT = 300;
 const MAX_FISH_AUDIO_TTS_ATTEMPTS = 3;
 const DEFAULT_RETRY_DELAY_MS = 2_000;
@@ -61,7 +61,10 @@ export async function synthesize(
     throw new Error('FISH_AUDIO_API_KEY is required for Fish Audio TTS');
   }
 
-  const config = opts.config;
+  const config = {
+    ...opts.config,
+    engine: resolveFishAudioEngine(opts.config.engine),
+  };
   const maxChars = getMaxCharsPerRequest();
   const requestDelayMs = getRequestDelayMs();
   const chunks = splitTextIntoChunks(text, maxChars);
@@ -598,7 +601,7 @@ function getMaxCharsPerRequest(): number {
   });
 }
 
-function getRequestDelayMs(): number {
+export function getRequestDelayMs(): number {
   return getIntEnv('FISH_AUDIO_REQUEST_DELAY_MS', {
     default: DEFAULT_REQUEST_DELAY_MS,
     min: 0,
@@ -634,11 +637,11 @@ export function buildFishAudioCostLine(
     label: opts.costLabel ?? 'TTS audio',
     provider: 'fish-audio',
     model: config.engine,
-    costUsd: utf8Bytes * FISH_AUDIO_PRICE_USD_PER_UTF8_BYTE,
+    costUsd: 0,
     usage: {
       unit: 'utf8_bytes',
       quantity: utf8Bytes,
-      unitPriceUsd: FISH_AUDIO_PRICE_USD_PER_UTF8_BYTE,
+      unitPriceUsd: 0,
     },
   };
 }

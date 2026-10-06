@@ -11,6 +11,12 @@ build/
 # the packaging gate reads icon.icns from it, so it must survive a clean clone.
 !apps/desktop/build/
 apps/desktop/release/
+# Remotion renders, stills and contact sheets (apps/video)
+apps/video/out/
+# Generated TTS narration; manifests remain tracked.
+apps/video/public/vo/
+# Kokode pitch PDFs (pnpm --filter @zapengine/kokode-ai pitch:pdf)
+apps/kokode-ai/output/
 *.tsbuildinfo
 !packages/design-tokens/dist/
 !packages/design-tokens/dist/**
@@ -94,7 +100,6 @@ apps/analytics-engine/*.md
 !apps/analytics-engine/README.md
 !apps/analytics-engine/AGENTS.md
 !apps/analytics-engine/CLAUDE.md
-!apps/analytics-engine/GEMINI.md
 
 # podcast-pipeline & mobile credentials
 service-account.json
@@ -111,3 +116,6 @@ google-service-account*.json
 *.p8
 *.p12
 *.mobileprovision
+
+# Sample-accurate free music beds, regenerated before Studio/bundling/rendering.
+apps/video/public/music/beds/

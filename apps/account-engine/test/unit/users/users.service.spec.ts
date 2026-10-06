@@ -58,22 +58,12 @@ function createMocks() {
     }),
   };
 
-  const walletBindingChallengeService = {
-    issueChallenge: vi.fn().mockReturnValue({
-      nonce: 'a'.repeat(64),
-      message: 'ZapPilot wallet ownership proof',
-      expiresAt: '2026-01-01T00:05:00.000Z',
+  const accountAuthService = {
+    authenticate: vi.fn().mockResolvedValue({
+      user_id: 'user-1',
+      created_at: new Date().toISOString(),
     }),
-    verifyChallenge: vi.fn().mockResolvedValue(true),
-  };
-
-  const accountDeletionChallengeService = {
-    issueChallenge: vi.fn().mockReturnValue({
-      nonce: 'b'.repeat(64),
-      message: 'Zap Pilot Account Deletion',
-      expiresAt: '2026-01-01T00:05:00.000Z',
-    }),
-    verifyChallenge: vi.fn().mockResolvedValue(true),
+    verifyDeletion: vi.fn().mockResolvedValue(undefined),
   };
 
   const reportUnsubscribeTokenService = {
@@ -90,8 +80,7 @@ function createMocks() {
     alphaEtlHttpService as unknown as AlphaEtlHttpService,
     telegramService as unknown as TelegramService,
     telegramTokenService as unknown as TelegramTokenService,
-    walletBindingChallengeService,
-    accountDeletionChallengeService,
+    accountAuthService as never,
     reportUnsubscribeTokenService as unknown as ReportUnsubscribeTokenService,
   );
 
@@ -102,8 +91,7 @@ function createMocks() {
     alphaEtlHttpService,
     telegramService,
     telegramTokenService,
-    walletBindingChallengeService,
-    accountDeletionChallengeService,
+    accountAuthService,
     reportUnsubscribeTokenService,
     qb: dbMock.supabase.queryBuilder,
   };
@@ -114,32 +102,86 @@ describe('UsersService', () => {
   // getUserByWallet
   // -----------------------------------------------------------------------
   describe('getUserByWallet', () => {
-    it('performs a pure lookup without invoking account bootstrap', async () => {
-      const { service, dbMock, qb } = createMocks();
-      qb.single.mockResolvedValue({
-        data: { user_id: 'user-1' },
-        error: null,
+    it('ranks owners above founders and legacy verified watch entries', async () => {
+      const { service, qb } = createMocks();
+      const entry = (
+        id: string,
+        role: string,
+        created_at = '2026-01-01T00:00:00Z',
+      ) => ({
+        id,
+        label: null,
+        last_portfolio_update_at: null,
+        user_id: id,
+        wallet: '0xabc',
+        created_at,
+        owner_bound_at: role === 'owner' ? created_at : null,
+        ownership_verified_at: role === 'verified' ? created_at : null,
+        users: {
+          created_at: role === 'founder' ? created_at : '2025-01-01T00:00:00Z',
+        },
       });
-
+      const candidates = [
+        entry('watch', 'watch'),
+        entry('verified', 'verified'),
+        entry('founder', 'founder'),
+        entry('z-owner', 'owner'),
+        entry('a-owner', 'owner'),
+        entry('late-owner', 'owner', '2026-02-01T00:00:00Z'),
+      ];
+      qb.mockResolvedThen({ data: candidates, error: null });
+      vi.spyOn(service, 'getUserWallets').mockImplementation(async (id) =>
+        candidates.filter((w) => w.user_id === id),
+      );
+      await expect(service.getUserByWallet('0xabc')).resolves.toEqual({
+        user_id: 'a-owner',
+      });
+      qb.mockResolvedThen({ data: [candidates[0]], error: null });
       await expect(
-        service.getUserByWallet('0x1234567890abcdef1234567890abcdef12345678'),
+        service.getUserByWallet('0xabc', { verifiedOnly: true }),
+      ).rejects.toThrow('Portfolio not found');
+      qb.mockResolvedThen({ data: null, error: null });
+      await expect(service.getUserByWallet('0xabc')).rejects.toThrow(
+        'Portfolio not found',
+      );
+    });
+    it('propagates errors from either lookup stage', async () => {
+      for (const stage of [0, 1]) {
+        const { service, qb } = createMocks();
+        let calls = 0;
+        qb.then.mockImplementation((resolve?: (value: unknown) => unknown) =>
+          Promise.resolve(
+            resolve?.({
+              data: [],
+              error: calls++ === stage ? { message: 'lookup failed' } : null,
+            }),
+          ),
+        );
+        await expect(service.getUserByWallet('0xabc')).rejects.toThrow(
+          'Failed to fetch user by wallet',
+        );
+      }
+    });
+    it('resolves mixed-case verified wallets without bootstrapping', async () => {
+      const { service, qb, dbMock } = createMocks();
+      const candidate = {
+        id: 'w',
+        user_id: 'user-1',
+        wallet: '0xAbC',
+        created_at: '2026-01-01T00:00:00Z',
+        owner_bound_at: null,
+        ownership_verified_at: null,
+        users: { created_at: '2026-01-01T00:00:00Z' },
+      };
+      qb.mockResolvedThen({ data: [candidate], error: null });
+      await expect(
+        service.getUserByWallet('0xabc', { verifiedOnly: true }),
       ).resolves.toEqual({ user_id: 'user-1' });
-
-      expect(dbMock.supabase.client.from).toHaveBeenCalledWith(
-        'user_crypto_wallets',
-      );
-      expect(qb.select).toHaveBeenCalledWith('user_id');
-      expect(qb.eq).toHaveBeenCalledWith(
-        'wallet',
-        '0x1234567890abcdef1234567890abcdef12345678',
-      );
+      expect(qb.ilike).toHaveBeenCalledWith('wallet', '0xabc');
       expect(dbMock.mock.rpc).not.toHaveBeenCalled();
     });
   });
 
-  // -----------------------------------------------------------------------
-  // connectWallet
-  // -----------------------------------------------------------------------
   describe('connectWallet', () => {
     it('creates a new user without triggering portfolio ETL', async () => {
       const { service, dbMock, alphaEtlHttpService } = createMocks();
@@ -177,6 +219,13 @@ describe('UsersService', () => {
         '0x1234567890abcdef1234567890abcdef12345678',
       );
 
+      expect(dbMock.mock.rpc).toHaveBeenCalledWith(
+        'create_user_with_wallet_and_plan',
+        {
+          p_wallet: '0x1234567890abcdef1234567890abcdef12345678',
+          p_plan_code: 'free',
+        },
+      );
       expect(result.is_new_user).toBe(false);
       expect(result.etl_job).toBeUndefined();
       expect(alphaEtlHttpService.triggerWalletFetch).not.toHaveBeenCalled();
@@ -216,7 +265,7 @@ describe('UsersService', () => {
   // -----------------------------------------------------------------------
   describe('addWallet', () => {
     it('adds an unverified wallet without consuming a challenge', async () => {
-      const { service, qb, walletBindingChallengeService } = createMocks();
+      const { service, qb, accountAuthService } = createMocks();
       qb.single.mockResolvedValue({
         data: { id: 'w-new', user_id: 'user-1', wallet: '0x123' },
         error: null,
@@ -233,9 +282,7 @@ describe('UsersService', () => {
       expect(qb.insert).toHaveBeenCalledWith(
         expect.objectContaining({ ownership_verified_at: null }),
       );
-      expect(
-        walletBindingChallengeService.verifyChallenge,
-      ).not.toHaveBeenCalled();
+      expect(accountAuthService.verifyDeletion).not.toHaveBeenCalled();
     });
     it('adds wallet to existing user', async () => {
       const { service, qb } = createMocks();
@@ -244,51 +291,11 @@ describe('UsersService', () => {
         error: null,
       });
 
-      const result = await service.addWallet(
-        'user-1',
-        '0x123',
-        'My Wallet',
-        '0x' + 'ab'.repeat(65),
-      );
+      const result = await service.addWallet('user-1', '0x123', 'My Wallet');
 
       expect(result.wallet_id).toBe('w-new');
       expect(result.message).toContain('Wallet added');
-      expect(result.ownership_verified).toBe(true);
-    });
-
-    it('marks the wallet ownership-verified when a valid signature is provided', async () => {
-      const { service, qb, walletBindingChallengeService } = createMocks();
-      qb.single.mockResolvedValue({
-        data: { id: 'w-new', user_id: 'user-1', wallet: '0x123' },
-        error: null,
-      });
-
-      const result = await service.addWallet(
-        'user-1',
-        '0x123',
-        'My Wallet',
-        '0x' + 'ab'.repeat(65),
-      );
-
-      expect(
-        walletBindingChallengeService.verifyChallenge,
-      ).toHaveBeenCalledWith('user-1', '0x123', '0x' + 'ab'.repeat(65));
-      expect(result.ownership_verified).toBe(true);
-      expect(qb.insert).toHaveBeenCalledWith(
-        expect.objectContaining({
-          ownership_verified_at: expect.any(String),
-        }),
-      );
-    });
-
-    it('rejects the binding when the ownership signature is invalid', async () => {
-      const { service, qb, walletBindingChallengeService } = createMocks();
-      walletBindingChallengeService.verifyChallenge.mockResolvedValue(false);
-
-      await expect(
-        service.addWallet('user-1', '0x123', undefined, '0x' + 'ab'.repeat(65)),
-      ).rejects.toThrow(BadRequestException);
-      expect(qb.insert).not.toHaveBeenCalled();
+      expect(result.ownership_verified).toBe(false);
     });
 
     it('throws ConflictException when wallet belongs to current user', async () => {
@@ -305,7 +312,7 @@ describe('UsersService', () => {
       });
 
       await expect(
-        service.addWallet('user-1', '0x123', undefined, '0x' + 'ab'.repeat(65)),
+        service.addWallet('user-1', '0x123', undefined),
       ).rejects.toThrow(ConflictException);
     });
 
@@ -321,7 +328,7 @@ describe('UsersService', () => {
       });
 
       await expect(
-        service.addWallet('user-1', '0x123', undefined, '0x' + 'ab'.repeat(65)),
+        service.addWallet('user-1', '0x123', undefined),
       ).rejects.toThrow(ConflictException);
     });
 
@@ -356,150 +363,13 @@ describe('UsersService', () => {
       );
 
       await expect(
-        service.addWallet('user-1', '0x123', undefined, '0x' + 'ab'.repeat(65)),
+        service.addWallet('user-1', '0x123', undefined),
       ).rejects.toThrow(NotFoundException);
     });
   });
 
   // -----------------------------------------------------------------------
   // requestWalletBindingChallenge
-  // -----------------------------------------------------------------------
-  describe('requestWalletBindingChallenge', () => {
-    it('issues a challenge for an existing user', async () => {
-      const { service, walletBindingChallengeService } = createMocks();
-
-      const result = await service.requestWalletBindingChallenge(
-        'user-1',
-        '0x123',
-      );
-
-      expect(walletBindingChallengeService.issueChallenge).toHaveBeenCalledWith(
-        'user-1',
-        '0x123',
-      );
-      expect(result.nonce).toHaveLength(64);
-      expect(result.message).toContain('ZapPilot');
-    });
-
-    it('rejects the challenge request for a missing user', async () => {
-      const { service, validationService, walletBindingChallengeService } =
-        createMocks();
-      validationService.validateUserExists.mockRejectedValue(
-        new NotFoundException('User not found'),
-      );
-
-      await expect(
-        service.requestWalletBindingChallenge('user-1', '0x123'),
-      ).rejects.toThrow(NotFoundException);
-      expect(
-        walletBindingChallengeService.issueChallenge,
-      ).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('requestDeletionChallenge', () => {
-    it('issues a deletion challenge for a verified bundled wallet', async () => {
-      const { service, accountDeletionChallengeService } = createMocks();
-
-      await service.requestDeletionChallenge('user-1', '0x123');
-
-      expect(
-        accountDeletionChallengeService.issueChallenge,
-      ).toHaveBeenCalledWith('user-1', '0x123');
-    });
-
-    it('rejects an unverified wallet before issuing a challenge', async () => {
-      const { service, validationService, accountDeletionChallengeService } =
-        createMocks();
-      validationService.validateVerifiedWalletOwnership.mockRejectedValue(
-        new ConflictException('Wallet ownership has not been verified'),
-      );
-
-      await expect(
-        service.requestDeletionChallenge('user-1', '0x123'),
-      ).rejects.toThrow(ConflictException);
-      expect(
-        accountDeletionChallengeService.issueChallenge,
-      ).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('verifyWalletOwnership', () => {
-    const storedWallet = '0xAbCd000000000000000000000000000000000001';
-    const requestedWallet = storedWallet.toLowerCase();
-    const signature = '0x' + 'ab'.repeat(65);
-
-    it('verifies a bundled wallet case-insensitively', async () => {
-      const { service, qb, walletBindingChallengeService } = createMocks();
-      qb.mockResolvedThen({
-        data: [{ wallet: storedWallet, ownership_verified_at: null }],
-        error: null,
-      });
-      qb.single.mockResolvedValue({ data: { id: 'w-1' }, error: null });
-
-      const result = await service.verifyWalletOwnership(
-        'user-1',
-        requestedWallet,
-        signature,
-      );
-
-      expect(result.success).toBe(true);
-      expect(result.ownership_verified_at).toBeTruthy();
-      expect(
-        walletBindingChallengeService.verifyChallenge,
-      ).toHaveBeenCalledWith('user-1', requestedWallet, signature);
-      expect(qb.eq).toHaveBeenCalledWith('wallet', storedWallet);
-    });
-
-    it('rejects an invalid signature without stamping the wallet', async () => {
-      const { service, qb, walletBindingChallengeService } = createMocks();
-      qb.mockResolvedThen({
-        data: [{ wallet: storedWallet, ownership_verified_at: null }],
-        error: null,
-      });
-      walletBindingChallengeService.verifyChallenge.mockResolvedValue(false);
-
-      await expect(
-        service.verifyWalletOwnership('user-1', requestedWallet, signature),
-      ).rejects.toThrow(BadRequestException);
-      expect(qb.update).not.toHaveBeenCalled();
-    });
-
-    it('returns 404 when the wallet is not in the user bundle', async () => {
-      const { service, qb, walletBindingChallengeService } = createMocks();
-      qb.mockResolvedThen({ data: [], error: null });
-
-      await expect(
-        service.verifyWalletOwnership('user-1', requestedWallet, signature),
-      ).rejects.toThrow(NotFoundException);
-      expect(
-        walletBindingChallengeService.verifyChallenge,
-      ).not.toHaveBeenCalled();
-    });
-
-    it('is idempotent and does not consume a challenge when already verified', async () => {
-      const { service, qb, walletBindingChallengeService } = createMocks();
-      const verifiedAt = '2026-08-22T00:00:00.000Z';
-      qb.mockResolvedThen({
-        data: [{ wallet: storedWallet, ownership_verified_at: verifiedAt }],
-        error: null,
-      });
-
-      await expect(
-        service.verifyWalletOwnership('user-1', requestedWallet, signature),
-      ).resolves.toMatchObject({
-        success: true,
-        ownership_verified_at: verifiedAt,
-      });
-      expect(
-        walletBindingChallengeService.verifyChallenge,
-      ).not.toHaveBeenCalled();
-      expect(qb.update).not.toHaveBeenCalled();
-    });
-  });
-
-  // -----------------------------------------------------------------------
-  // updateEmail
   // -----------------------------------------------------------------------
   describe('updateEmail', () => {
     it('updates email successfully', async () => {
@@ -655,46 +525,32 @@ describe('UsersService', () => {
   // removeWallet
   // -----------------------------------------------------------------------
   describe('removeWallet', () => {
-    it('removes wallet owned by user', async () => {
-      const { service, qb } = createMocks();
-      qb.single.mockResolvedValueOnce({
-        data: { user_id: 'user-1' },
-        error: null,
-      });
-      qb.single.mockResolvedValueOnce({ data: null, error: null });
-
-      const result = await service.removeWallet('user-1', 'w-1');
-      expect(result.message).toContain('removed');
-    });
-
-    it('throws BadRequestException when wallet belongs to another user', async () => {
-      const { service, qb } = createMocks();
-      qb.single.mockResolvedValue({
-        data: { user_id: 'user-2' },
-        error: null,
-      });
-
-      await expect(service.removeWallet('user-1', 'w-1')).rejects.toThrow(
-        BadRequestException,
+    it('uses atomic database removal with the session age', async () => {
+      const { service, dbMock } = createMocks();
+      await expect(
+        service.removeWallet('user-1', 'w-1', 'token'),
+      ).resolves.toEqual({ message: 'Wallet removed successfully' });
+      expect(dbMock.supabase.client.rpc).toHaveBeenCalledWith(
+        'remove_bundle_wallet',
+        { p_user_id: 'user-1', p_wallet_id: 'w-1', p_recent: true },
       );
     });
-
-    it('throws NotFoundException when wallet does not exist', async () => {
-      const { service, qb } = createMocks();
-      qb.single.mockResolvedValue({
+    it.each([
+      ['RECENT_SIGN_IN_REQUIRED', 401],
+      ['LAST_OWNER_WALLET', 409],
+      ['missing wallet', 400],
+    ])('rejects %s', async (message, statusCode) => {
+      const { service, dbMock } = createMocks();
+      dbMock.supabase.client.rpc.mockResolvedValue({
         data: null,
-        error: { code: 'PGRST116', message: 'not found' },
+        error: { message },
       });
-
-      await expect(service.removeWallet('user-1', 'w-1')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.removeWallet('user-1', 'w-1', 'token'),
+      ).rejects.toMatchObject({ statusCode });
     });
   });
 
-  // -----------------------------------------------------------------------
-  // getUserProfile
-  // -----------------------------------------------------------------------
   describe('getUserProfile', () => {
     it('returns profile with wallets and no subscription', async () => {
       const { service, qb } = createMocks();
@@ -711,7 +567,12 @@ describe('UsersService', () => {
 
       const result = await service.getUserProfile('user-1');
 
-      expect(result.user).toEqual({ id: 'user-1', email: 'test@test.com' });
+      expect(result.user).toEqual({
+        id: 'user-1',
+        created_at: undefined,
+        is_subscribed_to_reports: undefined,
+      });
+      expect(result.user).not.toHaveProperty('email');
       expect(result.wallets).toEqual([{ id: 'w-1', wallet: '0x111' }]);
       expect(result.subscription).toBeUndefined();
     });
@@ -755,84 +616,31 @@ describe('UsersService', () => {
   // deleteUser
   // -----------------------------------------------------------------------
   describe('deleteUser', () => {
-    it('deletes user without subscription', async () => {
-      const { service, qb } = createMocks();
+    it('verifies a purpose-specific owner proof before deleting with cascades', async () => {
+      const { service, qb, accountAuthService } = createMocks();
       qb.single.mockResolvedValue({ data: { id: 'user-1' }, error: null });
-
-      const result = await service.deleteUser(
+      await expect(
+        service.deleteUser('user-1', 'challenge', 'signature'),
+      ).resolves.toMatchObject({ success: true });
+      expect(accountAuthService.verifyDeletion).toHaveBeenCalledWith(
         'user-1',
-        '0x123',
-        '0x' + 'ab'.repeat(65),
+        'challenge',
+        'signature',
       );
-      expect(result.success).toBe(true);
+      expect(qb.delete).toHaveBeenCalledTimes(1);
     });
-
-    it('rejects deletion when the wallet does not belong to the user', async () => {
-      const { service, validationService, accountDeletionChallengeService } =
-        createMocks();
-      validationService.validateVerifiedWalletOwnership.mockRejectedValue(
-        new NotFoundException('Wallet not found'),
+    it('does not delete after a rejected ownership proof', async () => {
+      const { service, qb, accountAuthService } = createMocks();
+      accountAuthService.verifyDeletion.mockRejectedValue(
+        new BadRequestException('Invalid proof'),
       );
-
       await expect(
-        service.deleteUser('user-1', '0x456', '0x' + 'ab'.repeat(65)),
-      ).rejects.toThrow(NotFoundException);
-      expect(
-        accountDeletionChallengeService.verifyChallenge,
-      ).not.toHaveBeenCalled();
-    });
-
-    it('rejects an invalid deletion signature before deleting', async () => {
-      const { service, qb, accountDeletionChallengeService } = createMocks();
-      accountDeletionChallengeService.verifyChallenge.mockResolvedValue(false);
-
-      await expect(
-        service.deleteUser('user-1', '0x123', '0x' + 'ab'.repeat(65)),
+        service.deleteUser('user-1', 'challenge', 'signature'),
       ).rejects.toThrow(BadRequestException);
       expect(qb.delete).not.toHaveBeenCalled();
     });
-
-    it('throws NotFoundException when user does not exist', async () => {
-      const { service, validationService } = createMocks();
-      validationService.validateUserExists.mockRejectedValue(
-        new NotFoundException('User not found'),
-      );
-
-      await expect(
-        service.deleteUser('user-999', '0x123', '0x' + 'ab'.repeat(65)),
-      ).rejects.toThrow(NotFoundException);
-    });
-
-    it('issues one user delete and relies on database cascades', async () => {
-      const { service, qb } = createMocks();
-      qb.single.mockResolvedValue({ data: { id: 'user-1' }, error: null });
-
-      await service.deleteUser('user-1', '0x123', '0x' + 'ab'.repeat(65));
-
-      expect(qb.delete).toHaveBeenCalledTimes(1);
-      expect(qb.eq).toHaveBeenCalledWith('id', 'user-1');
-      expect(qb.update).not.toHaveBeenCalled();
-    });
-
-    it('rejects an unverified wallet before consuming a deletion challenge', async () => {
-      const { service, validationService, accountDeletionChallengeService } =
-        createMocks();
-      validationService.validateVerifiedWalletOwnership.mockRejectedValue(
-        new ConflictException('Wallet ownership has not been verified'),
-      );
-
-      await expect(
-        service.deleteUser('user-1', '0x123', '0x' + 'ab'.repeat(65)),
-      ).rejects.toThrow(ConflictException);
-      expect(
-        accountDeletionChallengeService.verifyChallenge,
-      ).not.toHaveBeenCalled();
-    });
   });
 
-  // -----------------------------------------------------------------------
-  // triggerWalletDataFetch
-  // -----------------------------------------------------------------------
   describe('triggerWalletDataFetch', () => {
     it('triggers ETL job successfully', async () => {
       const { service } = createMocks();

@@ -1,5 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('./daemon-tick-telemetry.js', () => ({
+  withSocialDaemonTickTelemetry: (
+    _options: unknown,
+    run: () => Promise<unknown>,
+  ) => run(),
+  recordSocialEnqueueResult: vi.fn(),
+}));
+
 const mocks = vi.hoisted(() => ({
   alignPendingSocialReleaseCohorts: vi.fn().mockResolvedValue({
     alignedLanes: 0,
@@ -10,7 +18,6 @@ const mocks = vi.hoisted(() => ({
   enqueueSocialPublishJob: vi.fn().mockResolvedValue(true),
   ensureSocialDaemonStart: vi.fn(),
   failSocialPublishJob: vi.fn(),
-  getActiveSocialStrategies: vi.fn().mockResolvedValue([]),
   getSocialQueueSnapshot: vi.fn().mockResolvedValue({
     pendingCount: 0,
     episodeQueue: [],
@@ -47,7 +54,6 @@ const mocks = vi.hoisted(() => ({
   }),
   captureDueAccountSnapshots: vi.fn().mockResolvedValue([]),
   capturePrePublishAccountSnapshots: vi.fn().mockResolvedValue([]),
-  refreshSocialStrategies: vi.fn(),
   getAllowedTelegramUserIds: vi.fn(),
   sendTelegramNotification: vi.fn().mockResolvedValue(undefined),
 }));
@@ -58,7 +64,6 @@ vi.mock('./daemon-store.js', () => ({
   enqueueSocialPublishJob: mocks.enqueueSocialPublishJob,
   ensureSocialDaemonStart: mocks.ensureSocialDaemonStart,
   failSocialPublishJob: mocks.failSocialPublishJob,
-  getActiveSocialStrategies: mocks.getActiveSocialStrategies,
   getSocialQueueSnapshot: mocks.getSocialQueueSnapshot,
   listPendingSocialPublishSchedules: mocks.listPendingSocialPublishSchedules,
   listDueSocialPublishPlatforms: mocks.listDueSocialPublishPlatforms,
@@ -99,10 +104,6 @@ vi.mock('./metric-collectors.js', () => ({
   createMetricCollectors: mocks.createMetricCollectors,
   createMetricsBrowserSession: mocks.createMetricsBrowserSession,
 }));
-vi.mock('./strategy.js', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('./strategy.js')>()),
-  refreshSocialStrategies: mocks.refreshSocialStrategies,
-}));
 vi.mock('../lib/env.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../lib/env.js')>()),
   getAllowedTelegramUserIds: mocks.getAllowedTelegramUserIds,
@@ -123,7 +124,6 @@ import {
   SocialCopyGenerationError,
   SocialReleaseFailureError,
 } from './publish-error.js';
-import { RednoteSemanticRiskError } from './rednote-semantic-risk.js';
 
 // 10:00 JST: inside the window `publishDueJobs` will claim in.
 const NOW = new Date('2026-08-16T01:00:00.000Z');
@@ -399,24 +399,19 @@ describe('social daemon release-shape stages are fatal', () => {
     expect(mocks.captureDueAccountSnapshots).toHaveBeenCalled();
   });
 
-  // A verdict against one note is decided and repeats on restart; a judge that
-  // cannot answer is an outage the next tick recovers from. Holding on the
-  // outage would burn all eight attempts of every zh-Hant article while the
-  // daemon stayed green -- the fail-open shape this gate exists to prevent.
-  it('still fatals when the Rednote judge is unavailable', async () => {
+  // Configuration/deployment errors must remain fatal rather than spending
+  // every article's attempts behind a healthy-looking daemon.
+  it('still fatals when copy preparation cannot read a prompt file', async () => {
     mocks.claimSocialPublishBatch.mockResolvedValue([
       job({ id: 'zh-rednote', platform: 'rednote', language_code: 'zh-Hant' }),
     ]);
     mocks.prepareSocialBatchCopy.mockRejectedValue(
-      new RednoteSemanticRiskError({
-        reason: 'unavailable',
-        message: 'Rednote semantic risk gate could not reach a verdict',
-      }),
+      new Error('Social prompt file missing'),
     );
 
     await expect(
       runSocialDaemonTick({ now: NOW, firstStartedAt: FIRST_STARTED_AT }),
-    ).rejects.toThrow('could not reach a verdict');
+    ).rejects.toThrow('Social prompt file missing');
 
     expect(mocks.failSocialPublishJob).not.toHaveBeenCalled();
   });

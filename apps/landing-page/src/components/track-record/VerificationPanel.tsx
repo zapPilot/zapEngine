@@ -64,7 +64,7 @@ export function VerificationPanel({
                 ? verification.signatureValid
                   ? `Valid — recovered signer: ${verification.signature?.recoveredSigner ?? latestSnapshot.signature.signer}`
                   : `Invalid — ${verification.signature?.reason ?? 'signature check failed'}`
-                : 'No signature (v0 — optional)'}
+                : 'Unsigned — no official signer is configured yet'}
             </span>
           </div>
           {latestSnapshot?.signature && (
@@ -147,8 +147,8 @@ export function VerificationPanel({
               <AlertCircle aria-hidden />
               <span>
                 {source === 'backtest'
-                  ? 'Backtest mode — switch to Live for a published snapshot'
-                  : 'No live snapshot yet'}
+                  ? 'Backtest mode — switch to Snapshots for a published snapshot'
+                  : 'No published snapshot yet'}
               </span>
             </div>
           )}

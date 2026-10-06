@@ -1,36 +1,41 @@
 import { CtaExperimentPanel } from '../components/CtaExperimentPanel.js';
-import { Lightbulb, TrendingDown, UserPlus, Video } from 'lucide-react';
+import { AudienceGrowthCard } from '../components/AudienceGrowthCard.js';
+import { MeasuredViews } from '../components/ui/MeasuredViews.js';
+import { ContentPackagingCard } from '../components/ContentPackagingCard.js';
+import { TrendingDown, UserPlus, Video } from 'lucide-react';
 
 import type { OperationsGrowthResponse } from '../../shared/growth.js';
 import { GrowthLaneTable } from '../components/GrowthLaneTable.js';
 import type { SocialGrowthJourney } from '../../shared/growth-journey.js';
-import type {
-  SocialGrowthResponse,
-  SocialPerformanceResponse,
+import {
+  DEFAULT_SOCIAL_COMPARISON_WINDOW,
+  type SocialGrowthResponse,
+  type SocialPerformanceResponse,
 } from '../../shared/types.js';
 import { GrowthJourneyPanel } from '../components/GrowthJourneyPanel.js';
 import { Card } from '../components/ui/Card.js';
 import { EmptyState } from '../components/ui/EmptyState.js';
 import { ProviderLink } from '../components/ui/Links.js';
-import { Pill } from '../components/ui/Pill.js';
 import { RankedList, type RankedItem } from '../components/ui/RankedList.js';
 import { ShareDonut, type ShareSlice } from '../components/ui/ShareDonut.js';
 import { Stat } from '../components/ui/Stat.js';
-import { platformColorVar, type Tone } from '../components/ui/tone.js';
+import { platformColorVar } from '../components/ui/tone.js';
 import { integer, percent } from '../format.js';
 import { PlatformIdentity, platformLabel } from '../platform.js';
 
-const CONFIDENCE_TONE: Record<string, Tone> = {
-  high: 'success',
-  low: 'neutral',
-  medium: 'warning',
-};
-
-export const CURRENT_RELEASE_SLOTS_JST = [
-  '09:30',
-  '12:00',
-  '16:00',
-  '21:00',
+export const CURRENT_RELEASE_CADENCES_JST = [
+  {
+    minBacklogArticles: 21,
+    slots: ['09:00', '11:30', '14:00', '16:30', '19:00', '21:30'],
+  },
+  {
+    minBacklogArticles: 10,
+    slots: ['09:00', '12:00', '15:00', '18:00', '21:00'],
+  },
+  {
+    minBacklogArticles: 0,
+    slots: ['09:30', '12:00', '16:00', '21:00'],
+  },
 ] as const;
 
 export function GrowthPage(props: {
@@ -49,9 +54,11 @@ export function GrowthPage(props: {
       <CtaExperimentPanel reading={props.acquisition?.ctaExperiment ?? null} />
 
       <div className="growth-toolbar">
-        <span>貼文量測時間（到站與轉換固定為 30 天）</span>
+        <span>
+          貼文量測視窗：用於 0 觀看判讀與近期內容表現；到站與轉換固定為 30 天
+        </span>
         <WindowPicker
-          active={props.data?.window ?? 'latest'}
+          active={props.data?.window ?? DEFAULT_SOCIAL_COMPARISON_WINDOW}
           onChange={props.onWindowChange}
         />
       </div>
@@ -102,6 +109,8 @@ export function GrowthPage(props: {
         </Card>
       </details>
 
+      <AudienceGrowthCard growth={props.growth} />
+
       <div className="cc-grid rel-main">
         <Card
           icon={Video}
@@ -112,22 +121,9 @@ export function GrowthPage(props: {
           <ContentPerformance data={props.data} />
         </Card>
 
-        <Card
-          icon={Lightbulb}
-          subtitle="依觀看樣本歸納，尚未驗證能提高註冊"
-          title="內容題材參考"
-          tone="accent"
-        >
-          <RankedList
-            empty={
-              <EmptyState
-                detail="還沒有累積到足以形成建議的樣本。"
-                title="No learned guidance yet"
-              />
-            }
-            items={decisionItems(props.data)}
-          />
-        </Card>
+        <ContentPackagingCard
+          packaging={props.acquisition?.packaging ?? null}
+        />
       </div>
     </div>
   );
@@ -179,7 +175,7 @@ function DecisionBrief(props: {
           ? '註冊資料不可用，先恢復資料再評估成效。'
           : waitlist.signups30d === 0 && journey.landingVisitors30d > 0
             ? '優先檢查 Landing → CTA → 表單是否可完成，再測試與貼文內容一致的價值主張；目前沒有註冊證據支持增加發文量。'
-            : '比較渠道帶來的註冊結果，再決定下一個內容實驗；觀看數只作題材參考。'}
+            : '比較渠道帶來的註冊結果，再決定下一個內容實驗；觀看數只作包裝參考。'}
       </p>
     </Card>
   );
@@ -205,9 +201,14 @@ function WindowPicker(props: {
           className={props.active === window ? 'active' : undefined}
           key={window}
           onClick={() => void props.onChange(window)}
+          title={
+            window === 'latest'
+              ? '每篇最新一筆，量測時間各不相同，不能直接比較'
+              : undefined
+          }
           type="button"
         >
-          {window}
+          {window === 'latest' ? '最新快照' : window}
         </button>
       ))}
     </div>
@@ -216,38 +217,53 @@ function WindowPicker(props: {
 
 /**
  * Canonical publishing cadence. One article consumes one release slot and all
- * active platform x language lanes share it; the slots here must match
- * SOCIAL_RELEASE_SLOTS in apps/podcast-pipeline/src/social/policy.ts.
+ * active platform x language lanes share it; these tiers must match
+ * SOCIAL_RELEASE_CADENCES in apps/podcast-pipeline/src/social/policy.ts.
  */
 function PublishingCadence() {
   return (
     <section className="publishing-brief" aria-label="Next publishing plan">
       <div className="brief-kicker">Next publishing</div>
       <div className="brief-primary">
-        <span>Shared release cadence</span>
-        <div
-          aria-label="Publishing slots"
-          style={{
-            display: 'grid',
-            gap: '8px',
-            gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-          }}
-        >
-          {CURRENT_RELEASE_SLOTS_JST.map((slot) => (
-            <strong
-              key={slot}
+        <span>Backlog-aware shared cadence</span>
+        {CURRENT_RELEASE_CADENCES_JST.map((cadence) => (
+          <div key={cadence.minBacklogArticles} style={{ marginTop: '10px' }}>
+            <small>
+              {cadence.minBacklogArticles >= 21
+                ? '21+ queued'
+                : cadence.minBacklogArticles >= 10
+                  ? '10–20 queued'
+                  : '0–9 queued'}{' '}
+              · {cadence.slots.length}/day
+            </small>
+            <div
+              aria-label={`Publishing slots for backlog ${cadence.minBacklogArticles}+`}
               style={{
-                border: '1px solid var(--line)',
-                borderRadius: 'var(--radius-control)',
-                padding: '10px 8px',
-                textAlign: 'center',
+                display: 'grid',
+                gap: '6px',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(64px, 1fr))',
+                marginTop: '6px',
               }}
             >
-              {slot}
-            </strong>
-          ))}
-        </div>
-        <small>JST · 4 article slots per day</small>
+              {cadence.slots.map((slot) => (
+                <strong
+                  key={slot}
+                  style={{
+                    border: '1px solid var(--line)',
+                    borderRadius: 'var(--radius-control)',
+                    padding: '8px 6px',
+                    textAlign: 'center',
+                  }}
+                >
+                  {slot}
+                </strong>
+              ))}
+            </div>
+          </div>
+        ))}
+        <small>
+          JST · queue count is per unpublished article, not per lane
+        </small>
       </div>
       <div className="brief-direction">
         <span>Publishing contract</span>
@@ -300,7 +316,12 @@ function leakItems(
   }
   const silent = (data?.episodes ?? []).flatMap((episode) =>
     episode.platforms
-      .filter((platform) => platform.views === 0)
+      .filter(
+        (platform) =>
+          platform.views === 0 &&
+          platform.measurementWindow !== null &&
+          ['24h', '72h', '7d'].includes(platform.measurementWindow),
+      )
       .map((platform) => ({
         episode: episode.title,
         platform: platform.platform,
@@ -308,12 +329,14 @@ function leakItems(
   );
   if (silent.length > 0) {
     items.push({
-      detail: silent
-        .map((entry) => `${platformLabel(entry.platform)}／${entry.episode}`)
-        .slice(0, 3)
-        .join('、'),
+      detail:
+        (data?.window === 'latest' ? '只計 ≥24h 的列。' : '') +
+        silent
+          .map((entry) => `${platformLabel(entry.platform)}／${entry.episode}`)
+          .slice(0, 3)
+          .join('、'),
       id: 'zero-view-posts',
-      title: `${integer(silent.length)} 篇貼文的觀看數是 0`,
+      title: `${integer(silent.length)} 篇貼文的 ${data?.window === 'latest' ? '≥24h 最新快照' : data?.window} 觀看數是 0`,
       tone: 'warning',
     });
   }
@@ -378,25 +401,43 @@ function WaitlistCard(props: { growth: SocialGrowthResponse | null }) {
 }
 
 function ContentPerformance(props: { data: SocialPerformanceResponse | null }) {
-  const episodes = props.data?.episodes ?? [];
+  const all = props.data?.episodes ?? [];
+  const latest = props.data?.window === 'latest';
+  const episodes = latest
+    ? all
+    : all.filter((episode) => episode.windowReached);
+  const skipped = all.length - episodes.length;
   if (episodes.length === 0) {
     return (
-      <EmptyState detail="這個視窗內沒有發佈紀錄。" title="No release yet" />
+      <EmptyState
+        detail={
+          skipped > 0
+            ? `較新的 ${skipped} 集尚未滿 ${props.data?.window}，暫不列入比較`
+            : '這個視窗內尚無已滿量測視窗的發佈紀錄。'
+        }
+        title="No release yet"
+      />
     );
   }
   return (
     <div className="growth-content">
+      {skipped > 0 && (
+        <p>
+          較新的 {skipped} 集尚未滿 {props.data?.window}，暫不列入比較
+        </p>
+      )}
       {episodes.slice(0, 3).map((episode) => (
         <div className="growth-content-block" key={episode.episodeId}>
           <strong className="growth-content-title">{episode.title}</strong>
           {episode.platforms.map((platform) => (
             <div className="growth-content-row" key={platform.platform}>
               <PlatformIdentity platform={platform.platform} />
-              <span className="growth-content-metric">
-                {platform.views === null
-                  ? '—'
-                  : `${integer(platform.views)} views`}
-              </span>
+              <MeasuredViews
+                className="growth-content-metric"
+                metric={platform}
+                missing={latest ? '尚無快照' : '未取得'}
+                suffix=" views"
+              />
               <span className="growth-content-metric">
                 {platform.engagementRate === null
                   ? '—'
@@ -417,33 +458,4 @@ function ContentPerformance(props: { data: SocialPerformanceResponse | null }) {
       ))}
     </div>
   );
-}
-
-/** The learner's per-platform guidance. `confidence` is sample coverage, not
- * statistical significance, so it is shown as-is rather than as an impact score. */
-function decisionItems(data: SocialPerformanceResponse | null): RankedItem[] {
-  return (data?.decisions ?? [])
-    .filter((decision) => decision.evidenceSamples > 0)
-    .map((decision) => ({
-      aside: (
-        <Pill tone={CONFIDENCE_TONE[decision.confidence] ?? 'neutral'}>
-          {decision.confidence}
-        </Pill>
-      ),
-      detail: [
-        decision.bestTopic ? `最佳題材：${decision.bestTopic}` : null,
-        decision.publishSlotsJst
-          ? `發佈時段：${decision.publishSlotsJst}`
-          : null,
-        decision.preferredHookTypes.length > 0
-          ? `開場：${decision.preferredHookTypes.join('、')}`
-          : null,
-      ]
-        .filter(Boolean)
-        .join(' · '),
-      id: `decision-${decision.platform}`,
-      meta: `${integer(decision.evidenceSamples)} samples`,
-      title: platformLabel(decision.platform),
-      tone: 'accent',
-    }));
 }

@@ -9,6 +9,7 @@ import {
 } from './daemon-store.js';
 import { platformLabel } from './log-format.js';
 import {
+  describeGoogleApiError,
   type MetricsBrowserSession,
   parseFirstMetricNumber,
   parseMetricNumber,
@@ -19,6 +20,11 @@ import { readPublishState } from './state.js';
 import { assertThreadsSessionReady } from './threads-auth.js';
 import type { SocialPlatform } from './types.js';
 import { PROFILE_DIRECTORY as X_PROFILE_DIRECTORY } from './x-playwright.js';
+import { readExpectedChannelId } from './youtube.js';
+import {
+  assertYouTubeSessionReady,
+  YOUTUBE_READONLY_SCOPE,
+} from './youtube-auth.js';
 
 const REDNOTE_USER_INFO_URL =
   'https://creator.rednote.com/api/galaxy/user/info';
@@ -174,18 +180,64 @@ async function collectThreadsFollowers({
   url.searchParams.set('metric', 'followers_count');
   url.searchParams.set('access_token', session.accessToken);
 
-  const response = await fetchImpl(url, {
+  const payload = await fetchJson(fetchImpl, url, {
     signal: AbortSignal.timeout(BROWSER_TIMEOUT_MS),
   });
-  const payload = (await response.json().catch(() => null)) as unknown;
-  if (!response.ok) {
-    throw new Error(`Threads insights failed with HTTP ${response.status}.`);
-  }
   const followers = readThreadsFollowerCount(payload);
   if (followers === null) {
     throw new Error('Threads insights returned no followers_count value.');
   }
   return { platform: 'threads', followers, details: {} };
+}
+
+async function fetchJson(
+  fetchImpl: typeof fetch,
+  url: URL,
+  init: RequestInit,
+): Promise<unknown> {
+  const response = await fetchImpl(url, init);
+  const payload = (await response.json().catch(() => null)) as unknown;
+  if (!response.ok) {
+    throw new Error(
+      `Account insights failed with HTTP ${response.status}.${describeGoogleApiError(payload)}`,
+    );
+  }
+  return payload;
+}
+
+export async function collectYouTubeSubscribers({
+  fetchImpl,
+}: Pick<CollectorContext, 'fetchImpl'>): Promise<NewSocialAccountSnapshot> {
+  const channelId = readExpectedChannelId(process.env);
+  const session = await assertYouTubeSessionReady({
+    additionalScopes: [YOUTUBE_READONLY_SCOPE],
+    fetchImpl,
+  });
+  const url = new URL('https://www.googleapis.com/youtube/v3/channels');
+  url.searchParams.set('part', 'statistics');
+  url.searchParams.set('mine', 'true');
+  const payload = await fetchJson(fetchImpl, url, {
+    headers: { Authorization: `Bearer ${session.accessToken}` },
+    signal: AbortSignal.timeout(BROWSER_TIMEOUT_MS),
+  });
+  const item =
+    isRecord(payload) && Array.isArray(payload['items'])
+      ? payload['items'][0]
+      : null;
+  if (!isRecord(item)) throw new Error('YouTube returned no channel.');
+  if (item['id'] !== channelId)
+    throw new Error('YouTube channel does not match the configured channel.');
+  const statistics = item['statistics'];
+  if (!isRecord(statistics))
+    throw new Error('YouTube returned no subscriber statistics.');
+  if (statistics['hiddenSubscriberCount'] === true)
+    throw new Error('YouTube subscriber count is hidden.');
+  const followers = parseMetricNumber(
+    String(statistics['subscriberCount'] ?? ''),
+  );
+  if (followers === null)
+    throw new Error('YouTube returned no readable subscriber count.');
+  return { platform: 'youtube', followers, details: {} };
 }
 
 function readThreadsFollowerCount(payload: unknown): number | null {
@@ -202,10 +254,13 @@ function readThreadsFollowerCount(payload: unknown): number | null {
   return null;
 }
 
+const BASELINE_EXCLUDED = new Set<SocialPlatform>(['youtube']);
+
 const COLLECTORS: Partial<Record<SocialPlatform, FollowerCollector>> = {
   rednote: collectRednoteFollowers,
   x: collectXFollowers,
   threads: collectThreadsFollowers,
+  youtube: collectYouTubeSubscribers,
 };
 
 interface CaptureAccountSnapshotsInput {
@@ -258,7 +313,8 @@ export async function capturePrePublishAccountSnapshots(
 ): Promise<SocialPlatform[]> {
   const latest = await (input.latest ?? latestSocialAccountSnapshots)();
   const due = [...new Set(input.platforms)].filter((platform) => {
-    if (!COLLECTORS[platform]) return false;
+    // YouTube attribution uses exact per-video gains, so needs no baseline.
+    if (BASELINE_EXCLUDED.has(platform) || !COLLECTORS[platform]) return false;
     const previous = latest[platform];
     return (
       !previous ||

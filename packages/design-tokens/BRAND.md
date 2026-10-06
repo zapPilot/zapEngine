@@ -27,8 +27,19 @@ needle reading the regime, graduated ticks, and a central pivot.
 was added — `tokens.json` is unchanged.
 
 **Typography:** the "Zap Pilot" wordmark is Instrument Serif (`font.serif`),
-outlined to paths in the committed lockup SVGs; the tagline "Disciplined
-Portfolio Autopilot" is JetBrains Mono (`font.mono`).
+outlined to paths in the committed lockup SVGs; the tagline "Programmable
+Portfolio Runtime" is JetBrains Mono (`font.mono`). The tagline changed in
+2026-10 from "Disciplined Portfolio Autopilot".
+
+**Tagline redraw:** outline the upper-case tagline with `@shuding/opentype.js`
+from `apps/app/assets/fonts/JetBrainsMono-Medium.ttf` at 8.5px, pen start
+x = 63, baseline y = 51, 1.8px letter-spacing (6.9px per character), fill
+`#6a5e44` (`color.accent-muted`); coordinates use two decimals, drop `Z`
+commands, and glyph paths join with one space. Regenerating the previous
+tagline with these parameters reproduces its committed path exactly. Render
+`zap-pilot-logo-tagline.png` with
+`new Resvg(svg, { fitTo: { mode: 'width', value: 1152 }, background: 'rgba(0,0,0,0)' }).render().asPng()`
+from `@resvg/resvg-js`; that call reproduces the committed PNG byte for byte.
 
 **Regenerating rasters:** the SVG sources are canonical —
 `apps/landing-page/public/zap-pilot-{icon,logo,logo-dark,logo-tagline}.svg` and
@@ -43,85 +54,89 @@ The sections below are retained as the original design brief and rationale.
 
 Zap Pilot is:
 
-> A regime-driven 3-pillar allocator (S&P500 · BTC/ETH · Stables), executed
-> from your own wallet in one bundled transaction. 100% self-custody.
+> A runtime for programmable portfolios — your strategy, your machine, your
+> wallet.
+
+Every public capability claim carries its status — Live, Research, In
+development or Planned — from `apps/landing-page/src/config/runtime.ts`. Today
+a reference strategy, DMA/FGI Portfolio Rules, is evaluated daily on Zap
+Pilot-hosted servers; deposits go straight into Morpho, GMX v2 and Hyperliquid
+positions held at the user's own address; every batch is checked before the
+user signs it. Rebalance plans, user strategies and policies, and running on
+the user's own machine are planned.
 
 Canonical copy from `apps/landing-page/src/config/messages.ts`:
 
-| Role              | Copy                                                                                   |
-| ----------------- | -------------------------------------------------------------------------------------- |
-| Marketing tagline | Disciplined Portfolio Autopilot                                                        |
-| Hero claim        | A Non-Custodial BlackRock in Your Wallet.                                              |
-| Philosophy        | Buy in fear. Defend in greed.                                                          |
-| Hero subtitle     | Rules-based across S&P500, BTC/ETH, and stables — bundled into one signature you keep. |
+| Role                    | Copy                                       |
+| ----------------------- | ------------------------------------------ |
+| Brand line              | Your strategy. Your machine. Your wallet.  |
+| Category                | A runtime for programmable portfolios      |
+| Nav                     | portfolio runtime                          |
+| Lockup tagline          | Programmable Portfolio Runtime             |
+| Reference strategy idea | Buy in fear. Defend in greed.              |
+| Status vocabulary       | Live · Research · In development · Planned |
 
-The product watches objective regime signals, decides when a portfolio should
-move between three asset pillars, and prepares a transaction bundle for the user
-to review and sign from their own wallet.
+The brand line appears only where a status marker shares the screen: the home
+page hero, Open Graph cards and the pitch cover. "Buy in fear. Defend in
+greed." is the reference strategy's philosophy, not the brand's.
 
-The three pillars:
+The reference strategy's target allocation spans three sleeves:
 
-| Pillar      | Role                                                          |
-| ----------- | ------------------------------------------------------------- |
-| S&P 500     | Tokenized U.S. equity exposure and traditional risk-on anchor |
-| BTC / ETH   | Digital asset beta when the regime rewards risk               |
-| Stablecoins | Defensive cash leg when rules call for capital preservation   |
+| Sleeve      | Role                                                     |
+| ----------- | -------------------------------------------------------- |
+| S&P 500     | Traditional risk-on anchor; modeled, not executable yet  |
+| BTC / ETH   | Digital asset beta when the regime rewards risk          |
+| Stablecoins | Defensive leg when the rules call for preserving capital |
 
-From the pitch narrative in `apps/landing-page/src/config/pitch.ts`:
-
-> The engine uses 200MA, Fear & Greed, and ETH/BTC relative strength to decide
-> when the portfolio should buy risk, defend in cash, or rotate inside crypto.
-
-The logo should feel like a disciplined allocation system, not a generic DeFi
-trading bot.
+The logo should feel like a calibrated instrument the owner operates — not a
+trading bot or a fund manager.
 
 ## 2. Brand Personality
 
 Use these five traits as the design filter:
 
-### Disciplined
-
-Zap Pilot is a rules engine, not vibes. The mark should communicate control,
-repeatability, and clear decision boundaries.
-
 ### Sovereign
 
-The user remains in self-custody. Assets stay in the user's externally owned
-account, and every rebalance is signed by the user.
+The user owns every layer. Assets stay at the user's own address, there is no
+Zap Pilot vault, and nothing moves without the user's signature.
 
-### Elevated
+### Inspectable
 
-The canonical visual language is warm gold on deep black. The tone should feel
-premium, serious, and portfolio-native, not neon or speculative.
+Rules can be read, tested and recomputed. Status is stated plainly, and claims
+never run ahead of what the code does.
 
-### Algorithmic
+### Deterministic
 
-The product is regime-aware and backtest-first. Rhythm, geometry, alignment, or
-measured repetition can express rule-driven decision-making.
+Rules decide, and the same inputs give the same target. Rhythm, geometry,
+alignment and measured repetition can express rule-driven decisions.
+
+### Composable
+
+Strategy is the primitive; adapters encode protocol actions. The identity
+should suggest parts that fit together under the owner's control.
 
 ### Composed
 
-Zap Pilot balances three pillars. Avoid high-volatility signals: rockets,
+Zap Pilot balances its sleeves calmly. Avoid high-volatility signals: rockets,
 moonshots, casino energy, meme references, or aggressive trading symbolism.
 
 ## 3. Target Audience
 
 ### Primary
 
-Crypto-native users who want disciplined portfolio allocation but refuse
-centralized custody. They understand wallets, signing, EVM execution, and the
-risk of handing assets to opaque products.
+Self-custody investors who want a rules-based portfolio process without
+depositing into a vault or trusting a house strategy they cannot inspect. They
+understand wallets, signing and EVM execution.
 
 ### Secondary
 
-Self-custody DeFi users who want rule-based allocation across tokenized
-equities, BTC/ETH, and stables. They care about allocation first and yield
-second.
+Quant-minded builders who want to read, backtest and eventually run their own
+strategies on infrastructure they control.
 
 ### Excluded
 
-This brand is not primarily for pure yield farmers, meme-coin traders, NFT
-collectors, or users seeking a custodial robo-advisor.
+This brand is not for incentive or yield farmers, meme-coin traders, NFT
+collectors, or users seeking a custodial manager or promised returns.
 
 ## 4. Canonical Color System
 
@@ -391,14 +406,14 @@ carrier is conceptually justified.
 Canonical source: `packages/design-tokens/tokens.json` and
 `packages/design-tokens/README.md`.
 
-Live copy and V2 landing context:
+Current copy and landing context:
 `apps/landing-page/src/config/messages.ts`,
+`apps/landing-page/src/config/runtime.ts`,
 `apps/landing-page/src/components/landing-v2/Hero.tsx`, and
-`apps/landing-page/src/components/landing-v2/HowItWorks.tsx`.
+`apps/landing-page/src/components/landing-v2/Runtime.tsx`.
 
 Product narrative: `apps/landing-page/src/app/pitch/page.tsx`,
 `apps/landing-page/src/config/pitch.ts`,
-`apps/landing-page/src/components/pitch/Pillars.tsx`,
 `apps/landing-page/content/docs/index.mdx`,
 `apps/landing-page/content/docs/architecture.mdx`, and
 `apps/landing-page/content/docs/how-it-works.mdx`.

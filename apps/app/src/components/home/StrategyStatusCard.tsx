@@ -17,7 +17,7 @@ export function StrategyStatusCard({
 }: {
   status: HomeStrategyStatusView | null;
   loading: boolean;
-  onPress: () => void;
+  onPress?: (() => void) | undefined;
 }) {
   const { t } = useContentLanguage();
 
@@ -54,18 +54,24 @@ export function StrategyStatusCard({
   return (
     <View>
       <SectionHeader title={t('home.strategyStatusTitle')} />
-      <Tap accessibilityRole="button" onPress={onPress} className="mt-3">
+      <Tap
+        accessibilityRole={onPress ? 'button' : undefined}
+        onPress={onPress}
+        className="mt-3"
+      >
         <Card className="p-4" style={{ borderColor: 'rgba(212,197,163,.2)' }}>
           <View className="flex-row items-center gap-2">
             {icon}
             <Text className="flex-1 font-sans-semibold text-[15px] text-ink">
               {title}
             </Text>
-            <ArrowRight
-              size={16}
-              strokeWidth={1.8}
-              color={tokens.color['ink-faint']}
-            />
+            {onPress ? (
+              <ArrowRight
+                size={16}
+                strokeWidth={1.8}
+                color={tokens.color['ink-faint']}
+              />
+            ) : null}
           </View>
 
           <View className="mt-3 flex-row items-center gap-2">
@@ -105,11 +111,13 @@ export function StrategyStatusCard({
             </Text>
           ) : null}
 
-          <Text className="mt-3 font-sans-semibold text-[11px] text-accent">
-            {isActionRequired
-              ? t('home.viewRecommendation')
-              : t('home.viewStrategy')}
-          </Text>
+          {onPress ? (
+            <Text className="mt-3 font-sans-semibold text-[11px] text-accent">
+              {isActionRequired
+                ? t('home.viewRecommendation')
+                : t('home.viewStrategy')}
+            </Text>
+          ) : null}
         </Card>
       </Tap>
     </View>

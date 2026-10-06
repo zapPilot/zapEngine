@@ -60,7 +60,6 @@ export async function prepareSocialBatchCopy(input: {
   episodeId: string;
   languageCode: SocialLanguageCode;
   platforms: readonly SocialPlatform[];
-  strategyGuidanceByPlatform?: Partial<Record<SocialPlatform, string>>;
   logLlm?: boolean;
 }): Promise<PreparedSocialBatchCopy> {
   const episode = await getSocialEpisode(input.episodeId, input.languageCode);
@@ -83,9 +82,6 @@ export async function prepareSocialBatchCopy(input: {
     platforms: input.platforms,
     packagingByPlatform,
     ...(input.logLlm === undefined ? {} : { logLlm: input.logLlm }),
-    ...(input.strategyGuidanceByPlatform
-      ? { strategyGuidanceByPlatform: input.strategyGuidanceByPlatform }
-      : {}),
   });
   const saved = await saveSocialCopySnapshot(
     input.episodeId,
@@ -172,6 +168,7 @@ export async function publishSocialBatch(input: {
     copy: snapshot.published,
     episode,
     videoUrl: episode.videoUrl,
+    videoDurationSeconds: episode.videoDurationSeconds,
     thumbnailUrl: episode.videoThumbnailUrl,
     destinationUrlByPlatform,
     titleOverrideByPlatform,

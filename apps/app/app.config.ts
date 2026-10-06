@@ -62,6 +62,7 @@ const config: ExpoConfig = {
   userInterfaceStyle: 'automatic',
   icon: './assets/brand/icon.png',
   ios: {
+    appStoreUrl: 'https://apps.apple.com/app/id6749248542',
     // Bound to the shipped App Store listing (ASC app 6749248542), which the
     // retired Flutter app created and Apple has already approved. The
     // `com.example.` prefix is that app's permanent identifier and cannot be
@@ -108,6 +109,8 @@ const config: ExpoConfig = {
     },
   },
   android: {
+    playStoreUrl:
+      'https://play.google.com/store/apps/details?id=com.fromfedtochain.app',
     package: 'com.fromfedtochain.app',
     adaptiveIcon: {
       foregroundImage: './assets/brand/adaptive-icon.png',
@@ -120,7 +123,7 @@ const config: ExpoConfig = {
     favicon: './assets/brand/favicon.png',
     themeColor: tokens.color.bg,
     description:
-      'Disciplined portfolio guidance and financial podcasts from Zap Pilot.',
+      "Portfolio tracking, a reference strategy's daily decisions, wallet-signed deposits, and the From Fed to Chain podcast from Zap Pilot.",
   },
   plugins: [
     './scripts/with-app-store-icon.cjs',

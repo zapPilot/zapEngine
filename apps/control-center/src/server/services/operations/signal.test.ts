@@ -162,3 +162,21 @@ describe('collectOrFail', () => {
     });
   });
 });
+
+it('source failure accepts surface-specific identity and scalar evidence', () => {
+  expect(
+    sourceFailure({
+      source: 'github-security',
+      domain: 'security',
+      key: 'dependabot',
+      title: 'Dependency read failed',
+      evidence: { surface: 'dependabot', openAlerts: null },
+      error: 'failed',
+      observedAt: NOW,
+    }),
+  ).toMatchObject({
+    fingerprint: 'github-security:source-failure/dependabot',
+    title: 'Dependency read failed',
+    evidence: { surface: 'dependabot', openAlerts: null },
+  });
+});

@@ -34,16 +34,6 @@ export function signedPercent(value: number | null, digits = 0): string {
   return `${sign}${pct.toFixed(digits)}%`;
 }
 
-export function signedCount(value: number | null): string {
-  if (value === null || !Number.isFinite(value)) {
-    return '—';
-  }
-  if (value === 0) {
-    return '±0';
-  }
-  return `${value > 0 ? '+' : '-'}${count(Math.abs(value))}`;
-}
-
 /** `elapsedMinutes` is honest age from a live source (e.g. Fly's own
  * `updated_at`), never a fabricated one — callers omit the clause entirely
  * when this returns null. */

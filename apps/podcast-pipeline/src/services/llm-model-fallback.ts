@@ -1,3 +1,7 @@
+// LLM_MODEL is reserved for Podcast Script and Editorial Title. All other
+// workloads use the free router primary and share LLM_FALLBACK_MODELS.
+export const OPENROUTER_FREE_MODEL = 'openrouter/free';
+
 export function parseOpenRouterModelList(value: string | undefined): string[] {
   return (value ?? '')
     .split(',')
@@ -15,8 +19,8 @@ export function getOpenRouterFallbackModels(
 
 /**
  * Every OpenRouter workload chooses its own primary model, then shares this one
- * ordered fallback list. Translation is the only workload whose primary is not
- * `LLM_MODEL` (`openrouter/free`), but it still falls back through this list.
+ * ordered LLM_FALLBACK_MODELS list. Script and Title use LLM_MODEL; every
+ * other workload uses OPENROUTER_FREE_MODEL as its primary.
  *
  * Operator contract: every entry must accept OpenRouter's
  * `response_format: { type: 'json_object' }` under the shared

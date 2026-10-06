@@ -43,6 +43,7 @@ const SOURCE_VAR: Record<OperationsSource, string> = {
   'cost-ledger': '--cc-src-supabase',
   'customer-economics': '--cc-src-supabase',
   fly: '--cc-src-fly',
+  'github-security': '--cc-src-github',
   'github-actions': '--cc-src-github',
   posthog: '--cc-src-posthog',
   'product-health': '--cc-src-supabase',

@@ -1,4 +1,7 @@
+import type { DesktopUpdateState } from '@zapengine/types/shared';
 import { Menu, nativeImage, Tray } from 'electron';
+
+import { updateTrayItem } from './trayMenu';
 
 // 16x16 monochrome Zap Pilot "1c" dial glyph, rendered as a macOS template
 // image (black on transparent; the menu bar re-tints it for light/dark).
@@ -9,20 +12,27 @@ const TRAY_ICON_DATA_URL =
 export interface TrayHandlers {
   onShow: () => void;
   onQuit: () => void;
+  download: () => void;
+  install: () => void;
 }
 
-export function createTray(handlers: TrayHandlers): Tray {
+export function createTray(handlers: TrayHandlers): {
+  setUpdateState: (state: DesktopUpdateState) => void;
+} {
   const icon = nativeImage.createFromDataURL(TRAY_ICON_DATA_URL);
   icon.setTemplateImage(true);
   const tray = new Tray(icon);
   tray.setToolTip('Zap Pilot');
-  tray.setContextMenu(
-    Menu.buildFromTemplate([
-      { label: 'Open Zap Pilot', click: handlers.onShow },
-      { type: 'separator' },
-      { label: 'Quit', click: handlers.onQuit },
-    ]),
-  );
+  const setUpdateState = (state: DesktopUpdateState) =>
+    tray.setContextMenu(
+      Menu.buildFromTemplate([
+        { label: 'Open Zap Pilot', click: handlers.onShow },
+        ...updateTrayItem(state, handlers),
+        { type: 'separator' },
+        { label: 'Quit', click: handlers.onQuit },
+      ]),
+    );
+  setUpdateState({ status: 'idle', currentVersion: '' });
   tray.on('click', handlers.onShow);
-  return tray;
+  return { setUpdateState };
 }

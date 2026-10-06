@@ -25,10 +25,10 @@ it('migrates historical signups without broadening access and preserves idempote
       ).rows[0]?.cta_exposure_id,
     ).toBeNull();
     await db.exec(
-      `INSERT INTO waitlist_signups(email,cta_experiment_key,cta_experiment_variant,cta_exposure_id) VALUES ('new@example.com','landing-waitlist-cta-v1','control','12345678-1234-4234-8234-123456789012');`,
+      `INSERT INTO waitlist_signups(email,cta_experiment_key,cta_experiment_variant,cta_exposure_id) VALUES ('new@example.com','landing-waitlist-cta-v2','control','12345678-1234-4234-8234-123456789012');`,
     );
     await db.exec(
-      `INSERT INTO waitlist_signups(email,cta_experiment_key,cta_experiment_variant,cta_exposure_id) VALUES ('new@example.com','landing-waitlist-cta-v1','value_first','87654321-4321-4321-8321-210987654321') ON CONFLICT(email) DO NOTHING;`,
+      `INSERT INTO waitlist_signups(email,cta_experiment_key,cta_experiment_variant,cta_exposure_id) VALUES ('new@example.com','landing-waitlist-cta-v2','value_first','87654321-4321-4321-8321-210987654321') ON CONFLICT(email) DO NOTHING;`,
     );
     expect(
       (
@@ -39,7 +39,7 @@ it('migrates historical signups without broadening access and preserves idempote
     ).toBe('control');
     await expect(
       db.exec(
-        `INSERT INTO waitlist_signups(email,cta_experiment_key) VALUES ('partial@example.com','landing-waitlist-cta-v1')`,
+        `INSERT INTO waitlist_signups(email,cta_experiment_key) VALUES ('partial@example.com','landing-waitlist-cta-v2')`,
       ),
     ).rejects.toThrow();
     await expect(

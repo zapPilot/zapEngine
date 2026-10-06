@@ -18,16 +18,18 @@ import {
   type VideoProcessRunner,
 } from '../services/video/ffmpeg-video.js';
 import { OUTRO_TAIL_MS } from '../services/video/manifest.js';
-import { X_TEASER_CONTENT_SECONDS } from './video.js';
+import { THREADS_VIDEO_LIMIT_SECONDS } from './platforms.js';
 
 const DEFAULT_TEMP_DIR = join(tmpdir(), 'zap-pilot-social');
 const IMMUTABLE_CACHE_CONTROL = 'public, max-age=31536000, immutable';
 const MULTIPART_PART_SIZE = 8 * 1024 * 1024;
 const MULTIPART_QUEUE_SIZE = 2;
 const OUTRO_SECONDS = OUTRO_TAIL_MS / 1_000;
-const THREADS_TEASER_SECONDS = X_TEASER_CONTENT_SECONDS + OUTRO_SECONDS;
+const THREADS_TEASER_CONTENT_SECONDS = 130;
+const THREADS_TEASER_SECONDS = THREADS_TEASER_CONTENT_SECONDS + OUTRO_SECONDS;
 
 interface ThreadsVideoPreparationOptions {
+  durationSeconds: number;
   preparedVideoPath?: string;
   tempDir?: string;
   fetchImpl?: typeof fetch;
@@ -37,17 +39,21 @@ interface ThreadsVideoPreparationOptions {
   publicBaseUrl?: string;
 }
 
-/**
- * Threads rejects long podcast videos during Meta-side processing. Publish the
- * same deterministic teaser shape used by X instead: the first 130 seconds plus
- * the source video's final 2.8-second brand outro. When X already prepared that
- * teaser, reuse it verbatim and only upload a public R2 copy for Threads.
- */
+/** Publish full videos within the Threads cap; only over-limit sources need a teaser. */
 export async function prepareThreadsVideoUrl(
   rawVideoUrl: string,
-  options: ThreadsVideoPreparationOptions = {},
+  options: ThreadsVideoPreparationOptions,
 ): Promise<string> {
   const sourceUrl = requirePublicHttpsUrl(rawVideoUrl);
+  if (
+    !Number.isFinite(options.durationSeconds) ||
+    options.durationSeconds <= 0
+  ) {
+    throw new Error('Threads video duration must be a positive finite number.');
+  }
+  if (options.durationSeconds <= THREADS_VIDEO_LIMIT_SECONDS)
+    return sourceUrl.href;
+
   const sourceHash = createHash('sha256')
     .update(sourceUrl.href)
     .digest('hex')
@@ -110,8 +116,8 @@ async function prepareTeaserFromRemoteSource(input: {
   if (await isNonemptyFile(teaserPath)) return teaserPath;
 
   const filter = [
-    `[0:v]trim=start=0:end=${X_TEASER_CONTENT_SECONDS},setpts=PTS-STARTPTS[v0]`,
-    `[0:a]atrim=start=0:end=${X_TEASER_CONTENT_SECONDS},asetpts=PTS-STARTPTS[a0]`,
+    `[0:v]trim=start=0:end=${THREADS_TEASER_CONTENT_SECONDS},setpts=PTS-STARTPTS[v0]`,
+    `[0:a]atrim=start=0:end=${THREADS_TEASER_CONTENT_SECONDS},asetpts=PTS-STARTPTS[a0]`,
     `[1:v]trim=start=0:end=${OUTRO_SECONDS},setpts=PTS-STARTPTS[v1]`,
     `[1:a]atrim=start=0:end=${OUTRO_SECONDS},asetpts=PTS-STARTPTS[a1]`,
     '[v0][a0][v1][a1]concat=n=2:v=1:a=1[v][a]',

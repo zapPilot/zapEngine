@@ -14,27 +14,27 @@ describe('getTtsConfig', () => {
 
     expect(getTtsConfig()).toEqual({
       modelId: 'fish-reference',
-      engine: 's2-pro',
+      engine: 's2.1-pro-free',
     });
   });
 
   it('uses FISH_AUDIO_ENGINE when configured', () => {
     vi.stubEnv('FISH_AUDIO_REFERENCE_ID', 'fish-reference');
-    vi.stubEnv('FISH_AUDIO_ENGINE', 's1');
+    vi.stubEnv('FISH_AUDIO_ENGINE', 'future-model-free');
 
     expect(getTtsConfig()).toEqual({
       modelId: 'fish-reference',
-      engine: 's1',
+      engine: 'future-model-free',
     });
   });
 
   it('trims Fish Audio config values', () => {
     vi.stubEnv('FISH_AUDIO_REFERENCE_ID', '  fish-reference  ');
-    vi.stubEnv('FISH_AUDIO_ENGINE', '  s2-pro  ');
+    vi.stubEnv('FISH_AUDIO_ENGINE', '  s2.1-pro-free  ');
 
     expect(getTtsConfig()).toEqual({
       modelId: 'fish-reference',
-      engine: 's2-pro',
+      engine: 's2.1-pro-free',
     });
   });
 
@@ -57,7 +57,7 @@ describe('retired Google TTS', () => {
 
     expect(getTtsConfig()).toEqual({
       modelId: 'fish-reference',
-      engine: 's2-pro',
+      engine: 's2.1-pro-free',
     });
   });
 
@@ -71,3 +71,11 @@ describe('retired Google TTS', () => {
     );
   });
 });
+it.each(['s2-pro', 's1', 's2.1-pro', 'free-paid'])(
+  'rejects paid override %s',
+  (engine) => {
+    vi.stubEnv('FISH_AUDIO_REFERENCE_ID', 'voice');
+    vi.stubEnv('FISH_AUDIO_ENGINE', engine);
+    expect(() => getTtsConfig()).toThrow('only allows free');
+  },
+);

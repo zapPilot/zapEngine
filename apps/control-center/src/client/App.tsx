@@ -13,15 +13,16 @@ import type {
   PodcastVisualDebugResponse,
 } from '../shared/podcast-visual.js';
 import type { StatementsResponse } from '../shared/statements.js';
-import type {
-  CostHistoryResponse,
-  CustomerEconomicsResponse,
-  OperationsResponse,
-  OperationsSocialResponse,
-  OverviewResponse,
-  PodcastCostResponse,
-  SocialPerformanceResponse,
-  SocialGrowthResponse,
+import {
+  DEFAULT_SOCIAL_COMPARISON_WINDOW,
+  type CostHistoryResponse,
+  type CustomerEconomicsResponse,
+  type OperationsResponse,
+  type OperationsSocialResponse,
+  type OverviewResponse,
+  type PodcastCostResponse,
+  type SocialPerformanceResponse,
+  type SocialGrowthResponse,
 } from '../shared/types.js';
 import { getJson, sendJson } from './api.js';
 import { AppShell, type DashboardView } from './components/AppShell.js';
@@ -90,7 +91,8 @@ export function App() {
   const [visualDebugByEpisode, setVisualDebugByEpisode] = useState<
     Record<string, PodcastVisualDebugResponse | undefined>
   >({});
-  const [social, setSocial] = useState<SocialPerformanceResponse | null>(null);
+  const [contentPerformance, setContentPerformance] =
+    useState<SocialPerformanceResponse | null>(null);
   const [acquisition, setAcquisition] =
     useState<OperationsGrowthResponse | null>(null);
   const [socialGrowth, setSocialGrowth] = useState<SocialGrowthResponse | null>(
@@ -137,7 +139,6 @@ export function App() {
         setOverview(next);
         setCostHistory(history);
         setPodcastCosts(episodeCosts);
-        setSocial(next.social);
         setOperations(snapshot);
       }),
     [run],
@@ -230,7 +231,7 @@ export function App() {
         ]);
         setAcquisition(acquisitionNext);
         setJourney(acquisitionNext.journey);
-        setSocial(performance);
+        setContentPerformance(performance);
         setSocialGrowth(growth);
         setOperationsSocial(socialOps);
         setStatements(statementsNext);
@@ -338,8 +339,13 @@ export function App() {
     if (view === 'product' && !customers) {
       void loadCustomers();
     }
-    if (view === 'growth' && (!socialGrowth || !operationsSocial)) {
-      void loadSocial(social?.window ?? 'latest');
+    if (
+      view === 'growth' &&
+      (!contentPerformance || !socialGrowth || !operationsSocial)
+    ) {
+      void loadSocial(
+        contentPerformance?.window ?? DEFAULT_SOCIAL_COMPARISON_WINDOW,
+      );
     }
   }, [
     customers,
@@ -348,7 +354,7 @@ export function App() {
     loadReliability,
     loadSocial,
     operationsSocial,
-    social,
+    contentPerformance,
     socialGrowth,
     statements,
     view,
@@ -362,7 +368,7 @@ export function App() {
     overview,
     podcastCosts,
     queues,
-    social,
+    contentPerformance,
     socialGrowth,
     statements,
     view,
@@ -375,7 +381,7 @@ export function App() {
       generatedAt={generatedAt({
         view,
         overview,
-        social,
+        contentPerformance,
         operations,
         customers,
         statements,
@@ -386,7 +392,10 @@ export function App() {
         if (view === 'pipeline') {
           void loadPipeline();
         } else if (view === 'growth') {
-          void loadSocial(social?.window ?? 'latest', true);
+          void loadSocial(
+            contentPerformance?.window ?? DEFAULT_SOCIAL_COMPARISON_WINDOW,
+            true,
+          );
         } else if (view === 'reliability') {
           void loadReliability(true);
         } else if (view === 'product') {
@@ -456,10 +465,18 @@ export function App() {
       {viewReady && view === 'growth' ? (
         <GrowthPage
           acquisition={acquisition}
-          data={social}
+          data={contentPerformance}
           growth={socialGrowth}
           journey={journey}
-          onWindowChange={loadSocial}
+          onWindowChange={(window) =>
+            run(async () => {
+              setContentPerformance(
+                await getJson<SocialPerformanceResponse>(
+                  `/api/social-performance?window=${encodeURIComponent(window)}`,
+                ),
+              );
+            })
+          }
         />
       ) : null}
     </AppShell>
@@ -515,7 +532,7 @@ function dashboardViewReady(input: {
   overview: OverviewResponse | null;
   podcastCosts: PodcastCostResponse | null;
   queues: PipelineQueuesResponse | null;
-  social: SocialPerformanceResponse | null;
+  contentPerformance: SocialPerformanceResponse | null;
   socialGrowth: SocialGrowthResponse | null;
   statements: StatementsResponse | null;
   view: DashboardView;
@@ -532,7 +549,9 @@ function dashboardViewReady(input: {
     return Boolean(input.statements && input.podcastCosts && input.queues);
   }
   if (input.view === 'growth') {
-    return Boolean(input.social && input.socialGrowth && input.journey);
+    return Boolean(
+      input.contentPerformance && input.socialGrowth && input.journey,
+    );
   }
   if (input.view === 'reliability') {
     return Boolean(
@@ -558,14 +577,14 @@ function generatedAt(input: {
   operations: OperationsResponse | null;
   overview: OverviewResponse | null;
   statements: StatementsResponse | null;
-  social: SocialPerformanceResponse | null;
+  contentPerformance: SocialPerformanceResponse | null;
   view: DashboardView;
 }): string | undefined {
   if (input.view === 'pipeline') {
     return input.statements?.generatedAt;
   }
   if (input.view === 'growth') {
-    return input.social?.generatedAt;
+    return input.contentPerformance?.generatedAt;
   }
   if (input.view === 'reliability') {
     return input.operations?.generatedAt;

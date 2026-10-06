@@ -1,3 +1,4 @@
+import * as packagingSource from './content-packaging-source.js';
 import { describe, expect, it, vi } from 'vitest';
 import { unavailableDiscordCommunity } from '../../../shared/growth.js';
 import { unavailableWaitlist } from '../../../shared/waitlist-growth.js';
@@ -91,4 +92,48 @@ describe('lazy growth operations', () => {
       ],
     });
   });
+});
+
+it('composes packaging into the shared cached growth model', async () => {
+  const source = vi
+    .spyOn(packagingSource, 'readContentPackagingEvidence')
+    .mockResolvedValueOnce({
+      posts: [],
+      metrics: [],
+      localizations: [],
+      videos: [],
+    });
+  const fetchImpl = posthogQueryFetch();
+  const get = createOperationsGrowth({ config, fetchImpl, ...dependencies() });
+  const response = await get();
+  expect(response.ctaExperiment).toMatchObject({
+    key: 'landing-waitlist-cta-v2',
+    readiness: 'awaiting_data',
+  });
+  expect(response.packaging).toMatchObject({
+    status: 'insufficient',
+    basis: 'observational',
+    window: '24h',
+    top: [],
+    bottom: [],
+  });
+  expect(await get()).toBe(response);
+  expect(source).toHaveBeenCalledTimes(1);
+  expect(fetchImpl).toHaveBeenCalledTimes(6);
+  source.mockRestore();
+});
+it('preserves a plain PostgREST packaging error in unavailable state', async () => {
+  const source = vi
+    .spyOn(packagingSource, 'readContentPackagingEvidence')
+    .mockRejectedValueOnce({ message: 'invalid cover path' });
+  const response = await createOperationsGrowth({
+    config,
+    fetchImpl: posthogQueryFetch(),
+    ...dependencies(),
+  })();
+  expect(response.packaging).toMatchObject({
+    status: 'unavailable',
+    message: 'invalid cover path',
+  });
+  source.mockRestore();
 });

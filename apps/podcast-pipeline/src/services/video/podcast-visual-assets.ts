@@ -8,10 +8,7 @@ import { ZAP_PILOT_SITE_URL } from '../../brand/cta.js';
 import { podcastBrandVisualKind } from '../podcast-packaging.js';
 import { createGeneratedSlideAsset } from './generated-slide.js';
 import { videoAssetPaths } from './runtime-assets.js';
-import {
-  MAX_SEARCH_INTENTS_PER_SCENE,
-  MAX_STORYBOARD_SLIDES,
-} from './storyboard/draft.js';
+import { MAX_SEARCH_INTENTS_PER_SCENE } from './storyboard/draft.js';
 import { sceneSearchEntities } from './storyboard/search-intents.js';
 import {
   buildVisualSubjectSearchQueries,
@@ -29,13 +26,10 @@ import {
   type VisualAssetProgress,
   type VisualAssetScene,
 } from './visual-asset-planner.js';
-
-const PODCAST_INTRO_ASSET_ID = 'image-98';
-const PODCAST_OUTRO_ASSET_ID = 'image-99';
-
-if (MAX_STORYBOARD_SLIDES >= 98) {
-  throw new Error('Podcast intro asset ID collides with storyboard assets');
-}
+import {
+  PODCAST_INTRO_ASSET_ID,
+  PODCAST_OUTRO_ASSET_ID,
+} from './visual-asset-shared.js';
 
 export interface PodcastVisualAssetPlanInput extends PlanVisualAssetsInput {
   /** Absent when the catalog step produced nothing to anchor on. The episode

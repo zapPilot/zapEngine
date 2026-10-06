@@ -1,0 +1,113 @@
+{
+  "release": "20261006-130833-027f96aa",
+  "artifacts": {
+    "film.ja": {
+      "url": "https://media.kokode.xyz/releases/20261006-130833-027f96aa/kokode-clinic.ja.mp4",
+      "fingerprint": "df67b85ef4c6a409ece00959d1d57a8ec2d14aa3ada7ce7de36d6a12269f8aa8",
+      "sha256": "93ff8bc2dbb8dd34be77c9c6545aebd6f68ba428ce55e87922f6bbbefc4f8f30",
+      "bytes": 7132570,
+      "contentType": "video/mp4",
+      "renderedAt": "2026-10-06T13:04:38.906Z",
+      "sourceCommit": "f2745c8f39419bacc5e4de4f21ad009e58b47733"
+    },
+    "poster.ja": {
+      "url": "https://media.kokode.xyz/releases/20261006-130833-027f96aa/kokode-clinic.ja.poster.jpg",
+      "fingerprint": "df67b85ef4c6a409ece00959d1d57a8ec2d14aa3ada7ce7de36d6a12269f8aa8",
+      "sha256": "80040eff935baf21e7c8551fe6df1b3e35b41d4c7804f4bdb1c6cf4d7dc1009a",
+      "bytes": 111507,
+      "contentType": "image/jpeg",
+      "renderedAt": "2026-10-06T13:04:38.906Z",
+      "sourceCommit": "f2745c8f39419bacc5e4de4f21ad009e58b47733"
+    },
+    "doctorDeck.ja": {
+      "url": "https://media.kokode.xyz/releases/20261006-130833-027f96aa/kokode-pitch.ja.pdf",
+      "fingerprint": "17445a37d389af016bcd0ecdc459682a8d0e156201f5e0e9ccf4618b5c0b1bee",
+      "sha256": "41ccea1430b3ce0e893c2f98fd33871c43990017f6ffcaf94821ff1921491b60",
+      "bytes": 1897923,
+      "contentType": "application/pdf",
+      "renderedAt": "2026-10-06T13:01:41.030Z",
+      "sourceCommit": "f2745c8f39419bacc5e4de4f21ad009e58b47733"
+    },
+    "partnerDeck.ja": {
+      "url": "https://media.kokode.xyz/releases/20261006-130833-027f96aa/kokode-pitch-partner.ja.pdf",
+      "fingerprint": "0e1bf1285bab0c076d8576d7241e72edddbfa4831e969928e230eda0344c0ac6",
+      "sha256": "68fa14d282a73f1fc8f3cf54111f620bfb8f8a97e72f627ecb91a7877e59407f",
+      "bytes": 1716020,
+      "contentType": "application/pdf",
+      "renderedAt": "2026-10-06T13:01:41.068Z",
+      "sourceCommit": "f2745c8f39419bacc5e4de4f21ad009e58b47733"
+    },
+    "film.en": {
+      "url": "https://media.kokode.xyz/releases/20261006-130833-027f96aa/kokode-clinic.en.mp4",
+      "fingerprint": "e44ce05b5d64551fafdde5c5f73eefd7fb941036b6066cd44d3cd8a84ce74e12",
+      "sha256": "1da06a6614838e017731a7880bdddf2a06e6cd5f6ee05115f35697f138ee6e05",
+      "bytes": 6982656,
+      "contentType": "video/mp4",
+      "renderedAt": "2026-10-06T13:06:16.921Z",
+      "sourceCommit": "f2745c8f39419bacc5e4de4f21ad009e58b47733"
+    },
+    "poster.en": {
+      "url": "https://media.kokode.xyz/releases/20261006-130833-027f96aa/kokode-clinic.en.poster.jpg",
+      "fingerprint": "e44ce05b5d64551fafdde5c5f73eefd7fb941036b6066cd44d3cd8a84ce74e12",
+      "sha256": "e3494246fea7dc39a4757c81798afb0572ceb1ba35303c5c3545f0a42e8acb14",
+      "bytes": 84858,
+      "contentType": "image/jpeg",
+      "renderedAt": "2026-10-06T13:06:16.921Z",
+      "sourceCommit": "f2745c8f39419bacc5e4de4f21ad009e58b47733"
+    },
+    "doctorDeck.en": {
+      "url": "https://media.kokode.xyz/releases/20261006-130833-027f96aa/kokode-pitch.en.pdf",
+      "fingerprint": "db681f8ab528f5f65b3009b37f717d5c67cd10454f4810f830fb0e4dfa4c80cd",
+      "sha256": "e472de2dca4e9d7b5073d8a1850814c096e034266cd46d490fc1163648f5304d",
+      "bytes": 1073668,
+      "contentType": "application/pdf",
+      "renderedAt": "2026-10-06T13:01:41.129Z",
+      "sourceCommit": "f2745c8f39419bacc5e4de4f21ad009e58b47733"
+    },
+    "partnerDeck.en": {
+      "url": "https://media.kokode.xyz/releases/20261006-130833-027f96aa/kokode-pitch-partner.en.pdf",
+      "fingerprint": "3210c39743963fe6281ac81d736f9edcf88e6a902ddace333dae716aabfd9b3a",
+      "sha256": "e4aa6908c95832a73ce31a66dc0de104e0decd21fcc1f097d4d0b476d66baf41",
+      "bytes": 965800,
+      "contentType": "application/pdf",
+      "renderedAt": "2026-10-06T13:01:41.167Z",
+      "sourceCommit": "f2745c8f39419bacc5e4de4f21ad009e58b47733"
+    },
+    "film.zh-Hant": {
+      "url": "https://media.kokode.xyz/releases/20261006-130833-027f96aa/kokode-clinic.zh-Hant.mp4",
+      "fingerprint": "f64f13303b222a4380c8fcfda1f3d0af5f9f480062c81c160b7637b0f6f4912e",
+      "sha256": "9e50f23cb2b990517b1112244df32e6501641ffb7be28ba3d791cf301ea4bd4c",
+      "bytes": 6871788,
+      "contentType": "video/mp4",
+      "renderedAt": "2026-10-06T13:08:10.908Z",
+      "sourceCommit": "f2745c8f39419bacc5e4de4f21ad009e58b47733"
+    },
+    "poster.zh-Hant": {
+      "url": "https://media.kokode.xyz/releases/20261006-130833-027f96aa/kokode-clinic.zh-Hant.poster.jpg",
+      "fingerprint": "f64f13303b222a4380c8fcfda1f3d0af5f9f480062c81c160b7637b0f6f4912e",
+      "sha256": "8ca77066a8aad892db250e60881a21efbc88b0e172fbde6f3968fbcdc6e92e94",
+      "bytes": 114795,
+      "contentType": "image/jpeg",
+      "renderedAt": "2026-10-06T13:08:10.908Z",
+      "sourceCommit": "f2745c8f39419bacc5e4de4f21ad009e58b47733"
+    },
+    "doctorDeck.zh-Hant": {
+      "url": "https://media.kokode.xyz/releases/20261006-130833-027f96aa/kokode-pitch.zh-Hant.pdf",
+      "fingerprint": "ec28148549c79f32aadc3d88e2ecc9e365e0c263dcfdc7b2c01aeca3d63d1a5e",
+      "sha256": "2550a7ac3ba52243e1db0d1a4bdb5f4469f9d51b528f9ca4b9cce35038731777",
+      "bytes": 2216041,
+      "contentType": "application/pdf",
+      "renderedAt": "2026-10-06T13:01:41.205Z",
+      "sourceCommit": "f2745c8f39419bacc5e4de4f21ad009e58b47733"
+    },
+    "partnerDeck.zh-Hant": {
+      "url": "https://media.kokode.xyz/releases/20261006-130833-027f96aa/kokode-pitch-partner.zh-Hant.pdf",
+      "fingerprint": "1a1979ec9cc9b1807b8c32d788430d92806b78f925ef3c93970c3479ab242624",
+      "sha256": "5f2988f3d462c1a96c237b7cb4c82a3d24ee0c38e2d051222a3c8658074dfb52",
+      "bytes": 2020082,
+      "contentType": "application/pdf",
+      "renderedAt": "2026-10-06T13:01:41.241Z",
+      "sourceCommit": "f2745c8f39419bacc5e4de4f21ad009e58b47733"
+    }
+  }
+}

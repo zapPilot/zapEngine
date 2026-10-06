@@ -18,6 +18,18 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "@zapengine/control-center", "dev"],
       "port": 4174
+    },
+    {
+      "name": "video-studio",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@zapengine/video", "exec", "remotion", "studio", "src/index.ts", "--no-open", "--port", "3300"],
+      "port": 3300
+    },
+    {
+      "name": "kokode-ai",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@zapengine/kokode-ai", "exec", "vite", "--port", "5173", "--strictPort"],
+      "port": 5173
     }
   ]
 }

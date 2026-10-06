@@ -3,8 +3,8 @@ import { PITCH_PROBLEM } from '@/config/pitch';
 import { PitchSlide } from './PitchSlide';
 
 /**
- * Slide 2 — The behavior we replace. Pulls the canonical "Buy in fear" quote
- * from MESSAGES so it always matches the home page philosophy strip.
+ * Slide 2 — The problem. Closes on the same line as the home page's closing
+ * section, so the deck and the site make one argument.
  */
 export function PitchProblemSlide() {
   return (
@@ -20,7 +20,7 @@ export function PitchProblemSlide() {
           ))}
         </ul>
         <blockquote className="pitch-problem-quote">
-          {MESSAGES.slogans.philosophy}
+          {MESSAGES.closing.quote}
         </blockquote>
       </div>
     </PitchSlide>

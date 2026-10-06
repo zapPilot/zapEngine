@@ -65,7 +65,6 @@ const overview = {
     window: 'latest',
     generatedAt: new Date().toISOString(),
     accounts: [],
-    decisions: [],
     episodes: [],
   },
 } as unknown as OverviewResponse;

@@ -4,7 +4,6 @@ export {
   useCurrentUser,
   type UserInfo,
   userQueryKeys,
-  useUserById,
   useUserByWallet,
 } from './useUserQuery';
 export { useUserWallets } from './useUserWallets';

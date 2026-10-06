@@ -309,6 +309,14 @@
     "./utils/walletValidation": {
       "types": "./dist/utils/walletValidation.d.ts",
       "import": "./dist/utils/walletValidation.js"
+    },
+    "./lib/http/accountOwnerSession": {
+      "types": "./dist/lib/http/accountOwnerSession.d.ts",
+      "import": "./dist/lib/http/accountOwnerSession.js"
+    },
+    "./services/accountAuthService": {
+      "types": "./dist/services/accountAuthService.d.ts",
+      "import": "./dist/services/accountAuthService.js"
     }
   },
   "scripts": {

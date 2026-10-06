@@ -1,0 +1,16 @@
+{
+  "chainId": 421614,
+  "address": "0x074A6d6497Af23158F946c7D571b1B627f3411Cd",
+  "transactionHash": "0xf2ae5518b320f1914f99e89f1b3fb8ee226f809d4aca7ee859db27f15d3c7559",
+  "blockNumber": "315219939",
+  "runtimeCodehash": "0xc34735d87c23ebd06260a554d0e5a15f8d6616c16b3d73c296ee29cd837acf50",
+  "salt": "0x7c24e4a91e53631425be8ece30d071af47acb3d4af8eb93587e74b692c307ef2",
+  "factory": "0x4e59b44847b379578588920cA78FbF26c0B4956C",
+  "compiler": "0.4.3",
+  "evmVersion": "shanghai",
+  "sourcify": {
+    "status": "verified",
+    "verificationId": "3fd4fa5b-312b-4496-af4f-70c3834a73a3",
+    "runtimeMatch": "match"
+  }
+}

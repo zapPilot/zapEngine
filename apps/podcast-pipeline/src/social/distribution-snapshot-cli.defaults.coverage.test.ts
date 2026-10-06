@@ -67,7 +67,6 @@ function completeSource() {
     ],
     metrics: [],
     publishJobs: [],
-    strategyVersions: [],
   };
 }
 

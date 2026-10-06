@@ -1,6 +1,6 @@
 import type {
-  SocialDecision,
   SocialEpisodeSummary,
+  SocialMetricWindow,
   SocialPerformanceResponse,
   SocialPlatformPerformance,
 } from '../../shared/types.js';
@@ -17,11 +17,8 @@ interface SocialPostRow {
   language_code: string | null;
   post_url: string | null;
   published_at: string;
-  topic: string;
-  hook_type: string;
   published_title: string | null;
   published_body: string;
-  hashtags: string[];
   review_status: string | null;
 }
 
@@ -42,28 +39,11 @@ interface SocialMetricRow extends Pick<
   } | null;
 }
 
-type ViewedMetric = SocialMetricRow & { views: number };
-
 interface AccountRow {
   platform: string;
   followers: number | null;
   captured_at: string;
 }
-
-interface StrategyRow {
-  platform: string;
-  config: {
-    preferredHookTypes?: string[];
-    preferredHashtags?: string[];
-    avoidHashtags?: string[];
-    publishSlotsJst?: Array<{ hour: number; minute: number }>;
-  } | null;
-}
-
-const PLATFORMS = ['x', 'threads', 'rednote', 'youtube'] as const;
-const SUPPRESSED_REDNOTE = new Set(['under_review', 'rejected', 'self_only']);
-const MIN_TOPIC_BUCKET_SAMPLES = 3;
-const MIN_QUALIFIED_TOPIC_BUCKETS = 2;
 
 export async function loadSocialPerformance(input: {
   config: ControlCenterConfig;
@@ -87,35 +67,30 @@ export async function loadSocialPerformance(input: {
     const since = new Date(
       now.getTime() - 60 * 24 * 60 * 60 * 1000,
     ).toISOString();
-    const [postResult, metricResult, accountResult, strategyResult] =
-      await Promise.all([
-        client
-          .from('social_posts')
-          .select(
-            'id,episode_id,platform,language_code,post_url,published_at,topic,hook_type,published_title,published_body,hashtags,review_status',
-          )
-          .gte('published_at', since)
-          .order('published_at', { ascending: false })
-          .limit(300),
-        client
-          .from('social_post_metrics')
-          .select(
-            'social_post_id,captured_at,age_hours,measurement_window,collection_status,views,impressions,likes,comments,shares,saves,followers_gained,details',
-          )
-          .gte('captured_at', since)
-          .not('measurement_window', 'is', null)
-          .order('captured_at', { ascending: false })
-          .limit(3_000),
-        client
-          .from('social_account_snapshots')
-          .select('platform,followers,captured_at')
-          .order('captured_at', { ascending: false })
-          .limit(100),
-        client
-          .from('social_strategy_versions')
-          .select('platform,config')
-          .eq('active', true),
-      ]);
+    const [postResult, metricResult, accountResult] = await Promise.all([
+      client
+        .from('social_posts')
+        .select(
+          'id,episode_id,platform,language_code,post_url,published_at,published_title,published_body,review_status',
+        )
+        .gte('published_at', since)
+        .order('published_at', { ascending: false })
+        .limit(300),
+      client
+        .from('social_post_metrics')
+        .select(
+          'social_post_id,captured_at,age_hours,measurement_window,collection_status,views,impressions,likes,comments,shares,saves,followers_gained,details',
+        )
+        .gte('captured_at', since)
+        .not('measurement_window', 'is', null)
+        .order('captured_at', { ascending: false })
+        .limit(3_000),
+      client
+        .from('social_account_snapshots')
+        .select('platform,followers,captured_at')
+        .order('captured_at', { ascending: false })
+        .limit(100),
+    ]);
     const error = postResult.error ?? metricResult.error ?? accountResult.error;
     if (error) {
       throw error;
@@ -123,9 +98,6 @@ export async function loadSocialPerformance(input: {
 
     const posts = (postResult.data ?? []) as SocialPostRow[];
     const metrics = (metricResult.data ?? []) as SocialMetricRow[];
-    const strategies = strategyResult.error
-      ? []
-      : ((strategyResult.data ?? []) as StrategyRow[]);
 
     return {
       status: 'ok',
@@ -133,8 +105,7 @@ export async function loadSocialPerformance(input: {
       window,
       generatedAt: now.toISOString(),
       accounts: latestAccounts((accountResult.data ?? []) as AccountRow[]),
-      decisions: buildDecisions(posts, metrics, strategies),
-      episodes: buildEpisodes(posts, metrics, window),
+      episodes: buildEpisodes(posts, metrics, window, now),
     };
   } catch {
     return {
@@ -155,7 +126,6 @@ function emptyResponse(
     window,
     generatedAt: now.toISOString(),
     accounts: [],
-    decisions: [],
     episodes: [],
   };
 }
@@ -181,6 +151,7 @@ export function buildEpisodes(
   posts: SocialPostRow[],
   metrics: SocialMetricRow[],
   window: SocialWindow,
+  now: Date,
 ): SocialEpisodeSummary[] {
   const filteredMetrics = metrics.filter(
     (metric) => (metric.collection_status ?? 'collected') !== 'unavailable',
@@ -192,7 +163,6 @@ export function buildEpisodes(
       title: string;
       titleLanguage: string | null;
       publishedAt: string;
-      impressions: number[];
       platforms: SocialPlatformPerformance[];
     }
   >();
@@ -203,7 +173,6 @@ export function buildEpisodes(
       title: postTitle(post),
       titleLanguage: post.language_code,
       publishedAt: post.published_at,
-      impressions: [],
       platforms: [],
     };
     if (
@@ -217,9 +186,6 @@ export function buildEpisodes(
       existing.publishedAt = post.published_at;
     }
     existing.platforms.push(toPerformance(post, metric));
-    if (metric?.impressions !== null && metric?.impressions !== undefined) {
-      existing.impressions.push(metric.impressions);
-    }
     episodes.set(post.episode_id, existing);
   }
 
@@ -228,143 +194,18 @@ export function buildEpisodes(
       publishedAt: episode.publishedAt,
       summary: {
         episodeId,
+        publishedAt: episode.publishedAt,
+        // Mirrors daemon METRIC_WINDOWS plus one hour of collection grace.
+        windowReached:
+          window === 'latest' ||
+          now.getTime() - Date.parse(episode.publishedAt) >=
+            (METRIC_WINDOW_HOURS[window] + 1) * 3_600_000,
         title: episode.title,
-        totalViews: sumKnown(episode.platforms.map((row) => row.views)),
-        totalImpressions: sumKnown(episode.impressions),
         platforms: episode.platforms,
       },
     }))
     .sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt))
     .map((entry) => entry.summary);
-}
-
-export function buildDecisions(
-  posts: SocialPostRow[],
-  metrics: SocialMetricRow[],
-  strategies: StrategyRow[],
-): SocialDecision[] {
-  const postById = new Map(posts.map((post) => [post.id, post]));
-  const strategyByPlatform = new Map(
-    strategies.map((row) => [row.platform, row]),
-  );
-  const samples = metrics
-    .filter(
-      (metric): metric is ViewedMetric =>
-        metric.measurement_window === '24h' &&
-        metric.views !== null &&
-        (metric.collection_status ?? 'collected') !== 'unavailable',
-    )
-    .flatMap((metric) => {
-      const post = postById.get(metric.social_post_id);
-      if (!post || !isLearnable(post, metric)) {
-        return [];
-      }
-      return [{ post, metric }];
-    });
-
-  return PLATFORMS.flatMap((platform) => {
-    const platformSamples = samples.filter(
-      (sample) => sample.post.platform === platform,
-    );
-    const strategy = strategyByPlatform.get(platform);
-    const evidenceSamples = platformSamples.length;
-    if (!strategy && evidenceSamples === 0) {
-      return [];
-    }
-    const topic = bestTopic(platformSamples);
-    const platformMedian24hViews = evidenceSamples
-      ? median(platformSamples.map((sample) => sample.metric.views))
-      : null;
-    const bestTopicLiftVsPlatformMedian =
-      topic && platformMedian24hViews !== null && platformMedian24hViews > 0
-        ? topic.medianViews / platformMedian24hViews
-        : null;
-    return [
-      {
-        platform,
-        evidenceSamples,
-        confidence: confidence(evidenceSamples),
-        preferredHookTypes: strategy?.config?.preferredHookTypes ?? [],
-        preferredHashtags: strategy?.config?.preferredHashtags ?? [],
-        avoidHashtags: strategy?.config?.avoidHashtags ?? [],
-        bestTopic: topic?.topic ?? null,
-        bestTopicSamples: topic?.samples ?? null,
-        bestTopicMedian24hViews: topic?.medianViews ?? null,
-        platformMedian24hViews,
-        bestTopicLiftVsPlatformMedian,
-        publishSlotsJst: formatPublishSlots(strategy?.config?.publishSlotsJst),
-        topExample: topExample(platformSamples),
-      },
-    ];
-  });
-}
-
-function isLearnable(post: SocialPostRow, metric: ViewedMetric): boolean {
-  if (post.platform !== 'rednote') {
-    return true;
-  }
-  if (post.review_status && SUPPRESSED_REDNOTE.has(post.review_status)) {
-    return false;
-  }
-  return metric.views > 1;
-}
-
-function topExample(
-  samples: Array<{ post: SocialPostRow; metric: ViewedMetric }>,
-): string | null {
-  const best = [...samples].sort((a, b) => b.metric.views - a.metric.views)[0];
-  if (!best) {
-    return null;
-  }
-  return `“${postTitle(best.post).slice(0, 68)}” · ${best.metric.views.toLocaleString('en-US')} views`;
-}
-
-function bestTopic(
-  samples: Array<{ post: SocialPostRow; metric: ViewedMetric }>,
-): { topic: string; samples: number; medianViews: number } | null {
-  const groups = new Map<string, number[]>();
-  for (const sample of samples) {
-    const values = groups.get(sample.post.topic) ?? [];
-    values.push(sample.metric.views);
-    groups.set(sample.post.topic, values);
-  }
-  const candidates = [...groups.entries()]
-    .filter(([, values]) => values.length >= MIN_TOPIC_BUCKET_SAMPLES)
-    .map(([topic, values]) => ({
-      topic,
-      samples: values.length,
-      medianViews: median(values),
-    }))
-    .sort((a, b) => b.medianViews - a.medianViews);
-  if (candidates.length < MIN_QUALIFIED_TOPIC_BUCKETS) {
-    return null;
-  }
-  return candidates[0]!;
-}
-
-function formatPublishSlots(
-  slots: Array<{ hour: number; minute: number }> | undefined,
-): string | null {
-  if (!slots?.length) {
-    return null;
-  }
-  return [...slots]
-    .sort((a, b) => a.hour - b.hour || a.minute - b.minute)
-    .map(
-      ({ hour, minute }) =>
-        `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
-    )
-    .join(' / ');
-}
-
-function confidence(samples: number): SocialDecision['confidence'] {
-  if (samples >= 25) {
-    return 'high';
-  }
-  if (samples >= 10) {
-    return 'medium';
-  }
-  return 'low';
 }
 
 function groupMetrics(metrics: SocialMetricRow[]) {
@@ -399,6 +240,8 @@ function toPerformance(
     return {
       platform: post.platform,
       postUrl: post.post_url,
+      measurementWindow: null,
+      ageHours: null,
       views: null,
       engagementRate: null,
       likes: null,
@@ -420,6 +263,10 @@ function toPerformance(
   return {
     platform: post.platform,
     postUrl: post.post_url,
+    measurementWindow: isSocialMetricWindow(metric.measurement_window)
+      ? metric.measurement_window
+      : null,
+    ageHours: metric.age_hours,
     views: metric.views,
     engagementRate:
       engagements !== null && denominator !== null && denominator > 0
@@ -445,12 +292,15 @@ export function postTitle(
   );
 }
 
-function median(values: number[]): number {
-  const sorted = [...values].sort((a, b) => a - b);
-  const middle = Math.floor(sorted.length / 2);
-  // Every median() caller passes a guarded non-empty array, so indexed
-  // access into this dense array never misses.
-  return sorted.length % 2
-    ? sorted[middle]!
-    : (sorted[middle - 1]! + sorted[middle]!) / 2;
+const METRIC_WINDOW_HOURS: Record<SocialMetricWindow, number> = {
+  '1h': 1,
+  '6h': 6,
+  '24h': 24,
+  '72h': 72,
+  '7d': 168,
+};
+function isSocialMetricWindow(
+  value: string | null,
+): value is SocialMetricWindow {
+  return value !== null && Object.hasOwn(METRIC_WINDOW_HOURS, value);
 }

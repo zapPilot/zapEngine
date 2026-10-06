@@ -1,10 +1,11 @@
 import { ArrowRight } from 'lucide-react';
+import { StatusNote } from '@/components/StatusBadge';
 import { PITCH_STRATEGY } from '@/config/pitch';
 import { PitchSlide } from './PitchSlide';
 
 /**
- * Slide 4 — Strategy: signals × jobs × outcomes table.
- * Links out to the docs for the full 6-rule priority breakdown.
+ * Slide 5 — The reference strategy: signals × jobs × outcomes table, plus the
+ * sleeve that no adapter can execute yet. Links to the spec's rule list.
  */
 export function PitchStrategySlide() {
   return (
@@ -17,9 +18,9 @@ export function PitchStrategySlide() {
       <table className="pitch-strategy-table">
         <thead>
           <tr>
-            <th scope="col">Signal</th>
-            <th scope="col">Job</th>
-            <th scope="col">Outcome</th>
+            <th scope="col">{PITCH_STRATEGY.tableHead.signal}</th>
+            <th scope="col">{PITCH_STRATEGY.tableHead.job}</th>
+            <th scope="col">{PITCH_STRATEGY.tableHead.outcome}</th>
           </tr>
         </thead>
         <tbody>
@@ -32,6 +33,9 @@ export function PitchStrategySlide() {
           ))}
         </tbody>
       </table>
+      <p className="pitch-strategy-sleeves">
+        <StatusNote note={PITCH_STRATEGY.sleeves} />
+      </p>
       <a
         className="pitch-strategy-footer-link"
         href={PITCH_STRATEGY.footerLink.href}

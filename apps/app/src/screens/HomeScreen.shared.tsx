@@ -1,3 +1,7 @@
+import { useUserWallets } from '@zapengine/app-core/hooks/queries/wallet/useUserWallets';
+import { Platform, Text, View } from 'react-native';
+import { HomeWalletSearch } from '@/components/home/HomeWalletSearch';
+import { ReadOnlyBundleBanner } from '@/components/home/ReadOnlyBundleBanner';
 import {
   type EtlJobPollingState,
   useEtlJobPolling,
@@ -6,7 +10,6 @@ import { tokens } from '@zapengine/design-tokens/tokens';
 import { useRouter } from 'expo-router';
 import { ArrowRight, RefreshCw, Wallet } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { Text, View } from 'react-native';
 
 import { PortfolioTrendChart } from '@/components/charts/PortfolioTrendChart';
 import { AssetListSkeleton, AssetRow } from '@/components/home/AssetRow';
@@ -113,8 +116,13 @@ export function HomeScreen() {
   const homeIncome = useHomeIncome(account.viewingUserId);
   // One normalization feeds both the balance query and the wallet count, so
   // the footer can never disagree with the bundle the query actually fetched.
+  const bundleWallets = useUserWallets(
+    account.isOwnBundle ? null : account.viewingUserId,
+  );
   const ownWalletAddresses = normalizeWalletAddressList(
-    account.isOwnBundle ? account.walletAddresses : [],
+    account.isOwnBundle
+      ? account.walletAddresses
+      : (bundleWallets.data?.map((wallet) => wallet.wallet) ?? []),
   );
   const walletAssets = useWalletAssets(ownWalletAddresses);
 
@@ -158,7 +166,11 @@ export function HomeScreen() {
     }
   };
   const connect = () => requestAccountConnection(account);
-  const retryWalletAssets = () => void walletAssets.refetch();
+  const retryWalletAssets = () => {
+    void walletAssets.refetch();
+    if (!account.isOwnBundle && account.viewingUserId)
+      void bundleWallets.refetch();
+  };
   const displayedAssets = isDemo ? DEMO.home.assets : walletAssets.assets;
   const walletCount = ownWalletAddresses.length;
   const walletAssetsTotal = isDemo
@@ -174,8 +186,14 @@ export function HomeScreen() {
         actions={<SharePortfolioButton />}
       />
 
+      <HomeWalletSearch />
+      <ReadOnlyBundleBanner
+        walletCount={walletCount}
+        address={ownWalletAddresses[0] ?? null}
+      />
+
       <View className="relative">
-        <View className="px-5 pt-6">
+        <View className="pt-6">
           <View className="flex-row items-center justify-between">
             <SectionHeader title={t('home.netWorth')} />
             <Tap
@@ -200,10 +218,12 @@ export function HomeScreen() {
                 title={t(portfolioImportCopy.titleKey)}
                 body={t(portfolioImportCopy.bodyKey)}
                 retryLabel={
-                  portfolioImportCopy.retryable ? t('common.retry') : undefined
+                  portfolioImportCopy.retryable && Platform.OS !== 'ios'
+                    ? t('common.retry')
+                    : undefined
                 }
                 onRetry={
-                  portfolioImportCopy.retryable
+                  portfolioImportCopy.retryable && Platform.OS !== 'ios'
                     ? retryPortfolioImport
                     : undefined
                 }
@@ -245,7 +265,7 @@ export function HomeScreen() {
           )}
         </View>
 
-        <View className="mt-5 px-5">
+        <View className="mt-5">
           <View className="flex-row items-center justify-between">
             <SectionHeader title={t('home.balanceTrend')} />
             <SegmentedControl
@@ -286,20 +306,27 @@ export function HomeScreen() {
         ) : null}
       </View>
 
-      {account.isOwnBundle ? (
-        <HomeActionRow isStrategyActionRequired={isStrategyActionRequired} />
+      {account.isOwnBundle || account.viewingUserId ? (
+        <HomeActionRow
+          isStrategyActionRequired={isStrategyActionRequired}
+          disabled={account.viewingUserId !== null && !account.isOwnBundle}
+        />
       ) : null}
 
-      <View className="mt-6 px-5">
+      <View className="mt-6">
         <StrategyStatusCard
           status={strategyStatus}
           loading={!isDemo && strategy.isLoading}
-          onPress={() => router.push(STRATEGY_DECISION_FOCUS_HREF)}
+          onPress={
+            account.isOwnBundle
+              ? () => router.push(STRATEGY_DECISION_FOCUS_HREF)
+              : undefined
+          }
         />
       </View>
 
-      {account.isOwnBundle ? (
-        <View className="mt-6 px-5">
+      {account.isOwnBundle || account.viewingUserId ? (
+        <View className="mt-6">
           <View className="mb-2 flex-row items-center justify-between">
             <SectionHeader title={t('home.walletAssets')} />
             <Text
@@ -318,9 +345,10 @@ export function HomeScreen() {
           </View>
           <View className="relative">
             <Card className="p-[13px]">
-              {!isDemo && walletAssets.isLoading ? (
+              {!isDemo &&
+              (walletAssets.isLoading || bundleWallets.isLoading) ? (
                 <AssetListSkeleton />
-              ) : !isDemo && walletAssets.isError ? (
+              ) : !isDemo && (walletAssets.isError || bundleWallets.isError) ? (
                 <EmptyState
                   icon={RefreshCw}
                   tone="danger"
@@ -380,7 +408,7 @@ export function HomeScreen() {
       ) : null}
 
       {!account.isDemo && !homeIncome.isError ? (
-        <View className="mt-6 px-5">
+        <View className="mt-6">
           <HomeIncomeCard {...homeIncome} />
         </View>
       ) : null}

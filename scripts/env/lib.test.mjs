@@ -182,10 +182,7 @@ test('production validation rejects local endpoints and placeholders', () => {
 });
 
 test('production validation allows only the packaged desktop loopback CORS origin', () => {
-  assert.equal(
-    DESKTOP_PRODUCTION_CORS_ORIGIN,
-    'http://127.0.0.1:3105',
-  );
+  assert.equal(DESKTOP_PRODUCTION_CORS_ORIGIN, 'http://127.0.0.1:3105');
   const allowed = validateProductionEnv({
     CORS_ALLOWED_ORIGINS: `https://app.zap-pilot.org,${DESKTOP_PRODUCTION_CORS_ORIGIN}`,
     PLAN_SIMULATION_REQUIRED: 'true',
@@ -204,4 +201,19 @@ test('production validation allows only the packaged desktop loopback CORS origi
       error.includes('CORS_ALLOWED_ORIGINS contains a local-only host'),
     ),
   );
+});
+
+test('desktop client boundary strips signing and notarization credentials', () => {
+  const credentials = Object.fromEntries(
+    [
+      'CSC_LINK',
+      'CSC_KEY_PASSWORD',
+      'APPLE_API_KEY',
+      'APPLE_API_KEY_ID',
+      'APPLE_API_ISSUER',
+      'APPLE_KEYCHAIN_PROFILE',
+    ].map((key) => [key, 'secret']),
+  );
+  const env = buildClientTargetEnv(credentials, 'desktop', credentials);
+  for (const key of Object.keys(credentials)) assert.equal(env[key], undefined);
 });

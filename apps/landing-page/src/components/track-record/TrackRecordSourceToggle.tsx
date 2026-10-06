@@ -43,7 +43,7 @@ export function TrackRecordSourceToggle({
         aria-pressed={source === 'live'}
         onClick={() => onChange('live')}
       >
-        Live
+        Snapshots
       </button>
     </div>
   );

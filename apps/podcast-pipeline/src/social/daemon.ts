@@ -44,7 +44,6 @@ import {
   enqueueSocialPublishJob,
   ensureSocialDaemonStart,
   failSocialPublishJob,
-  getActiveSocialStrategies,
   getSocialQueueSnapshot,
   listDueSocialPublishPlatforms,
   listLearningSocialMetrics,
@@ -63,8 +62,8 @@ import {
   type SocialPublishCandidate,
   type SocialPublishJobRow,
   type SocialQueueLaneItem,
-  type SocialStrategyVersionRow,
 } from './daemon-store.js';
+import { withSocialDaemonTickTelemetry } from './daemon-tick-telemetry.js';
 import { buildSocialExperimentReports } from './experiment-report.js';
 import { JST_OFFSET_MS } from './jst.js';
 import { reportLocalPublicationHistory } from './local-publish-history.js';
@@ -105,16 +104,10 @@ import {
   SCHEDULING_HORIZON_DAYS,
   withinPublishWindow,
 } from './slot-policy.js';
-import {
-  activeStrategyMap,
-  buildStrategyGuidance,
-  refreshSocialStrategies,
-  strategyMapKey,
-} from './strategy.js';
 
 const POLL_INTERVAL_MS = 60_000;
 const METRIC_LOOKBACK_DAYS = 8;
-const STRATEGY_REFRESH_INTERVAL_MS = 6 * 60 * 60_000;
+const EXPERIMENT_REPORT_INTERVAL_MS = 6 * 60 * 60_000;
 const OWNER = `${hostname()}:${process.pid}`;
 /**
  * An already-aligned article may still publish this long after its slot. Once
@@ -160,6 +153,14 @@ interface PublishDueJobsOptions {
   verbose: boolean;
 }
 
+function experimentReportDue(
+  verbose: boolean,
+  now: Date,
+  lastReport: number,
+): boolean {
+  return verbose && now.getTime() - lastReport >= EXPERIMENT_REPORT_INTERVAL_MS;
+}
+
 export async function runSocialDaemon(
   dependencies: SocialDaemonDependencies = {},
 ): Promise<never> {
@@ -170,7 +171,7 @@ export async function runSocialDaemon(
   // Programmatic callers keep the historical detailed log unless they opt in
   // to compact mode. The CLI entry point explicitly passes false by default.
   const verbose = dependencies.verbose ?? true;
-  let lastStrategyRefresh = 0;
+  let lastExperimentReport = 0;
   let consecutiveTransientFailures = 0;
   let lastQueueFingerprint: string | null = null;
 
@@ -193,13 +194,15 @@ export async function runSocialDaemon(
 
   for (;;) {
     const tickStartedAt = now();
+    const reportExperiments = experimentReportDue(
+      verbose,
+      tickStartedAt,
+      lastExperimentReport,
+    );
     if (verbose) {
       log(
         `🔄 [social-daemon] checking discovery · publishing · metrics${
-          tickStartedAt.getTime() - lastStrategyRefresh >=
-          STRATEGY_REFRESH_INTERVAL_MS
-            ? ' · strategy'
-            : ''
+          reportExperiments ? ' · experiments' : ''
         }`,
       );
     }
@@ -214,9 +217,7 @@ export async function runSocialDaemon(
         onSummary: (summary) => {
           tickSummary = summary;
         },
-        refreshStrategy:
-          tickStartedAt.getTime() - lastStrategyRefresh >=
-          STRATEGY_REFRESH_INTERVAL_MS,
+        reportExperiments,
       });
     } catch (error) {
       await recordTick({
@@ -238,11 +239,8 @@ export async function runSocialDaemon(
       }
       throw error;
     }
-    if (
-      tickStartedAt.getTime() - lastStrategyRefresh >=
-      STRATEGY_REFRESH_INTERVAL_MS
-    ) {
-      lastStrategyRefresh = tickStartedAt.getTime();
+    if (reportExperiments) {
+      lastExperimentReport = tickStartedAt.getTime();
     }
     await isolate('queue summary', log, async () => {
       const snapshot = await getSocialQueueSnapshot({
@@ -283,6 +281,18 @@ export async function runSocialCatchUpOnce(
   dependencies: Pick<SocialDaemonDependencies, 'now' | 'log' | 'verbose'> = {},
 ): Promise<SocialCatchUpResult> {
   const now = (dependencies.now ?? (() => new Date()))();
+  return withSocialDaemonTickTelemetry(
+    { now, owner: OWNER, log: dependencies.log },
+    () => runSocialCatchUpOnceWork({ ...dependencies, now: () => now }),
+  );
+}
+
+async function runSocialCatchUpOnceWork(
+  dependencies: Pick<SocialDaemonDependencies, 'log' | 'verbose'> & {
+    now: () => Date;
+  },
+): Promise<SocialCatchUpResult> {
+  const now = dependencies.now();
   const log = dependencies.log ?? console.log;
   const verbose = dependencies.verbose ?? true;
   const firstStartedAt = await ensureSocialDaemonStart(now);
@@ -355,7 +365,7 @@ function finishSocialCatchUp(
  * `reconcile`, `align schedules`, `discover`, and `publish` are release-shape
  * stages: a failure here can leave a cohort's lanes disagreeing about what was
  * actually published, or leave the queue mis-scheduled. Those propagate and
- * stop the whole process. Metrics, snapshots, strategy and reports are purely
+ * stop the whole process. Metrics, snapshots and experiment reports are purely
  * observational and stay isolated.
  *
  * One exception is handled by the main loop: socket/DNS-layer transient
@@ -367,11 +377,20 @@ function finishSocialCatchUp(
  * and all other errors remain fatal so an ambiguous publish transport result
  * can never be retried blindly and create duplicate posts.
  */
-export async function runSocialDaemonTick(input: {
+export async function runSocialDaemonTick(
+  input: Parameters<typeof runSocialDaemonTickWork>[0],
+): Promise<void> {
+  return withSocialDaemonTickTelemetry(
+    { now: input.now, owner: OWNER, log: input.log },
+    () => runSocialDaemonTickWork(input),
+  );
+}
+
+async function runSocialDaemonTickWork(input: {
   now: Date;
   firstStartedAt: string;
   log?: (message: string) => void;
-  refreshStrategy?: boolean;
+  reportExperiments?: boolean;
   verbose?: boolean;
   onSummary?: (summary: SocialDaemonTickSummary) => void;
 }): Promise<void> {
@@ -429,15 +448,10 @@ export async function runSocialDaemonTick(input: {
   } finally {
     await observationBrowser?.close();
   }
-  if (input.refreshStrategy) {
-    await isolate('strategy', log, () =>
-      refreshSocialStrategies({ now: input.now, log: observationLog }),
+  if (verbose && input.reportExperiments) {
+    await isolate('experiment report', log, () =>
+      logExperimentReports(input.now, log),
     );
-    if (verbose) {
-      await isolate('experiment report', log, () =>
-        logExperimentReports(input.now, log),
-      );
-    }
   }
 
   input.onSummary?.({ deferredArticles: discovery.deferredArticles });
@@ -515,6 +529,7 @@ async function discoverAndEnqueue(input: {
     candidatesByEpisode.set(candidate.episode_id, list);
   }
   const scheduledArticles = releaseBudgetIndex(schedules);
+  let backlogArticles = releaseBacklogArticles(schedules);
   let newCohorts = 0;
   let deferredArticles = 0;
 
@@ -524,6 +539,7 @@ async function discoverAndEnqueue(input: {
       episodeCandidates: candidatesByEpisode.get(episodeId) ?? [],
       schedules,
       scheduledArticles,
+      backlogArticles,
       titleByEpisodeLanguage,
       now: input.now,
       log: input.log,
@@ -532,6 +548,7 @@ async function discoverAndEnqueue(input: {
     });
     if (result.inserted) {
       newCohorts += 1;
+      backlogArticles += 1;
       if (
         input.maxNewCohorts !== undefined &&
         newCohorts >= input.maxNewCohorts
@@ -551,6 +568,7 @@ async function discoverAndEnqueueEpisode(input: {
   episodeCandidates: readonly SocialPublishCandidate[];
   schedules: readonly PendingSocialPublishSchedule[];
   scheduledArticles: Date[];
+  backlogArticles: number;
   titleByEpisodeLanguage: ReadonlyMap<string, string | null>;
   now: Date;
   log: (message: string) => void;
@@ -588,6 +606,7 @@ async function discoverAndEnqueueEpisode(input: {
     title,
     episodeCandidates: input.episodeCandidates,
     scheduledArticles: input.scheduledArticles,
+    backlogArticles: input.backlogArticles,
     now: input.now,
     log: input.log,
     immediateScheduleAt: input.immediateScheduleAt,
@@ -686,12 +705,15 @@ async function enqueueExistingCohort(input: {
     intendedLanes.map((lane) => `${lane.platform}|${lane.language}`),
   );
   const isSubset = [...existingKeys].every((key) => intendedKeys.has(key));
-  const isEqual = isSubset && existingKeys.size === intendedKeys.size;
-
-  const lanes =
-    isEqual || (isSubset && existingKeys.size < intendedKeys.size)
-      ? intendedLanes
-      : existingLanes;
+  // Only a strict subset of the current policy can be an interrupted enqueue.
+  // A complete or historical cohort already owns its durable lanes: avoid even
+  // conflict-ignored inserts, whose BEFORE INSERT triggers still run in Postgres.
+  const lanes = isSubset
+    ? intendedLanes.filter(
+        (lane) => !existingKeys.has(`${lane.platform}|${lane.language}`),
+      )
+    : [];
+  if (lanes.length === 0) return;
 
   const finalMissing = missingLanguages(
     new Set(lanes.map((lane) => lane.language)),
@@ -718,6 +740,7 @@ async function enqueueNewCohort(input: {
   title: string | null;
   episodeCandidates: readonly SocialPublishCandidate[];
   scheduledArticles: Date[];
+  backlogArticles: number;
   now: Date;
   log: (message: string) => void;
   immediateScheduleAt?: Date;
@@ -752,6 +775,7 @@ async function enqueueNewCohort(input: {
     scheduledAt = nextReleaseSlot({
       after: new Date(Math.max(readyAt.getTime(), input.now.getTime())),
       scheduled: input.scheduledArticles,
+      backlogArticles: input.backlogArticles + 1,
     });
   }
   if (!scheduledAt) {
@@ -777,6 +801,28 @@ async function enqueueNewCohort(input: {
   });
   if (insertedAny) input.scheduledArticles.push(scheduledAt);
   return { inserted: insertedAny, deferred: false };
+}
+
+/** Number of wholly unpublished durable article cohorts still in the queue. */
+function releaseBacklogArticles(
+  schedules: readonly PendingSocialPublishSchedule[],
+): number {
+  const states = new Map<
+    string,
+    { hasPending: boolean; hasCompleted: boolean }
+  >();
+  for (const schedule of schedules) {
+    const state = states.get(schedule.episode_id) ?? {
+      hasPending: false,
+      hasCompleted: false,
+    };
+    if (schedule.status === 'completed') state.hasCompleted = true;
+    else state.hasPending = true;
+    states.set(schedule.episode_id, state);
+  }
+  return [...states.values()].filter(
+    (state) => state.hasPending && !state.hasCompleted,
+  ).length;
 }
 
 /** One budget entry per episode, never one per platform or language lane. */
@@ -936,10 +982,9 @@ async function publishDueJobs(
     return 'empty';
   }
 
-  const [active, titleByEpisodeLanguage] = await Promise.all([
-    activeStrategiesForPublish(log),
-    titleIndex.load(jobs.map((job) => job.episode_id)),
-  ]);
+  const titleByEpisodeLanguage = await titleIndex.load(
+    jobs.map((job) => job.episode_id),
+  );
   const { pendingByEpisodeLanguage, claimFailures } =
     await reconcileClaimedJobsForPublish(
       jobs,
@@ -970,7 +1015,6 @@ async function publishDueJobs(
   // never pays for an LLM call.
   const groups = await holdCohortsMissingCopy(
     mediaReady,
-    active,
     now,
     titleByEpisodeLanguage,
     log,
@@ -984,7 +1028,6 @@ async function publishDueJobs(
       await publishLanguageBatch(
         group.jobs,
         group.copy,
-        active,
         titleByEpisodeLanguage,
         now,
         log,
@@ -1060,7 +1103,7 @@ interface PreparedReleaseGroup {
  * Copy generation is the last pre-transport step that can fail for one
  * language of an otherwise healthy article, so every claimed group is written
  * before the first group is published. Generating it inside the publish loop
- * instead meant a Rednote note rejected by the red-line judge arrived after
+ * instead meant a Rednote note rejected by validation arrived after
  * the article's `en` and `ja` lanes were already live -- a permanently partial
  * article, which the cohort contract forbids.
  *
@@ -1072,14 +1115,12 @@ interface PreparedReleaseGroup {
  * retry backoff, and moves the next tick's claim seed on.
  *
  * Everything that is not `SocialCopyGenerationError` is rethrown untouched --
- * a missing episode row, an unreadable prompt file, or a red-line judge that
- * could not answer at all are outages and deployment faults, and holding the
- * article on those would burn all eight attempts of every zh-Hant article
+ * a missing episode row or an unreadable prompt file is a deployment fault,
+ * and holding the article on those would burn all eight attempts
  * while the daemon reported green.
  */
 async function holdCohortsMissingCopy(
   groups: readonly SocialPublishJobRow[][],
-  active: Record<string, SocialStrategyVersionRow | null>,
   now: Date,
   titleByEpisodeLanguage: ReadonlyMap<string, string | null>,
   log: (message: string) => void,
@@ -1092,7 +1133,6 @@ async function holdCohortsMissingCopy(
     const firstJob = jobs[0];
     if (!firstJob || heldEpisodes.has(firstJob.episode_id)) continue;
     const languageCode = jobLanguage(firstJob);
-    const guidanceByPlatform = buildGuidanceForJobs(jobs, active);
     try {
       copyByGroup.set(
         groupKey(firstJob),
@@ -1100,9 +1140,6 @@ async function holdCohortsMissingCopy(
           episodeId: firstJob.episode_id,
           languageCode,
           platforms: jobs.map((job) => job.platform),
-          ...(Object.keys(guidanceByPlatform).length > 0
-            ? { strategyGuidanceByPlatform: guidanceByPlatform }
-            : {}),
           logLlm: verbose,
         }),
       );
@@ -1355,51 +1392,9 @@ async function reconcileClaimedJob(
   return true;
 }
 
-// The language experiment is over and no new lane is ever tagged, but jobs
-// queued before the decision still carry these keys and have not all published
-// yet. Copy guidance on those lanes stays frozen so their concluded arms are
-// not confounded by learned hook/hashtag bias in their final posts. This set
-// can be deleted once no unpublished job carries a language experiment key.
-const HISTORICAL_LANGUAGE_EXPERIMENT_KEYS: ReadonlySet<string> = new Set([
-  'x-language-v1',
-  'x-language-v2',
-  'threads-language-v1',
-  'youtube-language-v1',
-]);
-
-/**
- * `buildStrategyGuidance` samples `Math.random`, so it is computed exactly
- * once per group, by the copy barrier that hands it to the writer. Rebuilding
- * it at publish time -- which is where it used to live -- would record
- * guidance the published copy was never written against.
- */
-function buildGuidanceForJobs(
-  jobs: readonly SocialPublishJobRow[],
-  active: Record<string, SocialStrategyVersionRow | null>,
-): Partial<Record<SocialPlatform, string>> {
-  return Object.fromEntries(
-    jobs.flatMap((job) => {
-      const isLanguageExperiment = Boolean(
-        job.experiment_key &&
-        HISTORICAL_LANGUAGE_EXPERIMENT_KEYS.has(job.experiment_key),
-      );
-      const guidance = buildStrategyGuidance(
-        job.platform,
-        active[strategyMapKey(job.platform, jobLanguage(job))]?.config,
-        Math.random,
-        {
-          languageExperimentActive: isLanguageExperiment,
-        },
-      );
-      return guidance ? [[job.platform, guidance]] : [];
-    }),
-  );
-}
-
 async function publishLanguageBatch(
   jobs: SocialPublishJobRow[],
   preparedCopy: PreparedSocialBatchCopy,
-  active: Record<string, SocialStrategyVersionRow | null>,
   titleByEpisodeLanguage: ReadonlyMap<string, string | null>,
   now: Date,
   log: (message: string) => void,
@@ -1443,7 +1438,6 @@ async function publishLanguageBatch(
     await finalizePublishOutcome(
       job,
       outcomes,
-      active[strategyMapKey(job.platform, jobLanguage(job))] ?? null,
       now,
       titleByEpisodeLanguage,
       log,
@@ -1455,7 +1449,6 @@ async function publishLanguageBatch(
 async function finalizePublishOutcome(
   job: SocialPublishJobRow,
   outcomes: Awaited<ReturnType<typeof publishSocialBatch>>,
-  strategy: SocialStrategyVersionRow | null,
   now: Date,
   titleByEpisodeLanguage: ReadonlyMap<string, string | null>,
   log: (message: string) => void,
@@ -1495,7 +1488,6 @@ async function finalizePublishOutcome(
     owner: OWNER,
     completedAt: now,
     socialPostId: post.id,
-    ...(strategy ? { strategyVersionId: strategy.id } : {}),
   });
   logPublishedOutcome(job, post.post_url, titleByEpisodeLanguage, log, verbose);
 }
@@ -1572,19 +1564,6 @@ function compactLaneLabel(
   languageCode: string,
 ): string {
   return `${platformIcon(platform)}${languageCode}`;
-}
-
-async function activeStrategiesForPublish(
-  log: (message: string) => void,
-): Promise<Record<string, SocialStrategyVersionRow | null>> {
-  try {
-    return activeStrategyMap(await getActiveSocialStrategies());
-  } catch (error) {
-    log(
-      `⚠️ [social-daemon] publishing without strategy guidance · ${errorMessage(error)}`,
-    );
-    return activeStrategyMap([]);
-  }
 }
 
 const TERMINAL_METRIC_REVIEW_STATUSES = new Set<string>([

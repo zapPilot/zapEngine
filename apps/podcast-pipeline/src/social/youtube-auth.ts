@@ -25,6 +25,7 @@ const AUTHORIZE_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const YOUTUBE_UPLOAD_SCOPE = 'https://www.googleapis.com/auth/youtube.upload';
 /** Reads the channel's own absolute subscriber count; upload alone cannot. */
+// Account counts above 1,000 are rounded by the API to three significant digits.
 export const YOUTUBE_READONLY_SCOPE =
   'https://www.googleapis.com/auth/youtube.readonly';
 export const YOUTUBE_ANALYTICS_SCOPE =

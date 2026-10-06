@@ -73,3 +73,28 @@ describe('Ops MCP projections', () => {
     expect(result.priority).toEqual(snapshot.priorities[0]);
   });
 });
+
+it('security domain projects only security rollups and priorities', () => {
+  const signal = {
+    ...jobSignal,
+    fingerprint: 'github-security:dependabot/repository',
+    source: 'github-security',
+    domain: 'security',
+  } as const;
+  const priority = { signal, score: 76, reasons: [] };
+  const result = projectDomain(
+    {
+      ...snapshot,
+      signals: [...snapshot.signals, signal],
+      priorities: [...snapshot.priorities, priority],
+      domains: [
+        ...snapshot.domains,
+        { domain: 'security', status: 'critical', signalCount: 1 },
+      ],
+    },
+    'security',
+  );
+  expect(result.signals).toEqual([signal]);
+  expect(result.priorities).toEqual([priority]);
+  expect(result.status).toBe('critical');
+});

@@ -24,7 +24,11 @@ export function buildDesktopSentryOptions(
  * and tags are only useful while their cardinality stays low enough to group
  * and filter on.
  */
-export type DesktopComponent = 'bootstrap' | 'scheduler' | 'asset-protocol';
+export type DesktopComponent =
+  | 'updater'
+  | 'bootstrap'
+  | 'scheduler'
+  | 'asset-protocol';
 
 export interface DesktopExceptionOptions {
   component: DesktopComponent;

@@ -1,6 +1,6 @@
 # zapEngine
 
-zapPilot is a **self-custodial investment autopilot** for DeFi portfolios. It brings rules-based allocation across S&P 500 exposure, BTC/ETH, and stablecoins while users keep control through their own EOA wallet — signed from your wallet, held by no one else. The platform also powers the **From Fed to Chain** podcast, providing free financial knowledge to the community.
+zapPilot is building a **self-hosted runtime for programmable portfolios** — your strategy, your machine, your wallet. A strategy you can read produces a target allocation; the runtime is being built to turn that target into checked transactions you sign from your own wallet. Today a reference strategy (DMA/FGI Portfolio Rules) is evaluated on Zap Pilot-hosted services, and deposits go directly into protocol positions held at your own address; the [status table](https://zap-pilot.org/docs#status-of-every-capability) lists what is live, in development, and planned. The platform also powers the **From Fed to Chain** podcast, providing free financial knowledge to the community.
 
 This codebase powers the full stack: TypeScript/Python microservices, a universal Expo/React Native app (iOS/Android/Web), an Electron macOS desktop shell, and a Next.js marketing site.
 
@@ -14,29 +14,33 @@ MIT License — see [LICENSE](./LICENSE.md) for details.
 
 ---
 
-Turborepo + pnpm monorepo for Zap Pilot — a DeFi portfolio analytics and automation platform.
+Turborepo + pnpm monorepo for Zap Pilot — a programmable-portfolio runtime (strategy evaluation, transaction planning, pre-sign checks, wallet execution) and the From Fed to Chain podcast stack.
 
 ## Architecture
 
 ```
 zapEngine/
 ├── apps/
-│   ├── account-engine      # Hono API — user accounts, wallets, Telegram (port 3004)
-│   ├── alpha-etl           # Express ETL — DeFi APR data ingestion (port 3003)
-│   ├── analytics-engine    # FastAPI — portfolio analytics & risk metrics (port 8001)
+│   ├── account-engine      # Hono API — accounts, wallets, deposit plan orchestration, notifications (port 3004)
+│   ├── alpha-etl           # Express ETL — market prices, sentiment, and wallet-position ingestion (port 3003)
+│   ├── analytics-engine    # FastAPI — strategy evaluation, backtests, portfolio analytics (port 8001)
 │   ├── control-center      # Founder-local ops dashboard and cost ledger UI/API
-│   ├── desktop             # Electron — macOS shell around the app web export
+│   ├── desktop             # Electron — macOS shell around the app web export (not yet distributed)
+│   ├── kokode-ai           # Vite — KOKODE, an independent product kept in this monorepo
 │   ├── landing-page        # Next.js 15 — marketing & docs site (port 3000)
 │   ├── app                 # Expo / React Native — universal Zap Pilot app (iOS/Android/Web)
-│   └── podcast-pipeline    # Hono — article → episode pipeline (port 3000)
+│   ├── podcast-pipeline    # Hono — article → episode pipeline (port 3000)
+│   └── video               # Remotion — product videos as code (calculator pitch)
 └── packages/
     ├── app-core            # Shared app core — schemas, wallet flows, and state for the Expo app and desktop shell
     ├── brand-assets        # Brand asset sources and rasterized outputs
     ├── cost-observability  # Vendor and infra cost collectors feeding the control-center ledger
     ├── design-tokens       # Shared Zap Pilot brand tokens (TS / Tailwind / CSS vars)
     ├── eslint-config       # Shared ESLint flat-config presets
-    ├── intent-engine       # Shared TypeScript library — DeFi routing logic
+    ├── intent-engine       # Shared TypeScript library — intents to prepared transactions: routing, protocol adapters, pre-sign checks
     ├── knip-config         # Shared knip dead-code-detection base config
+    ├── kokode-story        # Pure Kokode copy, locales and narrative shared by its site, decks and film
+    ├── media-release       # Shared media release manifests and R2 upload helpers
     ├── tsconfig            # Shared TypeScript config presets
     └── types               # Shared TypeScript types & Zod schemas
 ```
@@ -48,9 +52,11 @@ zapEngine/
 | analytics-engine | Python 3.11+ | FastAPI           |
 | control-center   | TypeScript   | Vite / Hono       |
 | desktop          | TypeScript   | Electron          |
+| kokode-ai        | TypeScript   | Vite              |
 | landing-page     | TypeScript   | Next.js 15        |
 | app              | TypeScript   | Expo 57 / RN 0.86 |
 | podcast-pipeline | TypeScript   | Hono 4.12         |
+| video            | TypeScript   | Remotion 4        |
 
 ## Prerequisites
 
@@ -142,8 +148,11 @@ pnpm dev landing
 # Run the desktop shell (Electron; loads the app web export)
 pnpm --filter @zapengine/desktop dev
 
-# Build the macOS DMG
-pnpm --filter @zapengine/desktop package
+# Build an unsigned macOS validation package
+pnpm desktop:package
+
+# Build a signed, notarized release (credentials required)
+pnpm desktop:release
 
 # Static web export of the universal app (Vercel output / Electron renderer)
 pnpm --filter @zapengine/app build:web
@@ -161,6 +170,17 @@ looks live is reported so you can decide, and a process from another project is
 never killed.
 
 All apps — including analytics-engine — run via `pnpm <script>`. Python scripts wrap `uv run` under the hood; the CLI is uniform. The default `pnpm dev` includes analytics-engine so backtesting and analytics pages work out of the box. Use `pnpm dev lite` only when you are not touching those pages.
+
+### Sales artifacts
+
+```bash
+pnpm sales:render kokode      # all Kokode PDFs + videos, all languages
+pnpm sales:render zap-pilot   # calculator-pitch video
+```
+
+This rebuilds all PDFs and videos from existing assets without calling paid
+generation APIs. Granular `video:*` commands (stills, render, voiceover,
+music) are for media development and debugging; see `apps/video/README.md`.
 
 For development and verification commands, see [CONTRIBUTING.md](./CONTRIBUTING.md). Repository-wide engineering principles live in [AGENTS.md](./AGENTS.md). Infrastructure sources of truth are the [Fly inventory](./.github/fly-apps.json), [recurring-work registry](./.github/schedules.json), and [schema history](./supabase/migrations/).
 
@@ -185,5 +205,9 @@ After linking, Turbo checks remote cache on local misses — `pnpm verify` stays
 - **Universal app (iOS / Android)** → EAS Build + Submit via GitHub Actions,
   triggered manually from the Actions tab
   ([runbook](./apps/app/docs/android-release.md#ci-release))
-- **Desktop** → local/manual macOS DMG build from `apps/desktop`
+- **Desktop** → signed macOS DMG + zip via `desktop-v*` tags; manual main dispatch builds and verifies without publishing ([runbook](apps/desktop/docs/release.md))
 - CI triggers on push to `main` and PRs; deploys only on `main`
+
+Desktop validation packages use `pnpm desktop:package`. Signed, notarized releases use `pnpm desktop:release`; `pnpm desktop:mac` opens the verified release and requires credentials. See [desktop release runbook](apps/desktop/docs/release.md).
+
+Kokode sales media: `pnpm sales:render kokode` rebuilds PDFs, films and posters from existing assets. `pnpm sales:publish kokode --dry-run` plans without credentials; `pnpm sales:publish kokode` uploads immutable releases to R2 and updates the committed manifest after public verification. See [Kokode media release](apps/kokode-ai/README.md).

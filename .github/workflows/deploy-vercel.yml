@@ -13,7 +13,8 @@ jobs:
     if: >-
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
-      github.event.workflow_run.head_branch == 'main'
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-latest
     # Every completed CI run starts this workflow, including red runs whose
     # deploy job is skipped. Only a job that passes its `if` joins a job-level
@@ -31,9 +32,13 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          # Execute the helper from this trusted workflow's revision. The
+          # triggering CI revision is deployment data, never runner code.
+          ref: ${{ github.sha }}
+          persist-credentials: false
 
       - name: Deploy production Vercel projects
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: node scripts/deploy-vercel-main.mjs
+          DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: node scripts/deploy-vercel-main.mjs "$DEPLOY_SHA"

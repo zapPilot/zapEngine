@@ -4,6 +4,7 @@ import type { ImageCandidate } from '../../types.js';
 import type { AcquiredRemoteImage } from './assets.js';
 import type { ImageSearchProvider } from './image-search-provider.js';
 import {
+  MAX_DISTINCT_SEARCHED_ASSETS_PER_SUBJECT,
   planVisualAssets,
   type VisualAssetProgress,
   type VisualAssetScene,
@@ -54,7 +55,12 @@ function distinctFingerprints(): (path: string) => Promise<string> {
   return (path: string) => {
     const existing = assigned.get(path);
     if (existing !== undefined) return Promise.resolve(existing);
-    const hash = (HASH_NIBBLES[assigned.size] ?? 'f').repeat(16);
+    const index = assigned.size;
+    const hash = Array.from(
+      { length: 16 },
+      (_, position) =>
+        HASH_NIBBLES[position % 2 === 0 ? index % 16 : Math.floor(index / 16)]!,
+    ).join('');
     assigned.set(path, hash);
     return Promise.resolve(hash);
   };
@@ -391,12 +397,15 @@ describe('planVisualAssets resilient selection', () => {
     ).toMatchObject({ selection: 'reuse', fallbackReason: 'pool-exhausted' });
   });
 
-  it('rotates a six-image subject pool instead of searching for endless visual novelty', async () => {
+  it('rotates a bounded subject pool instead of searching for endless visual novelty', async () => {
     const progress: VisualAssetProgress[] = [];
     const braveSearch = vi
       .fn()
       .mockResolvedValue(
-        ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((suffix) =>
+        Array.from(
+          { length: MAX_DISTINCT_SEARCHED_ASSETS_PER_SUBJECT + 1 },
+          (_, index) => String(index),
+        ).map((suffix) =>
           braveCandidate(
             `justin-sun-${suffix}`,
             `Justin Sun portrait ${suffix.toUpperCase()}`,
@@ -405,11 +414,14 @@ describe('planVisualAssets resilient selection', () => {
       );
 
     const result = await planVisualAssets({
-      scenes: Array.from({ length: 7 }, (_, index) => ({
-        sceneId: `scene-0${index + 1}`,
-        imageSearchIntent: ['Justin Sun crypto entrepreneur'],
-        imageSearchEntities: ['Justin Sun'],
-      })),
+      scenes: Array.from(
+        { length: MAX_DISTINCT_SEARCHED_ASSETS_PER_SUBJECT + 1 },
+        (_, index) => ({
+          sceneId: `scene-${String(index + 1).padStart(2, '0')}`,
+          imageSearchIntent: ['Justin Sun crypto entrepreneur'],
+          imageSearchEntities: ['Justin Sun'],
+        }),
+      ),
       workingDirectory: '/work/visual-assets',
       selectionMode: 'resilient',
       onProgress: (event) => progress.push(event),
@@ -421,12 +433,16 @@ describe('planVisualAssets resilient selection', () => {
     });
 
     expect(braveSearch).toHaveBeenCalledOnce();
-    expect(result.assets).toHaveLength(6);
-    expect(result.scenes[6]?.assetId).toBe('image-01');
+    expect(result.assets).toHaveLength(
+      MAX_DISTINCT_SEARCHED_ASSETS_PER_SUBJECT,
+    );
+    expect(
+      result.scenes[MAX_DISTINCT_SEARCHED_ASSETS_PER_SUBJECT]?.assetId,
+    ).toBe('image-01');
     expect(progress).toContainEqual(
       expect.objectContaining({
         phase: 'assets',
-        sceneId: 'scene-07',
+        sceneId: `scene-${MAX_DISTINCT_SEARCHED_ASSETS_PER_SUBJECT + 1}`,
         provider: 'reuse',
         subjectKey: 'justin sun',
       }),

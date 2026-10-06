@@ -4,9 +4,9 @@
 
 | Source           | Read                                                                                                  | Notes                                                                                                                                                                                                                                       |
 | ---------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Ops snapshot     | `ops_status`                                                                                          | Eight domains plus ranked priorities. `unknown` is never healthy.                                                                                                                                                                           |
+| Ops snapshot     | `ops_status`                                                                                          | Nine domains plus ranked priorities. `unknown` is never healthy.                                                                                                                                                                            |
 | One incident     | `ops_investigate { fingerprint }`                                                                     | Read `remediation`, `customerImpact` and `evidenceGaps`. A blocker means the fix belongs in code, never in production.                                                                                                                      |
-| Provider detail  | `ops_inspect_signal { fingerprint }`                                                                  | Deep inspectors exist for `github-actions`, `sentry` and `fly` only.                                                                                                                                                                        |
+| Provider detail  | `ops_inspect_signal { fingerprint }`                                                                  | Deep inspectors exist for `github-actions`, `github-security`, `sentry` and `fly`.                                                                                                                                                          |
 | Sentry history   | `ops_inspect_signal` with `sentry: { start, end, query: "is:unresolved", cursor }`                    | Fingerprint `sentry:issues/organization`. Pass `start` and `end` together, ISO-8601 with a timezone, or the window silently falls back to 24h. Follow `evidence.nextCursor`; one page is not a total. One issue: `query: "issue:SHORT-ID"`. |
 | Main CI          | `gh run list --branch main --limit 20`, then `gh run view <id> --log-failed`                          | A later commit is not a fix; a later green run on main is.                                                                                                                                                                                  |
 | This PR's CI     | `gh pr checks <pr>`                                                                                   | Zero checks usually means `gh pr view <pr> --json mergeStateStatus` reports `DIRTY`.                                                                                                                                                        |
@@ -15,6 +15,9 @@
 | Lint warnings    | `pnpm turbo run lint --filter=<workspace>` where the lint script lacks `--max-warnings 0`             |                                                                                                                                                                                                                                             |
 | knip hints       | `pnpm --filter <workspace> exec knip --treat-config-hints-as-errors` where `deadcode` lacks that flag | Never run `deadcode:fix` blindly.                                                                                                                                                                                                           |
 | What green hides | [coverage review runbook](../../../docs/operations/coverage-review.md)                                | For when the other sources run dry.                                                                                                                                                                                                         |
+| Dependabot       | `gh api 'repos/zapPilot/zapEngine/dependabot/alerts?state=open&per_page=100' --paginate`              | Read package, `manifest_path`, `vulnerable_version_range`, `first_patched_version` and `scope`.                                                                                                                                             |
+| Code scanning    | `gh api 'repos/zapPilot/zapEngine/code-scanning/alerts?state=open&per_page=100' --paginate`           | Enumerate exact alert IDs and rules.                                                                                                                                                                                                        |
+| Audit            | `pnpm run security audit`; Python alone: `pnpm --filter @zapengine/analytics-engine security:audit`   | Read the final summary and exit status, not the job color.                                                                                                                                                                                  |
 
 When the MCP is unavailable (`Connection closed` usually means Infisical is not
 logged in or the checkout lacks `node_modules`), read the snapshot through the
@@ -40,20 +43,96 @@ gh run download "$run_id" --repo zapPilot/zapEngine --name coverage-handoff \
   `pnpm ops --status` reads the dev environment and misleads.
 - `ops:operator` (including `--allow-render-retry` and `--record-fix`), `ops:sync`
   and `ops:cost`.
-- Control Center POST/PUT routes and `ops_resolve_sentry_issue`.
+- Control Center POST/PUT routes and delegated/unverified Sentry resolution.
+  Exact-issue closure on the existing persisted verified-fix rail is the narrow
+  exception; never manufacture verification or explicit authorization.
 - A service started locally with `--environment prod`: account-engine in polling
   mode deletes the production Telegram webhook.
 - `supabase db push`, `fly deploy`, `vercel deploy`, `gh workflow run`,
   `gh run rerun`, `infisical secrets set` or `delete`.
 
+- Alert `gh api -X PATCH`, `@dependabot` instructions and changes to GitHub security settings. Never dismiss an alert.
+
 ## Signals no code change clears
 
-List these for the owner once instead of reworking them:
+Persist these as per-target triage with evidence, an exact next action and a
+review deadline. Revisit when the deadline passes or provider evidence changes;
+PR prose alone does not define what already reported means across sessions:
 
 - a render on a superseded `EPISODE_VIDEO_VISUAL_VERSION`, or an abandoned
   episode: reviving one forces a new visual plan and search spend;
+- advisories still unpatched after the security-audit repair/ignore workflow,
+  and secret rotation: exact owner action;
 - inactive priority accounts: a pricing decision;
 - a Sentry issue whose fix is on main but not yet deployed: the deploy clears it.
+
+## Durable Reliability follow-up
+
+Use the shared incident ledger, not a second issue database. The narrowly bounded
+metadata writer does not grant provider mutation authority:
+
+```bash
+node scripts/env/run.mjs --environment prod -- \
+  pnpm --filter @zapengine/control-center ops:triage /absolute/path/assessment.json
+```
+
+The JSON has `fingerprint`, `actor` and `assessment`. Assessment contains:
+`target` (exact numeric Sentry or GitHub code/secret alert ID; Dependabot manifest path; otherwise signal fingerprint),
+`classification` (engineering/owner/external/insufficient_evidence),
+`stage` (investigating/repair_pending/pr_open/awaiting_deploy/observing/closure_pending/blocked),
+`reason`, nonempty `evidence` references, `nextAction`, nullable `prNumber` and
+40-character `fixSha`, nullable ISO `lastSeen`, and ISO `reviewAfter`.
+Use a review deadline no later than the next daily sweep for engineering or
+evidence gaps; use seven days for a documented owner/external dependency.
+`pr_open` requires a PR; deployment stages require a PR and exact fix commit.
+Never label missing reproduction as a product decision. Try repository-backed
+reproduction before recording an evidence gap, and record the missing fact.
+The command only records metadata; it does not run an operator cycle, register
+a verified fix, deploy, retry jobs or authorize Sentry resolution.
+
+Do not resolve stale issues merely because 24 hours are quiet. The existing
+render verified-fix rail retains its deployed identity and recovery gates;
+when its persisted exact-issue authorization and fresh verification pass,
+use `ops_resolve_sentry_issue` without delegatedBy, then take a forced snapshot
+and confirm that exact issue is absent. This is the bounded closure exception
+in SKILL.md; the server remains the gate.
+For other services, record closure_pending only with deployment and functional
+recovery evidence, and assign the exact owner verification/closure action; the
+operator-delegated MCP rail still requires explicit human authorization and
+provider quiet-time proof. Do not pass delegatedBy from a standing sweep prompt.
+Resolution failures or unknown outcomes require persisted-action reconciliation,
+never repeating the mutation. Use the audit-only writer
+`node scripts/env/run.mjs --environment prod -- pnpm --filter @zapengine/control-center ops:reconcile-sentry <issueId>`
+to read the exact provider status and reconcile a requested/unknown attempt;
+this never sends another provider mutation or grants another repair attempt. A new event or overdue review reopens assessment
+work, including an item previously left for the owner.
+
+If metadata persistence is unavailable or the migration has not deployed, list
+each assessment in the PR and mark persistence unverified; keep diagnosing and
+repairing engineering issues rather than treating missing tracking as healthy.
+
+## Security backlog mechanics
+
+- Order: critical, high runtime, then the rest; ties favor the most alerts cleared.
+  An ignored GHSA that now has a patched release is also a repair item.
+- Find every consumer with `pnpm why -r <pkg>` (for example,
+  `pnpm why -r @xmldom/xmldom`). Run per-item Turbo checks and `dup:check`
+  for each consumer workspace, then rerun the audit.
+- After two failed approaches, restore only the item's manifest/lockfile edits
+  with `git restore` (preserve pre-existing changes), then run
+  `HUSKY=0 pnpm install --frozen-lockfile --offline`. `uv run` automatically
+  resynchronizes analytics-engine; no separate Python install is needed.
+- For a `DIRTY` PR, merge main under the sweep contract. Resolve manifest and
+  override conflicts manually; take main's lockfile with
+  `git checkout --theirs -- <lockfile>`, then regenerate with `pnpm install`
+  or `uv lock`. Never hand-merge lockfile conflict fragments.
+- Revert the resolution constraint and regenerate its lockfile. Directly
+  reverting an older lockfile commit conflicts with later dependency repairs.
+- Across sessions, Dependabot's triage target is the manifest path: use it as a
+  lockfile-level claim. If another sweep has a valid `pr_open` for that lockfile,
+  choose another lockfile or aspect until its `reviewAfter` expires.
+- Actions trap: `run:` without explicit `shell: bash` uses `bash -e` without
+  pipefail; `cmd | tee` can swallow `cmd`'s failure.
 
 ## What merging does
 
@@ -117,7 +196,7 @@ become entries under "Decisions to review".
 | control-center + zap-pilot-ops MCP | Operational evidence                                                  |
 | Supabase                           | Durable product / analytics / ops state; schemas have distinct owners |
 | Cloudflare R2                      | Podcast media objects                                                 |
-| Pinata / IPFS                      | Signed track-record publication                                       |
+| Pinata / IPFS                      | Track-record snapshot publication (unsigned today)                    |
 | GitHub Actions                     | Repo-native schedules + deploy                                        |
 | Fly                                | Backend compute                                                       |
 | Vercel                             | App web / landing / control-center                                    |
@@ -130,11 +209,18 @@ Sources of truth: `.github/fly-apps.json` (Fly inventory), `.github/schedules.js
 
 A change that alters one of these is feature work and goes to the owner:
 
-- Zap Pilot is a self-custodial investment autopilot: users sign from their own
+- Zap Pilot is a runtime for programmable portfolios: strategies produce target
+  allocations, assets stay at the user's own address, users sign from their own
   wallet and must understand transaction effects before signing.
-- Lead with disciplined portfolio management, not cross-chain infrastructure.
-- Prefer one proven user path over protocol breadth.
-- Treat public track record and repeat usage as stronger evidence than feature count.
+- Every public capability claim carries its status (Live, Research, In
+  development, Planned); never describe planned work as live.
+- Strategy composability over protocol count: add an adapter when a strategy
+  needs an exposure; adapters never decide strategy.
+- Treat reproducible public evidence (open code, daily backtests with their
+  assumptions and disclaimer, on-chain recomputation) and repeat usage as
+  stronger evidence than feature count; never present a backtest as live results.
+- Deterministic automation first; any AI layer is optional, later, and bounded
+  by user policy.
 - Keep Privy as an onboarding rail rather than the product identity.
 
 ## PR body template
@@ -146,10 +232,12 @@ A change that alters one of these is feature work and goes to the owner:
 ## Ops snapshot
 
 Date, non-healthy domains, main CI, Sentry unresolved count, open issues and PRs.
+Dependabot/code-scanning open counts and how many this PR repairs.
 
 ## Done
 
 - `<sha>` item: one line. Fixes #123
+- `<sha>` deps: <pkg> <old> → <new>, alerts <n>, <n> (bot PR #<n>)
 
 ## Decisions to review
 

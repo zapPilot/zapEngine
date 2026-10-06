@@ -95,13 +95,13 @@ describe('Route validators', () => {
       ).toBe(true);
     });
 
-    it('rejects a malformed signature when one is supplied', () => {
+    it('strips obsolete signature inputs when adding a watched wallet', () => {
       expect(
         addWalletBodySchema.safeParse({
           wallet: validWallet,
           signature: '0x1234',
         }).success,
-      ).toBe(false);
+      ).toBe(true);
     });
 
     it('rejects label over 100 characters', () => {
@@ -118,6 +118,7 @@ describe('Route validators', () => {
     it('accepts a valid signature', () => {
       expect(
         verifyWalletBodySchema.safeParse({
+          challengeId: '123e4567-e89b-12d3-a456-426614174000',
           signature: `0x${'ab'.repeat(65)}`,
         }).success,
       ).toBe(true);

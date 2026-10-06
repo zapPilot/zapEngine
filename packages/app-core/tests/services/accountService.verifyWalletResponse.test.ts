@@ -1,3 +1,4 @@
+import { configureAccountOwnerSession } from '../../src/lib/http/accountOwnerSession';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const accountApi = vi.hoisted(() => ({
@@ -26,11 +27,15 @@ const { verifyWalletOwnership } =
   await import('../../src/services/accountService');
 
 const verifyWallet = () =>
-  verifyWalletOwnership('user-1', '0xabc', '0xsignature');
+  verifyWalletOwnership('user-1', '0xabc', '0xsignature', 'challenge');
 
 describe('accountService wallet verification response validation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    configureAccountOwnerSession({
+      getToken: async () => 'token',
+      invalidate: vi.fn(),
+    });
   });
 
   it('rejects a verification response that omits the ownership timestamp', async () => {
@@ -50,7 +55,8 @@ describe('accountService wallet verification response validation', () => {
 
     expect(accountApi.post).toHaveBeenCalledWith(
       '/users/user-1/wallets/0xabc/verify',
-      { signature: '0xsignature' },
+      { signature: '0xsignature', challengeId: 'challenge' },
+      { headers: { Authorization: 'Bearer token' } },
     );
   });
 

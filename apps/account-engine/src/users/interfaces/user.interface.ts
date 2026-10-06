@@ -27,9 +27,6 @@ export interface AddWalletResponse {
   message: string;
   ownership_verified: boolean;
 }
-export interface VerifyWalletResponse extends SuccessResponse {
-  ownership_verified_at: string;
-}
 export interface UpdateEmailResponse extends SuccessResponse {
   email_updated: boolean;
   plan_upgraded: boolean;
@@ -37,7 +34,7 @@ export interface UpdateEmailResponse extends SuccessResponse {
 export type UpdateWalletLabelResponse = SuccessResponse;
 
 export interface UserProfileResponse {
-  user: User;
+  user: Pick<User, 'id' | 'created_at' | 'is_subscribed_to_reports'>;
   wallets: UserCryptoWallet[];
   subscription?: UserSubscription & { plan: Plan };
 }

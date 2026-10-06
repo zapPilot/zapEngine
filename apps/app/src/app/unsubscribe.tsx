@@ -39,7 +39,7 @@ export default function UnsubscribeRoute(): ReactElement {
     <ScreenCrashBoundary screen="unsubscribe">
       <ScreenScrollView width="narrow">
         <PageHeader title="Email preferences" />
-        <View className="px-5 pt-5">
+        <View className="pt-5">
           <Card className="p-5">
             <Text className="font-sans-semibold text-[17px] text-ink">
               {status === 'success'

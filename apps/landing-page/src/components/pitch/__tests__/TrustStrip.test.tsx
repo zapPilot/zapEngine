@@ -12,9 +12,18 @@ describe('TrustStrip', () => {
     it('renders trust badges', () => {
       render(<TrustStrip />);
 
-      expect(screen.getByText('100% Self-Custody · EOA')).toBeInTheDocument();
-      expect(screen.getByText('Live on Mainnet')).toBeInTheDocument();
-      expect(screen.getByText('Open-source strategy')).toBeInTheDocument();
+      expect(
+        screen.getByText('Self-custody · no Zap Pilot vault'),
+      ).toBeInTheDocument();
+      expect(screen.getByText('Deposits on mainnet')).toBeInTheDocument();
+      expect(screen.getByText('Open source')).toBeInTheDocument();
+    });
+
+    it('states mainnet deposits through a status badge, not prose', () => {
+      const { container } = render(<TrustStrip />);
+      const badge = container.querySelector('[data-capability]');
+      expect(badge).toHaveAttribute('data-capability', 'deposit-plans');
+      expect(badge).toHaveTextContent('Live');
     });
   });
 
@@ -23,7 +32,7 @@ describe('TrustStrip', () => {
       render(<TrustStrip />);
 
       const githubLink = screen.getByRole('link', {
-        name: /Open-source strategy/,
+        name: /Open source/,
       });
       expect(githubLink).toHaveAttribute('href', 'https://github.com/zapPilot');
       expect(githubLink).toHaveAttribute('target', '_blank');

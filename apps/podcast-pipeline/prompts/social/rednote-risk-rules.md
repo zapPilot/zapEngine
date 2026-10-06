@@ -2,8 +2,7 @@
 
 Four hard rules. Rednote's finance review removes a note that breaks one of them
 without reporting anything: the note leaves the manager and its metrics stay at
-zero. Each rule has a stable id, and the same ids are what the automated gate
-reports back when it asks for a rewrite.
+zero. Each rule has a stable id so the writer can follow all four consistently.
 
 ## R1 `asset_allocation_advice`
 

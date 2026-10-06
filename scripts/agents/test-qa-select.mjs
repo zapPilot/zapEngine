@@ -45,6 +45,20 @@ function ageMs(value, now) {
     : now.getTime() - parsed;
 }
 
+function snapshotChanged(scope, previous) {
+  if (previous.pathShas) {
+    const current = scope.pathShas ?? {};
+    const previousEntries = Object.entries(previous.pathShas).sort(([a], [b]) =>
+      a.localeCompare(b),
+    );
+    const currentEntries = Object.entries(current).sort(([a], [b]) =>
+      a.localeCompare(b),
+    );
+    return JSON.stringify(previousEntries) !== JSON.stringify(currentEntries);
+  }
+  return previous.fingerprint !== scope.fingerprint;
+}
+
 export function classifyScope(scope, previous, now = new Date()) {
   if (!previous) return { kind: 'never', priority: 1 };
 
@@ -52,7 +66,7 @@ export function classifyScope(scope, previous, now = new Date()) {
     return { kind: 'pending', priority: null };
   }
 
-  const changed = previous.fingerprint !== scope.fingerprint;
+  const changed = snapshotChanged(scope, previous);
   if (previous.status === 'rejected') {
     return changed
       ? {

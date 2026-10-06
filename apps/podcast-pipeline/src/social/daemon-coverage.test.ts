@@ -1,4 +1,17 @@
+vi.mock('./account-snapshots.js', () => ({
+  captureDueAccountSnapshots: vi.fn().mockResolvedValue([]),
+  capturePrePublishAccountSnapshots: vi.fn().mockResolvedValue([]),
+}));
+
 import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('./daemon-tick-telemetry.js', () => ({
+  withSocialDaemonTickTelemetry: (
+    _options: unknown,
+    run: () => Promise<unknown>,
+  ) => run(),
+  recordSocialEnqueueResult: vi.fn(),
+}));
 
 const mocks = vi.hoisted(() => ({
   alignPendingSocialReleaseCohorts: vi.fn().mockResolvedValue({
@@ -12,9 +25,7 @@ const mocks = vi.hoisted(() => ({
     .fn()
     .mockResolvedValue('2026-08-16T08:00:00.000Z'),
   failSocialPublishJob: vi.fn(),
-  getActiveSocialStrategies: vi.fn().mockResolvedValue([]),
   getSocialQueueSnapshot: vi.fn(),
-  getSocialStrategyById: vi.fn().mockResolvedValue(null),
   insertSocialAccountSnapshot: vi.fn().mockResolvedValue(undefined),
   latestSocialAccountSnapshots: vi.fn().mockResolvedValue({}),
   listPendingSocialPublishSchedules: vi.fn().mockResolvedValue([]),
@@ -44,7 +55,6 @@ const mocks = vi.hoisted(() => ({
     rednote: vi.fn(),
     youtube: vi.fn(),
   }),
-  refreshSocialStrategies: vi.fn().mockResolvedValue(undefined),
   buildSocialExperimentReports: vi.fn().mockReturnValue([]),
   getAllowedTelegramUserIds: vi.fn().mockReturnValue([]),
   sendTelegramNotification: vi.fn().mockResolvedValue(undefined),
@@ -59,9 +69,7 @@ vi.mock('./daemon-store.js', () => ({
   enqueueSocialPublishJob: mocks.enqueueSocialPublishJob,
   ensureSocialDaemonStart: mocks.ensureSocialDaemonStart,
   failSocialPublishJob: mocks.failSocialPublishJob,
-  getActiveSocialStrategies: mocks.getActiveSocialStrategies,
   getSocialQueueSnapshot: mocks.getSocialQueueSnapshot,
-  getSocialStrategyById: mocks.getSocialStrategyById,
   insertSocialAccountSnapshot: mocks.insertSocialAccountSnapshot,
   latestSocialAccountSnapshots: mocks.latestSocialAccountSnapshots,
   listPendingSocialPublishSchedules: mocks.listPendingSocialPublishSchedules,
@@ -109,10 +117,6 @@ vi.mock('./publish-batch.js', () => ({
 }));
 vi.mock('./metric-collectors.js', () => ({
   createMetricCollectors: mocks.createMetricCollectors,
-}));
-vi.mock('./strategy.js', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('./strategy.js')>()),
-  refreshSocialStrategies: mocks.refreshSocialStrategies,
 }));
 vi.mock('./experiment-report.js', () => ({
   buildSocialExperimentReports: mocks.buildSocialExperimentReports,
@@ -187,7 +191,6 @@ function resetReleaseMocks(): void {
     .mockReset()
     .mockResolvedValue('2026-08-16T08:00:00.000Z');
   mocks.failSocialPublishJob.mockReset().mockResolvedValue(undefined);
-  mocks.getActiveSocialStrategies.mockReset().mockResolvedValue([]);
   mocks.getSocialQueueSnapshot.mockReset().mockResolvedValue({
     pendingCount: 0,
     episodeQueue: [],
@@ -216,7 +219,6 @@ function resetReleaseMocks(): void {
   mocks.listSocialPostsByEpisode.mockReset().mockResolvedValue([]);
   mocks.publishSocialBatch.mockReset().mockResolvedValue([]);
   mocks.prepareSocialBatchCopy.mockReset().mockResolvedValue({});
-  mocks.refreshSocialStrategies.mockReset().mockResolvedValue(undefined);
   mocks.buildSocialExperimentReports.mockReset().mockReturnValue([]);
   mocks.getAllowedTelegramUserIds.mockReset().mockReturnValue([]);
   mocks.sendTelegramNotification.mockReset().mockResolvedValue(undefined);
@@ -591,7 +593,7 @@ describe('social daemon queue summary coverage', () => {
       now: NOW,
       firstStartedAt: '2026-08-16T08:00:00.000Z',
       log,
-      refreshStrategy: true,
+      reportExperiments: true,
       verbose: true,
     });
 
@@ -736,11 +738,14 @@ describe('social daemon release edge coverage', () => {
   it('reports a one-article deferred backlog after all eight scheduling days are full', async () => {
     resetReleaseMocks();
     const dayStart = Date.parse('2026-09-01T15:00:00.000Z');
+    // A full eight-day queue selects the six-article backlog cadence.
     const slotOffsets = [
-      9.5 * 60 * 60_000,
-      12 * 60 * 60_000,
-      16 * 60 * 60_000,
-      21 * 60 * 60_000,
+      9 * 60 * 60_000,
+      11.5 * 60 * 60_000,
+      14 * 60 * 60_000,
+      16.5 * 60 * 60_000,
+      19 * 60 * 60_000,
+      21.5 * 60 * 60_000,
     ];
     const schedules = Array.from({ length: 8 }).flatMap((_, day) =>
       slotOffsets.map((offset, slot) => ({
@@ -811,6 +816,7 @@ describe('social daemon release edge coverage', () => {
     expect(text).toContain('no article slot inside the 8-day horizon');
     expect(text).toContain('▶️ YouTube');
     expect(text).toContain('🌐 fr');
+    expect(mocks.enqueueSocialPublishJob).not.toHaveBeenCalled();
 
     const secondEpisodeReady = ready.map((row) => ({
       ...row,
@@ -841,6 +847,7 @@ describe('social daemon release edge coverage', () => {
     expect(
       pluralLog.mock.calls.map(([message]) => String(message)).join('\n'),
     ).toContain('Backlog · 2 articles beyond the 8-day scheduling horizon');
+    expect(mocks.enqueueSocialPublishJob).not.toHaveBeenCalled();
   });
 
   it('logs publish warnings, notifies Telegram, and completes a confirmed social post', async () => {

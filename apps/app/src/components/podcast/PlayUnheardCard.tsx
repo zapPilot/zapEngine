@@ -108,7 +108,7 @@ export function PlayUnheardCard({
   );
 
   return (
-    <View className="px-5 pt-3">
+    <View className="pt-3">
       <Card className="p-4">
         <View className="flex-row items-center justify-between gap-3">
           <Text className="font-mono text-[10px] uppercase tracking-[1.1px] text-accent">

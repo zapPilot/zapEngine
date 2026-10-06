@@ -1,4 +1,5 @@
 import type { SocialWaitlistSummary } from './waitlist-growth.js';
+import type { OpsFollowUp } from '@zapengine/types/shared';
 import type {
   CostProvider,
   CostSnapshot,
@@ -171,7 +172,12 @@ export interface SocialAccountSummary {
   capturedAt: string;
 }
 
+export type SocialMetricWindow = '1h' | '6h' | '24h' | '72h' | '7d';
+export const DEFAULT_SOCIAL_COMPARISON_WINDOW = '24h';
+
 export interface SocialPlatformPerformance {
+  measurementWindow: SocialMetricWindow | null;
+  ageHours: number | null;
   platform: string;
   postUrl: string | null;
   views: number | null;
@@ -185,28 +191,11 @@ export interface SocialPlatformPerformance {
   averageViewPercentage: number | null;
 }
 
-export interface SocialDecision {
-  platform: string;
-  evidenceSamples: number;
-  /** Sample-count coverage only; this is not statistical significance. */
-  confidence: 'low' | 'medium' | 'high';
-  preferredHookTypes: string[];
-  preferredHashtags: string[];
-  avoidHashtags: string[];
-  bestTopic: string | null;
-  bestTopicSamples: number | null;
-  bestTopicMedian24hViews: number | null;
-  platformMedian24hViews: number | null;
-  bestTopicLiftVsPlatformMedian: number | null;
-  publishSlotsJst: string | null;
-  topExample: string | null;
-}
-
 export interface SocialEpisodeSummary {
+  publishedAt: string;
+  windowReached: boolean;
   episodeId: string;
   title: string;
-  totalViews: number | null;
-  totalImpressions: number | null;
   platforms: SocialPlatformPerformance[];
 }
 
@@ -216,7 +205,6 @@ export interface SocialPerformanceResponse {
   window: 'latest' | '24h' | '72h' | '7d';
   generatedAt: string;
   accounts: SocialAccountSummary[];
-  decisions: SocialDecision[];
   episodes: SocialEpisodeSummary[];
 }
 
@@ -283,7 +271,23 @@ export interface SocialGrowthInterval {
   basis: 'estimated';
 }
 
+export interface SocialAudienceSeries {
+  platform: string;
+  followersNow: number | null;
+  capturedAt: string | null;
+  delta7d: number | null;
+  delta30d: number | null;
+  followersByDay: (number | null)[];
+}
+
+export interface SocialAudienceHistory {
+  /** Thirty JST YYYY-MM-DD dates, oldest first. */
+  days: string[];
+  series: SocialAudienceSeries[];
+}
+
 export interface SocialGrowthResponse {
+  audience: SocialAudienceHistory;
   waitlist: SocialWaitlistSummary;
   status: ProviderStatus;
   message: string | null;
@@ -352,21 +356,28 @@ export const OPERATIONS_DOMAINS = [
   'jobs',
   'infra',
   'errors',
+  'security',
   'analytics',
 ] as const;
 
 export type OperationsDomain = (typeof OPERATIONS_DOMAINS)[number];
 
-export type OperationsSource =
-  | 'customer-economics'
-  | 'product-health'
-  | 'cost-ledger'
-  | 'social-queue'
-  | 'social-daemon'
-  | 'github-actions'
-  | 'fly'
-  | 'sentry'
-  | 'posthog';
+export const OPERATIONS_SOURCES = [
+  'customer-economics',
+  'product-health',
+  'cost-ledger',
+  'social-queue',
+  'social-daemon',
+  'github-actions',
+  'github-security',
+  'fly',
+  'sentry',
+  'posthog',
+] as const;
+export type OperationsSource = (typeof OPERATIONS_SOURCES)[number];
+export function isOperationsSource(value: unknown): value is OperationsSource {
+  return OPERATIONS_SOURCES.some((source) => source === value);
+}
 
 export interface OperationalSignal {
   /**
@@ -389,6 +400,8 @@ export interface OperationalPriority {
   signal: OperationalSignal;
   score: number;
   reasons: string[];
+  /** Assessment only; never changes signal health or grants mutation authority. */
+  followUp?: OpsFollowUp;
 }
 
 export interface OperationsDomainSummary {
@@ -400,7 +413,7 @@ export interface OperationsDomainSummary {
 export interface OperationsResponse {
   generatedAt: string;
   status: OperationalStatus;
-  /** All eight domains, always — an absent domain would read as "fine". */
+  /** All nine domains, always — an absent domain would read as "fine". */
   domains: OperationsDomainSummary[];
   priorities: OperationalPriority[];
   signals: OperationalSignal[];
@@ -513,9 +526,8 @@ export interface CustomerRecord {
   effectiveTier: ServiceTier;
   refreshIntervalHours: number | null;
   /**
-   * Last request to an account-engine `/users/:userId*` route, debounced to an
-   * hour. It is "opened the dashboard", not "used the product" — nothing else
-   * writes it.
+   * Last wallet connection or authenticated bundle management request,
+   * debounced to an hour. Public read-only portfolio views do not update it.
    */
   lastActivityAt: string | null;
   inactiveDays: number | null;

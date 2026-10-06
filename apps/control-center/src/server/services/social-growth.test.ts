@@ -233,7 +233,7 @@ describe('loadSocialGrowth', () => {
     expect(calls).toContain('eq:collection_status:collected');
     expect(calls).toEqual(
       expect.arrayContaining([
-        'limit:social_account_snapshots:1500',
+        'range:social_account_snapshots:0:999',
         'limit:social_posts:500',
         'limit:social_post_metrics:3000',
         'limit:social_post_metrics:4000',
@@ -504,6 +504,7 @@ describe('loadSocialGrowth', () => {
       message: 'posts unavailable',
       platforms: [],
       experiments: [],
+      audience: { days: [], series: [] },
       attribution: [],
       waitlist: { status: 'ok', total: 0 },
     });
@@ -554,3 +555,70 @@ function metric(
     followers_gained,
   };
 }
+
+it('builds complete JST audience history from sorted paginated snapshots', async () => {
+  const now = new Date('2026-10-04T07:30:00Z');
+  const snapshots = [
+    {
+      platform: 'rednote',
+      followers: 132,
+      captured_at: '2026-10-04T07:01:00Z',
+    },
+    { platform: 'rednote', followers: 86, captured_at: '2026-09-04T07:30:00Z' },
+    {
+      platform: 'rednote',
+      followers: 120,
+      captured_at: '2026-09-27T07:30:00Z',
+    },
+    { platform: 'rednote', followers: 87, captured_at: '2026-09-04T15:00:00Z' },
+    { platform: 'rednote', followers: 88, captured_at: '2026-09-04T23:00:00Z' },
+    { platform: 'rednote', followers: 85, captured_at: '2026-09-04T14:59:59Z' },
+    { platform: 'rednote', followers: 1, captured_at: '2026-09-03T07:29:59Z' },
+  ];
+  const response = await loadSocialGrowth({
+    config: CONFIGURED,
+    now,
+    createSupabaseClient: clientFactory({
+      snapshots: { data: snapshots, error: null },
+    }),
+  });
+  expect(response.audience.days).toHaveLength(30);
+  expect(response.audience.days[0]).toBe('2026-09-05');
+  expect(response.audience.days.at(-1)).toBe('2026-10-04');
+  expect(response.audience.series.map((row) => row.platform)).toEqual([
+    'x',
+    'threads',
+    'rednote',
+    'youtube',
+  ]);
+  expect(response.audience.series[2]).toMatchObject({
+    followersNow: 132,
+    capturedAt: '2026-10-04T07:01:00Z',
+    delta7d: 12,
+    delta30d: 46,
+  });
+  expect(response.audience.series[2]?.followersByDay[0]).toBe(88);
+  expect(response.audience.series[2]?.followersByDay[1]).toBeNull();
+  expect(response.audience.series[3]).toEqual({
+    platform: 'youtube',
+    followersNow: null,
+    capturedAt: null,
+    delta7d: null,
+    delta30d: null,
+    followersByDay: Array(30).fill(null),
+  });
+  expect(response.attribution.every((row) => row.startAt >= '2026-09-19')).toBe(
+    true,
+  );
+});
+it('returns an empty audience on query failure', async () => {
+  const result = await loadSocialGrowth({
+    config: CONFIGURED,
+    now: NOW,
+    createSupabaseClient: clientFactory({
+      snapshots: { data: null, error: { message: 'denied' } },
+    }),
+  });
+  expect(result.status).toBe('error');
+  expect(result.audience).toEqual({ days: [], series: [] });
+});

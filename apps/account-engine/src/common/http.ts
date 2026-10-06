@@ -10,6 +10,7 @@ export enum HttpStatus {
   ACCEPTED = 202,
   BAD_REQUEST = 400,
   UNAUTHORIZED = 401,
+  FORBIDDEN = 403,
   NOT_FOUND = 404,
   CONFLICT = 409,
   TOO_MANY_REQUESTS = 429,
@@ -72,6 +73,13 @@ export class UnauthorizedException extends HttpException {
   }
 }
 
+export class ForbiddenException extends HttpException {
+  constructor(message = 'Forbidden', cause?: Error) {
+    super(message, HttpStatus.FORBIDDEN, cause);
+    this.name = 'ForbiddenException';
+  }
+}
+
 export class NotFoundException extends HttpException {
   constructor(message = 'Not found', cause?: Error) {
     super(message, HttpStatus.NOT_FOUND, cause);
@@ -118,11 +126,25 @@ export function toErrorResponse(
   message: string;
   timestamp: string;
   path: string;
+  code?: string;
+  canReclaim?: boolean;
 } {
   return {
     statusCode: getErrorStatus(error),
     message: getErrorMessage(error),
     timestamp: new Date().toISOString(),
     path,
+    ...(error &&
+    typeof error === 'object' &&
+    'code' in error &&
+    typeof error.code === 'string'
+      ? { code: error.code }
+      : {}),
+    ...(error &&
+    typeof error === 'object' &&
+    'canReclaim' in error &&
+    typeof error.canReclaim === 'boolean'
+      ? { canReclaim: error.canReclaim }
+      : {}),
   };
 }

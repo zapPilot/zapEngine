@@ -131,3 +131,11 @@ export function trackCtaDiagnostic(
     event === 'waitlist_form_closed' ? { beacon: true } : {},
   );
 }
+
+export function trackDownloadCtaClicked(props: {
+  location: CtaLocation;
+  platform: string;
+  target: string;
+}) {
+  fireEvent('download_cta_clicked', props, { beacon: true });
+}

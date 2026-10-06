@@ -10,7 +10,6 @@ import {
   ruleR2,
   ruleR3,
   ruleR4,
-  ruleR5,
   ruleR6,
   ruleR7,
   ruleR8,
@@ -184,56 +183,6 @@ describe('ruleR4', () => {
 
     expect(sentence(finding)).toContain('no single platform');
     expect(sentence(finding)).toContain('driving net growth.');
-  });
-});
-
-describe('ruleR5', () => {
-  it('names a topic that clears the lift bar', () => {
-    const finding = ruleR5({
-      socialPerformance: {
-        decisions: [
-          {
-            platform: 'x',
-            bestTopic: 'regime shifts',
-            bestTopicLiftVsPlatformMedian: 2,
-            confidence: 'medium',
-            publishSlotsJst: 'Thursday 20:00 JST',
-            bestTopicSamples: 6,
-          },
-        ],
-      },
-    } as unknown as StatementInputs);
-
-    expect(sentence(finding)).toBe(
-      'Posts on regime shifts do 2.0× the x median — publish the next one at Thursday 20:00 JST.',
-    );
-    expect(finding.fact?.value).toBe('regime shifts: 2.0× x median');
-  });
-
-  it('asks for a comparable mix below the bar', () => {
-    const finding = ruleR5({
-      socialPerformance: {
-        decisions: [
-          {
-            platform: 'threads',
-            bestTopic: 'a topic',
-            bestTopicLiftVsPlatformMedian: 1.2,
-            confidence: 'medium',
-          },
-        ],
-      },
-    } as unknown as StatementInputs);
-
-    expect(sentence(finding)).toContain('Not enough separation yet on threads');
-  });
-
-  it('stays silent with no topics at all', () => {
-    const finding = ruleR5({
-      socialPerformance: { decisions: [] },
-    } as unknown as StatementInputs);
-
-    expect(finding.segments).toEqual([]);
-    expect(finding.fact).toBeNull();
   });
 });
 
@@ -668,32 +617,6 @@ describe('narrative direction and attribution', () => {
     expect(noBaseline.deltaTone).toBe('neutral');
   });
 
-  it('covers R5 sort with two candidates and missing slot', () => {
-    const finding = ruleR5({
-      socialPerformance: {
-        decisions: [
-          {
-            platform: 'x',
-            bestTopic: 'a',
-            bestTopicLiftVsPlatformMedian: 1.8,
-            confidence: 'medium',
-            publishSlotsJst: null,
-            bestTopicSamples: 3,
-          },
-          {
-            platform: 'youtube',
-            bestTopic: 'b',
-            bestTopicLiftVsPlatformMedian: 3.1,
-            confidence: 'high',
-            publishSlotsJst: 'Fri 20:00 JST',
-            bestTopicSamples: 8,
-          },
-        ],
-      },
-    } as unknown as StatementInputs);
-    expect(finding.fact?.value).toContain('b: 3.1');
-  });
-
   it('covers R6 flat and down', () => {
     const flatEntry: MetricSeries = {
       series: [9, 9, 9, 9, 9, 9, 9, 9, 9],
@@ -926,27 +849,6 @@ describe('narrative missing evidence and selection', () => {
     expect(zero.delta).toContain('±0');
   });
 
-  it('R5 winner without slot uses dot', () => {
-    const f = ruleR5({
-      socialPerformance: {
-        decisions: [
-          {
-            platform: 'x',
-            bestTopic: 'solo',
-            bestTopicLiftVsPlatformMedian: 2.5,
-            confidence: 'high',
-            publishSlotsJst: null,
-            bestTopicSamples: null,
-          },
-        ],
-      },
-    } as unknown as StatementInputs);
-    expect(
-      f.segments.map((s) => ('text' in s ? s.text : s.value)).join(''),
-    ).toContain('.');
-    expect(f.fact?.note).toContain('n=0');
-  });
-
   it('R6 plural weeks and collecting', () => {
     const plural = ruleR6({
       product: { activePortfolios7d: 9, wau: 1, mau: 2, registeredUsers: 3 },
@@ -1133,4 +1035,30 @@ describe('history and freshness boundaries', () => {
     expect(text).toContain('stuck at download');
     expect(text).not.toContain('for');
   });
+});
+
+it('R4 calculates growth percentage only against platforms with known deltas', () => {
+  const finding = ruleR4({
+    socialGrowth: {
+      platforms: [
+        {
+          platform: 'x',
+          followersNow: 100,
+          followersDelta7d: 10,
+          followersDelta24h: 2,
+        },
+        {
+          platform: 'youtube',
+          followersNow: 1000,
+          followersDelta7d: null,
+          followersDelta24h: null,
+        },
+      ],
+    },
+    metricSeries: new Map(),
+  } as unknown as StatementInputs);
+  expect(sentence(finding)).toBe(
+    'Audience +10 this week (+11.1%), 100% of it on X.',
+  );
+  expect(finding.value).toBe('1,100');
 });

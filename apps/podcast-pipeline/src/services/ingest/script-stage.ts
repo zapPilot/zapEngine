@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
+import { socialTitleBudgetsFor } from '../../social/policy.js';
 import {
   type Article,
   type EpisodeLocalizationRow,
@@ -15,7 +16,10 @@ import {
   updateEpisodeLocalizationArticleContent,
   updateEpisodeLocalizationStatus,
 } from '../db.js';
-import { generateEditorialTitleWithLLM } from '../editorial-title.js';
+import {
+  buildEditorialTitleVariants,
+  generateEditorialTitleWithLLM,
+} from '../editorial-title.js';
 import { generateScriptWithLLM, type LlmAttemptRecord } from '../llm.js';
 import { convertTextToZhCN } from '../opencc.js';
 import {
@@ -266,6 +270,24 @@ async function ensureLocalizationScript(input: {
         }),
     );
   } else if (needsGeneratedScript(localization)) {
+    const editorialTitle = await step('generateEditorialTitle', () =>
+      generateEditorialTitleWithLLM(input.article.title),
+    );
+    input.costBreakdown.push(buildLlmCostLine('LLM title', editorialTitle));
+    if (editorialTitle.title === null) {
+      throw new Error(
+        'Editorial title generation failed; the source title will not be used as Best Title',
+      );
+    }
+    const title = convertTextToZhCN(editorialTitle.title);
+    const variants = await step('buildEditorialTitleVariants', () =>
+      buildEditorialTitleVariants(
+        title,
+        input.article.title,
+        socialTitleBudgetsFor(input.languageCode),
+      ),
+    );
+    input.costBreakdown.push(...variants.cost);
     const attempts = input.telemetry?.attempts;
     const generated = await step('generateScript', async () => {
       const result = await generateScriptWithLLM(
@@ -295,14 +317,6 @@ async function ensureLocalizationScript(input: {
         costUsd: generated.costUsd,
       }),
     );
-    const editorialTitle = await step('generateEditorialTitle', () =>
-      generateEditorialTitleWithLLM(input.article.title),
-    );
-    input.costBreakdown.push(buildLlmCostLine('LLM title', editorialTitle));
-    const title =
-      editorialTitle.title === null
-        ? null
-        : convertTextToZhCN(editorialTitle.title);
     const packagedScript = await step('packagePodcastScript', () =>
       Promise.resolve(packagePodcastScript(generated.script)),
     );
@@ -310,7 +324,8 @@ async function ensureLocalizationScript(input: {
       'updateEpisodeLocalizationStatus:script_generated',
       () =>
         updateEpisodeLocalizationStatus(localization!.id, 'script_generated', {
-          ...(title === null ? {} : { title }),
+          title,
+          titleVariants: variants.titleVariants,
           script: packagedScript,
           scriptBody: generated.script.trim(),
           packagingVersion: PODCAST_PACKAGING_VERSION,

@@ -176,7 +176,7 @@ describe('App coverage3', () => {
     // The lazy growth effect uses the 'latest' fallback without force.
     await waitFor(() =>
       expect(api.getJson).toHaveBeenCalledWith(
-        '/api/social-performance?window=latest',
+        '/api/social-performance?window=24h',
       ),
     );
     // Refresh while social is still null: the onRefresh growth rail must also
@@ -186,7 +186,7 @@ describe('App coverage3', () => {
       expect(api.getJson).toHaveBeenCalledWith('/api/social-growth?force=1'),
     );
     expect(api.getJson).toHaveBeenCalledWith(
-      '/api/social-performance?window=latest',
+      '/api/social-performance?window=24h',
     );
 
     releaseSocial(overview.social);

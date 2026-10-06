@@ -14,6 +14,7 @@ vi.mock('lucide-react-native', () => ({
 }));
 
 vi.mock('react-native', () => ({
+  Platform: { OS: 'web' },
   Text: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
   View: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
 }));

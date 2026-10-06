@@ -1,4 +1,8 @@
 import { readCtaExperiment } from '../services/operations/cta-experiment.js';
+
+import { createControlCenterApp } from '../app.js';
+import type { createOperationsService } from '../services/operations/aggregate.js';
+import { unavailableContentPackaging } from '../../shared/content-packaging.js';
 import { Hono } from 'hono';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -171,6 +175,7 @@ describe('Ops MCP HTTP protocol', () => {
     const { loadGrowthJourney } = await import('../services/growth-journey.js');
     const { readControlCenterConfig } = await import('../config/env.js');
     const growth = {
+      packaging: unavailableContentPackaging('offline'),
       observedAt: SNAPSHOT.generatedAt,
       status: 'unknown' as const,
       windowDays: 30 as const,
@@ -203,6 +208,14 @@ describe('Ops MCP HTTP protocol', () => {
       toolCallRequest(99, 'ops_growth', { force: true }),
     );
     expect(payload.result?.structuredContent).toEqual(growth);
+    const dashboard = createControlCenterApp({
+      config: readControlCenterConfig({}),
+      operations: operations as ReturnType<typeof createOperationsService>,
+    });
+    const api = await dashboard.request('/api/growth');
+    expect(api.status).toBe(200);
+    const apiGrowth = await api.json();
+    expect(apiGrowth).toEqual(payload.result?.structuredContent);
     expect(operations.getGrowth).toHaveBeenCalledWith(true);
     expect(operations.getOperations).not.toHaveBeenCalled();
   });

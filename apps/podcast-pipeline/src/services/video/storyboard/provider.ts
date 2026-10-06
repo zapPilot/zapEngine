@@ -2,6 +2,7 @@ import type { CanonicalSentence } from './sentences.js';
 import type { StoryboardValidationIssue } from './validation.js';
 
 export interface StoryboardProviderRequest {
+  sceneCountRange?: { min: number; max: number };
   title: string;
   script: string;
   durationMs: number;

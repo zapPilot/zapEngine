@@ -2,6 +2,7 @@ import { Readability } from '@mozilla/readability';
 import { JSDOM, VirtualConsole } from 'jsdom';
 
 import { runWithDeadline } from '../lib/deadline.js';
+import { isPanewsHostname } from '../lib/panews.js';
 import type { Article, ImageCandidate } from '../types.js';
 
 export interface ScrapeArticleOptions {
@@ -308,14 +309,10 @@ export function extractArticleImageCandidates(
 
 function isPanewsArticleUrl(value: string): boolean {
   const parsed = new URL(value);
-  const hostname = parsed.hostname.toLowerCase();
-  const isPanewsHost =
-    hostname === 'panews.io' ||
-    hostname.endsWith('.panews.io') ||
-    hostname === 'panewslab.com' ||
-    hostname.endsWith('.panewslab.com');
-
-  return isPanewsHost && /(?:^|\/)articles(?:\/|$)/.test(parsed.pathname);
+  return (
+    isPanewsHostname(parsed.hostname) &&
+    /(?:^|\/)articles(?:\/|$)/.test(parsed.pathname)
+  );
 }
 
 function assertPanewsArticleDocument(document: Document, url: string): void {

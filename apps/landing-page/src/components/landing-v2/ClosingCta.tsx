@@ -1,28 +1,36 @@
-import { DiscordLink } from './DiscordLink';
-import { AppCtaLink } from './AppCtaLink';
+import { StatusNote } from '@/components/StatusBadge';
+import { MESSAGES } from '@/config/messages';
 
+import { AppCtaLink } from './AppCtaLink';
+import { DiscordLink } from './DiscordLink';
+
+// Desire: Belonging.
 export function ClosingCta() {
+  const { closing } = MESSAGES;
   return (
-    <section className="zp-section" aria-label="Closing call to action">
+    <section
+      id="closing"
+      className="zp-section"
+      aria-labelledby="closing-title"
+    >
       <div className="zp-closing">
-        <p className="zp-closing-quote">
-          “The goal isn’t to trade more;
-          <br />
-          it’s to trade right.”
+        <p id="closing-title" className="zp-closing-quote">
+          {closing.quote}
         </p>
-        <p className="zp-closing-sub">
-          A rules engine watches the regime, builds the rebalance, and hands
-          your account a single signature. Custody never leaves your wallet.
-        </p>
+        <ul className="zp-closing-lines">
+          {closing.lines.map((line) => (
+            <li key={line.text}>
+              <StatusNote note={line} />
+            </li>
+          ))}
+        </ul>
         <div className="zp-closing-ctas">
-          {/* jscpd:ignore-start — CTA button pair, intentionally consistent styling across landing sections */}
           <AppCtaLink className="zp-btn zp-btn-primary" location="closing">
-            Join waitlist <span aria-hidden>→</span>
+            {closing.primaryCta} <span aria-hidden>→</span>
           </AppCtaLink>
           <DiscordLink className="zp-btn zp-btn-ghost" location="closing">
-            Join the Discord
+            {closing.secondaryCta}
           </DiscordLink>
-          {/* jscpd:ignore-end */}
         </div>
       </div>
     </section>

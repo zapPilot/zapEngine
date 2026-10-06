@@ -162,23 +162,6 @@ function socialPerformance(
     window: 'latest',
     message: null,
     accounts: [],
-    decisions: [
-      {
-        platform: 'rednote',
-        confidence: 'medium',
-        evidenceSamples: 18,
-        preferredHookTypes: ['contrarian'],
-        avoidHashtags: [],
-        preferredHashtags: [],
-        bestTopic: 'regime shifts',
-        bestTopicSamples: 6,
-        platformMedian24hViews: 205,
-        bestTopicMedian24hViews: 410,
-        bestTopicLiftVsPlatformMedian: 2,
-        publishSlotsJst: 'Thursday 20:00 JST',
-        topExample: null,
-      },
-    ],
     episodes: [],
     ...overrides,
   };
@@ -211,6 +194,7 @@ function socialGrowth(
     ],
     experiments: [],
     waitlist: unavailableWaitlist('Not collected'),
+    audience: { days: [], series: [] },
     attribution: [],
     ...overrides,
   };
@@ -350,7 +334,6 @@ function inputs(overrides: Partial<StatementInputs> = {}): StatementInputs {
     costHistory: costHistory(),
     product: product(),
     socialGrowth: socialGrowth(),
-    socialPerformance: socialPerformance(),
     customers: customers(),
     operationsSocial: operationsSocial(),
     podcastPipeline: podcastPipeline(),
@@ -734,6 +717,7 @@ describe('buildStatements', () => {
     const sentence = growth.sentence
       .map((s) => ('text' in s ? s.text : s.value))
       .join('');
+    expect(sentence).not.toContain('publish the next one');
     expect(sentence).toContain('1 publish job');
     expect(sentence).toContain('overdue (x · ja)');
     const header = result.headers.find((h) => h.domain === 'growth')!;
@@ -748,6 +732,7 @@ describe('buildStatements', () => {
     const sentence = growth.sentence
       .map((s) => ('text' in s ? s.text : s.value))
       .join('');
+    expect(sentence).not.toContain('publish the next one');
     expect(sentence).not.toContain('overdue');
     const header = result.headers.find((h) => h.domain === 'growth')!;
     const facts = header.facts.map((f) => `${f.kicker} ${f.value}`).join(' | ');

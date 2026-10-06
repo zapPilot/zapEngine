@@ -1,4 +1,17 @@
 export const en = {
+  'account.updateBrand': 'Zap Pilot',
+  'account.updateVersion': 'Version',
+  'account.updateAvailable': 'New version available',
+  'account.updateDownloading': 'Downloading',
+  'account.updateCurrent': '✓ Up to date',
+  'account.updateMove': 'Move Zap Pilot to Applications to enable updates.',
+  'account.updateError': 'Update failed. Please try again.',
+  'account.updateChecking': 'Checking for updates…',
+  'account.updateInstalling': 'Installing…',
+  'account.updateAction': 'Update',
+  'account.updateRestart': 'Restart and Update',
+  'account.updateRetry': 'Retry',
+
   'account.deleteTitle': 'Delete account',
   'account.deleteBody':
     'Permanently deletes your Zap Pilot account, linked wallets, and associated metadata. Your on-chain assets are never touched. Linked wallets can be added to another Zap Pilot account.',
@@ -24,8 +37,7 @@ export const en = {
   'account.iosAuthBody':
     'Signed in with Privy. The iOS app uses Privy only for account authentication.',
   'account.webFeaturesTitle': 'Read-only on iOS',
-  'account.webFeaturesBody':
-    'Portfolio viewing is read-only on iOS. Investing, rebalancing, and withdrawals are available on Zap Pilot Web.',
+  'account.webFeaturesBody': 'Portfolio viewing is read-only on iOS.',
   'account.watchAddressTitle': 'Tracked portfolio address',
   'account.watchAddressBody':
     'If this Privy account has no Zap Pilot portfolio, enter an Ethereum address to view its portfolio in watch-only mode.',
@@ -38,6 +50,19 @@ export const en = {
 } as const;
 
 export const zhHant = {
+  'account.updateBrand': 'Zap Pilot',
+  'account.updateVersion': '版本',
+  'account.updateAvailable': '有新版本可用',
+  'account.updateDownloading': '下載中',
+  'account.updateCurrent': '✓ 已是最新版本',
+  'account.updateMove': '請將 Zap Pilot 移至 Applications 以啟用更新。',
+  'account.updateError': '更新失敗，請重試。',
+  'account.updateChecking': '檢查更新中…',
+  'account.updateInstalling': '安裝中…',
+  'account.updateAction': '更新',
+  'account.updateRestart': '重新啟動並更新',
+  'account.updateRetry': '重試',
+
   'account.deleteTitle': '刪除帳號',
   'account.deleteBody':
     '永久刪除 Zap Pilot 帳號、已連結的錢包與相關資料。鏈上資產不受影響，錢包可重新連結至其他 Zap Pilot 帳號。',
@@ -61,8 +86,7 @@ export const zhHant = {
   'account.settingsTitle': '設定',
   'account.iosAuthBody': '已透過 Privy 登入，iOS 版僅使用 Privy 進行帳戶驗證。',
   'account.webFeaturesTitle': 'iOS 為唯讀模式',
-  'account.webFeaturesBody':
-    'iOS 上僅提供投資組合唯讀查看；投資、再平衡與提領請至 Zap Pilot 網頁版。',
+  'account.webFeaturesBody': 'iOS 上僅提供投資組合唯讀查看。',
   'account.watchAddressTitle': '追蹤的投資組合位址',
   'account.watchAddressBody':
     '如果這個 Privy 帳號沒有 Zap Pilot 投資組合，可以輸入 Ethereum 位址，以 watch-only 模式查看。',
@@ -75,6 +99,20 @@ export const zhHant = {
 } satisfies Record<keyof typeof en, string>;
 
 export const ja = {
+  'account.updateBrand': 'Zap Pilot',
+  'account.updateVersion': 'バージョン',
+  'account.updateAvailable': '新しいバージョンがあります',
+  'account.updateDownloading': 'ダウンロード中',
+  'account.updateCurrent': '✓ 最新です',
+  'account.updateMove':
+    '更新するには Zap Pilot を Applications に移動してください。',
+  'account.updateError': '更新に失敗しました。再試行してください。',
+  'account.updateChecking': '更新を確認中…',
+  'account.updateInstalling': 'インストール中…',
+  'account.updateAction': '更新',
+  'account.updateRestart': '再起動して更新',
+  'account.updateRetry': '再試行',
+
   'account.deleteTitle': 'アカウントを削除',
   'account.deleteBody':
     'Zap Pilot アカウント、連携ウォレットと関連データを完全に削除します。オンチェーンの資産には影響しません。ウォレットは別の Zap Pilot アカウントに連携できます。',
@@ -100,8 +138,7 @@ export const ja = {
   'account.iosAuthBody':
     'Privyでサインイン中です。iOS版ではPrivyをアカウント認証のみに使用します。',
   'account.webFeaturesTitle': 'iOSでは閲覧専用',
-  'account.webFeaturesBody':
-    'iOSではポートフォリオを閲覧専用で確認できます。投資、リバランス、出金はZap Pilot Webをご利用ください。',
+  'account.webFeaturesBody': 'iOSではポートフォリオを閲覧専用で確認できます。',
   'account.watchAddressTitle': '追跡するポートフォリオアドレス',
   'account.watchAddressBody':
     'このPrivyアカウントにZap Pilotのポートフォリオがない場合、Ethereumアドレスを入力して閲覧専用で確認できます。',

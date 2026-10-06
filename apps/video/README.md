@@ -1,0 +1,193 @@
+# @zapengine/video
+
+Product videos as code, rendered with [Remotion](https://www.remotion.dev).
+A video is a script (`storyboard.ts`), the claims it makes (`facts.ts`), real
+captures of the product, and English narration in a Fish Official preset voice.
+Everything an edit touches is a file, so a person or an agent can change one
+line, re-render and look at the result.
+
+Zap Pilot uses Remotion under its free license (companies of up to three
+people). Re-check the [Remotion License](https://www.remotion.dev/license)
+before the team grows past that.
+
+## Videos
+
+| Id                 | What                                                                                     | Length |
+| ------------------ | ---------------------------------------------------------------------------------------- | ------ |
+| `calculator-pitch` | HackQuest pitch for the Verifiable Strategy Calculator, 1080p30                          | ≈53 s  |
+| `kokode-clinic`    | Kokode sales film for clinics: Japanese / English / Traditional Chinese text, English VO | ≈81 s  |
+
+`kokode-clinic` belongs to Kokode, a separate product. Every word, the scene
+order and the disclaimers come from `packages/kokode-story/src`, the same
+source as the Kokode landing page and pitch decks. The end card prints the
+host of the story's `FILM_LINK`; use that full UTM link in video
+descriptions. If Kokode is run by another company, check that company's own
+eligibility for Remotion's free license.
+
+## Commands
+
+Run from the repository root.
+
+Normal sales artifact refresh (humans):
+
+```bash
+pnpm sales:render kokode       # all Kokode PDFs + all kokode-clinic languages
+pnpm sales:render zap-pilot    # calculator-pitch, from existing assets only
+```
+
+`sales:render` rebuilds PDFs and videos from existing assets without calling
+paid generation APIs. Missing or stale narration/music fails closed with a
+pointer to the paid command; it is never run automatically. The granular
+workspace commands below are for media development, debugging and explicit
+regeneration of voice/music — run them via `pnpm --filter @zapengine/video`
+(AI use); they have no root `video:*` aliases.
+
+Commands without secrets:
+
+```bash
+pnpm --filter @zapengine/video dev                         # Remotion Studio
+pnpm --filter @zapengine/video capture calculator-pitch    # re-photograph the live product
+pnpm --filter @zapengine/video stills calculator-pitch     # out/<id>/en/contact-sheet.png
+pnpm --filter @zapengine/video render calculator-pitch     # out/<id>/<id>.en.mp4, −16 LUFS
+pnpm --filter @zapengine/video stills kokode-clinic        # three language contact sheets
+```
+
+Commands requiring secrets (authenticated Infisical workspace):
+
+```bash
+node scripts/env/run.mjs -- pnpm --filter @zapengine/video voiceover calculator-pitch
+node scripts/env/run.mjs -- pnpm --filter @zapengine/video voiceover kokode-clinic --dry-run
+node scripts/env/run.mjs -- pnpm --filter @zapengine/video make kokode-clinic          # refresh narration, then render all versions
+```
+
+- `capture` defaults to `https://www.zap-pilot.org`; pass `--base-url` for a
+  local build and `--only shot,shot` for part of the list. Every shot asserts
+  what it shows; one failed check aborts the run and writes nothing.
+- `voiceover` needs `FISH_AUDIO_API_KEY`, loaded by the outer
+  env runner shown above. Only lines whose words or voice settings changed are
+  synthesised; `--dry-run` lists them, `--prune` deletes unused clips. Videos
+  with Japanese or Traditional Chinese captions also get each line's reading speed.
+- `stills` takes `--at 0.35,0.85` (fractions of each scene) or
+  `--frames 120,480`.
+- `render` refuses while any narration line is still an estimate, then prints
+  duration, size and loudness.
+- `make <id>` runs `voiceover` and then `render`, stopping if either fails.
+  The outer env runner supplies secrets; it only synthesises missing or stale narration.
+  Music generation stays separate because every take costs $0.08.
+  `voiceover`, `music` and `make` require an authenticated
+  Infisical workspace; `render`, `stills` and `dev` need no keys.
+
+## Layout
+
+```text
+src/
+  index.ts, Root.tsx        Remotion entry; registers every composition
+  brand/                    tokens from @zapengine/design-tokens, fonts, ease
+  primitives/               reusable pieces: NarratedVideo (scenes + voice + music
+                            + captions), UiShot (capture + camera), kinetic type,
+                            HexResolve, MatchCheck, AllocationBars …
+  timeline/                 storyboard + narration manifest → frames and captions
+                            (English, Japanese or Traditional Chinese, see cjk.ts)
+  captures/                 capture spec and manifest types
+  videos/catalog.ts         data-only registry the scripts read
+  videos/metadata.ts        shared composition props and calculateMetadata
+  videos/<id>/
+    storyboard.ts           the script: scenes, narration, cues, on-screen copy
+    facts.ts                every number and claim on screen, tested against the product
+    shots.ts                what `capture` photographs and asserts
+    captures.json           generated by `capture`
+    vo.manifest.json        generated by `voiceover`
+    Composition.tsx         maps scene ids to scenes/ and hands them to NarratedVideo
+scripts/                    capture, voiceover, music, stills, render (+ lib/)
+public/                     brand/, music/, vo/<id>/, captures/<id>/
+out/                        renders and stills (ignored by git, disposable:
+                             render deletes its raw intermediate on success)
+```
+
+## Adding a video
+
+1. Create `src/videos/<id>/` with `storyboard.ts`, `facts.ts` (plus a
+   `facts.test.ts` pinning them to their source), scenes and a
+   `Composition.tsx` that hands them to `NarratedVideo`. Add `shots.ts` only
+   if the video captures the product.
+2. Register it in `src/videos/catalog.ts` (scripts) and, inside its brand's
+   `<Folder>`, in `src/Root.tsx` (Remotion).
+3. Run `capture`, then `voiceover`, then `stills`; render when it reads right.
+
+Primitives lay out against `useVideoConfig()`, so a 9:16 cut is a new
+composition with its own scenes, not a fork of the primitives.
+
+## Languages and voices
+
+```bash
+pnpm --filter @zapengine/video stills kokode-clinic
+pnpm --filter @zapengine/video render kokode-clinic
+pnpm --filter @zapengine/video render kokode-clinic --lang zh-Hant
+```
+
+One render command bundles once and produces
+`out/kokode-clinic/kokode-clinic.{ja,en,zh-Hant}.mp4`. Stills and contact sheets live in
+`out/kokode-clinic/<lang>/`. Captions and all on-screen text follow the
+language; every version shares the same English audio and duration.
+Calculator outputs `out/calculator-pitch/calculator-pitch.en.mp4`.
+
+[Official English presets](src/timeline/voices.ts): Kokode uses Adrian, a calm
+male narrator; Zap Pilot uses Hannah, a conversational female advertisement
+voice. The other registered options are Selene, Sarah, Ethan, Laura and Jordan.
+Only the selected language's font files load (Noto Sans JP, Noto Sans TC or
+Inter). English and Traditional Chinese translations await native review.
+
+Generated `public/vo/` audio and `out/` are ignored. Keep `vo.manifest.json`
+committed and regenerate audio with `voiceover` after a clean checkout. TTS
+can change clip duration, so commit the regenerated manifest too. Caption-only
+changes reuse the audio; narration or voice changes need fresh synthesis.
+Selected loops in `public/music/` and full paid sources in `music/sources/` remain tracked.
+
+## Music
+
+Each storyboard references a shared loop id. Selected short clips and provenance stay in `public/music/`; full paid sources stay in `music/sources/`. See [source and terms](public/music/README.md) for provider/SynthID disclosure and the shared-loop workflow below.
+
+The default music volume is 0.5 in gaps and 0.17 under narration, with a 0.25s
+attack and 0.8s release. A storyboard can override `music.base` / `music.ducked`.
+Measure the actual stems after changing levels; the rendered MP4 is normalized
+separately to −16 LUFS / ≤ −1.5 dBTP.
+
+Current films override base to 1 and ducked to 0.2 after measuring the actual
+Remotion mix: mono narration becomes stereo and final normalization attenuates
+the whole mix. These overrides keep short gaps audible while preserving the
+voice/music separation. Initial fades and natural musical rests remain quieter.
+
+## Brand pronunciation auditions
+
+Run from the repository root:
+
+```bash
+node scripts/env/run.mjs -- pnpm --filter @zapengine/video brand-audio kokode --takes 3
+node scripts/env/run.mjs -- pnpm --filter @zapengine/video brand-audio kokode --audition
+```
+
+Takes, raw fragment cache, baseline copies, variant MP3s and `CHECKLIST.md` live under ignored `out/brand-audio/kokode/`. Compare `--take 1 --keep 0.010,0.020,0.060 --pause-scale 0.6,1.3` before choosing.
+
+Only an explicit human choice permits `pnpm --filter @zapengine/video brand-audio kokode --pick N`. Pick copies exact take bytes to `public/brand/audio/kokode-adrian-ja.mp3` with a validated provenance sidecar; it needs no API key and does not approve the registry. An approved asset cannot be overwritten without `--replace`. Keep selected assets and provenance in Git. The synthesis lexicon substitutes the approved clip inside the English line; captions, story and timeline gaps keep their existing text and structure.
+
+Fish Audio uses only free engines: the current configuration is `FISH_AUDIO_ENGINE=s2.1-pro-free`. Narration, brand takes and auditions reject any engine not ending with `free`, and never fall back to a paid model. Newer provider-supported free versions may be adopted by updating env/runtime defaults and tests together. Free Fish synthesis does not require payment approval; brand selection still requires a named human take. Music generation remains separately paid.
+
+Kokode renders also write SHA-256/fingerprint sidecars next to the MP4 and a caption-free JPEG poster. Poster selection is expressed as a named scene and fraction in the storyboard. `pnpm sales:publish kokode` publishes the outputs with the six deck PDFs; no generation APIs are called by either sales command.
+
+## Shared BGM loops
+
+`gentle-88` (Kokode) and `drive-112` (Zap Pilot) reuse the existing paid arranged sources for $0. Original files/provenance are preserved in `music/sources/` and excluded from the Remotion bundle. Cut with `pnpm --filter @zapengine/video loop cut <id> [--candidates] [--start seconds] [--bars 4]`; auditions live in `out/loops/<id>/`. Candidate ranking uses prompt-guided comb ACF tempo, spectral flux beat phase, stable RMS regions, spectral/chroma/level comparisons and beat-aligned bar periods. Automated candidates remain drafts pending listening.
+
+The spike measured identical 1105-sample decoder delay for three MP3 copies and unity steady gain, but a real-song render showed high-frequency envelope residuals around −40 to −43 dB. The selected fallback precomputes smooth sample-accurate full PCM beds before Studio/bundle/render. Runtime keeps one bed Audio track and existing narration ducking; no loop prop is used. Beds are disposable local output and not committed.
+
+Selected clips are linearly mastered, frame-period corrected by ≤0.2%, SHA checked, bounded to 600 kB and accompanied by source/seam/rate/review metadata. CI decodes the committed clips and recomputes seam metrics. Workspace `render` permits review previews; `sales:render` requires explicit human acceptance (`pnpm --filter @zapengine/video loop accept <id>`). No acceptance is inferred from objective tests.
+
+Paid music requires secrets:
+
+```bash
+node scripts/env/run.mjs -- pnpm --filter @zapengine/video music <loop-id> --takes 2
+```
+
+It stores raw source takes in `out/<loop-id>/music/`; free `loop cut <loop-id> --take N` selects one.
+
+The shared $1 ledger and provider-error stop rules remain. This implementation did not call a paid API.

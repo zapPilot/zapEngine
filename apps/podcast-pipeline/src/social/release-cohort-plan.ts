@@ -1,5 +1,5 @@
 import { JST_OFFSET_MS } from './jst.js';
-import { SOCIAL_RELEASE_SLOTS } from './policy.js';
+import { socialReleaseCadenceForBacklog } from './policy.js';
 import { nextReleaseSlot, occupiesReleaseBudget } from './slot-policy.js';
 
 export type ReleaseScheduleStatus =
@@ -43,9 +43,9 @@ function releaseAnchor(rows: readonly ReleaseScheduleRow[]): Date {
   return new Date(Math.min(...times));
 }
 
-function isConfiguredArticleSlot(date: Date): boolean {
+function isConfiguredArticleSlot(date: Date, backlogArticles: number): boolean {
   const jst = new Date(date.getTime() + JST_OFFSET_MS);
-  return SOCIAL_RELEASE_SLOTS.some(
+  return socialReleaseCadenceForBacklog(backlogArticles).slots.some(
     (slot) =>
       slot.hour === jst.getUTCHours() && slot.minute === jst.getUTCMinutes(),
   );
@@ -104,12 +104,14 @@ function occupiedArticleDates(
 function canKeepExistingSlot(
   scheduledAt: Date,
   scheduledArticles: readonly Date[],
+  backlogArticles: number,
 ): boolean {
-  if (!isConfiguredArticleSlot(scheduledAt)) return false;
+  if (!isConfiguredArticleSlot(scheduledAt, backlogArticles)) return false;
   return (
     nextReleaseSlot({
       after: scheduledAt,
       scheduled: scheduledArticles,
+      backlogArticles,
       horizonDays: 1,
     })?.getTime() === scheduledAt.getTime()
   );
@@ -161,6 +163,7 @@ export function planPendingSocialReleaseCohorts(
     (left, right) => left.earliest.getTime() - right.earliest.getTime(),
   );
   const scheduledArticles = occupiedArticleDates(byEpisode);
+  const backlogArticles = unpublished.length;
 
   for (const cohort of unpublished) {
     const uniqueTimes = new Set(cohort.rows.map((row) => row.scheduled_at));
@@ -170,7 +173,7 @@ export function planPendingSocialReleaseCohorts(
     if (
       alreadyAligned &&
       stillWithinGrace &&
-      canKeepExistingSlot(cohort.earliest, scheduledArticles)
+      canKeepExistingSlot(cohort.earliest, scheduledArticles, backlogArticles)
     ) {
       scheduledArticles.push(cohort.earliest);
       continue;
@@ -180,6 +183,7 @@ export function planPendingSocialReleaseCohorts(
     const scheduledAt = nextReleaseSlot({
       after,
       scheduled: scheduledArticles,
+      backlogArticles,
       horizonDays: 366,
     });
     if (!scheduledAt) continue;

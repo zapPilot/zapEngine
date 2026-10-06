@@ -1,0 +1,52 @@
+{
+  "videoId": "calculator-pitch",
+  "engine": "s2.1-pro-free",
+  "voiceKey": "8c06ad86c3bf",
+  "lines": {
+    "hook": {
+      "file": "vo/calculator-pitch/7533aeb3d56c9459.mp3",
+      "fingerprint": "7c726efa9c582364",
+      "durationSeconds": 3.96
+    },
+    "rule": {
+      "file": "vo/calculator-pitch/be224728dc9657c9.mp3",
+      "fingerprint": "796ee712cc37e680",
+      "durationSeconds": 7.752
+    },
+    "inputs": {
+      "file": "vo/calculator-pitch/234cbfb75055bf6d.mp3",
+      "fingerprint": "6f8d957518758369",
+      "durationSeconds": 7.248
+    },
+    "proof-bytecode": {
+      "file": "vo/calculator-pitch/e31222a4706f953d.mp3",
+      "fingerprint": "d17c2dbe2c2df91d",
+      "durationSeconds": 3.72
+    },
+    "proof-decision": {
+      "file": "vo/calculator-pitch/423180f6745f43f5.mp3",
+      "fingerprint": "9b9923011502b7f4",
+      "durationSeconds": 9.864
+    },
+    "scenario": {
+      "file": "vo/calculator-pitch/5dcb8b3ddadb541c.mp3",
+      "fingerprint": "822450c66a23f831",
+      "durationSeconds": 2.664
+    },
+    "deploy": {
+      "file": "vo/calculator-pitch/0ebd90e28aeadc14.mp3",
+      "fingerprint": "03ad54e801a34959",
+      "durationSeconds": 5.4
+    },
+    "scope": {
+      "file": "vo/calculator-pitch/fdf839afd6c08709.mp3",
+      "fingerprint": "8c4d5a71987b6226",
+      "durationSeconds": 3.792
+    },
+    "cta": {
+      "file": "vo/calculator-pitch/84feac82c76e270b.mp3",
+      "fingerprint": "b7179973a42c64a5",
+      "durationSeconds": 2.712
+    }
+  }
+}

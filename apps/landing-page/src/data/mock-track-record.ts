@@ -45,10 +45,10 @@ const REBALANCE_DATES = demoStrategyEventDates();
 const DAILY_ALLOCATIONS = demoDailyAllocations();
 
 /**
- * Three-pillar model portfolio. `weight` is only the fallback split (it mirrors
- * src/config/allocation.ts); when the artifact carries daily allocations the
- * real ones win, so the Positions tab and the chart's markers describe the same
- * portfolio. `bucket` is the allocation key each pillar stands in for.
+ * Three-pillar model portfolio. `weight` is only the fallback split, used when
+ * the artifact predates daily allocations; otherwise the real ones win, so the
+ * Positions tab and the chart's markers describe the same portfolio. `bucket`
+ * is the allocation key each pillar stands in for.
  */
 const PILLARS = [
   {

@@ -1,3 +1,4 @@
+import { AppVersionCard } from '@/components/account/AppVersionCard';
 import { useRouter } from 'expo-router';
 import { ChevronRight } from 'lucide-react-native';
 import { Text, View } from 'react-native';
@@ -26,7 +27,7 @@ export function AccountScreen() {
   return (
     <ScreenScrollView width="narrow">
       <PageHeader title={t('tabs.account')} />
-      <View className="px-5 pt-5">
+      <View className="pt-5">
         <Tap
           accessibilityRole="button"
           accessibilityLabel={t('account.manageWallets')}
@@ -36,7 +37,7 @@ export function AccountScreen() {
             <View className="flex-row items-start justify-between gap-3">
               <View className="min-w-0 flex-1">
                 <Text className="font-sans-semibold text-[15px] text-ink">
-                  {account.email || DEMO.account.label}
+                  {account.address || DEMO.account.label}
                 </Text>
                 <Text className="mt-2 font-mono text-[13px] text-accent">
                   {truncateAddress(address)}
@@ -47,6 +48,7 @@ export function AccountScreen() {
           </Card>
         </Tap>
         <LanguageSettingsCard />
+        <AppVersionCard />
         <TelegramCard />
         <View className="mt-4">
           <Callout

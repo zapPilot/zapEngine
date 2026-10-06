@@ -1,0 +1,179 @@
+name: Kokode Pages
+
+on:
+  pull_request:
+    paths:
+      - 'apps/kokode-ai/**'
+      - 'packages/media-release/**'
+      - 'packages/kokode-story/**'
+      - 'supabase/functions/genba-lead/**'
+      - 'supabase/migrations/*kokode*'
+      - '.github/workflows/kokode-pages.yml'
+      - '.github/actions/setup-workspace/**'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'package.json'
+      - 'turbo.json'
+      - '.nvmrc'
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+
+concurrency:
+  group: kokode-pages-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  changes:
+    if: github.event_name == 'pull_request' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.filter.outputs.kokode == 'true' && (github.event_name == 'pull_request' || steps.current.outputs.current == 'true') }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
+      - name: Ignore superseded production revisions
+        id: current
+        if: github.event_name == 'workflow_run'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          latest=$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq '.sha')
+          echo "current=$([ "$latest" = "$RELEASE_SHA" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+      - name: Find last successful Kokode release
+        id: baseline
+        if: github.event_name == 'workflow_run'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          artifact_run=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=kokode-release-state&per_page=100" --jq '[.artifacts[] | select(.expired == false)][0].workflow_run.id // empty')
+          if [ -n "$artifact_run" ]; then
+            gh run download "$artifact_run" --name kokode-release-state --dir /tmp/kokode-state
+            base=$(cat /tmp/kokode-state/sha)
+          else
+            base=$(git rev-list --max-parents=0 HEAD | head -1)
+          fi
+          echo "sha=$base" >> "$GITHUB_OUTPUT"
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          base: ${{ steps.baseline.outputs.sha }}
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          filters: |
+            kokode:
+              - 'apps/kokode-ai/**'
+              - 'packages/media-release/**'
+              - 'packages/kokode-story/**'
+              - 'supabase/functions/genba-lead/**'
+              - 'supabase/migrations/*kokode*'
+              - '.github/workflows/kokode-pages.yml'
+              - '.github/actions/setup-workspace/**'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'package.json'
+              - 'turbo.json'
+              - '.nvmrc'
+
+  build:
+    needs: changes
+    if: needs.changes.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    # PR builds use public settings only; production credentials stay on main.
+    environment: ${{ github.event_name == 'pull_request' && 'kokode-preview' || 'kokode-production' }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: ./.github/actions/setup-workspace
+        with:
+          uv: 'false'
+      - run: bash -n apps/kokode-ai/scripts/*.sh
+      - name: Verify lead endpoint configuration and build
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$VITE_SUPABASE_URL" =~ ^https://[a-z0-9]{20}\.supabase\.co/?$ ]] || {
+            echo "VITE_SUPABASE_URL must identify the production Supabase project" >&2
+            exit 1
+          }
+          pnpm turbo run test type-check build --filter=@zapengine/kokode-ai
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SALES_EMAIL: ${{ vars.VITE_SALES_EMAIL }}
+          VITE_SUPPORT_EMAIL: ${{ vars.VITE_SUPPORT_EMAIL }}
+          VITE_ANALYTICS_ENDPOINT: ${{ vars.VITE_ANALYTICS_ENDPOINT }}
+      - run: pnpm --filter @zapengine/kokode-ai media:verify
+        if: github.event_name == 'workflow_run'
+      - uses: actions/upload-pages-artifact@v3
+        if: github.event_name == 'workflow_run'
+        with:
+          path: apps/kokode-ai/dist
+
+  backend:
+    needs: build
+    if: github.event_name == 'workflow_run'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: kokode-production
+    env:
+      SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.KOKODE_SUPABASE_ACCESS_TOKEN }}
+      INFISICAL_UNIVERSAL_AUTH_CLIENT_ID: ${{ secrets.KOKODE_INFISICAL_UNIVERSAL_AUTH_CLIENT_ID }}
+      INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET: ${{ secrets.KOKODE_INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - uses: ./.github/actions/setup-workspace
+        with:
+          uv: 'false'
+      - name: Authenticate Kokode credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$SUPABASE_URL"
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            test -n "$INFISICAL_UNIVERSAL_AUTH_CLIENT_ID"
+            test -n "$INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET"
+            npm install --global @infisical/cli@0.43.125
+            token=$(infisical login --method=universal-auth --silent --plain)
+            echo "::add-mask::$token"
+            echo "INFISICAL_TOKEN=$token" >> "$GITHUB_ENV"
+          fi
+      - run: pnpm --filter @zapengine/kokode-ai ops check --strict
+      - run: pnpm --filter @zapengine/kokode-ai ops secrets
+      - run: pnpm --filter @zapengine/kokode-ai ops deploy
+      - run: pnpm --filter @zapengine/kokode-ai ops e2e
+
+  deploy:
+    needs: [build, backend]
+    if: github.event_name == 'workflow_run'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: deployment
+      - name: Record the deployed source revision
+        env:
+          RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          mkdir -p /tmp/kokode-state
+          printf '%s\n' "$RELEASE_SHA" > /tmp/kokode-state/sha
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kokode-release-state
+          path: /tmp/kokode-state/sha

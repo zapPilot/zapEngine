@@ -58,7 +58,7 @@ export function ReliabilityPage(props: {
           />
           <Stat
             caption="Signals over the action threshold"
-            label="Open interventions"
+            label="Operational priorities"
             tone={
               (operations?.priorities.length ?? 0) > 0 ? 'danger' : 'success'
             }
@@ -135,6 +135,34 @@ export function ReliabilityPage(props: {
           />
         </Card>
       </div>
+
+      <Card
+        icon={TriangleAlert}
+        title="安全態勢"
+        subtitle="GitHub Security open alerts"
+        tone="info"
+      >
+        <RankedList
+          empty={
+            <EmptyState
+              title="No security signal"
+              detail="尚未讀到 GitHub Security signal。"
+            />
+          }
+          items={priorityItems(
+            (operations?.signals ?? [])
+              .filter((signal) => signal.domain === 'security')
+              .map(
+                (signal) =>
+                  operations?.priorities.find(
+                    (priority) =>
+                      priority.signal.fingerprint === signal.fingerprint,
+                  ) ?? { signal, score: 0, reasons: [] },
+              ),
+            { detail: true, sourceLink: true },
+          )}
+        />
+      </Card>
 
       <OperatorAudit refreshedAt={operations?.generatedAt} />
     </div>

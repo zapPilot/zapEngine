@@ -16,6 +16,7 @@ interface ScreenScrollViewProps {
   refreshControl?: ScrollViewProps['refreshControl'];
 }
 
+// Owns page gutters; children must not add outer horizontal padding.
 export function ScreenScrollView({
   children,
   width,

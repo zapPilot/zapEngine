@@ -1,3 +1,4 @@
+import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 import * as Linking from 'expo-linking';
 import { Bell } from 'lucide-react-native';
 import { useCallback } from 'react';
@@ -15,6 +16,7 @@ import { useTelegramConnection } from '@/integration/useTelegramConnection';
  * app-core service are unchanged from the original settings-modal feature.
  */
 export function TelegramCard() {
+  const { t } = useContentLanguage();
   const account = useAccount();
   const openLink = useCallback((url: string) => {
     void Linking.openURL(url);
@@ -38,6 +40,19 @@ export function TelegramCard() {
         <Text className="mt-2 text-[12.5px] leading-5 text-ink-dim">
           Connect your wallet first to enable notifications.
         </Text>
+      ) : view.kind === 'locked' ? (
+        <>
+          <Text className="mt-2 text-body-sm text-ink-dim">
+            {t('home.telegramLocked')}
+          </Text>
+          <Button
+            className="mt-3"
+            variant="secondary"
+            onPress={telegram.connect}
+          >
+            {t('home.signIn')}
+          </Button>
+        </>
       ) : view.kind === 'loading' ? (
         <Text className="mt-2 text-[12.5px] leading-5 text-ink-dim">
           Checking connection…

@@ -148,3 +148,12 @@ describe('telegram connection model', () => {
     expect(model.getView()).toEqual({ kind: 'idle', status: CONNECTED });
   });
 });
+
+it('locks background status for a missing owner session', async () => {
+  const { model, deps } = setup({
+    getStatus: vi.fn().mockRejectedValue({ code: 'ACCOUNT_SESSION_REQUIRED' }),
+  });
+  await model.load();
+  expect(model.getView()).toEqual({ kind: 'locked' });
+  expect(deps.requestToken).not.toHaveBeenCalled();
+});

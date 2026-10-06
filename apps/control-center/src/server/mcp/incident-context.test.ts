@@ -87,6 +87,24 @@ const PACKET: IncidentPacket = {
 };
 
 describe('buildOpsIncidentContext', () => {
+  it('carries the shared snapshot follow-up into the investigation packet', () => {
+    const followUp = {
+      status: 'unavailable' as const,
+      targetCoverage: 'partial' as const,
+      unassessedTargets: [],
+      items: [],
+    };
+    const snapshot = {
+      ...SNAPSHOT,
+      priorities: SNAPSHOT.priorities.map((priority) => ({
+        ...priority,
+        followUp,
+      })),
+    };
+    expect(
+      buildOpsIncidentContext({ packet: PACKET, snapshot }).followUp,
+    ).toEqual(followUp);
+  });
   it('exposes repository-backed provider links and relevant PostHog context', () => {
     const result = buildOpsIncidentContext({
       packet: PACKET,
@@ -97,7 +115,7 @@ describe('buildOpsIncidentContext', () => {
     expect(result.correlation.service).toEqual({
       workspace: '@zapengine/podcast-pipeline',
       impact: 'social-media',
-      githubWorkflows: ['distribution-snapshot.yml'],
+      githubWorkflows: ['distribution-snapshot.yml', 'podcast-artifact-gc.yml'],
       flyApp: 'from-fed-to-chain-api',
       sentryProject: 'podcast-pipeline',
     });

@@ -47,7 +47,6 @@ export interface DistributionReliability {
   publishJobsFailed: number;
   metricSnapshots: number;
   metricSnapshotsCollected: number;
-  strategyVersions: number;
 }
 
 export interface DistributionExampleChannel {

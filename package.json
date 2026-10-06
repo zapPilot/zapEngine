@@ -6,7 +6,7 @@
     "dev": "node scripts/env/run.mjs -- bash scripts/dev.sh",
     "build": "node scripts/env/run.mjs -- bash scripts/build.sh",
     "desktop:package": "node scripts/env/run.mjs --environment prod --client-target desktop -- turbo run package --filter=@zapengine/desktop",
-    "desktop:mac": "pnpm run desktop:package && open \"apps/desktop/release/mac-arm64/Zap Pilot.app\"",
+    "desktop:mac": "pnpm run desktop:release && open \"apps/desktop/release/mac-arm64/Zap Pilot.app\"",
     "type-check": "turbo run type-check",
     "test": "bash scripts/test.sh",
     "lint": "bash scripts/lint.sh",
@@ -21,19 +21,20 @@
     "env:show": "node scripts/env/cli.mjs show",
     "env:sync": "node scripts/env/sync.mjs",
     "social:login": "pnpm --filter @zapengine/podcast-pipeline social:login",
-    "social:distribution-snapshot": "node scripts/env/run.mjs -- pnpm --filter @zapengine/podcast-pipeline social:distribution-snapshot",
-    "social:daemon": "node scripts/env/run.mjs -- pnpm --filter @zapengine/podcast-pipeline social:daemon",
-    "social:daemon:watch": "node scripts/env/run.mjs -- pnpm --filter @zapengine/podcast-pipeline social:daemon:watch",
-    "ops": "node scripts/env/run.mjs -- node scripts/ops.mjs",
+    "ops": "node scripts/env/run.mjs --environment prod -- node scripts/ops.mjs",
     "ops:dashboard": "node scripts/env/run.mjs -- pnpm run ops:dashboard:raw",
     "ops:dashboard:raw": "turbo run dev --filter=@zapengine/control-center --env-mode=loose",
     "ops:cost": "pnpm --filter @zapengine/control-center ops:cost",
+    "db:evidence": "node scripts/env/run.mjs --environment prod -- pnpm --filter @zapengine/podcast-pipeline db:evidence",
     "ops:sync": "turbo run ops:sync --filter=@zapengine/control-center",
     "track-record:generate": "tsx --tsconfig apps/landing-page/tsconfig.json scripts/track-record/generate-daily-snapshot.ts",
     "track-record:publish": "tsx --tsconfig apps/landing-page/tsconfig.json scripts/track-record/publish-daily-snapshot.ts",
     "track-record:verify": "tsx --tsconfig apps/landing-page/tsconfig.json scripts/track-record/verify-track-record.ts",
     "clean": "turbo run clean && rm -rf node_modules",
-    "prepare": "husky"
+    "prepare": "husky",
+    "desktop:release": "node scripts/desktop-release.mjs build",
+    "sales:render": "node scripts/sales-render.mjs",
+    "sales:publish": "node scripts/sales-publish.mjs"
   },
   "devDependencies": {
     "@types/node": "catalog:",
@@ -43,7 +44,9 @@
     "prettier": "^3.8.4",
     "tsx": "catalog:",
     "turbo": "^2.9.18",
-    "viem": "catalog:"
+    "viem": "catalog:",
+    "yaml": "^2.9.1",
+    "zod": "catalog:"
   },
   "engines": {
     "node": "24.x",
@@ -95,6 +98,13 @@
     ],
     "apps/podcast-pipeline/{*.json,*.config.*,examples/**/*.json}": [
       "pnpm --filter @zapengine/podcast-pipeline exec prettier --write"
+    ],
+    "apps/video/**/*.{ts,tsx}": [
+      "pnpm --filter @zapengine/video exec eslint --fix",
+      "pnpm --filter @zapengine/video exec prettier --write"
+    ],
+    "apps/video/**/*.{json,md,mjs}": [
+      "pnpm --filter @zapengine/video exec prettier --write --ignore-unknown"
     ],
     "packages/**/*.{js,mjs,cjs,ts,tsx,json,md}": [
       "pnpm --filter @zapengine/eslint-config exec prettier --write"

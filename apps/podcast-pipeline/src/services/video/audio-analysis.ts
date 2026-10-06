@@ -38,7 +38,7 @@ export interface CanonicalAudioTiming {
   silences: SilenceInterval[];
 }
 
-function resolveVideoFfprobePath(): string {
+export function resolveVideoFfprobePath(): string {
   const configured = process.env['VIDEO_FFPROBE_PATH']?.trim();
   if (configured) return configured;
   const configuredFfmpeg = process.env['VIDEO_FFMPEG_PATH']?.trim();

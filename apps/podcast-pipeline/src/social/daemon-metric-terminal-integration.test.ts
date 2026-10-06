@@ -1,5 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('./daemon-tick-telemetry.js', () => ({
+  withSocialDaemonTickTelemetry: (
+    _options: unknown,
+    run: () => Promise<unknown>,
+  ) => run(),
+  recordSocialEnqueueResult: vi.fn(),
+}));
+
 const mocks = vi.hoisted(() => ({
   captureDueAccountSnapshots: vi.fn(),
   claimSocialPublishBatch: vi.fn(),
@@ -56,6 +64,7 @@ vi.mock('./metric-collectors.js', async (importOriginal) => ({
 vi.mock('./account-snapshots.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./account-snapshots.js')>()),
   captureDueAccountSnapshots: mocks.captureDueAccountSnapshots,
+  capturePrePublishAccountSnapshots: vi.fn().mockResolvedValue([]),
 }));
 
 import type { SocialPostRow } from '../types.js';

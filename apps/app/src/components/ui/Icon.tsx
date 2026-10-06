@@ -1,6 +1,7 @@
 import { tokens } from '@zapengine/design-tokens/tokens';
 import type { LucideIcon } from 'lucide-react-native';
 import type { ReactElement } from 'react';
+import { Platform } from 'react-native';
 
 export interface IconProps {
   icon: LucideIcon;
@@ -39,12 +40,21 @@ export function Icon({
       size={tokens.size.icon[size]}
       color={colors[tone]}
       strokeWidth={size === 'xs' || size === 'sm' ? 2 : 1.75}
-      accessible={Boolean(accessibilityLabel)}
-      {...(accessibilityLabel ? { accessibilityLabel } : {})}
-      accessibilityElementsHidden={!accessibilityLabel}
-      importantForAccessibility={
-        accessibilityLabel ? 'yes' : 'no-hide-descendants'
-      }
+      {...(Platform.OS === 'web'
+        ? {
+            'aria-hidden': !accessibilityLabel,
+            ...(accessibilityLabel
+              ? { 'aria-label': accessibilityLabel, role: 'img' as const }
+              : {}),
+          }
+        : {
+            accessible: Boolean(accessibilityLabel),
+            ...(accessibilityLabel ? { accessibilityLabel } : {}),
+            accessibilityElementsHidden: !accessibilityLabel,
+            importantForAccessibility: accessibilityLabel
+              ? ('yes' as const)
+              : ('no-hide-descendants' as const),
+          })}
     />
   );
 }

@@ -1,3 +1,4 @@
+import { signedCount } from '../../../shared/format.js';
 import {
   count,
   elapsedFromMinutes,
@@ -5,7 +6,6 @@ import {
   percent,
   plural,
   seriesAndDelta,
-  signedCount,
   signedPercent,
 } from './format.js';
 import type { RuleFinding, StatementInputs } from './types.js';
@@ -277,9 +277,14 @@ export function ruleR4(input: StatementInputs): RuleFinding {
   const platforms = socialGrowth.platforms;
   const totalDelta7d = sumKnown(platforms.map((p) => p.followersDelta7d));
   const totalFollowers = sumKnown(platforms.map((p) => p.followersNow));
+  const knownFollowers = sumKnown(
+    platforms
+      .filter((p) => p.followersDelta7d !== null)
+      .map((p) => p.followersNow),
+  );
   const priorTotal =
-    totalDelta7d !== null && totalFollowers !== null
-      ? totalFollowers - totalDelta7d
+    totalDelta7d !== null && knownFollowers !== null
+      ? knownFollowers - totalDelta7d
       : null;
   const pctChange =
     totalDelta7d !== null && priorTotal !== null && priorTotal > 0
@@ -346,63 +351,6 @@ export function ruleR4(input: StatementInputs): RuleFinding {
       )
       .join(' · '),
   };
-  return finding;
-}
-
-/** R5 — best-performing topic and slot. */
-export function ruleR5(input: StatementInputs): RuleFinding {
-  const { socialPerformance } = input;
-  const finding = empty('R5');
-  const candidate = socialPerformance.decisions
-    .filter(
-      (
-        decision,
-      ): decision is typeof decision & {
-        bestTopicLiftVsPlatformMedian: number;
-      } =>
-        Boolean(decision.bestTopic) &&
-        (decision.bestTopicLiftVsPlatformMedian ?? 0) >= 1.5 &&
-        decision.confidence !== 'low',
-    )
-    .sort(
-      (a, b) =>
-        b.bestTopicLiftVsPlatformMedian - a.bestTopicLiftVsPlatformMedian,
-    )[0];
-
-  if (candidate) {
-    finding.segments.push(
-      { text: `Posts on ${candidate.bestTopic} do ` },
-      {
-        value: `${candidate.bestTopicLiftVsPlatformMedian.toFixed(1)}×`,
-        tone: 'success',
-      },
-      { text: ` the ${candidate.platform} median` },
-      {
-        text: candidate.publishSlotsJst
-          ? ` — publish the next one at ${candidate.publishSlotsJst}.`
-          : '.',
-      },
-    );
-    finding.fact = {
-      kicker: 'Because · topic',
-      value: `${candidate.bestTopic}: ${candidate.bestTopicLiftVsPlatformMedian.toFixed(1)}× ${candidate.platform} median`,
-      note: `n=${candidate.bestTopicSamples ?? 0} · ${candidate.confidence} confidence`,
-    };
-  } else {
-    const keepComparable = socialPerformance.decisions.find(
-      (decision) => decision.bestTopic,
-    );
-    if (keepComparable) {
-      finding.segments.push({
-        text: `Not enough separation yet on ${keepComparable.platform} — keep posting a comparable mix.`,
-      });
-      finding.fact = {
-        kicker: 'Because · topic',
-        value: 'No topic clears the bar yet',
-        note: `${keepComparable.platform} · ${keepComparable.confidence} confidence`,
-      };
-    }
-  }
   return finding;
 }
 

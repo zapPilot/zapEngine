@@ -295,3 +295,7 @@ does not rename the existing Play listing by itself.
   listed above. Google Cloud project roles are not a substitute.
 - **Submission failed after a successful build:** retry only the submit job or
   use `submit-only` with that exact EAS build ID. Do not rebuild just to retry.
+
+## In-app version detection
+
+Play In-App Updates detection requires installation through Google Play. Sideloaded and development installations show only the native version when Play cannot check. Update opens the canonical production listing. The Android module is excluded from iOS autolinking and web bundles.

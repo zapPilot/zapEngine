@@ -359,7 +359,7 @@ describe('waitlist CTA experiment attribution', () => {
         {
           email: 'experiment@example.com',
           ctaExperiment: {
-            key: 'landing-waitlist-cta-v1',
+            key: 'landing-waitlist-cta-v2',
             variant: 'value_first',
             exposureId: '12345678-1234-4234-8234-123456789012',
           },
@@ -370,7 +370,7 @@ describe('waitlist CTA experiment attribution', () => {
     expect(response.status).toBe(201);
     expect(fixture.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        cta_experiment_key: 'landing-waitlist-cta-v1',
+        cta_experiment_key: 'landing-waitlist-cta-v2',
         cta_experiment_variant: 'value_first',
         cta_exposure_id: '12345678-1234-4234-8234-123456789012',
       }),

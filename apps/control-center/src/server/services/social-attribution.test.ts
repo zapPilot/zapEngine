@@ -228,3 +228,14 @@ function observation(
     ...overrides,
   };
 }
+
+it('never derives follower intervals from YouTube account snapshots', () => {
+  const snapshots = [
+    snapshot('youtube', '2026-08-01T00:00:00Z', 100),
+    snapshot('youtube', '2026-08-01T03:00:00Z', 105),
+  ];
+  expect(pairSnapshotIntervals(snapshots)).toEqual([]);
+  expect(
+    buildFollowerAttribution({ snapshots, posts: [], observations: [] }),
+  ).toEqual([]);
+});

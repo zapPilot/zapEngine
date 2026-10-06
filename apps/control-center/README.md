@@ -1,6 +1,6 @@
 # Zap Pilot Control Center
 
-Founder decision dashboard for operational status, customer economics, product health, persisted cost history, learned social publishing guidance, and podcast production recovery. It is lifecycle-independent from production daemons and pipelines.
+Founder decision dashboard for operational status, customer economics, product health, persisted cost history, universal content packaging insight, and podcast production recovery. It is lifecycle-independent from production daemons and pipelines.
 
 ```bash
 pnpm ops             # dashboard + Fly billing reader + social daemon, from the repository root
@@ -11,7 +11,9 @@ node scripts/env/run.mjs --environment prod -- \
 
 Direct shell reads of operational state must use the repository's canonical merged
 production runner. It combines committed non-secret production values with
-Infisical secrets. Bare `infisical run --env=prod -- ...` is **not** equivalent:
+Infisical secrets. `pnpm ops` selects this production runner automatically;
+an outer `infisical run --env=prod -- pnpm ops` is unnecessary.
+Bare `infisical run --env=prod -- ...` is **not** equivalent:
 it can omit identifiers from `config/env/prod.env` and make a configured provider
 look `unconfigured`. A bare local command can likewise report configuration state
 instead of production health. The repository-local `zap-pilot-ops` MCP launcher
@@ -38,12 +40,12 @@ remaining mutation-surface decisions stay open in #677.
 
 Four primary surfaces answer the operator's immediate questions:
 
-| View                     | Question                                        | Evidence                                                                                                                 |
-| ------------------------ | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| **今日 (Today)**         | What needs intervention now?                    | At most three ranked operations, then company pulse, latest release, cost and failed-attempt spend                       |
-| **成長 (Growth)**        | How does content reach become product demand?   | Cross-channel journey, per-episode acquisition lanes, Discord intent and guild totals, waitlist and language performance |
-| **Pipeline**             | Which API → Render → Social job needs recovery? | Existing queue board and bounded recovery drawer                                                                         |
-| **可靠性 (Reliability)** | Which risks, costs and repairs need attention?  | Operations, provider costs, failed-attempt spend, raw Evidence and operator audit                                        |
+| View                     | Question                                        | Evidence                                                                                                                                                                 |
+| ------------------------ | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **今日 (Today)**         | What needs intervention now?                    | At most three ranked operations, then company pulse, latest release, cost and failed-attempt spend                                                                       |
+| **成長 (Growth)**        | How does content reach become product demand?   | Cross-channel journey, per-episode acquisition lanes, Discord intent and guild totals, waitlist, 30-day audience growth and universal title/cover packaging associations |
+| **Pipeline**             | Which API → Render → Social job needs recovery? | Existing queue board and bounded recovery drawer                                                                                                                         |
+| **可靠性 (Reliability)** | Which risks, costs and repairs need attention?  | Operations, provider costs, failed-attempt spend, raw Evidence and operator audit                                                                                        |
 
 Today composes existing read models and hides numeric priority scores. Unknown,
 failed and stale observations never render the healthy no-intervention state.
@@ -173,22 +175,23 @@ The view ships on the Supabase rail while this reader ships on Vercel, so a depl
 
 Every source is an adapter that returns `OperationalSignal[]` and is contractually forbidden from throwing. Missing credentials produce `unknown`, never `healthy` — a provider nobody asked has not reported that it is fine — and a failed request produces a `degraded` source failure so a lost reading is visibly different from a healthy one.
 
-| Domain      | Source                           | Reads                                                                                 |
-| ----------- | -------------------------------- | ------------------------------------------------------------------------------------- |
-| `customers` | `customer-economics`             | `public.get_user_service_states()` + the usage ledger                                 |
-| `product`   | `product-health`                 | the existing public-schema account data                                               |
-| `costs`     | `cost-ledger`                    | `ops.cost_snapshots` through the bridge, plus its own staleness                       |
-| `social`    | `social-queue` / `social-daemon` | `social_publish_jobs`, `social_daemon_state`, waiting-media age and claim eligibility |
-| `jobs`      | `github-actions`                 | `schedule`-triggered runs of the github-actions entries in `.github/schedules.json`   |
-| `infra`     | `fly`                            | Fly Machines HTTP API state per app and process group                                 |
+| Domain      | Source                           | Reads                                                                                       |
+| ----------- | -------------------------------- | ------------------------------------------------------------------------------------------- |
+| `customers` | `customer-economics`             | `public.get_user_service_states()` + the usage ledger                                       |
+| `product`   | `product-health`                 | the existing public-schema account data                                                     |
+| `costs`     | `cost-ledger`                    | `ops.cost_snapshots` through the bridge, plus its own staleness                             |
+| `social`    | `social-queue` / `social-daemon` | `social_publish_jobs`, `social_daemon_state`, waiting-media age and claim eligibility       |
+| `jobs`      | `github-actions`                 | `schedule`-triggered runs of the github-actions entries in `.github/schedules.json`         |
+| `infra`     | `fly`                            | Fly Machines HTTP API state per app and process group                                       |
+| `errors`    | `sentry`                         | 24h active unresolved issues plus degraded 30d stale unresolved history, grouped by project |
+| `security`  | `github-security`                | GitHub code scanning, Dependabot and secret scanning open alert rollups                     |
+| `analytics` | `posthog`                        | 7d/30d unique users                                                                         |
 
 Job health reads `event=schedule` runs only. A workflow carries both a cron and a `workflow_dispatch` trigger, so counting manual runs would let a successful re-run mask a cron that has stopped firing — the exact failure this domain exists to catch. Staleness is derived from each entry's own cron expression rather than assumed daily, floored at 48h.
 
 A stopped Machine is not an outage everywhere. `account-engine`, `alpha-etl`, and `analytics-engine-xws3ra` declare `min_machines_running = 0`, so Fly Proxy stops them when idle and starts them on the next request; the podcast render group stops itself on an idle queue. Scoring those on started count would leave the page permanently red, which is the one failure a status page cannot survive — so they are scored on whether anything is left to start instead. The lifecycle each app is judged by restates its own `fly.toml`, and `fly.test.ts` reads those files to prove the two still agree.
-| `errors` | `sentry` | 24h active unresolved issues plus degraded 30d stale unresolved history, grouped by project |
-| `analytics` | `posthog` | 7d/30d unique users |
 
-All eight domains appear in every response even when nothing reported on them: an absent domain in a status page reads as a green light.
+All nine domains appear in every response even when nothing reported on them: an absent domain in a status page reads as a green light.
 
 Domain rollups intentionally skip individual `unknown` readings when another known
 reading exists. A green domain therefore means its **known** readings are healthy;
@@ -206,7 +209,7 @@ Every source has its own cache TTL, from 30s for the publish queue to 15 minutes
 
 These ship dark. Their adapters report `unknown` and send no request until the credential exists, so nothing here is required to run the dashboard.
 
-- `OPS_GITHUB_TOKEN` — fine-grained PAT, `zapPilot/zapEngine` Actions: read. Without it no request is made at all: anonymous `api.github.com` is capped at 60 requests/hour per IP.
+- `OPS_GITHUB_TOKEN` — fine-grained PAT, `zapPilot/zapEngine` Actions: read, Code scanning alerts: read, Dependabot alerts: read, and optionally Secret scanning alerts: read. Without it no request is made at all: anonymous `api.github.com` is capped at 60 requests/hour per IP.
 - `FLY_OPS_TOKEN` — read-only Fly organization token used by the Machines HTTP API for fleet state and incident inspection.
 - `SENTRY_OPS_AUTH_TOKEN` + `SENTRY_ORG_SLUG` — `org:read`, `project:read`, `event:read`.
 - `POSTHOG_PERSONAL_API_KEY` + `POSTHOG_PROJECT_ID` — `query:read`.
@@ -385,10 +388,10 @@ operator-Mac trigger.
 
 Vendor credentials and Supabase service-role credentials are read only by the Hono/CLI process. Browser responses contain normalized ledger data and never include tokens.
 
-## Decision layers
+## Packaging insight
 
 The Product view reads product health from the existing public-schema account data: registered users, verified wallets, users with observed portfolio data, WAU/MAU, observed portfolio value, freshness coverage, and portfolio concentration. The portfolio value is deliberately labeled **observed**, not authoritative AUM, because coverage/freshness are part of the decision.
 
-Social decisions reuse the pipeline's active `social_strategy_versions` rather than implementing a second learner. Control Center supplements those preferred hook/hashtag choices with simple 24-hour evidence for timing and topic, reports the learner sample count/confidence, and keeps raw per-post metrics as a secondary evidence layer. Platform-specific decision signals replace universal columns that had no producer (for example impressions, cover CTR, and media-quality score).
+Content packaging uses the shared `/api/growth` and `ops_growth` read model with a 15-minute cache. Rednote distributed 24-hour observations determine episode packaging ranks; other lanes confirm after independent rolling normalization. Title features describe associations only. Suppressed notes are excluded and the distribution gate is reported separately. These insights never choose topics or platform-specific slots/hooks, and never enter reliability priorities.
 
 See [Waitlist acquisition contract](docs/waitlist-acquisition.md) for persisted lead metrics, attribution and rollout order.

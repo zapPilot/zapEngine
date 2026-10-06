@@ -6,11 +6,11 @@ experiment launch or an automatic winner/rollout.
 
 ## What is being tested
 
-PostHog project **577455**; flag key `landing-waitlist-cta-v1`.
+PostHog project **577455**; flag key `landing-waitlist-cta-v2`.
 The flag's string variants are `control` and `value_first`, with a 50/50 split.
-Control keeps **Join waitlist** and the existing launch-update copy. Treatment
-uses **Get launch access** and describes tracking stocks, crypto and stables in
-one place. The hypothesis is that a concrete benefit and expectation increase
+Control keeps **Join waitlist** and the current shared waitlist copy. Treatment
+uses **Get launch updates** and invites visitors to follow the programmable
+portfolio runtime as it develops. The hypothesis is that a concrete subject and notification expectation increase
 CTA intent and durable signups among visitors coming from news commentary.
 Publishing cadence and product capabilities stay fixed. The copy changes form
 expectations, not access promises: the product is still a waitlist.
@@ -41,7 +41,8 @@ input enters diagnostic events or the ops read model. The form is excluded from
 PostHog autocapture; session recording stays disabled and DNT remains respected.
 
 All new stages carry `surface=landing`, `cta_experiment_key`, `cta_variant`,
-`cta_exposure_id` and `cta_schema_version=1`. This version also fixes the copy;
+`cta_exposure_id` and `cta_schema_version=1`. The v2 key replaces the unlaunched v1 copy after the homepage positioning changed.
+This version also fixes the copy;
 a materially different intervention needs a new key/version.
 
 | Event                       | Evidence                                                                     |

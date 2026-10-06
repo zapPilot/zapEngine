@@ -1,7 +1,7 @@
 export const en = {
   'portfolio.noAllocation': 'Allocation is not available yet.',
   'portfolio.title': 'Portfolio',
-  'portfolio.positionValue': 'Strategy position value',
+  'portfolio.positionValue': 'Net portfolio value',
   'portfolio.valueHistory': 'Value history',
   'portfolio.selectedRange': 'over {range}',
   'portfolio.tooltip.date': 'Date',
@@ -29,7 +29,7 @@ export const en = {
 export const zhHant = {
   'portfolio.noAllocation': '目前尚無資產配置資料。',
   'portfolio.title': '投資組合',
-  'portfolio.positionValue': '策略部位價值',
+  'portfolio.positionValue': '投資組合淨值',
   'portfolio.valueHistory': '價值走勢',
   'portfolio.selectedRange': '{range} 區間',
   'portfolio.tooltip.date': '日期',
@@ -56,7 +56,7 @@ export const zhHant = {
 export const ja = {
   'portfolio.noAllocation': '資産配分のデータはまだありません。',
   'portfolio.title': 'ポートフォリオ',
-  'portfolio.positionValue': 'ストラテジーのポジション価値',
+  'portfolio.positionValue': 'ポートフォリオ純資産額',
   'portfolio.valueHistory': '価値の推移',
   'portfolio.selectedRange': '{range} の期間',
   'portfolio.tooltip.date': '日付',

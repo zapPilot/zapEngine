@@ -176,3 +176,7 @@ observed":
 Persist newly discovered operating rules in the nearest `AGENTS.md` or runbook.
 Persist general cross-service coverage rules here. Do not use chat history as the
 only place an invocation, safety boundary, or false-positive rule exists.
+
+GitHub Security healthy surfaces prove only the readable open alert inventory.
+They do not prove complete security posture: push protection can be disabled,
+CodeQL may not cover every language, and Dependabot may not see every manifest.
