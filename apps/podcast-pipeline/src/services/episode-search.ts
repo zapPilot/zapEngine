@@ -10,6 +10,7 @@ import {
   listEpisodesPaged,
   toEpisodeResponse,
 } from './db.js';
+import { convertTextToZhCN } from './opencc.js';
 import { PODCAST_INTRO } from './podcast-packaging.js';
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
@@ -87,7 +88,7 @@ export function createEpisodeSearchService(
 
     do {
       const page = await loadPage(CORPUS_PAGE_SIZE, cursor, languageCode);
-      for (const row of page.rows) episodes.push(prepareEpisode(row));
+      for (const row of page.rows) episodes.push(prepareEpisode(row, languageCode));
       cursor = page.nextCursor ? decodeCursor(page.nextCursor) : null;
     } while (cursor);
 
@@ -129,7 +130,11 @@ export function createEpisodeSearchService(
   return {
     async search(query, languageCode, limit) {
       const episodes = await getCorpus(languageCode);
-      return rankPreparedEpisodes(episodes, query, limit).map((result) => ({
+      return rankPreparedEpisodes(
+        episodes,
+        canonicalSearchText(query, languageCode),
+        limit,
+      ).map((result) => ({
         episode: toEpisodeResponse(result.row),
         matchSource: result.matchSource,
         snippet: result.snippet,
@@ -165,22 +170,35 @@ export function rankEpisodeSearchResults(
   return rankPreparedEpisodes(rows.map(prepareEpisode), rawQuery, limit);
 }
 
-function prepareEpisode(row: EpisodeListRow): PreparedEpisode {
-  const normalizedTitle = normalizeSearchText(row.title);
+function prepareEpisode(
+  row: EpisodeListRow,
+  languageCode: string = row.language_code,
+): PreparedEpisode {
+  const normalizedTitle = normalizeSearchText(
+    canonicalSearchText(row.title, languageCode),
+  );
   const script = row.script;
 
   return {
     row,
     normalizedTitle,
     compactTitle: compactSearchText(normalizedTitle),
-    normalizedScript: script ? normalizeSearchText(script) : '',
+    normalizedScript: script
+      ? normalizeSearchText(canonicalSearchText(script, languageCode))
+      : '',
     segments: script
       ? splitScriptSegments(script).map((text) => {
-          const normalized = normalizeSearchText(text);
+          const normalized = normalizeSearchText(
+            canonicalSearchText(text, languageCode),
+          );
           return { text, normalized, compact: compactSearchText(normalized) };
         })
       : [],
   };
+}
+
+function canonicalSearchText(value: string, languageCode: string): string {
+  return languageCode === 'zh-Hant' ? convertTextToZhCN(value) : value;
 }
 
 function rankPreparedEpisodes(
