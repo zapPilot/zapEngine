@@ -15,7 +15,7 @@ import {
 } from '@zapengine/media-release';
 import { mkdir, writeFile, rm } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { chromium } from 'playwright-core';
 import { preview } from 'vite';
@@ -92,28 +92,48 @@ function inspectDeck() {
   return { total: slides.length, problems };
 }
 
-/** PDF links go to the live site and are attributed to the PDF. Runs in the
- * page via page.evaluate, so it must stay self-contained (no imports).
- * Only same-origin https targets are written: the assigned href is rebuilt
- * from a constant origin plus the parsed path/query/hash, so neither scheme
- * nor host can come from page markup (`javascript:`, `data:` and foreign
- * origins are skipped). SITE_ORIGIN must match SITE_URL in
- * src/story/ja/site.ts; site.test.ts asserts every rendered data-pdf-href
- * already satisfies this. */
-const PDF_SITE_ORIGIN = 'https://www.kokode.xyz';
-function useAbsoluteLinks() {
-  for (const link of document.querySelectorAll('a[data-pdf-href]')) {
-    const target = link.getAttribute('data-pdf-href');
-    if (!target) continue;
-    let path;
+/**
+ * PDF links go to the live site and are attributed to the PDF. Validation
+ * runs in Node (unit-tested below): only same-origin https targets survive,
+ * and the href is rebuilt from a constant origin plus the parsed
+ * path/query/hash, so neither scheme nor host can come from page markup
+ * (`javascript:`, `data:` and foreign origins are dropped). The page itself
+ * only writes these pre-validated pairs, which keeps DOM text out of the
+ * href dataflow entirely (CodeQL js/xss-through-dom). PDF_SITE_ORIGIN must
+ * match SITE_URL in src/story/ja/site.ts; site.test.ts asserts every rendered
+ * data-pdf-href already satisfies this.
+ */
+export const PDF_SITE_ORIGIN = 'https://www.kokode.xyz';
+export function pdfHrefUpdates(targets) {
+  const updates = [];
+  targets.forEach((target, index) => {
+    if (!target) return;
+    let url;
     try {
-      const url = new URL(target);
-      if (url.origin !== PDF_SITE_ORIGIN) continue;
-      path = `${url.pathname}${url.search}${url.hash}`;
+      url = new URL(target);
     } catch {
-      continue;
+      return;
     }
-    link.setAttribute('href', `${PDF_SITE_ORIGIN}${path}`);
+    if (url.origin !== PDF_SITE_ORIGIN) return;
+    updates.push([
+      index,
+      `${PDF_SITE_ORIGIN}${url.pathname}${url.search}${url.hash}`,
+    ]);
+  });
+  return updates;
+}
+/** Read raw targets in the page, validate in Node, return safe pairs. */
+export async function pdfHrefUpdatesForPage(page) {
+  const targets = await page.$$eval('a[data-pdf-href]', (links) =>
+    links.map((link) => link.getAttribute('data-pdf-href')),
+  );
+  return pdfHrefUpdates(targets);
+}
+/** Page side: write only pre-validated pairs, never page markup. */
+function applyPdfHrefs(updates) {
+  const links = document.querySelectorAll('a[data-pdf-href]');
+  for (const [index, href] of updates) {
+    links[index]?.setAttribute('href', href);
   }
 }
 
@@ -122,64 +142,78 @@ function pdfPages(buffer) {
     .length;
 }
 
-for (const deck of DECKS)
-  await rm(path.join(outDir, `${deck.file}.json`), { force: true });
-const server = await preview({
-  root: appRoot,
-  logLevel: 'warn',
-  preview: { port: 0, open: false },
-});
-const base = server.resolvedUrls?.local[0];
-const browser = await chromium.launch();
-try {
-  if (!base) throw new Error('vite preview did not report a local URL');
-  const results = [];
-  for (const deck of DECKS) {
-    const page = await browser.newPage({
-      viewport: { width: 1280, height: 720 },
-    });
-    await page.goto(new URL(deck.path, base).toString(), {
-      waitUntil: 'networkidle',
-    });
-    await page.emulateMedia({ media: 'print' });
-    await page.evaluate(() => document.fonts.ready.then(() => true));
-    const { total, problems } = await page.evaluate(inspectDeck);
-    if (problems.length > 0) {
-      throw new Error(
-        `${deck.path} is not printable:\n  ${problems.join('\n  ')}`,
-      );
+async function main() {
+  for (const deck of DECKS)
+    await rm(path.join(outDir, `${deck.file}.json`), { force: true });
+  const server = await preview({
+    root: appRoot,
+    logLevel: 'warn',
+    preview: { port: 0, open: false },
+  });
+  const base = server.resolvedUrls?.local[0];
+  const browser = await chromium.launch();
+  try {
+    if (!base) throw new Error('vite preview did not report a local URL');
+    const results = [];
+    for (const deck of DECKS) {
+      const page = await browser.newPage({
+        viewport: { width: 1280, height: 720 },
+      });
+      await page.goto(new URL(deck.path, base).toString(), {
+        waitUntil: 'networkidle',
+      });
+      await page.emulateMedia({ media: 'print' });
+      await page.evaluate(() => document.fonts.ready.then(() => true));
+      const { total, problems } = await page.evaluate(inspectDeck);
+      if (problems.length > 0) {
+        throw new Error(
+          `${deck.path} is not printable:\n  ${problems.join('\n  ')}`,
+        );
+      }
+      await page.evaluate(applyPdfHrefs, await pdfHrefUpdatesForPage(page));
+      const pdf = await page.pdf({
+        printBackground: true,
+        preferCSSPageSize: true,
+      });
+      const pages = pdfPages(pdf);
+      if (pages !== total) {
+        throw new Error(
+          `${deck.path}: PDF has ${pages} pages for ${total} slides`,
+        );
+      }
+      const fingerprint = await page
+        .locator('meta[name="kokode-fingerprint"]')
+        .getAttribute('content');
+      if (!fingerprint) throw new Error('Missing deck fingerprint');
+      results.push({ ...deck, pdf, pages, fingerprint });
+      await page.close();
     }
-    await page.evaluate(useAbsoluteLinks);
-    const pdf = await page.pdf({
-      printBackground: true,
-      preferCSSPageSize: true,
-    });
-    const pages = pdfPages(pdf);
-    if (pages !== total) {
-      throw new Error(
-        `${deck.path}: PDF has ${pages} pages for ${total} slides`,
-      );
+    await mkdir(outDir, { recursive: true });
+    for (const { file, pdf, pages, fingerprint } of results) {
+      await writeFile(path.join(outDir, file), pdf);
+      await writeSidecar(path.join(outDir, `${file}.json`), {
+        fingerprint,
+        sha256: await sha256File(path.join(outDir, file)),
+        bytes: pdf.length,
+        renderedAt: new Date().toISOString(),
+        sourceCommit: readSourceCommit(appRoot),
+      });
+      console.log(`✓ output/${file} (${pages} pages)`);
     }
-    const fingerprint = await page
-      .locator('meta[name="kokode-fingerprint"]')
-      .getAttribute('content');
-    if (!fingerprint) throw new Error('Missing deck fingerprint');
-    results.push({ ...deck, pdf, pages, fingerprint });
-    await page.close();
+  } finally {
+    await browser.close();
+    await server.close();
   }
-  await mkdir(outDir, { recursive: true });
-  for (const { file, pdf, pages, fingerprint } of results) {
-    await writeFile(path.join(outDir, file), pdf);
-    await writeSidecar(path.join(outDir, `${file}.json`), {
-      fingerprint,
-      sha256: await sha256File(path.join(outDir, file)),
-      bytes: pdf.length,
-      renderedAt: new Date().toISOString(),
-      sourceCommit: readSourceCommit(appRoot),
-    });
-    console.log(`✓ output/${file} (${pages} pages)`);
+}
+
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href
+) {
+  try {
+    await main();
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : error);
+    process.exitCode = 1;
   }
-} finally {
-  await browser.close();
-  await server.close();
 }
