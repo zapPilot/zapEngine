@@ -2026,6 +2026,26 @@ describe('GET /episodes', () => {
     expect(body).toEqual(hydratedPage);
   });
 
+  it('returns Taiwan Traditional text for the zh-Hant app feed', async () => {
+    mockListHydratedEpisodeFeedPage.mockResolvedValue({
+      items: [
+        episodeFeedResponse(
+          feedRow({
+            title: '网络软件与鼠标',
+          }),
+        ),
+      ],
+      nextCursor: null,
+    });
+
+    const response = await app.request('/episodes?language=zh-Hant');
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.items[0].title).toBe('網路軟體與滑鼠');
+    expect(body.items[0].audioTracks[0].title).toBe('網路軟體與滑鼠');
+  });
+
   it('returns 400 for an invalid limit', async () => {
     const response = await app.request('/episodes?limit=abc');
 
