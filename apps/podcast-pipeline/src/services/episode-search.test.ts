@@ -346,6 +346,27 @@ describe('rankEpisodeSearchResults', () => {
 });
 
 describe('EpisodeSearchService', () => {
+  it('matches Taiwan Traditional queries against the Simplified zh-Hant corpus', async () => {
+    const loadPage = vi.fn().mockResolvedValue({
+      rows: [
+        row({
+          language_code: 'zh-Hant',
+          title: '网络软件市场',
+          script: '鼠标和自行车市场正在变化。',
+        }),
+      ],
+      nextCursor: null,
+    });
+    const service = createEpisodeSearchService({ loadPage });
+
+    const result = await service.search('網路軟體', 'zh-Hant', 20);
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.episode.title).toBe('网络软件市场');
+    expect(result[0]?.snippet).toBe('鼠标和自行车市场正在变化。');
+    expect(loadPage).toHaveBeenCalledWith(50, null, 'zh-Hant');
+  });
+
   it('reuses a language corpus until the five-minute TTL expires', async () => {
     let now = 1_000;
     const loadPage = vi.fn().mockResolvedValue({
