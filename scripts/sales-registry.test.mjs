@@ -16,6 +16,7 @@ test('getProduct returns the kokode entry with PDF and videos', () => {
     outDir: 'apps/kokode-ai/output',
   });
   assert.deepEqual(entry.videos, ['kokode-clinic']);
+  assert.equal(entry.publish.videoOutDir, 'apps/video/out/kokode-clinic');
 });
 
 test('zap-pilot is video-only by repository truth, not by omission', () => {

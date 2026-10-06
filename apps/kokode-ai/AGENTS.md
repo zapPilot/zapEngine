@@ -16,19 +16,19 @@ The workspace tests also cover the canonical root Edge Function handler.
 
 # Copy
 
-All copy lives in `src/story/`: the landing page, `/pitch/`, `/pitch/partner/`
+All copy lives in `packages/kokode-story/src/`: the landing page, `/pitch/`, `/pitch/partner/`
 and the apps/video `kokode-clinic` film render from it, each in the order of
-its own sequence in `src/story/narrative.ts`. `src/site/` only renders.
+its own sequence in `packages/kokode-story/src/narrative.ts`. `src/site/` only renders.
 
 - Never write copy in `src/site/`, page scripts or the HTML shells;
   `src/site/site.test.ts` fails on Japanese anywhere else.
-- A failing guardrail in `src/story/story.test.ts` means change the copy,
+- A failing guardrail in `packages/kokode-story/src/story.test.ts` means change the copy,
   never widen the guardrail. No revenue-share numbers or wording: the repo is
   public.
 - Every demo figure prints its `DEMOS[…].disclaimers`. Keep the `#contact`
   anchor and the ids in `src/dom-ids.ts`.
-- A story edit also changes the film, and `--affected` cannot see that link:
-  run `pnpm turbo run type-check test --filter=@zapengine/video` too. Editing
+- A story edit also changes the film; both apps declare `@zapengine/kokode-story`
+  as a workspace dependency so Turbo tracks the link. Verify both consumers. Editing
   an English `en` film line means paying to synthesise its narration again.
 
 - After hero copy changes, run `pnpm --filter @zapengine/kokode-ai og:render`;

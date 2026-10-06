@@ -79,7 +79,7 @@ const copy = (id: FilmSceneId): FilmProps => ({
 const vo = (id: FilmSceneId) => voLines(FILM[id].lines);
 
 /**
- * The film. Change words in apps/kokode-ai/src/story/film.ts; change timing
+ * The film. Change words in packages/kokode-story/src/film.ts; change timing
  * and cues here. Then `pnpm voiceover kokode-clinic` and
  * `pnpm stills kokode-clinic`.
  */

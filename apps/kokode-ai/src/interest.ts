@@ -1,5 +1,5 @@
 import { DOM_IDS } from './dom-ids';
-import { INTEREST } from './story/ja/form';
+import { INTEREST } from '@zapengine/kokode-story/ja/form';
 
 /** The option label for an interest id, or null for an unknown id. */
 export function interestLabel(id: string | null | undefined): string | null {

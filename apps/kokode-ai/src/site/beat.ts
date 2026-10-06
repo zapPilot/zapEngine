@@ -1,6 +1,6 @@
 export type Heading = 'h1' | 'h2' | 'h3';
-import { type Story } from '../story/localized';
-import type { Beat, BeatId } from '../story/types';
+import { type Story } from '@zapengine/kokode-story/localized';
+import type { Beat, BeatId } from '@zapengine/kokode-story/types';
 import { createFigures } from './figures';
 import { lines, markup, type Markup } from './markup';
 

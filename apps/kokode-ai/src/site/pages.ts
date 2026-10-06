@@ -1,9 +1,9 @@
 import { deckFingerprint } from '../media/fingerprints';
 import { deckDownload } from './media';
 import { markup } from './markup';
-import { localeFromLang } from '../story/locales';
-import { storyFor } from '../story/localized';
-import type { PageId } from '../story/ja/site';
+import { localeFromLang } from '@zapengine/kokode-story/locales';
+import { storyFor } from '@zapengine/kokode-story/localized';
+import type { PageId } from '@zapengine/kokode-story/ja/site';
 import { renderDeck } from './decks';
 import { renderLanding } from './landing';
 import { renderHead } from './meta';

@@ -1,5 +1,10 @@
-import type { PageId } from '../story/ja/site';
-import { LOCALES, LOCALE_INFO, pagePath, type Locale } from '../story/locales';
+import type { PageId } from '@zapengine/kokode-story/ja/site';
+import {
+  LOCALES,
+  LOCALE_INFO,
+  pagePath,
+  type Locale,
+} from '@zapengine/kokode-story/locales';
 import { ICONS } from './icons';
 import { markup, type Markup } from './markup';
 

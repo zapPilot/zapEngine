@@ -4,17 +4,6 @@
     "types": ["node", "vitest/globals"],
     "resolveJsonModule": true
   },
-  "include": [
-    "src/**/*",
-    "scripts/**/*",
-    "*.ts",
-    "../kokode-ai/src/story/**/*.ts"
-  ],
-  "exclude": [
-    "node_modules",
-    "build",
-    "out",
-    "coverage",
-    "../kokode-ai/src/story/**/*.test.ts"
-  ]
+  "include": ["src/**/*", "scripts/**/*", "*.ts"],
+  "exclude": ["node_modules", "build", "out", "coverage"]
 }

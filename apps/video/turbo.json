@@ -2,22 +2,9 @@
   "$schema": "https://turbo.build/schema.json",
   "extends": ["//"],
   "tasks": {
-    "build": {
-      "inputs": ["$TURBO_EXTENDS$", "$TURBO_ROOT$/apps/kokode-ai/src/story/**"]
-    },
-    "type-check": {
-      "inputs": ["$TURBO_EXTENDS$", "$TURBO_ROOT$/apps/kokode-ai/src/story/**"]
-    },
-    "lint": {
-      "inputs": ["$TURBO_EXTENDS$", "$TURBO_ROOT$/apps/kokode-ai/src/story/**"]
-    },
-    "deadcode": {
-      "inputs": ["$TURBO_EXTENDS$", "$TURBO_ROOT$/apps/kokode-ai/src/story/**"]
-    },
     "test": {
       "inputs": [
         "$TURBO_EXTENDS$",
-        "$TURBO_ROOT$/apps/kokode-ai/src/story/**",
         "$TURBO_ROOT$/apps/kokode-ai/src/styles/base.css",
         "$TURBO_ROOT$/apps/kokode-ai/public/favicon.svg"
       ]
@@ -25,7 +12,6 @@
     "test:coverage": {
       "inputs": [
         "$TURBO_EXTENDS$",
-        "$TURBO_ROOT$/apps/kokode-ai/src/story/**",
         "$TURBO_ROOT$/apps/kokode-ai/src/styles/base.css",
         "$TURBO_ROOT$/apps/kokode-ai/public/favicon.svg"
       ]

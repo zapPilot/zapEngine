@@ -37,7 +37,8 @@
     "react": "catalog:",
     "react-dom": "catalog:",
     "remotion": "4.0.532",
-    "zod": "4.5.4"
+    "zod": "4.5.4",
+    "@zapengine/kokode-story": "workspace:*"
   },
   "devDependencies": {
     "@remotion/bundler": "4.0.532",

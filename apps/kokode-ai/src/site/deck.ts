@@ -1,7 +1,7 @@
 import { languageSwitch } from './lang-switch';
-import { type Story } from '../story/localized';
-import type { PageMeta } from '../story/ja/site';
-import type { BeatId, Group } from '../story/types';
+import { type Story } from '@zapengine/kokode-story/localized';
+import type { PageMeta } from '@zapengine/kokode-story/ja/site';
+import type { BeatId, Group } from '@zapengine/kokode-story/types';
 import { createBeat } from './beat';
 import { ctaHref, toPdfHref } from './links';
 import { markup, type Markup } from './markup';

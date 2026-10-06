@@ -19,7 +19,7 @@
  * @typedef {object} ProductEntry
  * @property {string} label Human-readable name for the summary header.
  * @property {PdfEntry | null} pdf Null when the product has no PDF renderer.
- * @property {{filter:string,script:string,secrets:string[],manifest:string} | null} publish
+ * @property {{filter:string,script:string,secrets:string[],manifest:string,videoOutDir:string} | null} publish
  * @property {string[]} videos Video ids in `apps/video/src/videos/catalog.ts`.
  */
 
@@ -32,6 +32,7 @@ export const PRODUCTS = {
       script: 'media:publish',
       secrets: ['bash', 'apps/kokode-ai/scripts/infisical.sh', 'kokode', '--'],
       manifest: 'apps/kokode-ai/src/media/published.json',
+      videoOutDir: 'apps/video/out/kokode-clinic',
     },
     pdf: {
       filter: '@zapengine/kokode-ai',

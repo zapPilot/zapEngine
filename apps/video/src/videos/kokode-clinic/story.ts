@@ -1,7 +1,8 @@
-// The film's words come from the Kokode story (apps/kokode-ai/src/story), the
+// The film's words come from the Kokode story (packages/kokode-story/src), the
 // source the landing page and the decks render too. This is the only import
 // across the workspace boundary; it re-exports just what the film uses.
-import type { FilmLine } from '../../../../kokode-ai/src/story';
+import type { FilmLine } from '@zapengine/kokode-story';
+
 import type { VoLine } from '../../timeline/types';
 
 export type {
@@ -9,7 +10,7 @@ export type {
   DisclaimerId,
   FilmScene,
   FilmSceneId,
-} from '../../../../kokode-ai/src/story';
+} from '@zapengine/kokode-story';
 export {
   arcViolations,
   BEATS,
@@ -22,9 +23,9 @@ export {
   footnote,
   SITE,
   storyFor,
-} from '../../../../kokode-ai/src/story';
-export type { FilmBeatId } from '../../../../kokode-ai/src/story/film-story';
-export { filmStory } from '../../../../kokode-ai/src/story/film-story';
+} from '@zapengine/kokode-story';
+export type { FilmBeatId } from '@zapengine/kokode-story/film-story';
+export { filmStory } from '@zapengine/kokode-story/film-story';
 
 /** A film line as narration: `ja` is the caption, `en` is what is spoken. */
 export function voLines(lines: readonly FilmLine[]): VoLine[] {

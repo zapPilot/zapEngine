@@ -1,6 +1,6 @@
-import { DOCTOR_DECK, PARTNER_DECK } from '../story/narrative';
-import { storyFor, type Story } from '../story/localized';
-import type { Group } from '../story/types';
+import { DOCTOR_DECK, PARTNER_DECK } from '@zapengine/kokode-story/narrative';
+import { storyFor, type Story } from '@zapengine/kokode-story/localized';
+import type { Group } from '@zapengine/kokode-story/types';
 import { createDeck } from './deck';
 import { markup, type Markup } from './markup';
 

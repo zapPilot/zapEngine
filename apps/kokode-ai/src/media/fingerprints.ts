@@ -1,7 +1,7 @@
 import { fingerprintOf } from '@zapengine/media-release';
-import { filmStory } from '../story/film-story';
-import { LOCALES, type Locale } from '../story/locales';
-import { storyFor } from '../story/localized';
+import { filmStory } from '@zapengine/kokode-story/film-story';
+import { LOCALES, type Locale } from '@zapengine/kokode-story/locales';
+import { storyFor } from '@zapengine/kokode-story/localized';
 import { renderDeck, type DeckPage } from '../site/decks';
 export function deckFingerprint(page: DeckPage, locale: Locale): string {
   const story = storyFor(locale);

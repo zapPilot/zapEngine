@@ -12,7 +12,7 @@ const server = await createServer({ root, server: { port: 0, open: false } });
 await server.listen();
 const browser = await chromium.launch();
 try {
-  const { storyFor } = await server.ssrLoadModule('/src/story/localized.ts');
+  const { storyFor } = await import('@zapengine/kokode-story/localized');
   const { ogCardHtml, ogFingerprint } =
     await server.ssrLoadModule('/src/site/og.ts');
   const favicon = await readFile(path.join(root, 'public/favicon.svg'));
