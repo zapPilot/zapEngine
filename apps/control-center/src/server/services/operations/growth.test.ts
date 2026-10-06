@@ -57,9 +57,9 @@ describe('lazy growth operations', () => {
     });
     expect(first.lanes[0]?.waitlistSignups).toBeNull();
     expect(await get()).toBe(first);
-    expect(fetchImpl).toHaveBeenCalledTimes(5);
+    expect(fetchImpl).toHaveBeenCalledTimes(6);
     await get(true);
-    expect(fetchImpl).toHaveBeenCalledTimes(10);
+    expect(fetchImpl).toHaveBeenCalledTimes(12);
     expect(deps.socialGrowth.getSocialGrowth).toHaveBeenLastCalledWith(true);
     expect(deps.community).toHaveBeenLastCalledWith(true);
   });
@@ -106,6 +106,10 @@ it('composes packaging into the shared cached growth model', async () => {
   const fetchImpl = posthogQueryFetch();
   const get = createOperationsGrowth({ config, fetchImpl, ...dependencies() });
   const response = await get();
+  expect(response.ctaExperiment).toMatchObject({
+    key: 'landing-waitlist-cta-v2',
+    readiness: 'awaiting_data',
+  });
   expect(response.packaging).toMatchObject({
     status: 'insufficient',
     basis: 'observational',
@@ -115,7 +119,7 @@ it('composes packaging into the shared cached growth model', async () => {
   });
   expect(await get()).toBe(response);
   expect(source).toHaveBeenCalledTimes(1);
-  expect(fetchImpl).toHaveBeenCalledTimes(5);
+  expect(fetchImpl).toHaveBeenCalledTimes(6);
   source.mockRestore();
 });
 it('preserves a plain PostgREST packaging error in unavailable state', async () => {

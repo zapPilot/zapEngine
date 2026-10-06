@@ -212,6 +212,13 @@ not causality. Keep low-volume results inconclusive without sufficient evidence.
 Experiment decisions and results belong in operator issues; the initial landing
 CTA proposal is [issue #574](https://github.com/zapPilot/zapEngine/issues/574).
 
+`ops_growth.ctaExperiment` provides the versioned homepage CTA readout: mature
+anonymous visitors, ordered 24h visibility/form stages, first-touch durable
+signups joined by exposure ID, source/device segments, bounded failure reasons,
+exclusions and measurement availability. `baseline` is observational;
+`review_ready` is a sample floor, not a winner. See
+[the experiment runbook](../../docs/operations/landing-cta-experiment.md).
+
 ### GitHub Security (0.13.0)
 
 `ops_domain {domain:"security"}` reads the shared collector. Each of code scanning,

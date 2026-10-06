@@ -9,6 +9,8 @@ import { LINKS } from '@/config/links';
 import { MESSAGES } from '@/config/messages';
 import {
   trackCtaClicked,
+  trackCtaDiagnostic,
+  type CtaFailureReason,
   trackWaitlistSubmitted,
   type CtaLocation,
 } from '@/lib/analytics/events';
@@ -18,6 +20,7 @@ import {
 } from '@/lib/waitlist-attribution';
 
 import styles from './AppCtaLink.module.css';
+import { useCtaExperiment } from './CtaExperiment';
 import { DiscordLink } from './DiscordLink';
 
 /**
@@ -35,6 +38,12 @@ export function AppCtaLink({
   className: string;
   children: ReactNode;
 }) {
+  const { assignment, ensureAssignment } = useCtaExperiment();
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const formStarted = useRef(false);
+  const submitAttempted = useRef(false);
+  const visibleExposures = useRef(new Set<string>());
+  const formContext = useRef(assignment);
   const dialogRef = useRef<HTMLElement>(null);
   const [trigger, setTrigger] = useState<HTMLButtonElement | null>(null);
   const open = trigger !== null;
@@ -62,20 +71,71 @@ export function AppCtaLink({
       dialogRef.current?.querySelector<HTMLElement>('a[href]')?.focus();
   }, [joined, open]);
 
+  useEffect(() => {
+    if (
+      !assignment ||
+      !buttonRef.current ||
+      typeof IntersectionObserver === 'undefined'
+    )
+      return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (
+          entries.some(
+            (entry) => entry.isIntersecting && entry.intersectionRatio >= 0.5,
+          ) &&
+          !visibleExposures.current.has(assignment.exposureId)
+        ) {
+          visibleExposures.current.add(assignment.exposureId);
+          trackCtaDiagnostic('waitlist_cta_visible', assignment, { location });
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.5 },
+    );
+    observer.observe(buttonRef.current);
+    return () => observer.disconnect();
+  }, [assignment, location]);
+
   const openWaitlist = (event: MouseEvent<HTMLButtonElement>) => {
     captureWaitlistFirstTouch();
-    trackCtaClicked(location);
+    formContext.current = ensureAssignment();
+    if (
+      formContext.current &&
+      !visibleExposures.current.has(formContext.current.exposureId)
+    ) {
+      visibleExposures.current.add(formContext.current.exposureId);
+      trackCtaDiagnostic('waitlist_cta_visible', formContext.current, {
+        location,
+      });
+    }
+    formStarted.current = false;
+    submitAttempted.current = false;
+    trackCtaClicked(location, formContext.current);
+    trackCtaDiagnostic('waitlist_form_opened', formContext.current, {
+      location,
+    });
     setError(null);
     setTrigger(event.currentTarget);
   };
 
   const closeWaitlist = () => {
     if (submitting) return;
+    trackCtaDiagnostic('waitlist_form_closed', formContext.current, {
+      location,
+      started: formStarted.current,
+      submitted: submitAttempted.current,
+    });
     setTrigger(null);
   };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (submitting) return;
+    submitAttempted.current = true;
+    trackCtaDiagnostic('waitlist_submit_attempted', formContext.current, {
+      location,
+    });
     setSubmitting(true);
     setError(null);
 
@@ -84,24 +144,43 @@ export function AppCtaLink({
     const company = String(form.get('company') ?? '').trim();
     const attribution = readWaitlistAttribution();
 
+    let failure: CtaFailureReason = 'network_or_timeout';
     try {
       const response = await fetch(LINKS.waitlistApi, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
+        signal: AbortSignal.timeout(15000),
         body: JSON.stringify({
           email,
           company,
           ctaLocation: location,
+          ...(formContext.current
+            ? { ctaExperiment: formContext.current }
+            : {}),
           ...(attribution ?? {}),
         }),
       });
       if (!response.ok) {
+        failure =
+          response.status === 429
+            ? 'rate_limited'
+            : response.status >= 500
+              ? 'server_error'
+              : 'request_rejected';
         throw new Error('Waitlist signup failed');
       }
 
-      trackWaitlistSubmitted(location, Boolean(attribution?.utmSource));
+      trackWaitlistSubmitted(
+        location,
+        Boolean(attribution?.utmSource),
+        formContext.current,
+      );
       setJoined(true);
     } catch {
+      trackCtaDiagnostic('waitlist_form_error', formContext.current, {
+        location,
+        reason: failure,
+      });
       setError(copy.error);
     } finally {
       setSubmitting(false);
@@ -111,11 +190,18 @@ export function AppCtaLink({
   return (
     <>
       <button
+        ref={buttonRef}
         className={`${className} ${styles['trigger']}`}
         type="button"
         onClick={openWaitlist}
       >
-        {children}
+        {assignment?.variant === 'value_first' ? (
+          <>
+            {MESSAGES.ctaExperiment.cta} <span aria-hidden>→</span>
+          </>
+        ) : (
+          children
+        )}
       </button>
       {open
         ? createPortal(
@@ -179,13 +265,43 @@ export function AppCtaLink({
                   </div>
                 ) : (
                   <>
-                    <p className={styles['copy']}>{copy.body}</p>
-                    <form className={styles['form']} onSubmit={submit}>
+                    <p className={styles['copy']}>
+                      {formContext.current?.variant === 'value_first'
+                        ? MESSAGES.ctaExperiment.body
+                        : copy.body}
+                    </p>
+                    <form
+                      className={`${styles['form']} ph-no-capture`}
+                      onSubmit={submit}
+                    >
                       <label>
                         <span className={styles['honeypot']}>
                           {copy.emailLabel}
                         </span>
                         <input
+                          onChange={() => {
+                            if (!formStarted.current) {
+                              formStarted.current = true;
+                              trackCtaDiagnostic(
+                                'waitlist_form_started',
+                                formContext.current,
+                                { location },
+                              );
+                            }
+                          }}
+                          onInvalid={(event) =>
+                            trackCtaDiagnostic(
+                              'waitlist_form_error',
+                              formContext.current,
+                              {
+                                location,
+                                reason: event.currentTarget.validity
+                                  .valueMissing
+                                  ? 'required_email'
+                                  : 'invalid_email',
+                              },
+                            )
+                          }
                           autoComplete="email"
                           autoFocus
                           className={styles['email']}

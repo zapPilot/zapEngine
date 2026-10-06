@@ -1,3 +1,4 @@
+import { CtaExperimentPanel } from '../components/CtaExperimentPanel.js';
 import { AudienceGrowthCard } from '../components/AudienceGrowthCard.js';
 import { MeasuredViews } from '../components/ui/MeasuredViews.js';
 import { ContentPackagingCard } from '../components/ContentPackagingCard.js';
@@ -49,6 +50,8 @@ export function GrowthPage(props: {
   return (
     <div className="cc-stack">
       <DecisionBrief journey={props.journey} growth={props.growth} />
+
+      <CtaExperimentPanel reading={props.acquisition?.ctaExperiment ?? null} />
 
       <div className="growth-toolbar">
         <span>
