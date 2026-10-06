@@ -3,8 +3,9 @@
 Independent Vite + Vanilla TypeScript product in the ZapEngine monorepo.
 Source snapshot: i-xtsu-sixyou-ken-mei/kokode-ai at
 003a6d9849c3f8641826ef88f812c66ffd8a3d37 (2026-10-04).
-The original repository remains the authorship/history reference until production
-cutover is verified. Branding and domain remain https://www.kokode.xyz/.
+The original repository remains the authorship/history reference. Production
+now runs from this monorepo on GitHub Pages; branding and domain remain https://www.kokode.xyz/.
+See [deployment and migration records](docs/deployment.md).
 
 From the repository root:
 
@@ -81,24 +82,27 @@ Root supabase/functions/genba-lead owns the function and its handler tests.
 The ops script retains checks, function deployment/secrets and API E2E, but has no
 SQL/apply entry point. Kokode's own Infisical credentials remain separate.
 
-## Hosting cutover
+## Hosting (cut over 2026-10-06)
 
-.github/workflows/kokode-pages.yml validates PRs and releases only after the
-canonical CI main run succeeds (including database migrations). A successful
-release baseline catches changes missed by failed runs. Kokode source, function,
-adoption migration and shared build inputs trigger a release; unrelated product
-changes do not. Production E2E must pass before Pages publishes.
+`zapPilot/zapEngine` GitHub Pages publishes `apps/kokode-ai/dist` through
+`.github/workflows/kokode-pages.yml` after canonical main CI succeeds, media
+verification passes, and the backend deployment and self-cleaning E2E pass.
+Pages uses GitHub Actions, with `www.kokode.xyz` and Enforce HTTPS enabled.
+Cloudflare apex/www records point to `zappilot.github.io` in DNS-only mode.
+The old repo's custom-domain binding is removed and its `Build and deploy KOKODE`
+workflow is disabled; retain that repo for authorship/history.
 
-Before enabling rollout, configure GitHub Pages for Actions on zapEngine and
-transfer the www.kokode.xyz Pages custom-domain binding from the standalone repo.
-Use the kokode-production Environment for Kokode-specific credentials and public
-variables: VITE*SUPABASE_URL plus optional VITE*\_ values, and either
-`KOKODE_SUPABASE_ACCESS_TOKEN` or the two
-`KOKODE_INFISICAL_UNIVERSAL_AUTH_CLIENT_ID` and
-`KOKODE_INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET` secrets for an
-identity authorized to read Kokode's project. Do not broaden the Zap identity.
-This workflow does not transfer domain bindings or credentials automatically.
-Keep the old repository active until the monorepo site and waitlist are verified.
+`kokode-production` is restricted to main and stores the public
+`VITE_SUPABASE_URL` variable plus `KOKODE_SUPABASE_ACCESS_TOKEN`, sourced from
+Kokode's own Infisical project. The workflow also supports Kokode-specific
+universal-auth credentials instead of the token. PR builds use `kokode-preview`,
+which contains only public configuration. Build preflight rejects a missing or
+invalid Supabase URL so a locally queued form cannot silently ship to production.
+
+Optional public values are `VITE_SALES_EMAIL`, `VITE_SUPPORT_EMAIL`, and
+`VITE_ANALYTICS_ENDPOINT`. Do not broaden Zap Pilot's secret identity or put
+Kokode credentials into its env registry. Detailed verification, source revision,
+and rerun caveats are in [deployment.md](docs/deployment.md).
 
 ## Verification and remaining rollout checks
 
@@ -114,9 +118,8 @@ The root changed gate currently fails in existing desktop Knip config hints for
 @zapengine/types and @zapengine/app-core. Production db push --dry-run is reserved
 for protected main CI and has not run from this worktree. CI must confirm only the
 new adoption migration is pending, then an empty post-push dry-run. Deployment
-ops check --strict requires that adoption version to be recorded. The monorepo
-site has not been published; verify www.kokode.xyz and its waitlist again after
-the Pages/Environment cutover before retiring the old repository.
+ops check --strict requires that adoption version to be recorded. The monorepo site was published on 2026-10-06; post-cutover routes, assets and
+lead E2E passed. The old deployment workflow is disabled; see the deployment record.
 
 ## Assets and sharing cards
 
@@ -149,14 +152,11 @@ Chromium with Hiragino/PingFang and writes committed PNGs and
 All nine pages share their language's card, including noindex decks; smoke checks
 that each card is available as `image/png`.
 
-At cutover, enforce HTTPS: the function allows HTTPS origins, so HTTP visitors
-cannot submit successfully. After validating the new site, freeze the standalone
-repo's `Build and deploy KOKODE` workflow (or archive it): every push there can
-redeploy the shared function and reset its CORS secret. Canonical publication is
-gated by the complete main CI run, including unrelated package failures.
-Restrict the production environment to main before provisioning project credentials.
-After the first successful release, run the self-cleaning lead E2E and verify
-aggregate lead counts against a fresh baseline.
+HTTPS enforcement and HTTP/apex redirects were verified at cutover. The old
+`Build and deploy KOKODE` workflow is disabled so it cannot redeploy the shared
+function or reset its CORS secret. Canonical publication remains gated by the
+complete main CI run, including unrelated package failures. Production is
+restricted to main; post-cutover self-cleaning lead E2E passed.
 
 ## Consolidation decisions (2026-10-05)
 
@@ -227,6 +227,7 @@ render: they are intentionally outside content fingerprints. PDF sidecars
 read the build's fingerprint meta tag; video/poster sidecars come from the
 same story projection as the renderer. Sidecars are removed before rendering.
 
-The independent legacy repository still serves www.kokode.xyz. R2 media is
-public immediately; landing changes reach production after the separately
-tracked Pages cutover. This work does not perform that cutover.
+The monorepo GitHub Pages site serves www.kokode.xyz after the 2026-10-06 cutover.
+R2 media is public immediately; landing changes reach production only through the
+CI-gated Pages workflow. The ownership/updates story refresh remains on its PR
+branch until narration and media publication are complete.
