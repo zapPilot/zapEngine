@@ -22,7 +22,7 @@ Read the nearest scoped `AGENTS.md` before changing code. Scoped rules may add t
 
 ## Messaging
 
-Use [.agents/skills/persuasive-messaging/SKILL.md](.agents/skills/persuasive-messaging/SKILL.md) for marketing copy, positioning, pitch decks, promo video packaging and editorial titles.
+Use [.agents/skills/persuasive-messaging/SKILL.md](.agents/skills/persuasive-messaging/SKILL.md) for marketing copy, positioning, pitch decks, promo video packaging, editorial titles and podcast narration scripts.
 Technical docs and functional UI strings are outside this scope.
 
 ## Fish Audio: free models only

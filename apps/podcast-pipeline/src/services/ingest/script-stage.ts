@@ -59,6 +59,11 @@ interface ScrapedArticleState {
 const LONG_SOURCE_MIN_CHARS = 2_500;
 const MIN_LONG_SCRIPT_CHARS = 300;
 const MIN_SCRIPT_TO_SOURCE_RATIO = 0.1;
+// The narration prompt caps the body at about 3,500 characters, so the
+// proportional floor has to stop well short of that: a 35k-character source
+// (the longest in recent months) would otherwise demand 3.5k characters and
+// reject a script that did exactly what the prompt asked.
+const MAX_MINIMUM_SCRIPT_CHARS = 1_500;
 
 function nonWhitespaceCharacterCount(value: string): number {
   return [...value.replace(/\s/gu, '')].length;
@@ -69,10 +74,10 @@ function nonWhitespaceCharacterCount(value: string): number {
  * prompt, but a response containing no letters/numbers, or a long article that
  * collapses to a tiny fraction of its source, must never advance to TTS.
  *
- * The ratio is intentionally lenient: the script prompt asks for full coverage
- * and explicitly forbids summarization, while 10% still leaves plenty of room
- * for wording differences without mistaking a legitimate short article for a
- * failure.
+ * The ratio is intentionally lenient: the script prompt compresses secondary
+ * material and caps the body length, while 10% (never more than
+ * `MAX_MINIMUM_SCRIPT_CHARS`) still catches a collapse into a summary without
+ * mistaking a legitimate short article or a capped long one for a failure.
  */
 export function assertGeneratedScriptQuality(
   script: string,
@@ -87,9 +92,12 @@ export function assertGeneratedScriptQuality(
   if (sourceChars < LONG_SOURCE_MIN_CHARS) return;
 
   const scriptChars = nonWhitespaceCharacterCount(body);
-  const minimumScriptChars = Math.max(
-    MIN_LONG_SCRIPT_CHARS,
-    Math.floor(sourceChars * MIN_SCRIPT_TO_SOURCE_RATIO),
+  const minimumScriptChars = Math.min(
+    MAX_MINIMUM_SCRIPT_CHARS,
+    Math.max(
+      MIN_LONG_SCRIPT_CHARS,
+      Math.floor(sourceChars * MIN_SCRIPT_TO_SOURCE_RATIO),
+    ),
   );
   if (scriptChars >= minimumScriptChars) return;
 
