@@ -21,6 +21,8 @@ export type BeatId =
   | 'boundary'
   | 'demoPatient'
   | 'demoImage'
+  | 'ownership'
+  | 'updates'
   | 'turnkey'
   | 'startSmall'
   | 'pilot'

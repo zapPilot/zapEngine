@@ -21,8 +21,8 @@ pnpm --filter @zapengine/kokode-ai ops check
 | Path                      | What                                          |
 | ------------------------- | --------------------------------------------- |
 | `/`                       | Landing page with the pilot form (`#contact`) |
-| `/pitch/`                 | Deck for doctors, 12 slides, noindex          |
-| `/pitch/partner/`         | Deck for sales partners, 13 slides, noindex   |
+| `/pitch/`                 | Deck for doctors, 14 slides, noindex          |
+| `/pitch/partner/`         | Deck for sales partners, 15 slides, noindex   |
 | `/og/{ja,en,zh-Hant}.png` | Localized 1200×630 sharing cards              |
 | `/privacy.html`           | Privacy policy, hand-written                  |
 
@@ -160,14 +160,14 @@ aggregate lead counts against a fresh baseline.
 
 ## Consolidation decisions (2026-10-05)
 
-| Area                           | Final decision                                                                                                                                                                |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Lead capture                   | Keep canonical browser queue, handler, migrations and workflow unchanged; strict production check and ten self-cleaning E2E assertions passed, aggregate count stayed at one. |
-| Hero, clinical demos and pilot | Keep canonical pain → demo → boundary → pilot sequence; add document-search and voice examples to match the form.                                                             |
-| Hardware scale                 | Combine canonical start-small story with three illustrative equipment sizes; no retired SKU names, extra prices or availability promises.                                     |
-| Updates and operations         | Restore consultation about updates/support; delivery follows facility network policy, without claiming offline updates already exist.                                         |
-| Pricing and CTA                | Keep one PoC price and consultation CTA; clarify English task ownership and select-based form wording.                                                                        |
-| SEO and sharing                | Add on-premises descriptions and localized cards generated only from story copy; retire GENBA artwork.                                                                        |
+| Area                           | Final decision                                                                                                                                                                           |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Lead capture                   | Keep canonical browser queue, handler, migrations and workflow unchanged; strict production check and ten self-cleaning E2E assertions passed, aggregate count stayed at one.            |
+| Hero, clinical demos and pilot | Keep canonical pain → demo → boundary → pilot sequence; add document-search and voice examples to match the form.                                                                        |
+| Hardware scale                 | Combine canonical start-small story with three illustrative equipment sizes; no retired SKU names, extra prices or availability promises.                                                |
+| Updates and operations         | Partially superseded by the 2026-10-06 product decision: describe USB/offline delivery and facility-managed backups; signed updates, rollback and encryption remain implementation gaps. |
+| Pricing and CTA                | Keep one PoC price and consultation CTA; clarify English task ownership and select-based form wording.                                                                                   |
+| SEO and sharing                | Add on-premises descriptions and localized cards generated only from story copy; retire GENBA artwork.                                                                                   |
 
 Verification: Kokode 157 tests and video 223 tests passed, with type checks,
 build, formatting, nine-page mobile/desktop smoke, all six PDF overflow checks

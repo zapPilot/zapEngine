@@ -4,9 +4,9 @@ import type { Beat, BeatId } from '../types.js';
 export const BEATS: { readonly [Id in BeatId]: Beat } = {
   hero: {
     eyebrow: 'AI, here.',
-    title: ['Patient data stays', 'inside.'],
+    title: ['No cloud upload.', 'Data stays inside.'],
     body: [
-      'AI you can ask through chat, within your facility network.',
+      'AI runs inside your facility. Everyday use needs no internet connection.',
       'KOKODE handles the equipment and setup.',
     ],
     action: { label: 'Discuss a pilot' },
@@ -42,7 +42,7 @@ export const BEATS: { readonly [Id in BeatId]: Beat } = {
     eyebrow: 'KOKODE',
     title: ['AI that runs inside,', 'for your facility.'],
     body: [
-      'KOKODE runs AI on equipment installed in your facility. Work involving patient data is designed to stay inside.',
+      'KOKODE runs AI on equipment installed in your facility. Patient-data work stays inside, with no internet connection needed for everyday use.',
     ],
     notes: ['normalOperation'],
   },
@@ -56,15 +56,15 @@ export const BEATS: { readonly [Id in BeatId]: Beat } = {
     eyebrow: 'How to use it',
     title: ['Open your browser.', 'Work as usual.'],
     body: [
-      'On a PC or tablet connected to the staff network, open kokode.local in your browser. Ask through chat, as with ChatGPT. You do not need to sit at the server.',
+      'On a PC or tablet connected to the staff network, open kokode.local in your browser and sign in. Ask through chat, as with ChatGPT. You do not need to sit at the server.',
     ],
     figure: 'experience',
   },
   boundary: {
     eyebrow: 'Connection boundary',
-    title: ['AI you can use', 'only inside.'],
+    title: ['AI for your facility', 'network only.'],
     body: [
-      'Only signed-in devices on the staff network can use KOKODE. It cannot be reached from outside. We configure it separately from patient Wi-Fi.',
+      'Only signed-in devices on an authorized facility network, via wired LAN or staff Wi-Fi, can use KOKODE. It cannot be reached from outside. We configure it separately from patient Wi-Fi.',
     ],
     figure: 'boundary',
   },
@@ -91,17 +91,33 @@ export const BEATS: { readonly [Id in BeatId]: Beat } = {
     eyebrow: 'One coordinated setup',
     title: ['KOKODE sets it up.', 'Your team uses it.'],
     body: [
-      'Equipment, AI models, agents tailored to your workflows and a staff chat interface. KOKODE installs and configures the whole set.',
-      'After installation, we keep models and agents up to date and help with operations. How updates arrive follows your facility’s network policy.',
+      'Equipment, AI models, facility knowledge, workflow agents and chat. KOKODE configures the whole set, including sign-in and backups, before delivery.',
+      'After delivery, your team uses it without technical setup work. KOKODE also handles updates and operational support.',
     ],
     figure: 'turnkey',
+  },
+  ownership: {
+    eyebrow: 'Your facility’s assets',
+    title: ['What you build inside', 'stays yours.'],
+    body: [
+      'Documents, conversations, workflows and settings stay inside and belong to your facility.',
+      'The AI model is a replaceable part. Your accumulated knowledge stays yours when the model changes.',
+    ],
+  },
+  updates: {
+    eyebrow: 'Updates and backups',
+    title: ['Keep updates and backups', 'under your control.'],
+    body: [
+      'Bring update files inside by USB or similar media, without connecting to the internet.',
+      'Backups go to storage managed by your facility, never to KOKODE’s cloud.',
+    ],
   },
   startSmall: {
     eyebrow: 'Getting started',
     title: ['One device.', 'One workflow.'],
     body: [
       'You do not need a GPU rack to start. Begin by trying one workflow on one small device.',
-      'If you outgrow one device, we will size the equipment to your facility with you.',
+      'If you outgrow one device, we will size the equipment to your facility with you. Larger equipment keeps the same experience.',
     ],
     figure: 'hardware',
     notes: ['hardwareImage'],
@@ -153,7 +169,7 @@ export const BEATS: { readonly [Id in BeatId]: Beat } = {
     eyebrow: 'Your role',
     title: ['No AI engineer', 'or GPU expertise needed.'],
     body: [
-      'KOKODE handles equipment selection, AI model setup and support after installation. Introduce us through your client relationships.',
+      'KOKODE handles equipment selection, AI model setup, update and backup arrangements, and support after installation. Introduce us through your client relationships.',
     ],
   },
   partnerRoles: {

@@ -192,9 +192,9 @@ describe('narrative', () => {
   );
 
   it('has the slide counts the handoff asks for', () => {
-    expect(DOCTOR_DECK).toHaveLength(12);
-    expect(PARTNER_DECK).toHaveLength(13);
-    expect(PARTNER_DECK.slice(0, 9)).toEqual(DOCTOR_DECK.slice(0, 9));
+    expect(DOCTOR_DECK).toHaveLength(14);
+    expect(PARTNER_DECK).toHaveLength(15);
+    expect(PARTNER_DECK.slice(0, 11)).toEqual(DOCTOR_DECK.slice(0, 11));
   });
 
   it('uses every beat on some surface', () => {

@@ -4,9 +4,9 @@ import type { Beat, BeatId } from '../types.js';
 export const BEATS: { readonly [Id in BeatId]: Beat } = {
   hero: {
     eyebrow: 'AI，就在這裡。',
-    title: ['患者資料，', '留在院內的 AI。'],
+    title: ['不送上雲端。', '不離開院內。'],
     body: [
-      '透過聊天輕鬆交辦的 AI，只在院內網路使用。',
+      'AI 在院內運作，日常使用不需要網際網路。',
       '從設備準備到設定，由 KOKODE 導入。',
     ],
     action: { label: '洽詢試行方案' },
@@ -42,7 +42,7 @@ export const BEATS: { readonly [Id in BeatId]: Beat } = {
     eyebrow: 'KOKODE',
     title: ['在院內運作，', '專屬於機構的 AI。'],
     body: [
-      'KOKODE 在院內設備上運行 AI，處理患者資料的工作也設計為在院內完成。',
+      'KOKODE 在院內設備上運行 AI，處理患者資料的工作留在院內，日常使用不需要網際網路。',
     ],
     notes: ['normalOperation'],
   },
@@ -56,15 +56,15 @@ export const BEATS: { readonly [Id in BeatId]: Beat } = {
     eyebrow: '使用方式',
     title: ['打開瀏覽器，', '像平常一樣使用。'],
     body: [
-      '在連接員工網路的電腦或平板上，用瀏覽器開啟 kokode.local，即可像使用 ChatGPT 一樣透過聊天交辦，不必坐在伺服器前。',
+      '在連接員工網路的電腦或平板上，用瀏覽器開啟 kokode.local 並登入，即可像使用 ChatGPT 一樣透過聊天交辦，不必坐在伺服器前。',
     ],
     figure: 'experience',
   },
   boundary: {
     eyebrow: '連線範圍',
-    title: ['只有在院內，', '才能使用的 AI。'],
+    title: ['只在院內網路', '使用的 AI。'],
     body: [
-      '只有連接員工網路並登入的裝置才能使用 KOKODE，院外無法連線，設定時也會與患者用 Wi-Fi 分開。',
+      '只有連接院內授權網路（有線 LAN 或員工 Wi-Fi）並登入的裝置才能使用 KOKODE，院外無法連線，設定時也會與患者用 Wi-Fi 分開。',
     ],
     figure: 'boundary',
   },
@@ -87,17 +87,33 @@ export const BEATS: { readonly [Id in BeatId]: Beat } = {
     eyebrow: '整套導入',
     title: ['由 KOKODE 導入，', '由院內團隊使用。'],
     body: [
-      '設備、AI 模型、符合工作流程的代理，以及員工使用的聊天介面，由 KOKODE 整套導入並設定。',
-      '導入後，我們也提供模型與代理更新及維運諮詢。更新的交付方式依設施的網路政策決定。',
+      '設備、AI 模型、院內知識、工作代理與聊天介面，包含登入與備份設定，由 KOKODE 整套設定好才交付。',
+      '交付後，院內團隊不必做技術設定就能使用。更新與維運支援也由 KOKODE 負責。',
     ],
     figure: 'turnkey',
+  },
+  ownership: {
+    eyebrow: '機構的資產',
+    title: ['在院內累積的內容，', '都屬於機構。'],
+    body: [
+      '文件、對話、工作流程與設定都留在院內，屬於機構的資產。',
+      'AI 模型是可以替換的零件。更換模型，累積的知識仍屬於機構。',
+    ],
+  },
+  updates: {
+    eyebrow: '更新與備份',
+    title: ['更新與備份，', '都由機構掌握。'],
+    body: [
+      '更新資料可用 USB 等方式帶進院內，不必連網。',
+      '備份存到機構自己管理的保存先，不送 KOKODE 的雲端。',
+    ],
   },
   startSmall: {
     eyebrow: '開始方式',
     title: ['先從一台設備，', '一項工作開始。'],
     body: [
       '不必一開始就準備 GPU 機架，可先用一台小型設備試行一項工作。',
-      '規模擴大時，可與我們討論符合設施需求的設備配置。',
+      '規模擴大時，可與我們討論符合設施需求的設備配置。設備變大，使用方式仍然相同。',
     ],
     figure: 'hardware',
     notes: ['hardwareImage'],
@@ -143,7 +159,7 @@ export const BEATS: { readonly [Id in BeatId]: Beat } = {
     eyebrow: '合作夥伴的角色',
     title: ['不需要 AI 工程師，', '也不需要 GPU 專業知識。'],
     body: [
-      '設備選型、AI 模型設定、導入後支援由 KOKODE 負責，請運用您與客戶的關係為我們引介。',
+      '設備選型、AI 模型設定、更新與備份的安排及導入後支援由 KOKODE 負責，請運用您與客戶的關係為我們引介。',
     ],
   },
   partnerRoles: {

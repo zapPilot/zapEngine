@@ -36,8 +36,7 @@ export const FIGURES: CopyShape<typeof Japanese.FIGURES> = {
     },
   },
   boundary: {
-    caption:
-      'Only signed-in devices on the facility staff network connect to KOKODE',
+    caption: 'Only signed-in devices on authorized facility networks connect',
     inside: 'Inside',
     network: 'Staff network',
     devices: ['PC', 'Tablet'],
@@ -52,6 +51,7 @@ export const FIGURES: CopyShape<typeof Japanese.FIGURES> = {
     layers: [
       { title: 'Chat interface', text: 'Staff use a browser' },
       { title: 'Agents', text: 'Workflow-specific steps' },
+      { title: 'Facility knowledge', text: 'Documents, chat and workflows' },
       { title: 'AI models', text: 'Run on equipment inside' },
       { title: 'Hardware', text: 'Equipment installed inside' },
     ],
@@ -62,6 +62,6 @@ export const FIGURES: CopyShape<typeof Japanese.FIGURES> = {
     caption: 'Responsibilities of facilities, partners and KOKODE',
     client: { title: 'Medical facility', text: 'Use AI inside' },
     partner: { title: 'Partner', text: 'Introductions / client contact' },
-    kokode: { title: 'KOKODE', text: 'Installation / setup / support' },
+    kokode: { title: 'KOKODE', text: 'Setup / updates / backup support' },
   },
 } as const;
