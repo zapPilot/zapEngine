@@ -42,7 +42,7 @@ export const META: { readonly [Id in PageId]: PageMeta } = {
     path: '/en/',
     title: `KOKODE | ${tagline}`,
     description:
-      'On-premises AI for medical facilities, used only within the facility network. KOKODE handles equipment preparation and setup. Start with one device and one workflow.',
+      'AI runs inside your medical facility. Everyday use needs no internet. Sign in on an authorized facility network. KOKODE sets it up before delivery. Start with one device and one workflow.',
     robots: 'index,follow',
   },
   pitch: {

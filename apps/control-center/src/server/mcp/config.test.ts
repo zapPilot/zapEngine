@@ -10,19 +10,26 @@ describe('Ops MCP repository wiring', () => {
     const raw = await readFile(path.join(repoRoot, '.mcp.json'), 'utf8');
     const config = JSON.parse(raw) as McpConfig;
 
-    expect(config.mcpServers['zap-pilot-ops']).toEqual({
-      command: 'node',
-      args: ['scripts/ops-mcp.mjs'],
-    });
+    const entry = config.mcpServers['zap-pilot-ops'];
+    expect(entry?.command).toBe('node');
+    expect(entry?.args?.length).toBe(2);
+    expect(entry?.args?.[0]).toBe('-e');
+    // The launcher resolves the primary checkout so every worktree uses one
+    // entry point (see scripts/ops-mcp-config.test.mjs for the behavior).
+    expect(entry?.args?.[1]).toContain('scripts/ops-mcp.mjs');
+    expect(entry?.args?.[1]).toContain('--git-common-dir');
   });
 
   it('advertises the same launcher to OpenCode', async () => {
+    const claudeRaw = await readFile(path.join(repoRoot, '.mcp.json'), 'utf8');
+    const claude = JSON.parse(claudeRaw) as McpConfig;
     const raw = await readFile(path.join(repoRoot, 'opencode.json'), 'utf8');
     const config = JSON.parse(raw) as OpenCodeConfig;
 
+    const claudeEntry = claude.mcpServers['zap-pilot-ops'];
     expect(config.mcp['zap-pilot-ops']).toMatchObject({
       type: 'local',
-      command: ['node', 'scripts/ops-mcp.mjs'],
+      command: [claudeEntry?.command, ...(claudeEntry?.args ?? [])],
       enabled: true,
     });
   });

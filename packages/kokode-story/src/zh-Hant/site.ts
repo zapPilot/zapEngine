@@ -42,7 +42,7 @@ export const META: { readonly [Id in PageId]: PageMeta } = {
     path: '/zh/',
     title: `KOKODE | ${tagline}`,
     description:
-      '醫療機構專用的地端 AI，在院內網路中使用。從設備準備到設定，由 KOKODE 負責導入。先從一台設備、一項工作開始。',
+      'AI 在醫療機構院內運作，日常使用不必連網，從院內授權網路登入使用。KOKODE 整套設定好才交付，先從一台設備、一項工作開始。',
     robots: 'index,follow',
   },
   pitch: {

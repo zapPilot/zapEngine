@@ -32,7 +32,7 @@ export const FIGURES: CopyShape<typeof Japanese.FIGURES> = {
     },
   },
   boundary: {
-    caption: '只有登入院內員工網路的裝置能連接 KOKODE',
+    caption: '只有連接院內授權網路並登入的裝置能連接 KOKODE',
     inside: '院內',
     network: '員工網路',
     devices: ['PC', '平板'],
@@ -47,6 +47,7 @@ export const FIGURES: CopyShape<typeof Japanese.FIGURES> = {
     layers: [
       { title: '聊天介面', text: '員工透過瀏覽器使用' },
       { title: '代理', text: '配合工作的流程' },
+      { title: '院內知識', text: '文件、對話與工作流程' },
       { title: 'AI 模型', text: '在院內設備上運行' },
       { title: '硬體', text: '設置於院內的設備' },
     ],
@@ -56,6 +57,6 @@ export const FIGURES: CopyShape<typeof Japanese.FIGURES> = {
     caption: '醫療機構、合作夥伴與 KOKODE 的角色分工',
     client: { title: '醫療機構', text: '在院內使用 AI' },
     partner: { title: '合作夥伴', text: '引介／客戶窗口' },
-    kokode: { title: 'KOKODE', text: '導入／設定／支援' },
+    kokode: { title: 'KOKODE', text: '導入／更新／備份支援' },
   },
 } as const;

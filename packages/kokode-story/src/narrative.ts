@@ -11,6 +11,7 @@ export const LANDING = [
   { id: 'howItWorks', beats: ['solution', 'beforeAfter', 'boundary'] },
   { id: 'familiar', beats: ['experience'] },
   { id: 'turnkey', beats: ['turnkey'] },
+  { id: 'ownership', beats: ['ownership', 'updates'] },
   { id: 'startSmall', beats: ['startSmall'] },
   { id: 'contact', beats: ['pilot', 'cta'] },
 ] as const satisfies readonly Group[];
@@ -28,6 +29,8 @@ export const DOCTOR_DECK = [
   { id: 'inside', beats: ['experience', 'boundary'] },
   { id: 'demos', beats: ['demoPatient', 'demoImage'] },
   { id: 'turnkey', beats: ['turnkey'] },
+  { id: 'ownership', beats: ['ownership'] },
+  { id: 'updates', beats: ['updates'] },
   { id: 'start-small', beats: ['startSmall'] },
   { id: 'pilot', beats: ['pilot'] },
   { id: 'cta', beats: ['cta'] },
@@ -35,7 +38,7 @@ export const DOCTOR_DECK = [
 
 /** The partner deck: the doctor story up to the stack, then the partner ask. */
 export const PARTNER_DECK = [
-  ...DOCTOR_DECK.slice(0, 9),
+  ...DOCTOR_DECK.slice(0, 11),
   { id: 'partner-demand', beats: ['partnerDemand'] },
   { id: 'partner-gap', beats: ['partnerGap'] },
   { id: 'partner-roles', beats: ['partnerRoles'] },

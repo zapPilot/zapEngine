@@ -72,15 +72,15 @@ export const FILM: { readonly [Id in FilmSceneId]: FilmScene } = {
       },
       {
         id: 'turn-solution',
-        ja: 'KOKODEは、院内で動く施設専用のAIです。',
-        'zh-Hant': 'KOKODE 是在院內運作、專屬於機構的 AI。',
-        en: 'Kokode is AI that runs inside your facility, built for your facility alone.',
+        ja: 'KOKODEは院内で動くAI。ふだんはインターネット不要です。',
+        'zh-Hant': 'KOKODE 在院內運作，日常使用不必連網。',
+        en: 'Kokode is AI inside your facility. Everyday use needs no internet.',
       },
       {
         id: 'turn-experience',
-        ja: 'スタッフは、いつものブラウザを開くだけ。',
-        'zh-Hant': '員工只要在院內網路打開瀏覽器。',
-        en: 'Staff simply open a browser on the staff network. No one sits at a server.',
+        ja: 'スタッフはブラウザを開き、ログインするだけ。',
+        'zh-Hant': '員工只要在院內網路打開瀏覽器並登入。',
+        en: 'Staff simply open a browser on the staff network and sign in.',
       },
     ],
     headline: 'desiredWorld',
@@ -126,9 +126,10 @@ export const FILM: { readonly [Id in FilmSceneId]: FilmScene } = {
     lines: [
       {
         id: 'reveal',
-        ja: '導入はKOKODE。使うのは、院内のチームです。',
-        'zh-Hant': '由 KOKODE 整套導入，院內團隊直接使用。',
-        en: 'Hardware, model, agents and chat: Kokode sets it all up. Your team just uses it.',
+        ja: '機器から院内の知識までKOKODEが設定。使うのは院内のチーム。蓄積は施設のものです。',
+        'zh-Hant':
+          '從設備到院內知識，由 KOKODE 整套設定。團隊直接使用，累積的內容都屬於機構。',
+        en: 'Hardware, model, knowledge, agents and chat: Kokode sets it all up. Your team uses it, and it all stays yours.',
       },
     ],
     headline: 'turnkey',
@@ -139,9 +140,9 @@ export const FILM: { readonly [Id in FilmSceneId]: FilmScene } = {
     lines: [
       {
         id: 'boundary',
-        ja: '院内にいるときだけ使えるAI。院外からは、つながりません。',
-        'zh-Hant': '只有院內員工網路能使用，院外無法連線。',
-        en: 'It works only while you are inside, on the staff network. From outside the building, it simply will not connect.',
+        ja: '院内の許可されたネットワークで、ログインして使うAI。院外からはつながりません。',
+        'zh-Hant': '從院內授權員工網路登入使用，院外無法連線。',
+        en: 'Sign in on the authorized staff network to use it. From outside, it will not connect.',
       },
     ],
     headline: 'boundary',

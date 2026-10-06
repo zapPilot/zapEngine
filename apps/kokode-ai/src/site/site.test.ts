@@ -73,8 +73,8 @@ describe('structure', () => {
 
   it('numbers every slide and declares the total', () => {
     for (const [doc, total] of [
-      [pitch, 12],
-      [partner, 13],
+      [pitch, 14],
+      [partner, 15],
     ] as const) {
       const deck = doc.querySelector<HTMLElement>('.deck');
       expect(deck?.dataset['slideTotal']).toBe(String(total));

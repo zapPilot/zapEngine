@@ -12,7 +12,6 @@ MGMT_API="https://api.supabase.com/v1"
 FUNCTION_NAME="genba-lead"
 SITE_ORIGIN="https://www.kokode.xyz"
 # KOKODE_LEAD_ALLOWED_ORIGINS is project-wide; keep the KOKODE site allowed.
-EXTRA_ORIGINS="https://i-xtsu-sixyou-ken-mei.github.io"
 DEV_ORIGIN="http://localhost:5173"
 E2E_EMAIL_LIKE='e2e+%@example.com'
 # zapEngine's exposed schemas; they must survive every KOKODE change.
@@ -179,7 +178,7 @@ task_secrets() {
   load_token
   log "setting KOKODE_LEAD_ALLOWED_ORIGINS (function secrets are project-wide)"
   run_with_token "${SUPABASE_CLI[@]}" secrets set \
-    "KOKODE_LEAD_ALLOWED_ORIGINS=$SITE_ORIGIN,$EXTRA_ORIGINS,$DEV_ORIGIN" \
+    "KOKODE_LEAD_ALLOWED_ORIGINS=$SITE_ORIGIN,$DEV_ORIGIN" \
     --project-ref "$PROJECT_REF"
 }
 
