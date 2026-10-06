@@ -123,24 +123,20 @@ it('writes selected clip provenance, linear mastering, seams and beds with pendi
     await rm(input.work, { recursive: true, force: true });
   }
 });
-it(
-  'candidate auditions stay in the disposable workspace',
-  async () => {
-    const input = await job(true);
-    try {
-      mocks.find.mockReturnValue([candidate, { ...candidate, startSeconds: 2 }]);
-      await cutLoop({ ...input, start: 32, bars: 4 });
-      expect(
-        await readFile(path.join(input.work, 'candidate-2.mp3'), 'utf8'),
-      ).toBe('mp3');
-    } finally {
-      await rm(input.work, { recursive: true, force: true });
-    }
-  },
-  // The audition decodes audio through mocked ffmpeg; CI runners under
-  // coverage instrumentation can exceed the 5s default.
-  15000,
-);
+// The audition decodes audio through mocked ffmpeg; CI runners under
+// coverage instrumentation can exceed the 5s default.
+it('candidate auditions stay in the disposable workspace', async () => {
+  const input = await job(true);
+  try {
+    mocks.find.mockReturnValue([candidate, { ...candidate, startSeconds: 2 }]);
+    await cutLoop({ ...input, start: 32, bars: 4 });
+    expect(
+      await readFile(path.join(input.work, 'candidate-2.mp3'), 'utf8'),
+    ).toBe('mp3');
+  } finally {
+    await rm(input.work, { recursive: true, force: true });
+  }
+}, 15000);
 it('fails closed for no candidate, excessive rate, bad loudness, peak and truncated decoded clip', async () => {
   for (const mode of ['none', 'rate', 'loudness', 'peak', 'length']) {
     const input = await job();
