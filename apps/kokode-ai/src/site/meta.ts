@@ -1,6 +1,10 @@
-import { SITE_URL, type PageId } from '../story/ja/site';
-import { storyFor, type Story } from '../story/localized';
-import { LOCALES, LOCALE_INFO, pagePath } from '../story/locales';
+import { SITE_URL, type PageId } from '@zapengine/kokode-story/ja/site';
+import { storyFor, type Story } from '@zapengine/kokode-story/localized';
+import {
+  LOCALES,
+  LOCALE_INFO,
+  pagePath,
+} from '@zapengine/kokode-story/locales';
 import { markup, type Markup } from './markup';
 
 /** Title, description, robots, canonical and Open Graph tags of a page. */

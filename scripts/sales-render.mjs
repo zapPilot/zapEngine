@@ -46,9 +46,9 @@ export function buildSteps(productName) {
   const steps = [
     {
       kind: 'package-build',
-      title: 'build media-release',
+      title: 'build video dependencies',
       cmd: 'pnpm',
-      args: ['turbo', 'run', 'build', '--filter=@zapengine/media-release'],
+      args: ['turbo', 'run', 'build', '--filter=@zapengine/video^...'],
     },
   ];
   if (entry.pdf !== null) {

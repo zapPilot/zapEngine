@@ -2,8 +2,8 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { LOCALES } from '../story/locales';
-import { storyFor } from '../story/localized';
+import { LOCALES } from '@zapengine/kokode-story/locales';
+import { storyFor } from '@zapengine/kokode-story/localized';
 import { ogFingerprint } from './og';
 
 const root = path.resolve(import.meta.dirname, '../..');

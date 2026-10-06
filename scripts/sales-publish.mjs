@@ -16,6 +16,8 @@ export function publishSteps(argv) {
     '--filter',
     product.publish.filter,
     product.publish.script,
+    '--video-out-dir',
+    path.resolve(import.meta.dirname, '..', product.publish.videoOutDir),
     ...flags,
   ];
   const wrapped = flags.includes('--dry-run')
@@ -24,7 +26,7 @@ export function publishSteps(argv) {
   return [
     {
       cmd: 'pnpm',
-      args: ['turbo', 'run', 'build', '--filter=@zapengine/media-release'],
+      args: ['turbo', 'run', 'build', '--filter=@zapengine/kokode-ai^...'],
     },
     { cmd: wrapped[0], args: wrapped.slice(1) },
   ];

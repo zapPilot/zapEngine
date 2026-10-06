@@ -13,19 +13,24 @@ import {
   type Sidecar,
 } from '@zapengine/media-release';
 import { createR2Client, putImmutable } from '@zapengine/media-release/r2';
+import { localArtifacts } from './media-artifacts';
 import { artifacts, MEDIA_BASE } from '../src/media/artifacts';
 import { expectedFingerprints } from '../src/media/fingerprints';
 import { validatePublished } from '../src/media/validate';
 const appRoot = path.resolve(import.meta.dirname, '..');
 const manifestFile = path.join(appRoot, 'src/media/published.json');
 const { values, positionals } = parseArgs({
-  options: { 'dry-run': { type: 'boolean' }, only: { type: 'string' } },
+  options: {
+    'dry-run': { type: 'boolean' },
+    only: { type: 'string' },
+    'video-out-dir': { type: 'string' },
+  },
   allowPositionals: true,
 });
 const command = positionals[0];
 if (!['publish', 'verify'].includes(command ?? '') || positionals.length !== 1)
   throw new Error(
-    'usage: media.ts publish [--dry-run] [--only id,id] | verify',
+    'usage: media.ts publish --video-out-dir <directory> [--dry-run] [--only id,id] | verify',
   );
 const expected = expectedFingerprints();
 const previous = manifestSchema.parse(
@@ -40,6 +45,7 @@ if (command === 'verify') {
     console.log(`✓ ${id}`);
   }
 } else {
+  const local = localArtifacts(appRoot, values['video-out-dir']);
   const selected = values.only?.split(',') ?? Object.keys(artifacts);
   if (
     selected.length === 0 ||
@@ -57,7 +63,7 @@ if (command === 'verify') {
   }[] = [];
   for (const id of selected) {
     const spec = artifacts[id]!;
-    const file = path.resolve(appRoot, spec.file);
+    const file = local[id]!.file;
     let sidecar: Sidecar | undefined;
     let actualHash: string | undefined;
     let actualBytes: number | undefined;

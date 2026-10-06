@@ -824,15 +824,12 @@ describe('generateScriptWithLLM', () => {
 
   it.each([
     ['opening_greeting', '欢迎收听正文。'],
-    ['closing_cta: 记得+订阅', '正文。记得订阅。'],
+    ['closing_cta', '正文。记得订阅。'],
     ['code_fence', '```正文'],
     ['title_line', '标题：市场变化\n正文'],
     ['title_line', '標題：市场变化\n正文'],
     ['opening_greeting', '歡迎收聽今天的節目。正文從市場變化開始。'],
-    [
-      'closing_cta: 記得+訂閱',
-      '正文分析市場變化。\n\n記得訂閱並分享這個節目。',
-    ],
+    ['closing_cta', '正文分析市場變化。\n\n記得訂閱並分享這個節目。'],
     ['markdown_heading', '# 市場標題\n正文分析市場變化。'],
     ['timestamp', '[00:15] 正文分析市場變化。'],
     ['separator', '正文分析市場變化。\n\n---\n\n下一段正文。'],
@@ -880,103 +877,6 @@ describe('generateScriptWithLLM', () => {
       );
     },
   );
-
-  // A callback to the opening (还记得……吗) or a third party's application
-  // (申请/受欢迎) only contains a CTA lead word. Paired with an ordinary content
-  // word such as 追踪 or 加入 in the final 300 characters, it used to fail the
-  // whole ingest as a closing CTA after two attempts.
-  it.each([
-    '正文讲到链上追踪。\n\n还记得开头那笔从交易所转出去的钱吗？链上追踪显示，它最后停在了同一个地址。',
-    '正文讲到牌照。\n\n这家公司申请加入新的牌照框架，它的产品在年轻用户里很受欢迎。',
-  ])(
-    'accepts a narration ending that only resembles a CTA: %s',
-    async (script) => {
-      const mockCreate = vi.fn().mockResolvedValue({
-        choices: [{ message: { content: script } }],
-        provider: 'Cloudflare',
-        model: 'test/model',
-      });
-      mockOpenAIClient(mockCreate);
-
-      await expect(
-        generateScriptWithLLM('Title', 'Text'),
-      ).resolves.toMatchObject({ script });
-      expect(mockCreate).toHaveBeenCalledTimes(1);
-    },
-  );
-
-  // A narration that reads the article back is the stiffest possible episode
-  // and republishes the publisher's text; the 2026-10-06 prompt A/B returned
-  // the source word for word in two of about forty samples.
-  describe('verbatim source guard', () => {
-    const source = Array.from(
-      { length: 60 },
-      (_, index) => `第${index}段原文说，这一周市场里发生了第${index}件变化。`,
-    ).join('');
-    const retelling =
-      '这一周市场变了好几次方向。先说最关键的那一次，它为什么会让很多人措手不及。';
-
-    function completion(content: string) {
-      return {
-        choices: [{ message: { content } }],
-        provider: 'Cloudflare',
-        model: 'test/model',
-      };
-    }
-
-    it('retries a verbatim reading with a request to retell it', async () => {
-      const mockCreate = vi
-        .fn()
-        .mockResolvedValueOnce(completion(source))
-        .mockResolvedValueOnce(completion(retelling));
-      mockOpenAIClient(mockCreate);
-
-      const result = await generateScriptWithLLM('Title', source);
-
-      expect(result.script).toBe(retelling);
-      expect(mockCreate).toHaveBeenCalledTimes(2);
-      const retry = mockCreate.mock.calls[1]![0] as {
-        messages: { content: string }[];
-      };
-      expect(retry.messages.at(-1)?.content).toContain(
-        '（verbatim_source: 100%）',
-      );
-      expect(retry.messages.at(-1)?.content).toContain('不要照抄原文的句子');
-    });
-
-    it('fails when the second response still reads the source', async () => {
-      const mockCreate = vi.fn().mockResolvedValue(completion(source));
-      mockOpenAIClient(mockCreate);
-
-      await expect(generateScriptWithLLM('Title', source)).rejects.toThrow(
-        'reads the source verbatim',
-      );
-      expect(mockCreate).toHaveBeenCalledTimes(2);
-    });
-
-    it('accepts a narration that quotes part of the source', async () => {
-      const quoting = `${source.slice(0, 400)}${retelling.repeat(12)}`;
-      const mockCreate = vi.fn().mockResolvedValue(completion(quoting));
-      mockOpenAIClient(mockCreate);
-
-      await expect(
-        generateScriptWithLLM('Title', source),
-      ).resolves.toMatchObject({ script: quoting });
-      expect(mockCreate).toHaveBeenCalledTimes(1);
-    });
-
-    // Too short to hold a single 10-character span; length is the quality
-    // gate's job, not this one's.
-    it('leaves a body shorter than one span to the length gate', async () => {
-      const mockCreate = vi.fn().mockResolvedValue(completion('市场变了。'));
-      mockOpenAIClient(mockCreate);
-
-      await expect(
-        generateScriptWithLLM('Title', source),
-      ).resolves.toMatchObject({ script: '市场变了。' });
-      expect(mockCreate).toHaveBeenCalledTimes(1);
-    });
-  });
 
   it.each([false, true])(
     'rejects truncated scripts (both truncated: %s)',

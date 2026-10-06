@@ -14,6 +14,7 @@ export default defineKnipConfig(
     ignoreDependencies: [
       '@zapengine/design-tokens',
       '@zapengine/media-release',
+      '@zapengine/kokode-story',
     ],
     vitest: {
       config: ['vitest.config.ts'],

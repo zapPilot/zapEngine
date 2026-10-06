@@ -5,6 +5,7 @@ on:
     paths:
       - 'apps/kokode-ai/**'
       - 'packages/media-release/**'
+      - 'packages/kokode-story/**'
       - 'supabase/functions/genba-lead/**'
       - 'supabase/migrations/*kokode*'
       - '.github/workflows/kokode-pages.yml'
@@ -71,6 +72,7 @@ jobs:
             kokode:
               - 'apps/kokode-ai/**'
               - 'packages/media-release/**'
+              - 'packages/kokode-story/**'
               - 'supabase/functions/genba-lead/**'
               - 'supabase/migrations/*kokode*'
               - '.github/workflows/kokode-pages.yml'

@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
-import { FILM } from '../story/film';
-import { storyFor } from '../story/localized';
+import { FILM } from '@zapengine/kokode-story/film';
+import { storyFor } from '@zapengine/kokode-story/localized';
 import { expectedFingerprints } from './fingerprints';
 function changedBy(target: object, key: string, value: unknown): string[] {
   const before = expectedFingerprints(),

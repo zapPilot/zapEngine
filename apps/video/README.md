@@ -18,7 +18,7 @@ before the team grows past that.
 | `kokode-clinic`    | Kokode sales film for clinics: Japanese / English / Traditional Chinese text, English VO | ≈81 s  |
 
 `kokode-clinic` belongs to Kokode, a separate product. Every word, the scene
-order and the disclaimers come from `apps/kokode-ai/src/story`, the same
+order and the disclaimers come from `packages/kokode-story/src`, the same
 source as the Kokode landing page and pitch decks. The end card prints the
 host of the story's `FILM_LINK`; use that full UTM link in video
 descriptions. If Kokode is run by another company, check that company's own

@@ -1,6 +1,6 @@
-import { type Story } from '../story/localized';
-import type { DemoId } from '../story/ja/demos';
-import type { FigureId } from '../story/types';
+import { type Story } from '@zapengine/kokode-story/localized';
+import type { DemoId } from '@zapengine/kokode-story/ja/demos';
+import type { FigureId } from '@zapengine/kokode-story/types';
 import { ICONS, SKETCH } from './icons';
 import { markup, type Markup } from './markup';
 

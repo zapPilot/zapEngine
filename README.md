@@ -38,6 +38,7 @@ zapEngine/
     ├── eslint-config       # Shared ESLint flat-config presets
     ├── intent-engine       # Shared TypeScript library — DeFi routing logic
     ├── knip-config         # Shared knip dead-code-detection base config
+    ├── kokode-story        # Pure Kokode copy, locales and narrative shared by its site, decks and film
     ├── tsconfig            # Shared TypeScript config presets
     └── types               # Shared TypeScript types & Zod schemas
 ```

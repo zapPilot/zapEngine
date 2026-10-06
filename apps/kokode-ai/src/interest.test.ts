@@ -2,10 +2,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { initInterest, interestLabel } from './interest';
-import { LOCALES } from './story/locales';
-import { storyFor } from './story/localized';
+import { LOCALES } from '@zapengine/kokode-story/locales';
+import { storyFor } from '@zapengine/kokode-story/localized';
 import { createLanding } from './site/landing';
-import { INTEREST } from './story/ja/form';
+import { INTEREST } from '@zapengine/kokode-story/ja/form';
 
 const label = (id: string) =>
   INTEREST.find((option) => option.id === id)?.label ?? '';

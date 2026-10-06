@@ -89,9 +89,8 @@ require secrets. From the repo root, prefix these commands with
 
 # Kokode film (`kokode-clinic`)
 
-- Every word comes from `apps/kokode-ai/src/story` through
-  `src/videos/kokode-clinic/story.ts`, the only import across the workspace
-  boundary. Change copy there, never here: `clinic.test.ts` fails on any
+- Every word comes from `packages/kokode-story/src` through
+  `src/videos/kokode-clinic/story.ts`, the adapter for the declared `@zapengine/kokode-story` dependency. Change copy there, never here: `clinic.test.ts` fails on any
   Japanese or Chinese literal under `src/videos/kokode-clinic/` or `src/primitives/`.
 - Captions and screen copy follow `lang` (`ja`, `en`, `zh-Hant`); narration
   is always the story's `en`, so cue phrases are English. Editing an `en` line requires re-synthesising the English narration.
@@ -99,9 +98,8 @@ require secrets. From the repo root, prefix these commands with
   `Root.tsx`. Never import it from shared code.
 - `theme.ts` mirrors the site's `:root` and `public/brand/kokode-mark.svg` is
   a byte copy of its favicon; the test fails when either drifts.
-- No new rendering dependencies (no QR library). The story feeds this workspace's
-  type-check and tests (`turbo.json` inputs), but `--affected` cannot see that
-  link: after a story edit run this workspace's gate as well.
+- No new rendering dependencies (no QR library). Turbo tracks story changes
+  through the declared workspace dependency; verify the story package and both consumers.
 
 # Voices
 

@@ -28,18 +28,6 @@ describe('assertGeneratedScriptQuality', () => {
     expect(() => assertGeneratedScriptQuality(script, source)).not.toThrow();
   });
 
-  // The prompt caps narration at about 3,500 characters; a floor that
-  // kept scaling with the source would reject that capped script.
-  it('caps the floor for very long sources at a capped-length script', () => {
-    const source = '長文章內容'.repeat(8_000);
-    const script = '完整講稿內容'.repeat(300);
-
-    expect(() => assertGeneratedScriptQuality(script, source)).not.toThrow();
-    expect(() =>
-      assertGeneratedScriptQuality('完整講稿內容'.repeat(240), source),
-    ).toThrow(/minimum 1500\)/);
-  });
-
   it('does not apply the source-ratio floor to short articles', () => {
     expect(() =>
       assertGeneratedScriptQuality(

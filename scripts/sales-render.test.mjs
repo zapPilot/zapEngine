@@ -16,6 +16,12 @@ test('parseProductName takes the first positional past --', () => {
 
 test('kokode plans PDF then check+render per video', () => {
   const steps = buildSteps('kokode');
+  assert.deepEqual(steps[0].args, [
+    'turbo',
+    'run',
+    'build',
+    '--filter=@zapengine/video^...',
+  ]);
   assert.deepEqual(
     steps.map((step) => step.kind),
     ['package-build', 'pdf', 'video-check', 'video-render'],

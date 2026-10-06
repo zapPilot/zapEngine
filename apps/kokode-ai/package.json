@@ -34,5 +34,8 @@
     "playwright-core": "^1.60.0",
     "@zapengine/media-release": "workspace:*",
     "tsx": "catalog:"
+  },
+  "dependencies": {
+    "@zapengine/kokode-story": "workspace:*"
   }
 }

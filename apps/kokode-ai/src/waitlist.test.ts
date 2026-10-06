@@ -1,10 +1,10 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { LOCALES } from './story/locales';
-import { storyFor } from './story/localized';
+import { LOCALES } from '@zapengine/kokode-story/locales';
+import { storyFor } from '@zapengine/kokode-story/localized';
 import { createLanding } from './site/landing';
-import { FORM, INTEREST } from './story/ja/form';
+import { FORM, INTEREST } from '@zapengine/kokode-story/ja/form';
 
 const SUPABASE_URL = 'https://example-ref.supabase.co';
 const ENDPOINT = `${SUPABASE_URL}/functions/v1/genba-lead`;

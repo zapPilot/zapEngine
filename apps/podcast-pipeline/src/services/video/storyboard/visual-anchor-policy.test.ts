@@ -76,17 +76,4 @@ describe('visual anchor policy', () => {
     );
     expect(prompt).toContain('Use type "object"');
   });
-
-  // The narration prompt asks for everyday analogies and listener scenes, and
-  // a visualCue is "the photographable moment the narration describes": without
-  // this rule a security guard or a market stall from an analogy would be
-  // searched as if it were part of the news.
-  it('keeps analogy and hypothetical imagery out of anchors and visual cues', () => {
-    const prompt = buildSubjectCatalogSystemPrompt();
-
-    expect(prompt).toContain('These are figures of speech, not story events');
-    expect(prompt).toContain(
-      'never create a subject or a visualCue from something that appears only inside one',
-    );
-  });
 });

@@ -2,7 +2,7 @@ import { getAttribution, trackEvent } from './analytics';
 import { LEAD_ENDPOINT, LEAD_SOURCE } from './config';
 import { DOM_IDS } from './dom-ids';
 // The file, not the story barrel: only the form copy enters the page bundle.
-import { formForPage } from './story/form-locales';
+import { formForPage } from '@zapengine/kokode-story/form-locales';
 
 // Payload mirrors the `kokode_ai.leads` columns (snake_case). The Edge
 // Function whitelists these keys; `page_url` is submit-time context kept
@@ -205,7 +205,7 @@ export function flushQueue(): Promise<void> {
 }
 
 export function initWaitlist(): void {
-  const FORM = formForPage();
+  const FORM = formForPage(document.documentElement.lang);
   const form = document.querySelector<HTMLFormElement>(`#${DOM_IDS.form}`);
   const message = document.querySelector<HTMLElement>(`#${DOM_IDS.message}`);
   const interest = document.querySelector<HTMLSelectElement>(

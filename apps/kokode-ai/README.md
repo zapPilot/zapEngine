@@ -33,14 +33,14 @@ English and Traditional Chinese copy is a draft awaiting native-speaker review.
 The privacy policy remains Japanese, with its language marked beside links.
 
 Every word on the first three, and in the apps/video `kokode-clinic` film,
-comes from `src/story/` (beats, the four sequences in `narrative.ts`, demos,
+comes from `packages/kokode-story/src/` (beats, the four sequences in `narrative.ts`, demos,
 disclaimers, form, meta). A Vite plugin (`src/site/plugin.ts`) replaces the
 `<!--kokode:<page>:<head|body>-->` markers in the HTML shells at build and dev
 time, choosing the locale from the shell’s `<html lang>`; the dev server restarts when a story file changes. Tests fence the
-claims in each language (`src/story/story.test.ts`) and the rendered structure
+claims in each language (`packages/kokode-story/src/story.test.ts`) and the rendered structure
 (`src/site/site.test.ts`).
 
-`src/story/ja/`, `en/` and `zh-Hant/` share the same copy contracts.
+`packages/kokode-story/src/ja/`, `en/` and `zh-Hant/` share the same copy contracts.
 `storyFor(locale)` supplies the renderers; the barrel’s named exports remain
 Japanese for the film, whose Japanese captions and English narration are unchanged.
 Browser scripts import only the localized form copy. Interest option text is
@@ -192,6 +192,10 @@ pnpm sales:publish kokode --dry-run
 pnpm sales:publish kokode
 pnpm --filter @zapengine/kokode-ai media:verify
 ```
+
+The sales registry supplies the absolute video output directory to the publisher
+through `--video-out-dir`; Kokode does not assume a sibling video checkout.
+The launcher builds the story and media-release dependencies before publishing.
 
 The publisher runs outside Turbo, loads only Kokode Infisical `prod`, and needs
 `KOKODE_MEDIA_R2_ENDPOINT`, `KOKODE_MEDIA_R2_ACCESS_KEY_ID`, and

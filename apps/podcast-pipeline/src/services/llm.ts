@@ -74,11 +74,10 @@ const SCRIPT_REASONING: OpenRouterReasoning = { enabled: false };
 const LANGUAGE_CLASSROOM_MAX_ATTEMPTS = 3;
 const SCRIPT_PAYLOAD_MAX_ATTEMPTS = 2;
 /**
- * The one workload the shared ceiling is wrong for. The script prompt asks for
- * up to about 3,500 characters of narration built from the whole article, and
- * the request sets no token cap, so a 13k-character article legitimately
- * generates for minutes -- the 120s default killed those runs while the model
- * was still working correctly.
+ * The one workload the shared ceiling is wrong for. The script prompt forbids
+ * summarizing, permits an output longer than its input, and sets no token cap,
+ * so a 13k-character article legitimately generates for minutes -- the 120s
+ * default killed those runs while the model was still working correctly.
  * Every model candidate gets this same long-form deadline; timeout remains a
  * retryable transport failure and advances through `LLM_FALLBACK_MODELS` just
  * like every other OpenRouter workload.
@@ -89,7 +88,7 @@ const RETRYABLE_OPENROUTER_STATUS = new Set([408, 409, 429]);
 class ScriptPayloadValidationError extends Error {
   constructor(
     message: string,
-    readonly reason: 'truncated' | 'packaged_body' | 'verbatim_source',
+    readonly reason: 'truncated' | 'packaged_body',
     readonly detail: string | null = null,
     options?: ErrorOptions,
   ) {
@@ -185,11 +184,7 @@ function buildScriptPayloadRetryMessage(
   const reason = error.detail
     ? `${error.reason}: ${error.detail}`
     : error.reason;
-  const rewrite =
-    error.reason === 'verbatim_source'
-      ? '上一个回应几乎是照着原文念的。用你自己的话把这件事讲给听众，不要照抄原文的句子。'
-      : '';
-  return `${buildUserMessage(title, text)}\n\n修正要求：上一个回应不符合输出要求（${reason}）。${rewrite}只输出可以直接朗读的文章正文本身：不要标题、开场招呼、结尾 CTA、Markdown、代码块、时间码或分隔线，也不要中途截断。`;
+  return `${buildUserMessage(title, text)}\n\n修正要求：上一个回应不符合输出要求（${reason}）。只输出可以直接朗读的文章正文本身：不要标题、开场招呼、结尾 CTA、Markdown、代码块、时间码或分隔线，也不要中途截断。`;
 }
 
 function generatedScriptBodyViolation(script: string): string | null {
@@ -221,9 +216,7 @@ function generatedScriptBodyViolation(script: string): string | null {
     if (isMarkdownSeparator(line)) return 'separator';
   }
 
-  const ending = withoutNonImperativeCtaLeads(
-    body.slice(-300).toLocaleLowerCase(),
-  );
+  const ending = body.slice(-300).toLocaleLowerCase();
   const ctaLead = [
     '記得',
     '记得',
@@ -265,39 +258,13 @@ function generatedScriptBodyViolation(script: string): string | null {
     'follow',
     'visit our website',
   ];
-  const lead = ctaLead.find((phrase) => ending.includes(phrase));
-  const action = ctaAction.find((phrase) => ending.includes(phrase));
-  // The matched pair goes into the retry prompt, so the model learns which
-  // words to rephrase instead of guessing what "closing_cta" objected to.
-  if (lead && action) return `closing_cta: ${lead}+${action}`;
+  if (
+    ctaLead.some((phrase) => ending.includes(phrase)) &&
+    ctaAction.some((phrase) => ending.includes(phrase))
+  ) {
+    return 'closing_cta';
+  }
   return null;
-}
-
-/**
- * Words that contain a CTA lead without asking the listener for anything: a
- * narration that calls back to its opening (还记得……吗), describes something
- * as popular (受欢迎) or reports a third party's application (申请/请求/邀请)
- * would otherwise pair with an ordinary content word such as 加入 or 追踪 in
- * the last 300 characters and fail the episode as a closing CTA.
- */
-const NON_IMPERATIVE_CTA_LEAD_FORMS = [
-  '還記得',
-  '还记得',
-  '受歡迎',
-  '受欢迎',
-  '申請',
-  '申请',
-  '請求',
-  '请求',
-  '邀請',
-  '邀请',
-];
-
-function withoutNonImperativeCtaLeads(text: string): string {
-  return NON_IMPERATIVE_CTA_LEAD_FORMS.reduce(
-    (remaining, form) => remaining.split(form).join(' '),
-    text,
-  );
 }
 
 function isMarkdownHeading(line: string): boolean {
@@ -340,11 +307,7 @@ function assertGeneratedScriptBody(script: string): void {
   );
 }
 
-function parseScriptBody(
-  content: string,
-  finishReason: string | null,
-  sourceText: string,
-): string {
+function parseScriptBody(content: string, finishReason: string | null): string {
   if (finishReason === 'length') {
     throw new ScriptPayloadValidationError(
       'LLM returned a truncated script',
@@ -353,53 +316,7 @@ function parseScriptBody(
   }
   const script = content.trim();
   assertGeneratedScriptBody(script);
-  assertNotVerbatimSource(script, sourceText);
   return script;
-}
-
-/**
- * A narration is a retelling, not a reading. In the 30 days before this guard,
- * 11 of 111 production narrations shared at least 90% of their 10-character
- * spans with the source article -- the stiffest possible episode, and a full
- * republication of the publisher's text. The 2026-10-06 prompt A/B still saw it
- * in two of about forty samples. Ordinary retellings shared at most ~60%; a
- * colloquial first-person blog pushed one to 87%, hence the 90% threshold.
- */
-const VERBATIM_SPAN_CHARS = 10;
-const VERBATIM_SOURCE_MIN_CHARS = 1_000;
-const MAX_VERBATIM_SOURCE_SHARE = 0.9;
-
-function withoutWhitespace(value: string): string[] {
-  return [...value.replace(/\s/gu, '')];
-}
-
-function assertNotVerbatimSource(script: string, sourceText: string): void {
-  const source = withoutWhitespace(sourceText);
-  const body = withoutWhitespace(script);
-  if (
-    source.length < VERBATIM_SOURCE_MIN_CHARS ||
-    body.length < VERBATIM_SPAN_CHARS
-  ) {
-    return;
-  }
-  const sourceSpans = new Set<string>();
-  for (let i = 0; i + VERBATIM_SPAN_CHARS <= source.length; i += 1) {
-    sourceSpans.add(source.slice(i, i + VERBATIM_SPAN_CHARS).join(''));
-  }
-  const spanCount = body.length - VERBATIM_SPAN_CHARS + 1;
-  let copied = 0;
-  for (let i = 0; i < spanCount; i += 1) {
-    if (sourceSpans.has(body.slice(i, i + VERBATIM_SPAN_CHARS).join(''))) {
-      copied += 1;
-    }
-  }
-  const share = copied / spanCount;
-  if (share < MAX_VERBATIM_SOURCE_SHARE) return;
-  throw new ScriptPayloadValidationError(
-    'LLM returned a script that reads the source verbatim',
-    'verbatim_source',
-    `${Math.floor(share * 100)}%`,
-  );
 }
 
 export interface OpenRouterConfig {
@@ -1214,7 +1131,6 @@ export async function generateScriptWithLLM(
       const script = parseScriptBody(
         content,
         completion.choices[0]!.finish_reason,
-        text,
       );
       return {
         script,

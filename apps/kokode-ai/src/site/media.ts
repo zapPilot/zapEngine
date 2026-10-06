@@ -1,5 +1,5 @@
 import { publishedArtifact } from '../media/published';
-import type { Story } from '../story/localized';
+import type { Story } from '@zapengine/kokode-story/localized';
 import { markup } from './markup';
 export function heroFilm(story: Story) {
   const film = publishedArtifact(`film.${story.locale}`);

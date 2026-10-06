@@ -1,7 +1,7 @@
-import { LOCALE_INFO, type Locale } from '../story/locales';
+import { LOCALE_INFO, type Locale } from '@zapengine/kokode-story/locales';
 import { DOM_IDS } from '../dom-ids';
-import type { InterestId } from '../story/ja/form';
-import { SITE_URL, type PageMeta } from '../story/ja/site';
+import type { InterestId } from '@zapengine/kokode-story/ja/form';
+import { SITE_URL, type PageMeta } from '@zapengine/kokode-story/ja/site';
 
 /**
  * Link from a deck to the landing page's contact form. The UTM parameters are

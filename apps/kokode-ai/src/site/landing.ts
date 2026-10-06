@@ -1,10 +1,13 @@
 import { heroFilm } from './media';
-import { LOCALE_INFO } from '../story/locales';
+import { LOCALE_INFO } from '@zapengine/kokode-story/locales';
 import { languageSwitch } from './lang-switch';
-import { storyFor, type Story } from '../story/localized';
+import { storyFor, type Story } from '@zapengine/kokode-story/localized';
 import { DOM_IDS } from '../dom-ids';
-import { LANDING, type LandingSectionId } from '../story/narrative';
-import type { Action, BeatId, Group } from '../story/types';
+import {
+  LANDING,
+  type LandingSectionId,
+} from '@zapengine/kokode-story/narrative';
+import type { Action, BeatId, Group } from '@zapengine/kokode-story/types';
 import { createBeat, type Heading } from './beat';
 import { markup, type Markup } from './markup';
 

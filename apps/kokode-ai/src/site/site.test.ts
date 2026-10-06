@@ -5,15 +5,23 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { LOCALES, LOCALE_INFO, pagePath } from '../story/locales';
-import { storyFor } from '../story/localized';
+import {
+  LOCALES,
+  LOCALE_INFO,
+  pagePath,
+} from '@zapengine/kokode-story/locales';
+import { storyFor } from '@zapengine/kokode-story/localized';
 import { DOM_IDS } from '../dom-ids';
-import { DEMOS, type DemoId } from '../story/ja/demos';
-import { footnote } from '../story/ja/disclaimers';
-import { INTEREST } from '../story/ja/form';
-import { DOCTOR_DECK, LANDING, PARTNER_DECK } from '../story/narrative';
-import { META } from '../story/ja/site';
-import type { Group } from '../story/types';
+import { DEMOS, type DemoId } from '@zapengine/kokode-story/ja/demos';
+import { footnote } from '@zapengine/kokode-story/ja/disclaimers';
+import { INTEREST } from '@zapengine/kokode-story/ja/form';
+import {
+  DOCTOR_DECK,
+  LANDING,
+  PARTNER_DECK,
+} from '@zapengine/kokode-story/narrative';
+import { META } from '@zapengine/kokode-story/ja/site';
+import type { Group } from '@zapengine/kokode-story/types';
 import { ctaHref, isAbsoluteHttpUrl, toPdfHref } from './links';
 import { escape, lines, markup } from './markup';
 import { HTML_ENTRIES, renderPage } from './pages';
@@ -243,7 +251,7 @@ describe('disclaimers', () => {
   });
 });
 
-describe('copy stays in src/story', () => {
+describe('copy stays in the kokode-story package', () => {
   const JAPANESE = /[　-ヿ㐀-䶿一-鿿＀-￯]/;
 
   function files(dir: string): string[] {
@@ -255,9 +263,7 @@ describe('copy stays in src/story', () => {
 
   it('has no Japanese outside the story, the tests and privacy.html', () => {
     const sources = files(path.join(appRoot, 'src')).filter(
-      (file) =>
-        !file.includes(`${path.sep}story${path.sep}`) &&
-        !file.endsWith('.test.ts'),
+      (file) => !file.endsWith('.test.ts'),
     );
     const shells = [
       HTML_ENTRIES.main,
