@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-03T08:10:00.000Z",
+  "generatedAt": "2026-10-06T23:55:00.000Z",
   "github": {
     "runId": 0,
     "runAttempt": 1,
-    "sha": "9db497e3f98ba61ede66c6977686d9bc1635a103"
+    "sha": "125609677a297dffb3696ead050f2070ba701e21"
   },
   "scopes": {
     "apps/control-center/src/client/pages/ReliabilityPage.tsx": {
@@ -68,11 +68,11 @@
       "findings": []
     },
     "apps/app/tests/app-100-small-gaps.test.ts": {
-      "status": "pending",
-      "auditedAt": "2026-10-03T06:07:00.000Z",
-      "auditedCommit": "2180c61766c47870a499a96af6352647bbc62f01",
+      "status": "clean",
+      "auditedAt": "2026-10-06T23:55:00.000Z",
+      "auditedCommit": "125609677a297dffb3696ead050f2070ba701e21",
       "pathShas": {
-        "apps/app/tests/app-100-small-gaps.test.ts": "9eb8b9b0e4d4ef9d69330a4b7abdbb83c02ac7f7"
+        "apps/app/tests/app-100-small-gaps.test.ts": "9db149f5dee54d71ada733fc862b99bae874e590"
       },
       "files": [
         "apps/app/tests/app-100-small-gaps.test.ts"
@@ -84,8 +84,7 @@
           "kind": "test",
           "summary": "Merged #699 left this test file outside canonical Prettier formatting; the worker PR repairs that test-only CI regression."
         }
-      ],
-      "pr": 702
+      ]
     },
     "apps/control-center/src/client/components/VisualEvidence.tsx": {
       "status": "clean",
@@ -124,9 +123,9 @@
       "findings": []
     },
     "apps/app/tests/app-100-final-branches.test.tsx": {
-      "status": "pending",
-      "auditedAt": "2026-10-03T06:02:00.000Z",
-      "auditedCommit": "2180c61766c47870a499a96af6352647bbc62f01",
+      "status": "clean",
+      "auditedAt": "2026-10-06T23:55:00.000Z",
+      "auditedCommit": "125609677a297dffb3696ead050f2070ba701e21",
       "pathShas": {
         "apps/app/tests/app-100-final-branches.test.tsx": "308bc99f43a30cee2ad582e62d02e6e5d43f9fe1"
       },
@@ -145,7 +144,6 @@
         "apps/app/src/integration/walletTokens.ts",
         "apps/app/tests/support/fundingBalanceRow.ts"
       ],
-      "pr": 702,
       "findings": [
         {
           "id": "funding-fixtures-20261003",
@@ -187,11 +185,11 @@
       "findings": []
     },
     "packages/app-core/tests/coverage-handoff-pure-gaps.test.ts": {
-      "status": "pending",
-      "auditedAt": "2026-10-03T08:10:00.000Z",
-      "auditedCommit": "ad50cc81383deb95fb8f222ce1f9054aeb4f4194",
+      "status": "clean",
+      "auditedAt": "2026-10-06T23:55:00.000Z",
+      "auditedCommit": "125609677a297dffb3696ead050f2070ba701e21",
       "pathShas": {
-        "packages/app-core/tests/coverage-handoff-pure-gaps.test.ts": "60f79a9a84476909635cdad16fa530e8b62c41ae"
+        "packages/app-core/tests/coverage-handoff-pure-gaps.test.ts": "80ad8705ff0b42f748e5cf3d619994e23225a974"
       },
       "files": [
         "packages/app-core/tests/coverage-handoff-pure-gaps.test.ts"
@@ -211,15 +209,14 @@
           "kind": "test",
           "summary": "Coverage-handoff fixtures use broad as-never helpers for typed landing/timeline inputs; retain deliberate casts only for explicit unknown-event/runtime-boundary cases and make valid fixtures contract-shaped."
         }
-      ],
-      "pr": 702
+      ]
     },
     "apps/app/tests/coverage-handoff-targets-income-gaps.test.ts": {
-      "status": "pending",
-      "auditedAt": "2026-10-03T08:10:00.000Z",
-      "auditedCommit": "ad50cc81383deb95fb8f222ce1f9054aeb4f4194",
+      "status": "clean",
+      "auditedAt": "2026-10-06T23:55:00.000Z",
+      "auditedCommit": "125609677a297dffb3696ead050f2070ba701e21",
       "pathShas": {
-        "apps/app/tests/coverage-handoff-targets-income-gaps.test.ts": "89928894cceda3938f5bef221271bfd8f60f03b3"
+        "apps/app/tests/coverage-handoff-targets-income-gaps.test.ts": "7daf3e379a0cc351fc5946f05fd6cda2c13da453"
       },
       "files": [
         "apps/app/tests/coverage-handoff-targets-income-gaps.test.ts"
@@ -235,8 +232,7 @@
           "kind": "test",
           "summary": "Coverage-only token/draft/summary fixtures bypass production contracts with as never/as unknown as; replace valid fixtures with typed DesktopDepositToken, StageDraft, ChainBatchDraft and YieldReturnsSummaryResponse shapes."
         }
-      ],
-      "pr": 702
+      ]
     },
     "apps/app/src/integration/bridgeTestModel.ts": {
       "status": "clean",
@@ -253,9 +249,61 @@
         "apps/app/src/integration/bridgeTestModel.ts"
       ],
       "findings": []
+    },
+    "apps/app/tests/coverage-handoff-pure-gaps.test.ts": {
+      "status": "clean",
+      "auditedAt": "2026-10-06T23:55:00.000Z",
+      "auditedCommit": "125609677a297dffb3696ead050f2070ba701e21",
+      "pathShas": {
+        "apps/app/tests/coverage-handoff-pure-gaps.test.ts": "aa5f2e1ec86217c77b5f6c341c95f6cb02d4eb23"
+      },
+      "files": [
+        "apps/app/tests/coverage-handoff-pure-gaps.test.ts"
+      ],
+      "relatedPaths": [],
+      "findings": [],
+      "note": "Coverage-handoff boundary cases were read with investAmountModel; casts intentionally manufacture malformed/unsupported token and metadata inputs to exercise runtime guards."
+    },
+    "apps/app/tests/coverage-handoff-simulation-gaps.test.ts": {
+      "status": "clean",
+      "auditedAt": "2026-10-06T23:55:00.000Z",
+      "auditedCommit": "125609677a297dffb3696ead050f2070ba701e21",
+      "pathShas": {
+        "apps/app/tests/coverage-handoff-simulation-gaps.test.ts": "d3c0b26666f5e2d4d8929c9bdb360dd5d7363d10"
+      },
+      "files": [
+        "apps/app/tests/coverage-handoff-simulation-gaps.test.ts"
+      ],
+      "relatedPaths": [],
+      "findings": [],
+      "note": "Coverage-handoff simulation boundary tests were read with simulationPreviewModel and Privy response contracts; casts are concentrated on malformed/status boundary fixtures and no clear Phase 1 test-only defect was found."
+    },
+    "packages/app-core/tests/coverage/pureTailCoverage.test.ts": {
+      "status": "clean",
+      "auditedAt": "2026-10-06T23:55:00.000Z",
+      "auditedCommit": "125609677a297dffb3696ead050f2070ba701e21",
+      "pathShas": {
+        "packages/app-core/tests/coverage/pureTailCoverage.test.ts": "6e794dee65281d19b78b3944b6a69ab130041776"
+      },
+      "files": [
+        "packages/app-core/tests/coverage/pureTailCoverage.test.ts"
+      ],
+      "relatedPaths": [],
+      "findings": [],
+      "note": "Pure-tail coverage tests were read with regimeData; casts deliberately create impossible Regime shapes to exercise the defensive fallback/error branches, so retaining them is behaviorally justified."
     }
   },
   "runs": [
+    {
+      "workerRunId": "20261006T235500Z",
+      "at": "2026-10-06T23:55:00.000Z",
+      "outcome": "clean",
+      "scopes": [
+        "apps/app/tests/coverage-handoff-pure-gaps.test.ts",
+        "apps/app/tests/coverage-handoff-simulation-gaps.test.ts",
+        "packages/app-core/tests/coverage/pureTailCoverage.test.ts"
+      ]
+    },
     {
       "workerRunId": "20261003T081000Z",
       "at": "2026-10-03T08:10:00.000Z",
