@@ -1,45 +1,46 @@
-import { DownloadCta } from './DownloadCta';
-import { HeroCockpit } from './HeroCockpit';
+import { Fragment } from 'react';
 
-const HERO_CHIPS = ['No custody', 'No discretion', 'No standing approvals'];
+import { StatusBadge } from '@/components/StatusBadge';
+import { MESSAGES } from '@/config/messages';
+
+import { DownloadCta } from './DownloadCta';
+import { RuntimeTrace } from './RuntimeTrace';
 
 export function Hero() {
+  const { hero, common } = MESSAGES;
   return (
-    <section className="zp-hero" aria-label="Overview">
+    <section id="overview" className="zp-hero" aria-labelledby="hero-title">
       <div>
-        <div className="zp-eyebrow">
-          <span className="zp-dot" aria-hidden />
-          Self-custodial investment autopilot
-        </div>
-        <h1 className="zp-hero-title">
-          Your net worth,
-          <br />
-          on autopilot.
-        </h1>
-        <p className="zp-hero-sub">
-          One account across S&amp;P500, BTC/ETH, and stables. Watch your net
-          worth, allocation, and every rebalance — signed from your wallet, held
-          by no one else.
-        </p>
-        <div className="zp-hero-chips">
-          {HERO_CHIPS.map((chip) => (
-            <span key={chip} className="zp-chip">
-              {chip}
-            </span>
+        <div className="zp-eyebrow">{hero.eyebrow}</div>
+        <h1 id="hero-title" className="zp-hero-title">
+          {common.brandLineParts.map((part, index) => (
+            <Fragment key={part}>
+              {index > 0 ? <br /> : null}
+              {part}
+            </Fragment>
           ))}
-        </div>
+        </h1>
+        <p className="zp-hero-sub">{hero.subtitle}</p>
+        <ul className="zp-hero-chips">
+          {hero.chips.map((chip) => (
+            <li key={chip.text} className="zp-chip">
+              <StatusBadge capability={chip.capability} />
+              {chip.text}
+            </li>
+          ))}
+        </ul>
         <div
           className="zp-hero-ctas"
           id="waitlist"
-          aria-label="Primary actions"
+          aria-label={hero.actionsLabel}
         >
           <DownloadCta />
-          <a className="zp-btn zp-btn-ghost" href="#proof">
-            See the backtest
+          <a className="zp-btn zp-btn-ghost" href={hero.secondaryCta.href}>
+            {hero.secondaryCta.label}
           </a>
         </div>
       </div>
-      <HeroCockpit />
+      <RuntimeTrace />
     </section>
   );
 }

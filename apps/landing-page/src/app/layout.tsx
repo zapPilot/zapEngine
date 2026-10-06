@@ -3,6 +3,7 @@ import { Geist, Instrument_Serif, JetBrains_Mono } from 'next/font/google';
 import { GoogleAnalytics } from '@next/third-parties/google';
 import { RootProvider } from 'fumadocs-ui/provider/next';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { MESSAGES } from '@/config/messages';
 import './globals.css';
 import './landing.css';
 import './landing-v2.css';
@@ -25,27 +26,25 @@ const jetBrainsMono = JetBrains_Mono({
   weight: ['400', '500', '600'],
 });
 
-const SITE_DESCRIPTION =
-  'A self-custodial investment autopilot: your net worth, three-pillar allocation, and regime-aware rebalancing — every trade signed from your own wallet, held by no one else.';
+const { meta } = MESSAGES;
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://zap-pilot.org'),
-  title: 'Zap Pilot — Your Net Worth, on Autopilot',
-  description: SITE_DESCRIPTION,
-  keywords:
-    'self-custodial robo-advisor, investment autopilot, net worth, tokenized S&P500, Ondo, BTC ETH allocation, stablecoin, regime trading, 200MA, Fear and Greed Index, self-custody, EOA wallet, EIP-7702, bundled transaction, rebalancing, backtested',
+  title: meta.title,
+  description: meta.description,
+  keywords: meta.keywords,
   authors: [{ name: 'Zap Pilot Team' }],
   openGraph: {
-    title: 'Zap Pilot — Your Net Worth, on Autopilot',
-    description: SITE_DESCRIPTION,
+    title: meta.title,
+    description: meta.description,
     url: 'https://zap-pilot.org',
-    siteName: 'Zap Pilot',
+    siteName: MESSAGES.common.brandName,
     images: [
       {
         url: '/zap-pilot-logo.svg',
         width: 1200,
         height: 630,
-        alt: 'Zap Pilot Logo',
+        alt: meta.imageAlt,
       },
     ],
     locale: 'en_US',
@@ -53,8 +52,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Zap Pilot — Your Net Worth, on Autopilot',
-    description: SITE_DESCRIPTION,
+    title: meta.title,
+    description: meta.description,
     images: ['/zap-pilot-logo.svg'],
   },
   icons: {

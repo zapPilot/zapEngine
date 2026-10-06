@@ -49,7 +49,7 @@ export function BrandMark() {
             fontWeight: 400,
           }}
         >
-          — rules engine
+          — {MESSAGES.common.tagline}
         </em>
       </span>
     </span>

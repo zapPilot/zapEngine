@@ -2,9 +2,10 @@
  * /pitch route styles. Layered on top of landing.css under the same .shell-root scope.
  *
  * The page composes both classes: `.shell-root .pitch-root`. landing.css provides
- * brand tokens, section primitives, and reused components (HowItWorks/Pillars/
- * Backtest/TrustStrip). This file adds the deck-only chrome: slide layout,
- * fixed navbar, progress bar, dot nav, and print-to-PDF behavior.
+ * brand tokens, section primitives, and reused components (Backtest/TrustStrip).
+ * This file adds the deck-only chrome: slide layout, fixed navbar, progress
+ * bar, dot nav, and print-to-PDF behavior. The home page's `.zp-*` cards are
+ * reused on slides too, so their tokens are mapped onto the shared palette here.
  */
 
 html:has(.pitch-root) {
@@ -20,6 +21,18 @@ html:has(.pitch-root) {
 
 .shell-root.pitch-root {
   min-height: 100vh;
+  --zp-bg: var(--bg);
+  --zp-bg-alt: var(--surface);
+  --zp-text: var(--ink);
+  --zp-muted: var(--ink-dim);
+  --zp-faint: var(--ink-faint);
+  --zp-accent: var(--accent);
+  --zp-hairline: var(--line);
+  --zp-border: var(--line);
+  --zp-serif: var(--font-serif), 'Instrument Serif', Georgia, serif;
+  --zp-mono:
+    var(--font-mono), 'JetBrains Mono', ui-monospace, 'SFMono-Regular',
+    monospace;
 }
 
 .pitch-root .pitch-slide {
@@ -116,6 +129,17 @@ html:has(.pitch-root) {
   line-height: 1.6;
 }
 
+.pitch-root .pitch-cover-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 22px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--ink-dim);
+  font-size: 15px;
+}
+
 .pitch-root .pitch-cover-meta {
   margin-top: 24px;
   display: inline-flex;
@@ -207,7 +231,64 @@ html:has(.pitch-root) {
   );
 }
 
-/* ---------- Slide 4: Strategy ---------- */
+/* ---------- Slide 4: Runtime ---------- */
+.pitch-root .pitch-runtime-stages {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 980px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--line);
+}
+
+.pitch-root .pitch-runtime-stage {
+  display: grid;
+  grid-template-columns: 40px 190px minmax(0, 1fr);
+  gap: 16px;
+  align-items: baseline;
+  padding: 14px 20px;
+  background: var(--bg);
+}
+
+.pitch-root .pitch-runtime-index,
+.pitch-root .pitch-runtime-label {
+  font-family: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.pitch-root .pitch-runtime-index {
+  color: var(--ink-faint);
+}
+
+.pitch-root .pitch-runtime-label {
+  color: var(--accent);
+}
+
+.pitch-root .pitch-runtime-parts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  color: var(--ink);
+  font-size: 15px;
+}
+
+.pitch-root .pitch-runtime-footer,
+.pitch-root .pitch-strategy-sleeves,
+.pitch-root .proof-sleeve-note {
+  margin: 24px 0 0;
+  color: var(--ink-dim);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+/* ---------- Slide 5: Strategy ---------- */
 .pitch-root .pitch-strategy-table {
   width: 100%;
   max-width: 820px;
@@ -284,16 +365,31 @@ html:has(.pitch-root) {
 }
 
 .pitch-root .pitch-execution-bullets li {
-  position: relative;
-  padding-left: 24px;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
 }
 
-.pitch-root .pitch-execution-bullets li::before {
-  content: '→';
-  position: absolute;
-  left: 0;
-  color: var(--accent);
+.pitch-root .pitch-execution-bullets strong {
+  color: var(--ink);
+}
+
+.pitch-root .pitch-execution-flows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pitch-root .pitch-execution-flow-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
   font-family: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
 }
 
 .pitch-root .pitch-execution-flow {
@@ -302,12 +398,12 @@ html:has(.pitch-root) {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 8px;
 }
 
 .pitch-root .pitch-execution-step {
   position: relative;
-  padding: 14px 18px;
+  padding: 8px 14px;
   border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
   border-radius: 8px;
   font-family: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -328,7 +424,7 @@ html:has(.pitch-root) {
   position: absolute;
   top: 100%;
   left: 28px;
-  height: 14px;
+  height: 8px;
   border-left: 1px dashed color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
@@ -336,7 +432,51 @@ html:has(.pitch-root) {
   display: none;
 }
 
-/* ---------- Slide 8: Why Now ---------- */
+/* ---------- Slide 8: Roadmap ---------- */
+.pitch-root .pitch-roadmap-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+  margin-top: 12px;
+}
+
+.pitch-root .pitch-roadmap-column {
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.014);
+}
+
+.pitch-root .pitch-roadmap-column h3 {
+  margin: 0 0 16px;
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 28px;
+  font-weight: 400;
+  color: var(--ink);
+}
+
+.pitch-root .pitch-roadmap-column ul {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--ink-dim);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.pitch-root .pitch-roadmap-footer {
+  margin: 20px 0 0;
+  font-family: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+
+/* ---------- Slide 9: Why Now ---------- */
 .pitch-root .pitch-whynow-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -371,13 +511,13 @@ html:has(.pitch-root) {
 }
 
 .pitch-root .pitch-whynow-body {
-  margin: 0;
+  margin: 0 0 14px;
   color: var(--ink-dim);
   font-size: 15px;
   line-height: 1.6;
 }
 
-/* ---------- Slide 9: Ask ---------- */
+/* ---------- Slide 10: Ask ---------- */
 .pitch-root .pitch-ask-inner {
   display: flex;
   flex-direction: column;
@@ -590,8 +730,15 @@ html:has(.pitch-root) {
     grid-template-columns: 1fr;
     gap: 32px;
   }
-  .pitch-root .pitch-whynow-grid {
+  .pitch-root .pitch-whynow-grid,
+  .pitch-root .pitch-roadmap-grid {
     grid-template-columns: 1fr;
+  }
+  .pitch-root .pitch-runtime-stage {
+    grid-template-columns: 32px minmax(0, 1fr);
+  }
+  .pitch-root .pitch-runtime-parts {
+    grid-column: 1 / -1;
   }
   .pitch-root .pitch-nav-bar {
     padding: 14px 16px;

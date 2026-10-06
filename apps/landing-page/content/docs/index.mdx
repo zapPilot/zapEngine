@@ -1,78 +1,62 @@
 ---
 title: Zap Pilot
-description: The self-custodial investment autopilot across S&P 500, BTC/ETH, and stablecoins — executed from your own EOA wallet.
+description: A runtime for programmable portfolios — what runs today, what is in development, and what is planned.
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout';
 import { Card, Cards } from 'fumadocs-ui/components/card';
-import { AssetLabel, AssetPairLabel } from '@/components/docs/AssetLabel';
+import { CapabilityStatusTable } from '@/components/docs/CapabilityStatusTable';
 
-Zap Pilot is a self-custodial investment autopilot: rules-based portfolio discipline, signed from your wallet and held by no one else. A rules engine watches objective market signals, prepares a rebalance bundle, and asks you to sign it from your own EOA. Buy in fear, defend in greed — no emotion, no custody, no discretionary manager.
+Zap Pilot is building a self-hosted runtime for programmable portfolios: a strategy you can read produces a target allocation, and the runtime is being built to turn that target into checked transactions you sign from your own wallet.
 
-## The three pillars
+Today the loop is partial:
 
-The portfolio is always a mix of three understandable assets — no tokens you can't pronounce, no protocols you don't understand:
+- **Strategy.** One reference strategy, DMA/FGI Portfolio Rules, is evaluated daily on Zap Pilot-hosted servers. It produces an advisory target allocation and a decision packet that names the rule that fired.
+- **Deposits.** Deposits you start yourself are built as plans, checked, and signed from your wallet into positions you hold directly on Morpho, GMX v2 and Hyperliquid.
+- **Not yet.** Turning a strategy target into a rebalance, writing your own strategy or policy, and running the runtime on your own machine are planned. Nothing executes without your signature.
 
-<div className="not-prose my-6 grid gap-3">
-  <div className="rounded-lg border border-fd-border bg-fd-card/40 px-4 py-3">
-    <div className="font-medium text-fd-foreground">
-      <AssetLabel symbol="SPY" label="S&P 500" size={20} />
-    </div>
-    <div className="mt-1 text-sm text-fd-muted-foreground">
-      Via Ondo's tokenized index — the equity pillar.
-    </div>
-  </div>
-  <div className="rounded-lg border border-fd-border bg-fd-card/40 px-4 py-3">
-    <div className="font-medium text-fd-foreground">
-      <AssetPairLabel first="BTC" second="ETH" label="BTC + ETH" size={20} />
-    </div>
-    <div className="mt-1 text-sm text-fd-muted-foreground">
-      Crypto risk-on, with an ETH/BTC relative-strength rotation overlay.
-    </div>
-  </div>
-  <div className="rounded-lg border border-fd-border bg-fd-card/40 px-4 py-3">
-    <div className="font-medium text-fd-foreground">
-      <AssetLabel symbol="USDC" label="Stablecoins" size={20} />
-    </div>
-    <div className="mt-1 text-sm text-fd-muted-foreground">
-      Defensive cash leg for risk-off regimes.
-    </div>
-  </div>
-</div>
+## Status of every capability
 
-Allocation across the three pillars shifts with the market regime.
+Every capability claim in these docs and on the site comes from one status table. A capability is only described as running once its status says so.
 
-## How the engine decides
+<CapabilityStatusTable />
 
-Inside the strategy engine is a deterministic priority stack of six rule types. On every market snapshot, the engine walks the stack from highest priority down — the first rule whose trigger conditions are met produces the day's allocation. There is no scoring, no blending, no model overrides.
+## Principles
 
-The six rules fall into two output shapes:
+- **Strategy is the primitive.** A strategy turns signals into a target allocation and explains each decision. Adapters only encode protocol actions; they never pick strategy.
+- **No Zap Pilot vault.** Positions sit at your own address inside third-party protocols. There is no Zap Pilot vault or custody contract, but the protocols themselves are pooled and carry their own risks.
+- **Adapters follow exposure.** An adapter is added when a strategy needs an exposure, not to lengthen a list of venues.
+- **Durable sources of return.** Positions earn from lending demand, trading fees and market making rather than incentive programs, and every one of them can lose money.
+- **Deterministic first.** Rules decide; no model decides an allocation. An optional AI layer for exceptions, bounded by a policy you set, may come later.
 
-- **Cross-based rules** — fire on a hard regime-line crossing and act decisively in a single move. A trend break exits to defense in full; a reclaim of trend resets risk in equal weight; a relative-strength flip rotates the crypto leg outright.
-- **DCA-based rules** — fire on extension and sentiment shifts and act in small, fixed-percentage increments so the portfolio glides rather than jumps.
-
-After a rule picks a target, post-decision risk guards enforce minimum spacing between trades and rolling trade-quota caps — the engine cannot churn even when signals fire often. The rule-by-rule breakdown lives in [How it works](/docs/how-it-works#the-rules-in-priority-order).
-
-## Signed from your wallet, held by no one else
-
-<Callout type="info" title="Self-custody by construction">
-  Your funds live in your own externally-owned account. Zap Pilot **never
-  custodies, never holds keys, and never asks for standing approvals**. Each
-  rebalance is a pre-built transaction bundle — you review, you sign, you move
-  on.
+<Callout type="info" title="Your wallet, your signature">
+  Every batch is built as a plan, checked, and handed to your wallet, where it
+  does nothing until you sign. One standing permission exists today: Hyperliquid
+  deposits use an agent key created and stored on your device. You approve it
+  once, and that approval may not expire.
 </Callout>
 
 ## Where to go next
 
 <Cards>
   <Card
-    title="How it works"
+    title="How the runtime works"
     href="/docs/how-it-works"
-    description="The Sense → Decide → Sign flow, the six-rule priority engine, and the two execution paths."
+    description="Stage by stage, from observing the market to verifying the outcome, and which stages run today."
   />
   <Card
     title="Architecture"
     href="/docs/architecture"
-    description="The product-level architecture: strategy, orchestration, execution, identity, and supporting services."
+    description="Which service owns each plane, what is hosted today, and where the trust boundaries are."
+  />
+  <Card
+    title="Reference strategy spec"
+    href="/docs/track-record/dma-fgi-portfolio-rules-v1"
+    description="DMA/FGI Portfolio Rules: signals, the six rules in priority order, guards, and the backtest method."
+  />
+  <Card
+    title="Track record"
+    href="/docs/track-record"
+    description="Daily backtests, the unsigned snapshot chain, and the on-chain rule check."
   />
 </Cards>

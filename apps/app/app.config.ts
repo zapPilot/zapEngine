@@ -123,7 +123,7 @@ const config: ExpoConfig = {
     favicon: './assets/brand/favicon.png',
     themeColor: tokens.color.bg,
     description:
-      'Disciplined portfolio guidance and financial podcasts from Zap Pilot.',
+      "Portfolio tracking, a reference strategy's daily decisions, wallet-signed deposits, and the From Fed to Chain podcast from Zap Pilot.",
   },
   plugins: [
     './scripts/with-app-store-icon.cjs',

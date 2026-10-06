@@ -209,11 +209,11 @@ describe('track-record navigation and source controls', () => {
       'aria-pressed',
       'true',
     );
-    expect(screen.getByRole('button', { name: 'Live' })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: 'Snapshots' })).toHaveAttribute(
       'aria-pressed',
       'false',
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Live' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Snapshots' }));
     expect(onChange).toHaveBeenLastCalledWith('live');
 
     rerender(
@@ -226,7 +226,7 @@ describe('track-record navigation and source controls', () => {
       'aria-pressed',
       'false',
     );
-    expect(screen.getByRole('button', { name: 'Live' })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: 'Snapshots' })).toHaveAttribute(
       'aria-pressed',
       'true',
     );
@@ -319,13 +319,13 @@ describe('VerificationPanel', () => {
     );
     expect(screen.getByText('Valid')).toBeInTheDocument();
     expect(
-      screen.getByText('No signature (v0 — optional)'),
+      screen.getByText('Unsigned — no official signer is configured yet'),
     ).toBeInTheDocument();
     expect(
       screen.getByText('DailySnapshotSchema vunknown'),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/Backtest mode — switch to Live/),
+      screen.getByText(/Backtest mode — switch to Snapshots/),
     ).toBeInTheDocument();
     expect(screen.queryByText('Full Chain Snapshots')).toBeNull();
   });
@@ -405,7 +405,7 @@ describe('VerificationPanel', () => {
     expect(screen.getByText('FAIL — bad return')).toBeInTheDocument();
   });
 
-  it('uses generic failure messages and the live-empty notice', () => {
+  it('uses generic failure messages and the empty-snapshot notice', () => {
     render(
       <VerificationPanel
         state={verificationState({
@@ -428,10 +428,10 @@ describe('VerificationPanel', () => {
     );
     expect(screen.getByText('Broken at snapshot')).toBeInTheDocument();
     expect(
-      screen.getByText('No signature (v0 — optional)'),
+      screen.getByText('Unsigned — no official signer is configured yet'),
     ).toBeInTheDocument();
     expect(screen.getByText('FAIL — performance mismatch')).toBeInTheDocument();
-    expect(screen.getByText('No live snapshot yet')).toBeInTheDocument();
+    expect(screen.getByText('No published snapshot yet')).toBeInTheDocument();
   });
 
   it('uses the generic invalid-signature reason for a signed snapshot', () => {

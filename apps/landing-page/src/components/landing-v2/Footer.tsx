@@ -1,21 +1,35 @@
+import { StatusNote } from '@/components/StatusBadge';
 import { LINKS } from '@/config/links';
+import { MESSAGES } from '@/config/messages';
+
 import { DiscordLink } from './DiscordLink';
 
 export function Footer() {
+  const { footer, trustBadges, common } = MESSAGES;
   return (
     <footer className="zp-footer">
       <div className="zp-footer-inner">
-        <div className="zp-footer-items">
-          <span>100% self-custody · EOA</span>
-          <span className="zp-footer-live">
-            <span className="zp-dot zp-dot-sm" aria-hidden />
-            Live on mainnet
-          </span>
-        </div>
-        <nav className="zp-footer-items" aria-label="Social links">
+        <ul className="zp-footer-items">
+          {trustBadges.map((badge) => (
+            <li key={badge.label}>
+              {'linkType' in badge ? (
+                <a
+                  href={LINKS.social.github}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {badge.label}
+                </a>
+              ) : (
+                <StatusNote note={{ ...badge, text: badge.label }} />
+              )}
+            </li>
+          ))}
+        </ul>
+        <nav className="zp-footer-items" aria-label={footer.socialLabel}>
           {[
-            { label: 'GitHub', href: LINKS.social.github },
-            { label: 'X', href: LINKS.social.x },
+            { label: footer.github, href: LINKS.social.github },
+            { label: footer.x, href: LINKS.social.x },
           ].map(({ label, href }) => (
             <a
               key={label}
@@ -26,9 +40,9 @@ export function Footer() {
               {label}
             </a>
           ))}
-          <DiscordLink location="footer">Discord community</DiscordLink>
+          <DiscordLink location="footer">{footer.discord}</DiscordLink>
         </nav>
-        <span className="zp-footer-brand">Zap Pilot</span>
+        <span className="zp-footer-brand">{common.brandName}</span>
       </div>
     </footer>
   );

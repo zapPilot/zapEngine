@@ -15,9 +15,9 @@ type PitchSlideProps = {
 /**
  * Snap-aligned slide primitive for the /pitch deck.
  *
- * `variant="wrapped"` removes inner horizontal padding so a child landing component
- * (HowItWorks / Pillars / BacktestProof) can supply its own
- * `.shell-section` chrome. Otherwise the slide draws its own kicker/title/subtitle.
+ * `variant="wrapped"` removes inner horizontal padding so a child landing
+ * component (BacktestProof) can supply its own `.shell-section` chrome.
+ * Otherwise the slide draws its own kicker/title/subtitle.
  */
 export function PitchSlide({
   id,

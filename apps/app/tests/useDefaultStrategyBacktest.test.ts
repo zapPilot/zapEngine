@@ -115,7 +115,7 @@ describe('default strategy backtest mapping', () => {
         strategies: {
           dca_classic: {},
           dma_fgi_portfolio_rules_default: {
-            display_name: 'Zap Strategy',
+            display_name: 'DMA/FGI Portfolio Rules',
             roi_percent: 12.345,
             max_drawdown_percent: -8.9,
             sharpe_ratio: 1.234,
@@ -149,7 +149,7 @@ describe('default strategy backtest mapping', () => {
       returnLabel: '+12.3%',
       vsBtcLabel: '42 trades',
       vsEthLabel: 'Max DD 8.9%',
-      displayName: 'Zap Strategy',
+      displayName: 'DMA/FGI Portfolio Rules',
       chartData: [10000, 12345.678],
     });
     expect(view?.metrics).toEqual([
@@ -170,7 +170,7 @@ describe('default strategy backtest mapping', () => {
         strategies: {
           dca_classic: {},
           dma_fgi_portfolio_rules_default: {
-            display_name: 'Zap Strategy',
+            display_name: 'DMA/FGI Portfolio Rules',
             max_drawdown_percent: null,
             trade_count: 0,
           },

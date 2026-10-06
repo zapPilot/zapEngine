@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { DEMO } from '@/data/demo';
 import { useStrategyData } from '@/integration/useStrategyData';
 
 const mocks = vi.hoisted(() => ({
@@ -36,58 +35,48 @@ beforeEach(() => {
 });
 
 describe('useStrategyData', () => {
-  it('uses the complete demo presentation while disconnected', () => {
-    const result = useStrategyData(null, false);
-
-    expect(result.isLoading).toBe(true);
-    expect(result.isError).toBe(false);
-    expect(result.data).toMatchObject({
-      estApyLabel: DEMO.strategy.estApyLabel,
-      marketModeLabel: DEMO.strategy.marketModeLabel,
-      pillars: DEMO.strategy.pillars,
-      hasTargetAllocation: false,
-      backtest: {
-        returnLabel: DEMO.strategy.backtest.returnLabel,
-        metrics: DEMO.strategy.backtest.metrics,
-        allocation: DEMO.strategy.backtest.allocation,
-        chartData: [],
-        displayName: null,
-      },
-    });
-  });
-
-  it('renders explicit unavailable values for a connected account with no data', () => {
-    const result = useStrategyData('user-1', true, 90);
+  it('renders explicit unavailable values when no live data is available', () => {
+    const result = useStrategyData('user-1', 90);
 
     expect(mocks.suggestion).toHaveBeenCalledWith('user-1');
     expect(mocks.backtest).toHaveBeenCalledWith(90);
     expect(result).toMatchObject({ isLoading: false, isError: false });
-    expect(result.data).toMatchObject({
-      estApyLabel: '—',
-      marketModeLabel: 'Market mode · —',
+    expect(result.data).toEqual({
       hasTargetAllocation: false,
       backtest: {
         returnLabel: '—',
         vsBtcLabel: 'Trades —',
         vsEthLabel: 'Max DD —',
+        metrics: expect.any(Array),
         currentModeLabel: '—',
+        allocation: expect.any(Array),
         chartData: [],
         displayName: null,
       },
     });
-    expect(result.data?.pillars.map((row) => row.weight)).toEqual([0, 0, 0]);
-    expect(result.data?.backtest.allocation.map((row) => row.pct)).toEqual([
+    expect(result.data.backtest.allocation.map((row) => row.pct)).toEqual([
       0, 0, 0,
     ]);
-    expect(result.data?.backtest.metrics).toHaveLength(8);
-    expect(
-      result.data?.backtest.metrics.every((row) => row.value === '—'),
-    ).toBe(true);
+    expect(result.data.backtest.metrics).toHaveLength(8);
+    expect(result.data.backtest.metrics.every((row) => row.value === '—')).toBe(
+      true,
+    );
+  });
+
+  it('stays on dashes rather than demo values before the user id resolves', () => {
+    const result = useStrategyData(null);
+
+    expect(mocks.suggestion).toHaveBeenCalledWith(null);
+    expect(mocks.backtest).toHaveBeenCalledWith(undefined);
+    expect(result.isLoading).toBe(false);
+    expect(result.data.hasTargetAllocation).toBe(false);
+    expect(result.data.backtest.returnLabel).toBe('—');
+    expect(result.data.backtest.chartData).toEqual([]);
   });
 
   it('combines live market, target, and backtest values', () => {
     const metrics = [{ label: 'ROI', value: '+9%', tone: 'positive' }];
-    mocks.regime.mockReturnValue(settled({ currentRegime: 'fear' }));
+    mocks.regime.mockReturnValue(settled({ currentRegime: 'g' }));
     mocks.suggestion.mockReturnValue(
       settled({
         context: {
@@ -110,28 +99,25 @@ describe('useStrategyData', () => {
         vsEthLabel: 'Max DD 4%',
         metrics,
         chartData: [100, 109],
-        displayName: 'Live strategy',
+        displayName: 'DMA/FGI Portfolio Rules',
       }),
     );
 
-    const result = useStrategyData('user-1', true);
+    const result = useStrategyData('user-1');
 
     expect(result.data).toMatchObject({
-      estApyLabel: '+9%',
       hasTargetAllocation: true,
       backtest: {
         returnLabel: '+9%',
         vsBtcLabel: '12 trades',
         vsEthLabel: 'Max DD 4%',
         metrics,
+        currentModeLabel: 'Greed',
         chartData: [100, 109],
-        displayName: 'Live strategy',
+        displayName: 'DMA/FGI Portfolio Rules',
       },
     });
-    expect(result.data?.pillars.map((row) => row.weight)).toEqual([
-      40.4, 40, 19.6,
-    ]);
-    expect(result.data?.backtest.allocation.map((row) => row.pct)).toEqual([
+    expect(result.data.backtest.allocation.map((row) => row.pct)).toEqual([
       40, 40, 20,
     ]);
   });
@@ -153,7 +139,7 @@ describe('useStrategyData', () => {
       isError: false,
     });
 
-    expect(useStrategyData('user-1', true)).toMatchObject({
+    expect(useStrategyData('user-1')).toMatchObject({
       isLoading: true,
       isError: false,
     });
@@ -163,6 +149,6 @@ describe('useStrategyData', () => {
       isLoading: false,
       isError: true,
     });
-    expect(useStrategyData('user-1', true).isError).toBe(true);
+    expect(useStrategyData('user-1').isError).toBe(true);
   });
 });

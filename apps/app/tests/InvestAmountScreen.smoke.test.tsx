@@ -12,6 +12,7 @@ import {
   type InvestContextValue,
 } from '@/integration/useInvest';
 import { planFunding } from '@/integration/investFundingPlanner';
+import { DEFAULT_SECTOR_WEIGHTS } from '@/integration/investSectorModel';
 const { push, rows } = vi.hoisted(() => ({
   push: vi.fn(),
   rows: [8453, 42161].map((chainId) => ({
@@ -118,4 +119,38 @@ it('freezes exactly the automatic plan shown by the default sector experience', 
     requestedUsd6: expected.hyperCoreLeg!.usd6,
     weightBps: expected.hyperCoreLeg!.weightBps,
   });
+});
+it('presents the default mix as a starting point and resets edits to it', async () => {
+  let current: InvestContextValue | undefined;
+  function Probe() {
+    current = useInvest();
+    return null;
+  }
+  const container = await renderInvestUi(
+    <InvestProvider>
+      <InvestAmountScreen />
+      <Probe />
+    </InvestProvider>,
+  );
+  const text = container.textContent!;
+  expect(text).toContain(
+    'Choose an amount and a mix. Zap Pilot builds and checks the transactions; nothing moves until you sign.',
+  );
+  // Derived from DEFAULT_SECTOR_WEIGHTS (crypto 4000 bps, stable 6000 bps).
+  expect(text).toContain(
+    'Default mix: 40% crypto · 60% stable. A starting point, not a recommendation.',
+  );
+  expect(text).not.toContain('Recommended');
+  expect(
+    container.querySelector('[aria-label="Reset to the default mix"]'),
+  ).toBeNull();
+  await changeInput(
+    container.querySelector<HTMLInputElement>(
+      '[aria-label="Crypto allocation percentage"]',
+    )!,
+    '50',
+  );
+  expect(current!.sectorWeights).toMatchObject({ crypto: 5000, stable: 5000 });
+  await clickUi(container, 'Reset to the default mix');
+  expect(current!.sectorWeights).toEqual(DEFAULT_SECTOR_WEIGHTS);
 });

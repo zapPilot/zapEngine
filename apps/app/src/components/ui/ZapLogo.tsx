@@ -14,7 +14,7 @@ const TICKS: readonly (readonly [number, number, number, number])[] = [
   [9.4, 23.8, 13.2, 25.2],
 ];
 
-/** The Zap Pilot "Regime" dial mark (warm gold) — the 1c autopilot gauge. */
+/** The Zap Pilot "Regime" dial mark (warm gold) — the 1c gauge. */
 export function ZapLogo({ size = 16 }: ZapLogoProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 64 64" fill="none">

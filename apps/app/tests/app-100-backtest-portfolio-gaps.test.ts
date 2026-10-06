@@ -256,7 +256,7 @@ describe('backtest response mapping gaps', () => {
         strategies: {
           dca_classic: {},
           dma_fgi_portfolio_rules_default: {
-            display_name: 'Zap Strategy',
+            display_name: 'DMA/FGI Portfolio Rules',
             roi_percent: -5.5,
             max_drawdown_percent: -3.2,
             sharpe_ratio: 0.5,
@@ -293,7 +293,7 @@ describe('backtest response mapping gaps', () => {
         strategies: {
           dca_classic: {},
           dma_fgi_portfolio_rules_default: {
-            display_name: 'Zap Strategy',
+            display_name: 'DMA/FGI Portfolio Rules',
             roi_percent: 4,
             max_drawdown_percent: -2,
             sharpe_ratio: 1,
@@ -347,7 +347,7 @@ describe('backtest response mapping gaps', () => {
         strategies: {
           dca_classic: {},
           dma_fgi_portfolio_rules_default: {
-            display_name: 'Zap Strategy',
+            display_name: 'DMA/FGI Portfolio Rules',
             roi_percent: 4,
             max_drawdown_percent: -2,
             sharpe_ratio: 1,
@@ -366,7 +366,7 @@ describe('backtest response mapping gaps', () => {
 
   it('guards chart data when the strategies map is inconsistent between lookups', () => {
     const summary = {
-      display_name: 'Zap Strategy',
+      display_name: 'DMA/FGI Portfolio Rules',
       roi_percent: 5,
       max_drawdown_percent: -1,
       sharpe_ratio: 1,
@@ -451,7 +451,7 @@ describe('useDefaultStrategyBacktest hook', () => {
         strategies: {
           dca_classic: {},
           dma_fgi_portfolio_rules_default: {
-            display_name: 'Zap Strategy',
+            display_name: 'DMA/FGI Portfolio Rules',
             roi_percent: 6,
             max_drawdown_percent: -2,
             sharpe_ratio: 1,
@@ -474,7 +474,7 @@ describe('useDefaultStrategyBacktest hook', () => {
     expect(runBacktestMock).toHaveBeenCalledTimes(1);
     const request = runBacktestMock.mock.calls[0]?.[0] as { days: number };
     expect(request.days).toBe(90);
-    expect(view.displayName).toBe('Zap Strategy');
+    expect(view.displayName).toBe('DMA/FGI Portfolio Rules');
   });
 
   it('runs the full backtest through the default-days request path', async () => {
@@ -490,7 +490,7 @@ describe('useDefaultStrategyBacktest hook', () => {
         strategies: {
           dca_classic: {},
           dma_fgi_portfolio_rules_default: {
-            display_name: 'Zap Strategy',
+            display_name: 'DMA/FGI Portfolio Rules',
             roi_percent: 6,
             max_drawdown_percent: -2,
             sharpe_ratio: 1,
@@ -512,7 +512,7 @@ describe('useDefaultStrategyBacktest hook', () => {
 
     const request = runBacktestMock.mock.calls[0]?.[0] as { days: number };
     expect(request.days).toBe(365);
-    expect(view.displayName).toBe('Zap Strategy');
+    expect(view.displayName).toBe('DMA/FGI Portfolio Rules');
   });
 });
 

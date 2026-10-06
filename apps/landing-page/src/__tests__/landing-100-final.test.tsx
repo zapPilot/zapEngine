@@ -172,13 +172,13 @@ describe('positions page fallbacks', () => {
 });
 
 describe('track-record page branches', () => {
-  it('shows live error copy when live load fails', () => {
+  it('shows snapshot error copy when the snapshot load fails', () => {
     useTrackRecordMock.mockReturnValue(
       baseState({ error: 'boom', source: 'live' }),
     );
     render(<TrackRecordPage />);
     expect(screen.getByRole('alert')).toHaveTextContent(
-      'live track record: boom',
+      'snapshot track record: boom',
     );
   });
   it('shows backtest error copy when backtest load fails', () => {
@@ -187,7 +187,7 @@ describe('track-record page branches', () => {
     );
     render(<TrackRecordPage />);
     expect(screen.getByRole('alert')).toHaveTextContent('track record: boom');
-    expect(screen.getByRole('alert')).not.toHaveTextContent('live');
+    expect(screen.getByRole('alert')).not.toHaveTextContent('snapshot');
   });
   it('renders backtest section with fallback window when snapshots are empty', () => {
     useTrackRecordMock.mockReturnValue(

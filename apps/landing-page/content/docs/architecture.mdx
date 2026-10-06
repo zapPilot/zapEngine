@@ -1,154 +1,52 @@
 ---
-title: How the system is built
-description: A product-level view — what you can do, how funds flow, what protects you, and what Zap Pilot connects to.
+title: Architecture
+description: Which service owns each plane of the runtime, what is hosted today, and where the trust boundaries are.
 ---
 
-import { Tabs, Tab } from 'fumadocs-ui/components/tabs';
 import { Callout } from 'fumadocs-ui/components/callout';
-import { AssetLabel, AssetPairLabel } from '@/components/docs/AssetLabel';
+import { StatusBadge } from '@/components/StatusBadge';
 
-Zap Pilot is the self-custodial robo-advisor layer between you and the DeFi market. You stay in control of your wallet; Zap Pilot watches the market, prepares moves, and asks you to sign when it's time to act.
+The runtime is split into planes. Each plane has one owner, and money only moves through one planning path that ends at your wallet.
 
-## What you can do
+## Planes and the services behind them
 
-<Tabs items={['Deposit', 'Configure', 'Auto-rotate', 'Withdraw']}>
+| Plane    | What it does                                                                                      | Where it runs today                                                         | Status                                                                                                          |
+| -------- | ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Data     | Collects prices, sentiment and wallet positions every day                                         | `alpha-etl`, hosted                                                         | <StatusBadge capability="market-signals" />                                                                     |
+| Strategy | Evaluates the reference strategy into an advisory target and decision packet; runs backtests      | `analytics-engine`, hosted                                                  | <StatusBadge capability="reference-strategy" />                                                                 |
+| Planning | Turns a request into prepared transactions                                                        | `account-engine` plan orchestration with `@zapengine/intent-engine`, hosted | <StatusBadge capability="deposit-plans" /> deposits · <StatusBadge capability="rebalance-plans" /> rebalances   |
+| Adapters | Encode already-decided actions for Morpho, GMX v2, Hyperliquid and LI.FI; never choose a strategy | `packages/intent-engine/src/protocols/`                                     | <StatusBadge capability="adapter-boundary" />                                                                   |
+| Check    | Approval caps, minimum received, Tenderly simulation                                              | `intent-engine` validators, run by plan orchestration                       | <StatusBadge capability="pre-sign-checks" />                                                                    |
+| Signing  | Shows the plan and asks your wallet to sign                                                       | The app and your wallet                                                     | <StatusBadge capability="wallet-signing" />                                                                     |
+| Notify   | Checks for drift and tells you                                                                    | The Mac app (`apps/desktop`), not distributed yet                           | <StatusBadge capability="local-drift-check" />                                                                  |
+| Record   | Keeps a public record of outcomes                                                                 | Daily IPFS snapshots; one rule as Vyper bytecode on Arbitrum Sepolia        | <StatusBadge capability="snapshot-chain" /> snapshots · <StatusBadge capability="verifiable-rule" /> rule check |
 
-<Tab>
+`analytics-engine` decides allocation and never builds transactions. `account-engine` owns identity and plan orchestration, and identity code never plans money movement. The app confirms, signs and broadcasts prepared transactions; it does not rebuild plans on its own.
 
-**Signed from your wallet, held by no one else.**
+## Hosted today, your machine later
 
-There is no Zap Pilot deposit address and no smart contract that takes custody. You keep S&P 500 exposure, BTC, ETH, and stablecoins in the wallet you already use.
+Every plane above that runs today runs on Zap Pilot-hosted services. Running strategy evaluation and planning on hardware you control is planned <StatusBadge capability="self-hosting" />. Automation grows in steps, and each step waits for the safeguards of the one below it:
 
-</Tab>
+| Level | What happens                                                                 | Status                                         |
+| ----- | ---------------------------------------------------------------------------- | ---------------------------------------------- |
+| L0    | Manual: you read the decision and start a deposit yourself                   | <StatusBadge capability="deposit-plans" />     |
+| L1    | Notify: the Mac app checks for drift and tells you; it never signs           | <StatusBadge capability="local-drift-check" /> |
+| L2    | One-tap plan: a strategy target becomes a rebalance plan you review and sign | <StatusBadge capability="rebalance-plans" />   |
+| L3    | Policy-bounded: every plan is checked against limits you set before signing  | <StatusBadge capability="policy-engine" />     |
+| L4    | Unattended inside scoped on-chain permissions you can revoke (later)         | <StatusBadge capability="unattended-runs" />   |
 
-<Tab>
+## Trust boundaries
 
-**Choose your strategy posture.**
+- **Zap Pilot servers.** If a server is wrong or down, the result is bad advice or no plan. A server cannot move funds by itself: every plan still needs your signature, so check what your wallet shows before you sign.
+- **Your wallet and Privy.** Your wallet holds the keys and signs. Privy is an onboarding rail for embedded wallets; Privy wallets also sign an EIP-712 intent bound to each batch.
+- **The Hyperliquid agent key.** Created and stored on your device, never on a Zap Pilot server. You approve it once, and that approval may not expire, so treat the device like a wallet.
+- **Third-party venues.** There is no Zap Pilot vault or custody contract, but Morpho vaults, GMX GM pools and Hyperliquid HLP are pooled protocols with their own curator, oracle, counterparty and smart-contract risks. HLP deposits are locked for a period set by Hyperliquid.
+- **LI.FI.** Routes swaps and bridges. Every route must quote a minimum received within 1% of its estimate, but bridges add their own risk.
+- **Tenderly.** Simulates each batch before it is returned. A failed simulation blocks the plan; a provider outage does not.
+- **Data sources.** Prices, sentiment and positions come from public providers (including DeBank, the Hyperliquid API and CNN's Fear & Greed index). Bad data produces bad advice, which is one more reason the signature stays with you.
 
-Pick the disciplined three-pillar allocator out of the box, or set your own preferences for how aggressively the portfolio rotates between risk-on and risk-off regimes.
-
-</Tab>
-
-<Tab>
-
-**Let the system rotate allocations for you.**
-
-When the macro regime shifts, Zap Pilot prepares a rebalance bundle that brings your portfolio back to its target allocation. You receive a notification, review the bundle, and approve.
-
-</Tab>
-
-<Tab>
-
-**Withdraw at any time.**
-
-Because the assets never leave your wallet, withdrawing is just sending — no exit queues, no unbonding periods, no protocol-level lockups imposed by Zap Pilot.
-
-</Tab>
-
-</Tabs>
-
-## How funds flow
-
-Zap Pilot is best understood as three cooperating layers, each with a clear job:
-
-<Tabs items={['Market & data layer', 'Strategy engine', 'Execution layer']}>
-
-<Tab>
-
-**Aggregates DeFi market data.**
-
-Continuously gathers prices, on-chain activity, sentiment, and yield-venue performance across the assets the portfolio touches. Nothing here moves money — it only watches.
-
-</Tab>
-
-<Tab>
-
-**Translates the market into a target allocation.**
-
-Applies the regime rules — long-term trend, sentiment, ETH/BTC relative strength — and produces a target weight across the three pillars (S&P 500, BTC + ETH, stablecoins). Strategy logic is fully rules-based: no discretion, no overrides.
-
-</Tab>
-
-<Tab>
-
-**Turns the target into wallet-signed execution.**
-
-When the target diverges from your current allocation, the execution layer prepares the required wallet transactions. Wallets with atomic-batch support sign one all-or-nothing bundle; wallets without it approve and execute the prepared calls sequentially.
-
-</Tab>
-
-</Tabs>
-
-## What protects you
-
-<Callout type="info" title="Non-custodial by construction">
-  Zap Pilot never holds your keys, never takes custody of your assets, and never
-  asks for standing approvals. Every move requires a fresh signature from you,
-  and you can stop using the product at any time without recovering anything —
-  your funds were always in your wallet.
-</Callout>
-
-Risk is isolated by design:
-
-- **You sign every rebalance.** No automated bot can move funds on your behalf. If you ignore a signal, nothing happens.
-- **Each bundle is reviewable.** Before signing you can see exactly what the transaction will do. There are no hidden legs.
-- **No pooled vault.** Your allocation is independent. There is no shared contract that, if compromised, drains everyone.
-- **Strategy and execution are separable.** If you stop trusting the strategy, you keep your assets. If you stop trusting the product entirely, you keep your wallet.
-
-## What Zap Pilot connects to
-
-<Tabs items={['Supported wallets', 'Asset venues', 'Data sources']}>
-
-<Tab>
-
-**Wallets you already use.**
-
-Any standard externally-owned account works. Wallets that support modern atomic-batch standards get a single-signature, all-or-nothing rebalance; wallets without that support fall back to sequential approval and execution transactions from the same EOA.
-
-</Tab>
-
-<Tab>
-
-**Where your assets actually sit between rebalances.**
-
-- <strong>
-    <AssetLabel symbol="SPY" label="Tokenized S&P 500" />
-  </strong>
-  for the equity pillar.
-- <strong>
-    <AssetPairLabel first="BTC" second="ETH" label="BTC and ETH" />
-  </strong>
-  held directly, with relative-strength rotation between them.
-- <strong>
-    <AssetLabel symbol="USDC" label="Stablecoins" />
-  </strong>
-  for the defensive leg, optionally parked in conservative yield venues so idle
-  capital still earns a baseline.
-
-The specific venues evolve as the DeFi landscape changes; what stays fixed is the three-pillar shape of the portfolio.
-
-</Tab>
-
-<Tab>
-
-**The signals that drive decisions.**
-
-- **Long-term trend** — a moving-average filter that decides whether risk assets are above or below their long-term regime line.
-- **Market sentiment** — a fear-and-greed reading used to dial risk down when the market gets euphoric.
-- <strong>
-    <AssetPairLabel first="ETH" second="BTC" label="In-crypto rotation" />
-  </strong>
-  — ETH/BTC relative strength to decide which crypto leg leads when crypto risk
-  is on.
-
-Inputs come from established public market-data providers; nothing in the strategy depends on a private oracle or a custom price feed.
-
-</Tab>
-
-</Tabs>
-
-<Callout type="warn" title="Honest status">
-  The signing experience is rolling out gradually. The strategy engine and the
-  bundled-execution model are in place; the in-app flow that hands you the
-  prepared bundle for one-click signing is the last mile still being polished.
+<Callout type="info" title="Where to read more">
+  The [status table](/docs#status-of-every-capability) lists every capability
+  with its status. [How the runtime works](/docs/how-it-works) walks through
+  each stage in order.
 </Callout>

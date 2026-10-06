@@ -7,7 +7,9 @@ description: Use for ZapEngine marketing copy, positioning, /pitch decks, promo 
 
 ## Where the copy already lives
 
-- Landing: `apps/landing-page/src/config/messages.ts` (`MESSAGES`).
+- Landing: `apps/landing-page/src/config/messages.ts` (`MESSAGES`) holds every home-page string.
+- Capability claims: `apps/landing-page/src/config/runtime.ts` (`CAPABILITIES`) records each capability as Live, Research, In development or Planned. Copy references a capability id and pages render its status badge; liveness is never written in prose.
+- `apps/landing-page/src/config/__tests__/positioning.test.tsx` fences landing, pitch and docs claims, retired terms and docs links; when it fails, change the copy.
 - Pitch: `apps/landing-page/src/config/pitch.ts` and `apps/landing-page/src/app/pitch/`; the cover reuses `MESSAGES.hero`.
 - Promo video: `apps/video/src/videos/<id>/storyboard.ts`; numbers come only from `facts.ts`.
 - Kokode (separate medical product): `packages/kokode-story/src/` is the only copy source for its landing, `/pitch/`, `/pitch/partner/` and the `kokode-clinic` film. `packages/kokode-story/src/story.test.ts` fences claims (no absolute, regulatory or medical-device wording outside disclaimers, one price, no revenue-share figures, demos keep their disclaimers); when it fails, change the copy.
@@ -105,7 +107,9 @@ pnpm exec prettier --check <changed-markdown-files>
 ```
 
 For landing or promo code, run `pnpm turbo run test lint type-check` with
-`--filter=@zapengine/landing-page` or `--filter=@zapengine/video` respectively.
+`--filter=@zapengine/landing-page` or `--filter=@zapengine/video` respectively;
+landing changes also run
+`pnpm --filter @zapengine/landing-page exec vitest run src/config/__tests__/positioning.test.tsx`.
 Group observations by episode `created_at` relative to deployment, because
 backlog delays publication. Among distributed Rednote notes compare 24h average
 views, best and like rate; report the ≤20-view distribution gate separately.

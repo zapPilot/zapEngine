@@ -47,12 +47,9 @@ export default function TrackRecordLayout({
               {state.source === 'backtest' ? (
                 <div className="pending-badge">Backtest</div>
               ) : hasLiveData ? (
-                <div className="live-badge">
-                  <span className="live-dot" aria-hidden />
-                  Live
-                </div>
+                <div className="snapshot-badge">Snapshots · unsigned</div>
               ) : (
-                <div className="pending-badge">Live unavailable</div>
+                <div className="pending-badge">Snapshots unavailable</div>
               )}
             </TrackRecordSourceControls>
           )}

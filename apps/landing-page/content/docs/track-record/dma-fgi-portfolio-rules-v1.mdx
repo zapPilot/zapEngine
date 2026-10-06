@@ -1,69 +1,102 @@
 ---
-title: DMA/FGI Portfolio Rules v1
-description: Strategy specification for the DMA/FGI regime-aware portfolio allocator
+title: DMA/FGI Portfolio Rules — reference strategy
+description: Specification of the reference strategy — signals, the six rules in priority order, guards, and how its backtest is computed.
 ---
 
+import { Callout } from 'fumadocs-ui/components/callout';
 import { AssetLabel, AssetPairLabel } from '@/components/docs/AssetLabel';
+import { StatusBadge } from '@/components/StatusBadge';
 
-## Overview
+## Status
 
 **Strategy ID:** `dma_fgi_portfolio_rules`
-**Version:** v1
-**Status:** Backtest
 
-## Goal
+<StatusBadge
+  capability="reference-strategy"
+  qualifier="daily · hosted · advisory"
+/>
 
-Generate superior absolute and risk-adjusted returns by trading between three risk pillars — S&P 500 tokenized exposure, BTC/ETH, and stablecoins — in response to regime signals from the 200-day moving average (DMA) and Fear & Greed Index (FGI).
+The strategy is evaluated once a day on Zap Pilot-hosted servers. Its output is an advisory target allocation and a decision packet; nothing executes because a rule fired.
 
-## Assets
+**Not versioned.** The strategy config is global and can change in place. The `v1` in this page's URL is a label, not a pinned version. Versioned strategies are planned <StatusBadge capability="strategy-versioning" />.
 
-| Pillar      | Asset                                                             | Venue                |
-| ----------- | ----------------------------------------------------------------- | -------------------- |
-| Equities    | Ondo USDC (OUSG / USDY)                                           | Ethereum             |
-| Crypto      | <AssetPairLabel first="WBTC" second="WETH" label="WBTC + WETH" /> | Ethereum / Arbitrum  |
-| Stablecoins | <AssetPairLabel first="USDC" second="USDT" label="USDC + USDT" /> | All supported chains |
+## Philosophy
+
+Buy in fear, defend in greed. The rules add risk when trend and sentiment say the market is cheap and scared, and trim it when the market is stretched and euphoric.
+
+## Aim
+
+Improve risk-adjusted results versus [DCA Classic](/docs/track-record/dca-classic-v1). This is a design goal, not a promise.
+
+## Sleeves
+
+The target allocation spans three sleeves:
+
+| Sleeve      | Asset                                                           | Today                                                                                       |
+| ----------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Equities    | <AssetLabel symbol="SPY" label="S&P 500" />                     | Modeled only; no adapter can execute it yet <StatusBadge capability="tokenized-equities" /> |
+| Crypto      | <AssetPairLabel first="BTC" second="ETH" label="BTC and ETH" /> | Modeled by the strategy                                                                     |
+| Stablecoins | <AssetLabel symbol="USDC" label="Stablecoins" />                | Modeled by the strategy                                                                     |
+
+Deposits do not follow the strategy's target: the app's default mix is a fixed starting point, and its S&P 500 sector stays at 0%.
+
+## Signals
+
+- **200-day moving averages** for SPY, BTC and ETH: which side of its average each asset is on, when it crosses, and how far above it trades.
+- **Fear & Greed**: the crypto Fear & Greed index for BTC and ETH, and CNN's US-equity Fear & Greed index for SPY.
+- **ETH/BTC**: the ratio against its own 200-day average, for rotation inside the crypto sleeve.
 
 ## Rules, in priority order
 
-The engine evaluates each daily snapshot top-down and uses the first matching
-rule. Exact thresholds, weights, and cooldowns are code-owned in
-`portfolio_rules/__init__.py` rather than duplicated here.
+On each daily snapshot the strategy walks this list top-down. The first rule whose trigger conditions are met produces that day's target allocation; the rest are skipped. A same-day cross-down always wins over a same-day cross-up. Exact thresholds and weights are code-owned in `apps/analytics-engine` (`portfolio_rules/__init__.py`) rather than duplicated here.
 
-1. **Cross-down exit** — leave a risk asset and its peers when price crosses
-   below its long-term trend.
-2. **Cross-up equal-weight** — restore equal-weight exposure across assets above
-   trend after a cross-up.
-3. **ETH/BTC ratio rotation** — rotate the crypto leg when relative strength
-   crosses its trend.
-4. **ETH/BTC deviation DCA** — incrementally lean toward the relatively cheap
-   crypto asset when the ratio deviates far from its mean.
-5. **DMA overextension DCA sell** — trim overextended risk exposure gradually.
-6. **FGI downshift DCA sell** — reduce risk incrementally when greed unwinds.
+### 1. Cross-down exit
 
-## Risk Limits
+When a risk asset closes below its 200-day average, the strategy moves out of that asset — and its peers in the same risk class — into the defensive leg, in full and immediately. This rule can be [recomputed on-chain](/docs/track-record/verifiable-strategy) for a recorded exit.
 
-- Maximum single-pillar exposure: 70%
-- Minimum stablecoin allocation: 10%
-- Maximum single-asset concentration: 40%
-- No leverage
-- No derivatives
-- No lending (only LP and governance staking)
+### 2. Cross-up equal-weight
 
-## Backtest costs
+When one or more risk assets close back above the average, the strategy resets risk to an equal split across the assets above it that day.
 
-Backtest performance includes the configured execution-cost model. Live NAV and
-live execution-cost accounting remain pending with the on-chain pipeline.
+### 3. ETH/BTC ratio rotation
 
-- Network gas (estimated at time of execution)
-- Slippage (estimated at 0.5% for liquidity above $100k, 1% otherwise)
-- Protocol fees (Ondo: 0%, Morpho: variable, GMX: 0.02%)
+When the ETH/BTC ratio crosses its own 200-day average, the crypto sleeve rotates fully to the stronger asset until the next ratio cross.
+
+### 4. ETH/BTC deviation DCA
+
+When ETH/BTC deviates far from its long-term mean, the strategy leans toward the relatively cheap side in small, fixed steps.
+
+### 5. DMA overextension DCA sell
+
+When a risk asset trades far above its 200-day average, the strategy trims a small slice on each eligible day, moving the proceeds into the defensive and equity legs.
+
+### 6. FGI downshift DCA sell
+
+When sentiment moves out of greed into a more neutral or fearful regime, the strategy trims risk in small steps — dialing exposure back before the trend itself breaks.
+
+When no rule fires, the strategy **holds**. That is the common case.
+
+## Guards
+
+- **Cross cooldown.** After an actionable cross, repeat cross actions are suppressed for 30 days, tracked per asset.
+- **DMA buy gate.** Gradual buys wait until price has moved sideways relative to its 200-day average for several days, and each buy leg is capped.
+- **FGI pacing.** The size of each gradual step scales with Fear & Greed along a fixed curve.
+- **Trade quota.** Minimum spacing between trades and rolling 7-day and 30-day caps are available, but off by default.
+
+## Backtest method
+
+The published backtest is hypothetical. It is recomputed daily over a rolling 500-day window, starting from $10,000, and compared with DCA Classic over the same window.
+
+- **Costs.** Every simulated trade pays a fixed 0.3% slippage. There is no separate gas or protocol-fee model.
+- **Assumed yield.** Balances earn an assumed annual rate that depends on the market regime: 5% to 25% APR on stablecoins and 1% to 5% on BTC and ETH, from extreme fear to extreme greed. DCA Classic receives the same assumption.
+- **S&P 500 sleeve.** The backtest holds an S&P 500 sleeve that Zap Pilot cannot execute today.
+- **Trades.** Trade counts are simulated trades, not executed ones.
+
+<Callout type="warn" title="Hypothetical results">
+  Past performance does not guarantee future results. Backtest results depend on
+  the assumptions above and on data that can be revised.
+</Callout>
 
 ## Status boundary
 
-These rules are validated by backtests. They are not a claim of live execution,
-public NAV accounting, automatic incident response, or an operating fallback
-policy.
-
-## Research logic verification
-
-The [Verifiable Strategy demo](/docs/track-record/verifiable-strategy/) recomputes one DMA exit using a Vyper research slice on Arbitrum Sepolia. It covers one of six rules and is not the production strategy.
+These rules are evaluated daily and validated by backtests. They are not a claim of executed trades, a live account, automatic rebalancing, or an operating fallback policy. One rule, the cross-down exit, can be [recomputed on-chain](/docs/track-record/verifiable-strategy) as a research check <StatusBadge capability="verifiable-rule" />; the other five cannot.

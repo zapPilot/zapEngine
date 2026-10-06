@@ -41,6 +41,7 @@ export function DownloadCta() {
     >
       {MESSAGES.download[target]}
       {target === 'mac' ? ` · ${MESSAGES.download.macRequirement}` : ''}
+      {target === 'appStore' ? ` · ${MESSAGES.download.appStoreNote}` : ''}
     </a>
   );
   return (
