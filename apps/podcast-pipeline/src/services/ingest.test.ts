@@ -153,7 +153,7 @@ describe('performIngest failure paths', () => {
       }),
     );
     mockGenerateEditorialTitleWithLLM.mockResolvedValue({
-      title: null,
+      title: '软件更新的新变化',
       model: 'test-model',
       provider: 'test-provider',
       costUsd: 0,
@@ -406,7 +406,7 @@ describe('performIngest failure paths', () => {
     const originalScript =
       'First paragraph.\n\n---\n\nKeep inline --- punctuation.';
     mockGenerateEditorialTitleWithLLM.mockResolvedValue({
-      title: null,
+      title: '软件更新的新变化',
       model: 'test-model',
       provider: 'test-provider',
       costUsd: 0,
@@ -472,9 +472,37 @@ describe('performIngest failure paths', () => {
     consoleSpy.mockRestore();
   });
 
-  it('sums LLM costs for a fresh ingest invocation', async () => {
+  it('retains title cost in failed ingest telemetry without generating script', async () => {
     mockGenerateEditorialTitleWithLLM.mockResolvedValue({
       title: null,
+      model: 'test-model',
+      provider: 'test-provider',
+      costUsd: 0.00002,
+    });
+    const telemetry: import('./ingest/script-stage.js').IngestLanguageTelemetry =
+      {
+        lines: [],
+        attempts: [],
+        episodeId: null,
+        localizationId: null,
+      };
+    await expect(
+      performIngest('https://example.com/article', 'zh-Hant', telemetry),
+    ).rejects.toThrow('the source title will not be used as Best Title');
+    expect(telemetry.lines).toEqual([
+      expect.objectContaining({ label: 'LLM title', costUsd: 0.00002 }),
+    ]);
+    expect(mockGenerateScriptWithLLM).not.toHaveBeenCalled();
+    expect(mockUpdateEpisodeLocalizationStatus).not.toHaveBeenCalledWith(
+      expect.anything(),
+      'script_generated',
+      expect.anything(),
+    );
+  });
+
+  it('sums LLM costs for a fresh ingest invocation', async () => {
+    mockGenerateEditorialTitleWithLLM.mockResolvedValue({
+      title: '软件更新的新变化',
       model: 'test-model',
       provider: 'test-provider',
       costUsd: 0.00002,
@@ -489,13 +517,13 @@ describe('performIngest failure paths', () => {
     expect(result.costDetails.breakdown).toEqual([
       expect.objectContaining({
         category: 'llm',
-        label: 'LLM script',
-        costUsd: 0.00001,
+        label: 'LLM title',
+        costUsd: 0.00002,
       }),
       expect.objectContaining({
         category: 'llm',
-        label: 'LLM title',
-        costUsd: 0.00002,
+        label: 'LLM script',
+        costUsd: 0.00001,
       }),
       expect.objectContaining({
         category: 'llm',

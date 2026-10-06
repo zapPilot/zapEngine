@@ -3,7 +3,11 @@
   "mcp": {
     "zap-pilot-ops": {
       "type": "local",
-      "command": ["node", "scripts/ops-mcp.mjs"],
+      "command": [
+        "node",
+        "-e",
+        "const {execFileSync} = require('node:child_process'); const path = require('node:path'); const {pathToFileURL} = require('node:url'); const gitDir = execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], {encoding: 'utf8'}).trim(); if (path.basename(gitDir) !== '.git') throw new Error('Ops MCP requires a primary Git checkout with a .git directory'); import(pathToFileURL(path.join(path.dirname(gitDir), 'scripts/ops-mcp.mjs')).href).catch(error => { console.error(error); process.exitCode = 1; });"
+      ],
       "enabled": true,
       "timeout": 30000
     },

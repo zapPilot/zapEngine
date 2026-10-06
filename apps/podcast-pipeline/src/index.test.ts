@@ -2538,7 +2538,7 @@ function configureFreshTelegramIngest(): void {
     },
   );
   mockGenerateEditorialTitleWithLLM.mockResolvedValue({
-    title: null,
+    title: '软件更新的新变化',
     model: 'test-model',
     provider: 'test-provider',
     costUsd: 0,
