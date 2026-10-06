@@ -1,5 +1,11 @@
 import { manifestSchema, type Manifest } from '@zapengine/media-release';
 import { artifacts, MEDIA_BASE, RENDER_COMMAND } from './artifacts';
+// Escape every regex metacharacter so artifact object names match literally.
+// Escaping only dots left backslashes (and +, (, ...) live in the pattern
+// (CodeQL js/incomplete-sanitization).
+export function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 export function validatePublished(
   value: unknown,
   expected: Record<string, string>,
@@ -22,7 +28,7 @@ export function validatePublished(
         url.search ||
         url.hash ||
         !new RegExp(
-          `^/releases/\\d{8}-\\d{6}-[a-f0-9]{8}/${spec.object.replace(/\./g, '\\.')}$`,
+          `^/releases/\\d{8}-\\d{6}-[a-f0-9]{8}/${escapeRegExp(spec.object)}$`,
         ).test(url.pathname) ||
         entry.contentType !== spec.contentType ||
         entry.fingerprint !== expected[id]

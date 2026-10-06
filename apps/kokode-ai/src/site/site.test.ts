@@ -22,7 +22,7 @@ import {
 } from '@zapengine/kokode-story/narrative';
 import { META } from '@zapengine/kokode-story/ja/site';
 import type { Group } from '@zapengine/kokode-story/types';
-import { ctaHref, toPdfHref } from './links';
+import { ctaHref, isAbsoluteHttpUrl, toPdfHref } from './links';
 import { escape, lines, markup } from './markup';
 import { HTML_ENTRIES, renderPage } from './pages';
 
@@ -189,6 +189,34 @@ describe('deck links', () => {
     expect(toPdfHref('/?utm_medium=deck#contact')).toBe(
       'https://www.kokode.xyz/?utm_medium=pdf#contact',
     );
+  });
+
+  it('only treats absolute http(s) URLs as link targets', () => {
+    expect(isAbsoluteHttpUrl('https://www.kokode.xyz/?a=1#contact')).toBe(true);
+    expect(isAbsoluteHttpUrl('http://example.com/x')).toBe(true);
+    for (const unsafe of [
+      'javascript:alert(1)',
+      'JaVaScRiPt:alert(1)',
+      'data:text/html,<script>alert(1)</script>',
+      '/relative/path',
+      '',
+      'not a url',
+    ])
+      expect(isAbsoluteHttpUrl(unsafe), unsafe).toBe(false);
+  });
+
+  it('keeps every data-pdf-href on the site https origin', () => {
+    // scripts/export-pitch-pdf.mjs only writes same-origin PDF hrefs; if the
+    // site origin ever moves, update PDF_SITE_ORIGIN there too.
+    for (const doc of [pitch, partner]) {
+      const links = Array.from(doc.querySelectorAll('a[data-pdf-href]'));
+      expect(links.length).toBeGreaterThan(0);
+      for (const link of links) {
+        const target = link.getAttribute('data-pdf-href') ?? '';
+        expect(target.startsWith('https://www.kokode.xyz/')).toBe(true);
+        expect(new URL(target).origin).toBe('https://www.kokode.xyz');
+      }
+    }
   });
 });
 

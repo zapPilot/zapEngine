@@ -624,6 +624,25 @@ describe('composeDeposit', () => {
     });
   });
 
+  it('ignores an explicitly-undefined split leg on a non-Base source', async () => {
+    const { adapter } = makeAdapter();
+    const { publicClients } = makePublicClients();
+
+    const plan = await composeDeposit(
+      {
+        fromToken: ARBITRUM_USDC,
+        fromAmount: '25000000',
+        sourceChainId: 42161,
+        userAddress: USER,
+        split: { 1337: 1, 42161: undefined },
+      },
+      { adapter, publicClients: publicClients as never },
+    );
+
+    expect(plan.legs).toHaveLength(1);
+    expect(plan.legs[0]).toMatchObject({ chainId: 1337, kind: 'bridge' });
+  });
+
   it('keeps Arbitrum USDC on LI.FI when planning against testnet', async () => {
     const { adapter, getQuote } = makeAdapter();
     const { publicClients } = makePublicClients();

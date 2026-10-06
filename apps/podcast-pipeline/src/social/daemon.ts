@@ -529,6 +529,7 @@ async function discoverAndEnqueue(input: {
     candidatesByEpisode.set(candidate.episode_id, list);
   }
   const scheduledArticles = releaseBudgetIndex(schedules);
+  let backlogArticles = releaseBacklogArticles(schedules);
   let newCohorts = 0;
   let deferredArticles = 0;
 
@@ -538,6 +539,7 @@ async function discoverAndEnqueue(input: {
       episodeCandidates: candidatesByEpisode.get(episodeId) ?? [],
       schedules,
       scheduledArticles,
+      backlogArticles,
       titleByEpisodeLanguage,
       now: input.now,
       log: input.log,
@@ -546,6 +548,7 @@ async function discoverAndEnqueue(input: {
     });
     if (result.inserted) {
       newCohorts += 1;
+      backlogArticles += 1;
       if (
         input.maxNewCohorts !== undefined &&
         newCohorts >= input.maxNewCohorts
@@ -565,6 +568,7 @@ async function discoverAndEnqueueEpisode(input: {
   episodeCandidates: readonly SocialPublishCandidate[];
   schedules: readonly PendingSocialPublishSchedule[];
   scheduledArticles: Date[];
+  backlogArticles: number;
   titleByEpisodeLanguage: ReadonlyMap<string, string | null>;
   now: Date;
   log: (message: string) => void;
@@ -602,6 +606,7 @@ async function discoverAndEnqueueEpisode(input: {
     title,
     episodeCandidates: input.episodeCandidates,
     scheduledArticles: input.scheduledArticles,
+    backlogArticles: input.backlogArticles,
     now: input.now,
     log: input.log,
     immediateScheduleAt: input.immediateScheduleAt,
@@ -735,6 +740,7 @@ async function enqueueNewCohort(input: {
   title: string | null;
   episodeCandidates: readonly SocialPublishCandidate[];
   scheduledArticles: Date[];
+  backlogArticles: number;
   now: Date;
   log: (message: string) => void;
   immediateScheduleAt?: Date;
@@ -769,6 +775,7 @@ async function enqueueNewCohort(input: {
     scheduledAt = nextReleaseSlot({
       after: new Date(Math.max(readyAt.getTime(), input.now.getTime())),
       scheduled: input.scheduledArticles,
+      backlogArticles: input.backlogArticles + 1,
     });
   }
   if (!scheduledAt) {
@@ -794,6 +801,28 @@ async function enqueueNewCohort(input: {
   });
   if (insertedAny) input.scheduledArticles.push(scheduledAt);
   return { inserted: insertedAny, deferred: false };
+}
+
+/** Number of wholly unpublished durable article cohorts still in the queue. */
+function releaseBacklogArticles(
+  schedules: readonly PendingSocialPublishSchedule[],
+): number {
+  const states = new Map<
+    string,
+    { hasPending: boolean; hasCompleted: boolean }
+  >();
+  for (const schedule of schedules) {
+    const state = states.get(schedule.episode_id) ?? {
+      hasPending: false,
+      hasCompleted: false,
+    };
+    if (schedule.status === 'completed') state.hasCompleted = true;
+    else state.hasPending = true;
+    states.set(schedule.episode_id, state);
+  }
+  return [...states.values()].filter(
+    (state) => state.hasPending && !state.hasCompleted,
+  ).length;
 }
 
 /** One budget entry per episode, never one per platform or language lane. */

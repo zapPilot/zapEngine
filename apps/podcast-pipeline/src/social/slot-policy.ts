@@ -1,7 +1,6 @@
 import { JST_OFFSET_MS } from './jst.js';
 import {
-  SOCIAL_RELEASE_DAILY_CAP,
-  SOCIAL_RELEASE_SLOTS,
+  socialReleaseCadenceForBacklog,
   type SocialReleaseSlot,
 } from './policy.js';
 
@@ -9,7 +8,7 @@ const DAY_MS = 24 * 60 * 60_000;
 
 /**
  * How far ahead discovery will place article releases. A longer backlog stays
- * discoverable and drains one article per day rather than being compressed.
+ * discoverable instead of being compressed beyond the selected cadence.
  */
 export const SCHEDULING_HORIZON_DAYS = 8;
 
@@ -30,9 +29,11 @@ function slotAt(dayStart: Date, slot: SocialReleaseSlot): Date {
 export function nextReleaseSlot(input: {
   after: Date;
   scheduled: readonly Date[];
+  backlogArticles?: number;
   horizonDays?: number;
 }): Date | null {
   const horizonDays = input.horizonDays ?? SCHEDULING_HORIZON_DAYS;
+  const cadence = socialReleaseCadenceForBacklog(input.backlogArticles ?? 0);
   const firstDay = startOfJstDay(input.after);
 
   for (let offset = 0; offset < horizonDays; offset += 1) {
@@ -41,9 +42,9 @@ export function nextReleaseSlot(input: {
     const used = input.scheduled.filter(
       (at) => at >= dayStart && at < dayEnd,
     ).length;
-    if (used >= SOCIAL_RELEASE_DAILY_CAP) continue;
+    if (used >= cadence.slots.length) continue;
 
-    for (const slot of SOCIAL_RELEASE_SLOTS) {
+    for (const slot of cadence.slots) {
       const candidate = slotAt(dayStart, slot);
       if (candidate < input.after) continue;
       if (input.scheduled.some((at) => at.getTime() === candidate.getTime())) {

@@ -27,3 +27,18 @@ export function toPdfHref(href: string): string {
   url.searchParams.set('utm_medium', 'pdf');
   return url.toString();
 }
+
+/**
+ * Only absolute http(s) URLs may be written into a link `href` from a
+ * `data-pdf-href` value. Anything else (`javascript:`, `data:`, relative
+ * paths) is left alone so injected markup cannot turn a deck link into an
+ * executable URL (CodeQL js/xss-through-dom).
+ */
+export function isAbsoluteHttpUrl(href: string): boolean {
+  try {
+    const protocol = new URL(href).protocol;
+    return protocol === 'http:' || protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
