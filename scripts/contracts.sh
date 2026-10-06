@@ -18,6 +18,7 @@ case "${1:-}" in
     node --test scripts/desktop-release.test.mjs scripts/desktop-release-workflow.test.mjs scripts/app-distribution.test.mjs
     node --test scripts/deploy-vercel-main.test.mjs
     node --test scripts/distribution-snapshot-workflow.test.mjs
+    node --test scripts/ops-mcp-config.test.mjs
     node --test scripts/llm-fallback-config.test.mjs
     node --test scripts/sales-registry.test.mjs scripts/sales-render.test.mjs scripts/sales-publish.test.mjs
     node --test apps/kokode-ai/scripts/export-pitch-pdf.test.mjs

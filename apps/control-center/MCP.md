@@ -30,6 +30,8 @@ Sentry remediation uses a separate server-side credential:
 
 Normal Sentry collection and inspection never fall back to the write token. If `SENTRY_OPS_WRITE_TOKEN` is absent, all read tools continue to work and `ops_resolve_sentry_issue` fails closed before sending a request.
 
+Both local MCP client configurations resolve Git's shared `.git` directory and launch `scripts/ops-mcp.mjs` from the primary checkout. Every linked worktree therefore uses the same Ops MCP source, installed dependencies, built packages, and canonical production environment, even when it has no `node_modules`. Worktree-local code changes do not affect this shared MCP service. The primary checkout must be prepared once; creating or switching worktrees requires no installation or build. This uses the primary checkout's current files, regardless of its branch name, and never switches branches. Older branches must contain the updated client configuration to use this entry point.
+
 The stdio launcher deliberately runs through `scripts/env/run.mjs --environment prod`, so a repository-local agent sees production operational truth instead of silently falling back to the env runner's default `dev` rail. For direct shell reads, use the same canonical runner; do not substitute bare `infisical run --env=prod -- ...`, because that injects secrets without necessarily merging committed non-secret values from `config/env/prod.env` and the repository env projection. Missing provider read credentials still degrade that provider to `unknown`; they must never be interpreted as healthy.
 
 `ops_status` is an incident inventory, not proof that every failure class is
