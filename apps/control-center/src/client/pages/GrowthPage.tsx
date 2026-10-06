@@ -22,11 +22,19 @@ import { platformColorVar } from '../components/ui/tone.js';
 import { integer, percent } from '../format.js';
 import { PlatformIdentity, platformLabel } from '../platform.js';
 
-export const CURRENT_RELEASE_SLOTS_JST = [
-  '09:30',
-  '12:00',
-  '16:00',
-  '21:00',
+export const CURRENT_RELEASE_CADENCES_JST = [
+  {
+    minBacklogArticles: 21,
+    slots: ['09:00', '11:30', '14:00', '16:30', '19:00', '21:30'],
+  },
+  {
+    minBacklogArticles: 10,
+    slots: ['09:00', '12:00', '15:00', '18:00', '21:00'],
+  },
+  {
+    minBacklogArticles: 0,
+    slots: ['09:30', '12:00', '16:00', '21:00'],
+  },
 ] as const;
 
 export function GrowthPage(props: {
@@ -206,38 +214,53 @@ function WindowPicker(props: {
 
 /**
  * Canonical publishing cadence. One article consumes one release slot and all
- * active platform x language lanes share it; the slots here must match
- * SOCIAL_RELEASE_SLOTS in apps/podcast-pipeline/src/social/policy.ts.
+ * active platform x language lanes share it; these tiers must match
+ * SOCIAL_RELEASE_CADENCES in apps/podcast-pipeline/src/social/policy.ts.
  */
 function PublishingCadence() {
   return (
     <section className="publishing-brief" aria-label="Next publishing plan">
       <div className="brief-kicker">Next publishing</div>
       <div className="brief-primary">
-        <span>Shared release cadence</span>
-        <div
-          aria-label="Publishing slots"
-          style={{
-            display: 'grid',
-            gap: '8px',
-            gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-          }}
-        >
-          {CURRENT_RELEASE_SLOTS_JST.map((slot) => (
-            <strong
-              key={slot}
+        <span>Backlog-aware shared cadence</span>
+        {CURRENT_RELEASE_CADENCES_JST.map((cadence) => (
+          <div key={cadence.minBacklogArticles} style={{ marginTop: '10px' }}>
+            <small>
+              {cadence.minBacklogArticles >= 21
+                ? '21+ queued'
+                : cadence.minBacklogArticles >= 10
+                  ? '10–20 queued'
+                  : '0–9 queued'}{' '}
+              · {cadence.slots.length}/day
+            </small>
+            <div
+              aria-label={`Publishing slots for backlog ${cadence.minBacklogArticles}+`}
               style={{
-                border: '1px solid var(--line)',
-                borderRadius: 'var(--radius-control)',
-                padding: '10px 8px',
-                textAlign: 'center',
+                display: 'grid',
+                gap: '6px',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(64px, 1fr))',
+                marginTop: '6px',
               }}
             >
-              {slot}
-            </strong>
-          ))}
-        </div>
-        <small>JST · 4 article slots per day</small>
+              {cadence.slots.map((slot) => (
+                <strong
+                  key={slot}
+                  style={{
+                    border: '1px solid var(--line)',
+                    borderRadius: 'var(--radius-control)',
+                    padding: '8px 6px',
+                    textAlign: 'center',
+                  }}
+                >
+                  {slot}
+                </strong>
+              ))}
+            </div>
+          </div>
+        ))}
+        <small>
+          JST · queue count is per unpublished article, not per lane
+        </small>
       </div>
       <div className="brief-direction">
         <span>Publishing contract</span>
