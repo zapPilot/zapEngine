@@ -218,6 +218,9 @@ export function buildContentPackagingInsight(
     .sort(
       (a, b) =>
         b.reachLift - a.reachLift ||
+        /* v8 ignore next -- ranked samples always cleared DISTRIBUTION_GATE
+           (> 20 views), so pooled() cannot return null here; the fallback only
+           guards the nullable type. */
         (b.engagementRate ?? 0) - (a.engagementRate ?? 0) ||
         Date.parse(b.publishedAt) - Date.parse(a.publishedAt) ||
         a.episodeId.localeCompare(b.episodeId),

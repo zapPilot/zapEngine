@@ -41,19 +41,60 @@ export interface SocialReleaseSlot {
   minute: number;
 }
 
+export interface SocialReleaseCadence {
+  minBacklogArticles: number;
+  slots: readonly SocialReleaseSlot[];
+}
+
 /**
  * NON-NEGOTIABLE release policy: one article consumes one release slot and all
- * active platform x language lanes of that episode share it. Reach optimisation
- * may change this article-level frequency or these candidate times, but must
- * never create a platform-specific schedule.
+ * active platform x language lanes of that episode share it. The article-level
+ * cadence adapts to the wholly unpublished durable queue, never to a specific
+ * platform: 0-9 articles use 4/day, 10-20 use 5/day, and 21+ use 6/day.
  */
-export const SOCIAL_RELEASE_DAILY_CAP = 4;
-export const SOCIAL_RELEASE_SLOTS = [
-  { hour: 9, minute: 30 },
-  { hour: 12, minute: 0 },
-  { hour: 16, minute: 0 },
-  { hour: 21, minute: 0 },
-] as const satisfies readonly SocialReleaseSlot[];
+export const SOCIAL_RELEASE_CADENCES = [
+  {
+    minBacklogArticles: 21,
+    slots: [
+      { hour: 9, minute: 0 },
+      { hour: 11, minute: 30 },
+      { hour: 14, minute: 0 },
+      { hour: 16, minute: 30 },
+      { hour: 19, minute: 0 },
+      { hour: 21, minute: 30 },
+    ],
+  },
+  {
+    minBacklogArticles: 10,
+    slots: [
+      { hour: 9, minute: 0 },
+      { hour: 12, minute: 0 },
+      { hour: 15, minute: 0 },
+      { hour: 18, minute: 0 },
+      { hour: 21, minute: 0 },
+    ],
+  },
+  {
+    minBacklogArticles: 0,
+    slots: [
+      { hour: 9, minute: 30 },
+      { hour: 12, minute: 0 },
+      { hour: 16, minute: 0 },
+      { hour: 21, minute: 0 },
+    ],
+  },
+] as const satisfies readonly SocialReleaseCadence[];
+
+export function socialReleaseCadenceForBacklog(
+  backlogArticles: number,
+): SocialReleaseCadence {
+  const normalized = Math.max(0, Math.floor(backlogArticles));
+  return (
+    SOCIAL_RELEASE_CADENCES.find(
+      (cadence) => normalized >= cadence.minBacklogArticles,
+    ) ?? SOCIAL_RELEASE_CADENCES[SOCIAL_RELEASE_CADENCES.length - 1]
+  );
+}
 
 /**
  * The long-lived daemon only publishes inside the configured watch window,

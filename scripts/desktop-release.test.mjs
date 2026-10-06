@@ -124,6 +124,17 @@ test('signature and notarization diagnostics are enforced', () => {
   validateAssessment('accepted\nsource=Notarized Developer ID');
   assert.throws(() => validateAssessment('rejected'));
 });
+test('signature verification invokes tools without a shell', () => {
+  // Guards CodeQL js/shell-command-injection-from-environment (alerts 5-7):
+  // codesign/spctl diagnostics must be captured via direct spawn pipes,
+  // never through `/bin/sh -c`, so app paths are never re-parsed.
+  const source = readFileSync(
+    new URL('./desktop-release.mjs', import.meta.url),
+    'utf8',
+  );
+  assert.ok(!source.includes("'/bin/sh'"), 'must not spawn /bin/sh');
+  assert.ok(!source.includes('"/bin/sh"'), 'must not spawn /bin/sh');
+});
 test('publish refuses existing public releases and non-increasing versions', () => {
   assert.equal(publishDecision(undefined, undefined, '0.2.0'), 'create');
   assert.equal(

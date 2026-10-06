@@ -113,6 +113,24 @@ describe('growth lanes', () => {
     });
     expect(result[0]?.languageCode).toBe('unknown');
   });
+
+  it('sorts lanes with unknown publish dates as empty strings', () => {
+    const lane = (episodeId: string) => ({
+      episodeId,
+      platform: 'youtube',
+      languageCode: 'en',
+      landingVisitors30d: 0,
+      ctaUsers30d: 0,
+      discordCtaUsers30d: 0,
+    });
+    const result = composeGrowthLanes({
+      posthog: [lane('zzz'), lane('aaa')],
+      posts: null,
+      waitlist: emptyWaitlist,
+    });
+    expect(result.map((row) => row.episodeId)).toEqual(['aaa', 'zzz']);
+    expect(result.every((row) => row.publishedAt === null)).toBe(true);
+  });
   it('caps rows after sorting newest first', () => {
     const result = composeGrowthLanes({
       posthog: [],

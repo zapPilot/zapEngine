@@ -54,7 +54,7 @@
     "mediabunny": "1.56.1",
     "playwright-core": "^1.60.0",
     "prettier": "catalog:",
-    "sharp": "^0.35.3",
+    "sharp": "^0.35.4",
     "tsx": "catalog:",
     "typescript": "catalog:",
     "viem": "catalog:",

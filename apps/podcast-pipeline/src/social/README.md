@@ -18,7 +18,7 @@ Optimization contract: [Social optimization contract](AGENTS.md#social-optimizat
 | Product invariant                    | `apps/podcast-pipeline/AGENTS.md` + `src/social/AGENTS.md`                                        |
 | Executable invariant                 | `src/social/daemon-release-cohort-contract.test.ts` + `scripts/check-social-release-contract.mjs` |
 | Release-lane shape                   | `src/social/cohort.ts` + `src/social/policy.ts`                                                   |
-| Article timing policy                | `src/social/policy.ts` (`SOCIAL_RELEASE_DAILY_CAP`, `SOCIAL_RELEASE_SLOTS`)                       |
+| Article timing policy                | `src/social/policy.ts` (`SOCIAL_RELEASE_CADENCES`)                                                |
 | Scheduling / recovery implementation | `src/social/daemon.ts`, `src/social/release-cohort-store.ts`, `src/social/slot-policy.ts`         |
 | Platform media / CTA behavior        | `src/social/platforms.ts`, `src/brand/cta.ts`                                                     |
 | Session / auth behavior              | platform auth modules under `src/social/`                                                         |
@@ -111,13 +111,19 @@ rather than kept as dead recovery paths. Nothing was lost:
   constant is what stops a re-rendered old video from making the whole back
   catalogue publishable in one tick.
 
-Current article timing is **4 articles per JST day at 09:30, 12:00, 16:00 and
-21:00 JST**. Each article takes one of those times and every active lane of that
-article receives it.
+Article timing is backlog-aware and always shared by the whole article cohort:
 
-The cap and the slot list move together: `nextReleaseSlot()` places at most one
-article per slot, so raising `SOCIAL_RELEASE_DAILY_CAP` without adding a slot
-leaves the extra articles unschedulable.
+- **0-9 unpublished queued articles:** 4/day at 09:30, 12:00, 16:00, 21:00 JST
+- **10-20:** 5/day at 09:00, 12:00, 15:00, 18:00, 21:00 JST
+- **21+:** 6/day at 09:00, 11:30, 14:00, 16:30, 19:00, 21:30 JST
+
+The backlog count is one per wholly unpublished durable `episode_id`, not one per
+platform lane. Partial-release recovery stays outside this count and continues to
+fence fresh publishing until recovery finishes or becomes terminal.
+
+Each cadence's slot list is also its daily cap: `nextReleaseSlot()` places at
+most one article per selected slot, so frequency and candidate times always move
+together inside the same backlog tier.
 
 Correct steady-state example:
 
