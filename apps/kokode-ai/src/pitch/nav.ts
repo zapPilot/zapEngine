@@ -3,6 +3,7 @@
 // the URL hash follows the slide on screen so a link reopens the same slide.
 
 import { initLangMenu } from '../lang-menu';
+import { isAbsoluteHttpUrl } from '../site/links';
 
 const NEXT = new Set(['ArrowDown', 'ArrowRight', 'PageDown', ' ']);
 const PREVIOUS = new Set(['ArrowUp', 'ArrowLeft', 'PageUp']);
@@ -94,21 +95,28 @@ export function initDeckNav(root: ParentNode = document): () => void {
 }
 
 /** Exported PDFs and browser printouts link to the live site. */
-function initPrintLinks(): void {
+export function initPrintLinks(): () => void {
   const swap = (toPdf: boolean) => {
     document
       .querySelectorAll<HTMLAnchorElement>('a[data-pdf-href]')
       .forEach((link) => {
         if (toPdf) {
           link.dataset['webHref'] = link.getAttribute('href') ?? '';
-          link.href = link.dataset['pdfHref'] ?? link.href;
+          const pdfHref = link.dataset['pdfHref'] ?? '';
+          if (isAbsoluteHttpUrl(pdfHref)) link.href = pdfHref;
         } else if (link.dataset['webHref'] !== undefined) {
           link.setAttribute('href', link.dataset['webHref']);
         }
       });
   };
-  window.addEventListener('beforeprint', () => swap(true));
-  window.addEventListener('afterprint', () => swap(false));
+  const onBeforePrint = () => swap(true);
+  const onAfterPrint = () => swap(false);
+  window.addEventListener('beforeprint', onBeforePrint);
+  window.addEventListener('afterprint', onAfterPrint);
+  return () => {
+    window.removeEventListener('beforeprint', onBeforePrint);
+    window.removeEventListener('afterprint', onAfterPrint);
+  };
 }
 
 if (typeof document !== 'undefined' && document.querySelector('.deck')) {

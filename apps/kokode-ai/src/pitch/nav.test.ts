@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { initDeckNav, slideTarget } from './nav';
+import { initDeckNav, initPrintLinks, slideTarget } from './nav';
 
 describe('slideTarget', () => {
   it.each([
@@ -94,5 +94,27 @@ describe('initDeckNav without slides', () => {
   it('is a no-op', () => {
     document.body.innerHTML = '<main></main>';
     expect(() => initDeckNav()()).not.toThrow();
+  });
+});
+
+describe('initPrintLinks', () => {
+  it('swaps print hrefs only for absolute http(s) targets', () => {
+    document.body.innerHTML = `
+      <main class="deck">
+        <a id="safe" href="/pitch/#contact" data-pdf-href="https://www.kokode.xyz/?utm_medium=pdf#contact">cta</a>
+        <a id="evil" href="/pitch/#contact" data-pdf-href="javascript:alert(1)">cta</a>
+      </main>`;
+    const dispose = initPrintLinks();
+    try {
+      const safe = document.querySelector('#safe') as HTMLAnchorElement;
+      const evil = document.querySelector('#evil') as HTMLAnchorElement;
+      window.dispatchEvent(new Event('beforeprint'));
+      expect(safe.href).toBe('https://www.kokode.xyz/?utm_medium=pdf#contact');
+      expect(evil.getAttribute('href')).toBe('/pitch/#contact');
+      window.dispatchEvent(new Event('afterprint'));
+      expect(safe.getAttribute('href')).toBe('/pitch/#contact');
+    } finally {
+      dispose();
+    }
   });
 });

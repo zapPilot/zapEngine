@@ -175,4 +175,28 @@ describe('ProductView coverage', () => {
     expect(screen.queryByText('Reason')).toBeNull();
     expect(screen.queryByText('Expires')).toBeNull();
   });
+
+  it('sorts null-AUM users as zero when decision risk ties', () => {
+    render(
+      <ProductView
+        customers={customers([
+          customer({ userId: 'b-null', aumUsd: null }),
+          customer({ userId: 'a-rich', aumUsd: 500 }),
+          customer({ userId: 'c-null', aumUsd: null }),
+        ])}
+        product={productFixture()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Show all/ }));
+    const rich = screen.getByText('a-rich');
+    const poorB = screen.getByText('b-null');
+    const poorC = screen.getByText('c-null');
+    expect(rich.compareDocumentPosition(poorB)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    expect(poorB.compareDocumentPosition(poorC)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+  });
 });

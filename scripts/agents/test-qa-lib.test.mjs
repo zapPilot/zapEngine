@@ -13,6 +13,7 @@ import {
   fingerprintPaths,
   parseJsonc,
   primarySubject,
+  resolveImports,
   safePath,
 } from './test-qa-lib.mjs';
 
@@ -107,6 +108,19 @@ test('parseJsonc accepts comments and trailing commas', () => {
     a: 1,
     b: [2],
   });
+});
+
+test('resolveImports expands every star in an alias replacement', () => {
+  // Guards CodeQL js/incomplete-sanitization: a replacement holding more
+  // than one '*' must substitute all of them, not just the first.
+  const resolved = resolveImports({
+    repoRoot: '.',
+    testPath: 'apps/foo/src/a.test.ts',
+    content: "import { x } from '@/a';\nvoid x;\n",
+    fileSet: new Set(['apps/foo/src/a/a.ts']),
+    tsconfig: { baseUrl: '.', paths: { '@/*': ['src/*/*'] } },
+  });
+  assert.deepEqual(resolved, ['apps/foo/src/a/a.ts']);
 });
 
 test('primarySubject prefers the longest filename prefix, then unique imports', () => {

@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
   accessSync,
@@ -159,24 +159,42 @@ function diagnostic(command, args) {
     );
   }
 }
+// codesign/spctl print display diagnostics to stderr even on success, which is
+// why these calls previously went through `/bin/sh -c ... 2>&1`. The shell
+// made every app path an injection sink (CodeQL
+// js/shell-command-injection-from-environment), so capture both pipes
+// directly instead: no shell, no re-parsing, same combined text.
+function captureOutput(command, args) {
+  const result = spawnSync(command, args, { encoding: 'utf8' });
+  if (result.error) throw result.error;
+  const output = `${result.stdout ?? ''}${result.stderr ?? ''}`;
+  if (result.status !== 0) {
+    throw new Error(
+      `${command} verification failed: ${output.trim() || `exit ${result.status}`}`,
+    );
+  }
+  return output;
+}
+// Entitlements plumbing discards stderr (previously `2>/dev/null`).
+function captureStdout(command, args) {
+  const result = spawnSync(command, args, { encoding: 'utf8' });
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    throw new Error(
+      `${command} verification failed: ${(result.stdout ?? '').trim() || `exit ${result.status}`}`,
+    );
+  }
+  return result.stdout ?? '';
+}
 function signature(app) {
   diagnostic('codesign', ['--verify', '--deep', '--strict', app]);
-  // codesign prints display diagnostics to stderr even on success.
-  const output = execFileSync(
-    '/bin/sh',
-    ['-c', 'exec codesign -d --verbose=4 "$1" 2>&1', 'codesign', app],
-    { encoding: 'utf8' },
-  );
-  const entitlements = execFileSync(
-    '/bin/sh',
-    [
-      '-c',
-      'exec codesign -d --entitlements :- "$1" 2>/dev/null',
-      'codesign',
-      app,
-    ],
-    { encoding: 'utf8' },
-  );
+  const output = captureOutput('codesign', ['-d', '--verbose=4', app]);
+  const entitlements = captureStdout('codesign', [
+    '-d',
+    '--entitlements',
+    ':-',
+    app,
+  ]);
   validateSignature(output, entitlements, config().mac.identity);
 }
 function verifyApp(app) {
@@ -194,16 +212,13 @@ function verifyApp(app) {
       );
     }
   }
-  const assessment = execFileSync(
-    '/bin/sh',
-    [
-      '-c',
-      'exec spctl --assess --type execute --verbose=2 "$1" 2>&1',
-      'spctl',
-      app,
-    ],
-    { encoding: 'utf8' },
-  );
+  const assessment = captureOutput('spctl', [
+    '--assess',
+    '--type',
+    'execute',
+    '--verbose=2',
+    app,
+  ]);
   validateAssessment(assessment);
   const update = parse(
     readFileSync(join(app, 'Contents/Resources/app-update.yml'), 'utf8'),

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { artifacts, MEDIA_BASE, RENDER_COMMAND } from './artifacts';
 import { expectedFingerprints } from './fingerprints';
 import { published } from './published';
-import { validatePublished } from './validate';
+import { validatePublished, escapeRegExp } from './validate';
 const expected = expectedFingerprints();
 const fixture = () => ({
   release: '20261005-000000-12345678',
@@ -52,5 +52,17 @@ describe('published sales artifacts', () => {
     if (failure === 'release') value.release = 'bad';
     if (failure === 'query') entry.url += '?x=1';
     expect(() => validatePublished(value, expected)).toThrow(RENDER_COMMAND);
+  });
+  it('escapes every regex metacharacter in artifact names', () => {
+    expect(escapeRegExp('kokode-clinic.ja.mp4')).toBe(
+      'kokode-clinic\\.ja\\.mp4',
+    );
+    expect(escapeRegExp('a+b(c)\\d')).toBe('a\\+b\\(c\\)\\\\d');
+    expect(new RegExp(`^${escapeRegExp('a+b.mp4')}$`).test('aaab.mp4')).toBe(
+      false,
+    );
+    expect(new RegExp(`^${escapeRegExp('a+b.mp4')}$`).test('a+b.mp4')).toBe(
+      true,
+    );
   });
 });

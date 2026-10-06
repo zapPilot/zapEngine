@@ -116,6 +116,8 @@ export function splitCanonicalSentences(script: string): CanonicalSentence[] {
     while (
       sentenceEnd < script.length &&
       (isSentenceTerminator(script, sentenceEnd) ||
+        /* v8 ignore next -- sentenceEnd is in bounds here, so indexing a
+           string always yields a character, never nullish. */
         TRAILING_SENTENCE_CLOSERS.has(script[sentenceEnd] ?? ''))
     ) {
       sentenceEnd += 1;

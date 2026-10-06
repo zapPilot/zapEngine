@@ -429,6 +429,19 @@ describe('buildDistributionSnapshot', () => {
     expect(snapshot.channels[0]?.firstPostAt).toBe('2026-08-20T00:00:00.000Z');
   });
 
+  it('sorts example channels with unknown publish dates as empty strings', () => {
+    const input = completeChain();
+    input.posts.forEach((post) => {
+      post.published_at = null;
+    });
+    const snapshot = buildDistributionSnapshot(input);
+    const channels = snapshot.example?.channels ?? [];
+    expect(channels.length).toBeGreaterThan(1);
+    expect(channels.every((channel) => channel.publishedAt === null)).toBe(
+      true,
+    );
+  });
+
   it('returns an empty snapshot for an empty corpus', () => {
     const snapshot = buildDistributionSnapshot(source());
 

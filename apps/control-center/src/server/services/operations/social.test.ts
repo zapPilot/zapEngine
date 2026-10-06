@@ -554,6 +554,13 @@ describe('waiting media progress', () => {
       blockedWaitingLanes: 0,
     });
   });
+  it('treats a null attempt count as zero attempts, not as exhausted', async () => {
+    const result = verdict(
+      await media([waitingRow({ render_attempt_count: null })]),
+    );
+    expect(result.status).toBe('healthy');
+    expect(result.evidence).toMatchObject({ blockedWaitingLanes: 0 });
+  });
   it('degrades an old claimable lane', async () => {
     expect(
       verdict(
