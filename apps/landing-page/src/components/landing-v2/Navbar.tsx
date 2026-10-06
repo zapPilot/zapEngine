@@ -1,37 +1,32 @@
 import Image from 'next/image';
 
+import { MESSAGES } from '@/config/messages';
+
 import { AppCtaLink } from './AppCtaLink';
 
-const NAV_LINKS = [
-  { label: 'Strategy', href: '#strategy' },
-  { label: 'Performance', href: '#proof' },
-  { label: 'Track Record', href: '/track-record' },
-  { label: 'Execution', href: '#trust' },
-  { label: 'Docs', href: '/docs' },
-] as const;
-
 export function Navbar() {
+  const { nav, common } = MESSAGES;
   return (
-    <nav className="zp-nav" aria-label="Primary">
+    <nav className="zp-nav" aria-label={nav.ariaLabel}>
       <div className="zp-nav-brand">
         <Image
           src="/zap-pilot-icon.svg"
-          alt="Zap Pilot"
+          alt={common.brandName}
           width={26}
           height={26}
         />
-        <span className="zp-nav-name">Zap Pilot</span>
-        <span className="zp-nav-tagline">— rules engine</span>
+        <span className="zp-nav-name">{common.brandName}</span>
+        <span className="zp-nav-tagline">— {common.tagline}</span>
       </div>
       <div className="zp-nav-links">
-        {NAV_LINKS.map((link) => (
+        {nav.links.map((link) => (
           <a key={link.label} href={link.href}>
             {link.label}
           </a>
         ))}
       </div>
       <AppCtaLink className="zp-nav-cta" location="navbar">
-        Join waitlist
+        {nav.cta}
       </AppCtaLink>
     </nav>
   );

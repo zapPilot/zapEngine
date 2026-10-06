@@ -1,33 +1,32 @@
 ---
-title: DCA Classic v1
-description: Dollar-cost averaging baseline benchmark
+title: DCA Classic — benchmark
+description: The dollar-cost-averaging benchmark every reference-strategy backtest is measured against.
 ---
 
-import { AssetPairLabel } from '@/components/docs/AssetLabel';
+import { StatusBadge } from '@/components/StatusBadge';
 
 ## Overview
 
 **Strategy ID:** `dca_classic`
-**Version:** v1
-**Status:** Backtest only
 
-DCA Classic is a pure mechanical baseline that invests a fixed dollar amount every week into a 60/40 BTC/ETH portfolio, with no regime awareness, no rebalancing, and no discretion.
+<StatusBadge capability="dca-benchmark" qualifier="backtest benchmark" />
+
+DCA Classic is a mechanical BTC benchmark. It starts with half of the capital in BTC and half in stablecoins, then moves the stablecoin half into BTC in equal daily amounts across the backtest window. It has no regime awareness, no rebalancing and no discretion.
 
 ## Rationale
 
-DCA Classic exists as a fair comparison baseline. It captures the beta return of consistent crypto exposure without any active management decisions. If Zap Pilot cannot outperform DCA Classic on a risk-adjusted basis after costs, the strategy has failed its core thesis.
+DCA Classic is a fair baseline: it captures the return of steady BTC accumulation without any active decisions. If the reference strategy cannot beat DCA Classic on a risk-adjusted basis after costs, it has failed its core thesis.
 
 ## Parameters
 
-- **Weekly investment:** $100 (fixed)
-- **Allocation:** <AssetPairLabel first="BTC" second="ETH" label="60% BTC · 40% ETH" /> (static, never rebalanced)
-- **Execution:** Market order, Monday 00:00 UTC
-- **No stop-loss, no take-profit, no fee optimization**
+- **Starting allocation:** 50% BTC, 50% stablecoins.
+- **Daily step:** the stablecoin half divided by the number of days in the window, moved into BTC once a day until the stablecoins run out.
+- **Same backtest assumptions:** the same window, starting capital, fixed slippage and assumed yield as the [reference strategy's backtest](/docs/track-record/dma-fgi-portfolio-rules-v1#backtest-method).
 
-## Performance Attribution
+## Comparison
 
-Zap Pilot's backtest performance is compared with DCA Classic across three dimensions:
+The reference strategy's backtest is compared with DCA Classic on:
 
-1. **Total return** — cumulative growth of $1 invested at start
-2. **Risk-adjusted return** — Sharpe / Sortino ratio comparison
-3. **Drawdown protection** — max drawdown and time spent underwater
+1. **Total return** — growth of the starting capital over the window.
+2. **Risk-adjusted return** — Sharpe, Sortino and Calmar ratios.
+3. **Drawdown** — maximum drawdown over the window.

@@ -142,6 +142,7 @@ export function createLanding(story: Story) {
     howItWorks,
     familiar: (group) => split(group),
     turnkey: stacked,
+    ownership: cards,
     startSmall: stacked,
     contact,
   };

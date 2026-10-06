@@ -11,19 +11,19 @@ export default function VerificationPage() {
       <h2>Verification</h2>
 
       <p className="verification-intro">
-        The Zap Pilot track record is cryptographically verifiable. Each daily
-        snapshot is pinned to IPFS with an immutable CID derived from its
-        content. The CID chain links every snapshot to the previous one, forming
-        a tamper-evident history. Optionally, snapshots are signed by the Zap
-        Pilot official EOA.
+        Each day, a snapshot of one reference address is published to IPFS under
+        a CID derived from its content. Every snapshot links to the previous
+        CID, so the history is tamper-evident. Snapshots are unsigned today: no
+        official signer is configured, so the chain shows that the record was
+        not edited, not who published it.
       </p>
 
       {state.source === 'backtest' && (
         <div className="pending-banner" role="status">
           <p>
             <strong>Backtest mode</strong> — the checks below describe the
-            committed backtest dataset, not a published on-chain snapshot.
-            Switch to Live above for an independently verifiable record.
+            committed backtest dataset, not a published snapshot. Switch to
+            Snapshots above to check the published snapshot chain.
           </p>
         </div>
       )}
@@ -83,15 +83,17 @@ export default function VerificationPage() {
       <section className="verification-cli">
         <h3>Full Verification (CLI)</h3>
         <p>
-          The browser verifies CID chain linkage and signatures. For full
-          content-hash verification and metric recomputation, use the CLI:
+          The browser verifies CID chain linkage and, once snapshots are signed,
+          their signatures. For full content-hash verification and metric
+          recomputation, use the CLI:
         </p>
         <pre>
           <code>pnpm track-record:verify</code>
         </pre>
         <p>
-          This walks the full CID chain, validates schema, verifies signatures,
-          recomputes performance metrics, and checks CID content hashes.
+          This walks the full CID chain, validates schema, recomputes
+          performance metrics, and checks CID content hashes. Until snapshots
+          are signed it reports the official signer as none.
         </p>
       </section>
     </div>

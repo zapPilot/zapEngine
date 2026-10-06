@@ -3,50 +3,17 @@ import { tokens } from '@zapengine/design-tokens/tokens';
 
 import type { CompositionTarget } from '@/integration/useStrategySuggestion';
 
-export function demoTextOrDash(
-  demoValue: string,
-  isDemo: boolean,
-  fallback = '—',
-): string {
-  return isDemo ? demoValue : fallback;
-}
-
-function marketModeLabelFor(
-  regimeLabel: string,
-  demoLabel: string,
-  isDemo: boolean,
-): string {
-  if (regimeLabel) {
-    return `Market mode · ${regimeLabel}`;
-  }
-  return isDemo ? demoLabel : 'Market mode · —';
-}
-
+/** Human-readable current market regime, or a dash when none is known. */
 export function currentModeLabelFor(
-  regimeLabel: string,
-  demoLabel: string,
-  isDemo: boolean,
+  regimeId: string | null | undefined,
 ): string {
-  if (regimeLabel) {
-    return regimeLabel;
-  }
-  return demoTextOrDash(demoLabel, isDemo);
+  return (regimeId && getRegimeLabel(regimeId)) || '—';
 }
 
-export function regimeDisplayFromRegime(
-  regimeId: string | null | undefined,
-  demoMarketModeLabel: string,
-  isDemo: boolean,
-): { regimeLabel: string; marketModeLabel: string } {
-  const regimeLabel = regimeId ? getRegimeLabel(regimeId) : '';
-  return {
-    regimeLabel,
-    marketModeLabel: marketModeLabelFor(
-      regimeLabel,
-      demoMarketModeLabel,
-      isDemo,
-    ),
-  };
+export interface CompositionRow {
+  label: string;
+  pct: number;
+  color: string;
 }
 
 /** The three composition pillars, in display order, with their fixed swatch. */
@@ -61,31 +28,16 @@ const COMPOSITION_ROWS: {
 ];
 
 /**
- * Shared shape builder for the strategy pillars (`weight`) and allocation
- * (`pct`, rounded) rows: both are the same three composition pillars against
- * a different numeric key.
+ * Target allocation rows for the three composition pillars, as whole
+ * percentages. Without a target every pillar reads 0% rather than an
+ * invented allocation.
  */
-export function compositionRows<T extends { label: string; color: string }>(
+export function compositionRows(
   target: CompositionTarget | null,
-  demoRows: T[],
-  isDemo: boolean,
-  { valueKey, round = false }: { valueKey: keyof T; round?: boolean },
-): T[] {
-  if (target) {
-    return COMPOSITION_ROWS.map(
-      (row) =>
-        ({
-          label: row.label,
-          color: row.color,
-          [valueKey]: round ? Math.round(target[row.key]) : target[row.key],
-        }) as unknown as T,
-    );
-  }
-  if (isDemo) {
-    return demoRows;
-  }
-  return COMPOSITION_ROWS.map(
-    (row) =>
-      ({ label: row.label, color: row.color, [valueKey]: 0 }) as unknown as T,
-  );
+): CompositionRow[] {
+  return COMPOSITION_ROWS.map((row) => ({
+    label: row.label,
+    color: row.color,
+    pct: target ? Math.round(target[row.key]) : 0,
+  }));
 }

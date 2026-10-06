@@ -192,7 +192,7 @@ export function strategyStatusFromSuggestion(
 const DEMO_STRATEGY_STATUS: HomeStrategyStatusView = {
   status: 'no_action',
   regimeLabel: 'cautious',
-  fearGreed: DEMO.strategy.backtest.sentiment,
+  fearGreed: DEMO.strategy.sentiment,
   primaryAction: null,
   additionalActionCount: 0,
   reason: DEMO.strategy.quote,

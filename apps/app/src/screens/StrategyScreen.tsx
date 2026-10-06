@@ -12,12 +12,12 @@ import { AllocationBar } from '@/components/charts/AllocationBar';
 import { Badge } from '@/components/ui/Badge';
 import { StatGrid } from '@/components/ui/StatGrid';
 import { Button } from '@/components/ui/Button';
+import { Text as KitText } from '@/components/ui/Text';
 
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { Sparkline } from '@/components/charts/Sparkline';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
-import { DEMO } from '@/data/demo';
 import {
   RANGE_OPTIONS,
   type StrategyRange,
@@ -43,19 +43,15 @@ export function StrategyScreen() {
   const account = useAccount();
   const result = useStrategyData(
     account.userId,
-    account.isConnected,
     strategyBacktestDaysForRange(range),
   );
   const decision = useStrategyDecisionPacket(account.userId);
   const signals = useMarketSignals();
 
-  const isDemo = !account.isConnected;
-  const strategy = result.data ?? DEMO.strategy;
-  const loading = !isDemo && result.isLoading;
-  const chartData =
-    result.data?.backtest.chartData && result.data.backtest.chartData.length > 1
-      ? result.data.backtest.chartData
-      : DEMO.home.sparkline;
+  const strategy = result.data;
+  const loading = result.isLoading;
+  const chartData = strategy.backtest.chartData;
+  const displayName = strategy.backtest.displayName;
   const allocation = strategy.backtest.allocation;
   const startStrategy = createStrategyStartAction(authAction.run, () =>
     router.push('/invest/amount'),
@@ -90,15 +86,18 @@ export function StrategyScreen() {
   return (
     <ScreenScrollView width="dashboard" scrollRef={scrollRef}>
       <PageHeader title={t('tabs.strategy')} />
-
-      {!isDemo ? (
-        <View onLayout={measureDecisionPacket}>
-          <DecisionPacketCard
-            packet={decision.data}
-            loading={decision.isLoading}
-          />
-        </View>
+      {displayName ? (
+        <KitText variant="body-sm" tone="secondary">
+          {t('strategy.subtitle', { name: displayName })}
+        </KitText>
       ) : null}
+
+      <View onLayout={measureDecisionPacket}>
+        <DecisionPacketCard
+          packet={decision.data}
+          loading={decision.isLoading}
+        />
+      </View>
 
       <MarketSignalsCard
         signals={signals.data}
@@ -126,7 +125,7 @@ export function StrategyScreen() {
         <View className="flex-row items-end justify-between">
           <View>
             <Text className="font-mono text-[9px] uppercase tracking-[0.9px] text-[#9a8f78]">
-              {isDemo ? 'Zap Strategy · 1Y return' : 'Default backtest · ROI'}
+              {t('strategy.backtestLabel')}
             </Text>
             {loading ? (
               <SkeletonBlock className="mt-1 h-8 w-24 rounded-lg" />
@@ -146,16 +145,23 @@ export function StrategyScreen() {
           </View>
         </View>
         <View className="mt-4 h-[150px] justify-center">
-          {loading && chartData.length < 2 ? (
+          {loading ? (
             <SkeletonBlock className="h-[138px] w-full rounded-2xl" />
-          ) : (
+          ) : chartData.length > 1 ? (
             <Sparkline
               data={chartData}
               height={138}
               gradientId="strategyBacktestSpark"
             />
+          ) : (
+            <KitText variant="body-sm" tone="muted" className="text-center">
+              {t('strategy.backtestUnavailable')}
+            </KitText>
           )}
         </View>
+        <KitText variant="caption" tone="muted" className="mt-3">
+          {t('strategy.backtestDisclaimer')}
+        </KitText>
       </Card>
 
       {loading ? (
@@ -202,7 +208,7 @@ export function StrategyScreen() {
         </View>
       </Card>
 
-      {result.data && !result.data.hasTargetAllocation && !isDemo ? (
+      {!strategy.hasTargetAllocation ? (
         <Callout
           tone="danger"
           body={t('strategy.allocationUnavailable')}

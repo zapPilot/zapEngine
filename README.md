@@ -1,6 +1,6 @@
 # zapEngine
 
-zapPilot is a **self-custodial investment autopilot** for DeFi portfolios. It brings rules-based allocation across S&P 500 exposure, BTC/ETH, and stablecoins while users keep control through their own EOA wallet — signed from your wallet, held by no one else. The platform also powers the **From Fed to Chain** podcast, providing free financial knowledge to the community.
+zapPilot is building a **self-hosted runtime for programmable portfolios** — your strategy, your machine, your wallet. A strategy you can read produces a target allocation; the runtime is being built to turn that target into checked transactions you sign from your own wallet. Today a reference strategy (DMA/FGI Portfolio Rules) is evaluated on Zap Pilot-hosted services, and deposits go directly into protocol positions held at your own address; the [status table](https://zap-pilot.org/docs#status-of-every-capability) lists what is live, in development, and planned. The platform also powers the **From Fed to Chain** podcast, providing free financial knowledge to the community.
 
 This codebase powers the full stack: TypeScript/Python microservices, a universal Expo/React Native app (iOS/Android/Web), an Electron macOS desktop shell, and a Next.js marketing site.
 
@@ -14,18 +14,19 @@ MIT License — see [LICENSE](./LICENSE.md) for details.
 
 ---
 
-Turborepo + pnpm monorepo for Zap Pilot — a DeFi portfolio analytics and automation platform.
+Turborepo + pnpm monorepo for Zap Pilot — a programmable-portfolio runtime (strategy evaluation, transaction planning, pre-sign checks, wallet execution) and the From Fed to Chain podcast stack.
 
 ## Architecture
 
 ```
 zapEngine/
 ├── apps/
-│   ├── account-engine      # Hono API — user accounts, wallets, Telegram (port 3004)
-│   ├── alpha-etl           # Express ETL — DeFi APR data ingestion (port 3003)
-│   ├── analytics-engine    # FastAPI — portfolio analytics & risk metrics (port 8001)
+│   ├── account-engine      # Hono API — accounts, wallets, deposit plan orchestration, notifications (port 3004)
+│   ├── alpha-etl           # Express ETL — market prices, sentiment, and wallet-position ingestion (port 3003)
+│   ├── analytics-engine    # FastAPI — strategy evaluation, backtests, portfolio analytics (port 8001)
 │   ├── control-center      # Founder-local ops dashboard and cost ledger UI/API
-│   ├── desktop             # Electron — macOS shell around the app web export
+│   ├── desktop             # Electron — macOS shell around the app web export (not yet distributed)
+│   ├── kokode-ai           # Vite — KOKODE, an independent product kept in this monorepo
 │   ├── landing-page        # Next.js 15 — marketing & docs site (port 3000)
 │   ├── app                 # Expo / React Native — universal Zap Pilot app (iOS/Android/Web)
 │   ├── podcast-pipeline    # Hono — article → episode pipeline (port 3000)
@@ -36,9 +37,10 @@ zapEngine/
     ├── cost-observability  # Vendor and infra cost collectors feeding the control-center ledger
     ├── design-tokens       # Shared Zap Pilot brand tokens (TS / Tailwind / CSS vars)
     ├── eslint-config       # Shared ESLint flat-config presets
-    ├── intent-engine       # Shared TypeScript library — DeFi routing logic
+    ├── intent-engine       # Shared TypeScript library — intents to prepared transactions: routing, protocol adapters, pre-sign checks
     ├── knip-config         # Shared knip dead-code-detection base config
     ├── kokode-story        # Pure Kokode copy, locales and narrative shared by its site, decks and film
+    ├── media-release       # Shared media release manifests and R2 upload helpers
     ├── tsconfig            # Shared TypeScript config presets
     └── types               # Shared TypeScript types & Zod schemas
 ```
@@ -50,6 +52,7 @@ zapEngine/
 | analytics-engine | Python 3.11+ | FastAPI           |
 | control-center   | TypeScript   | Vite / Hono       |
 | desktop          | TypeScript   | Electron          |
+| kokode-ai        | TypeScript   | Vite              |
 | landing-page     | TypeScript   | Next.js 15        |
 | app              | TypeScript   | Expo 57 / RN 0.86 |
 | podcast-pipeline | TypeScript   | Hono 4.12         |

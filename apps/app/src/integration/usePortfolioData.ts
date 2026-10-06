@@ -33,7 +33,6 @@ export interface PortfolioViewData {
   trendPoints: DailyValuePoint[];
   metrics: Metric[];
   allocation: { label: string; pct: number; color: string }[];
-  lastRebalancedLabel: string;
 }
 
 export interface UsePortfolioDataResult {
@@ -113,7 +112,6 @@ function unavailablePortfolioData(): PortfolioViewData {
       unavailableMetric('Sharpe', 'accent'),
     ],
     allocation: [],
-    lastRebalancedLabel: 'Auto-managed by Zap Strategy',
   };
 }
 
@@ -264,7 +262,6 @@ export function usePortfolioData(
     trendPoints,
     metrics,
     allocation,
-    lastRebalancedLabel: 'Auto-managed by Zap Strategy',
   };
 
   return {

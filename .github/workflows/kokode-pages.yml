@@ -87,7 +87,8 @@ jobs:
     needs: changes
     if: needs.changes.outputs.release == 'true'
     runs-on: ubuntu-latest
-    environment: kokode-production
+    # PR builds use public settings only; production credentials stay on main.
+    environment: ${{ github.event_name == 'pull_request' && 'kokode-preview' || 'kokode-production' }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -96,7 +97,15 @@ jobs:
         with:
           uv: 'false'
       - run: bash -n apps/kokode-ai/scripts/*.sh
-      - run: pnpm turbo run test type-check build --filter=@zapengine/kokode-ai
+      - name: Verify lead endpoint configuration and build
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$VITE_SUPABASE_URL" =~ ^https://[a-z0-9]{20}\.supabase\.co/?$ ]] || {
+            echo "VITE_SUPABASE_URL must identify the production Supabase project" >&2
+            exit 1
+          }
+          pnpm turbo run test type-check build --filter=@zapengine/kokode-ai
         env:
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
           VITE_SALES_EMAIL: ${{ vars.VITE_SALES_EMAIL }}

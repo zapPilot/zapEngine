@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
 import { MESSAGES } from '@/config/messages';
+import equityCurve from '@/data/equity-curve.json';
 import { BacktestProof } from '../BacktestProof';
 
 describe('BacktestProof', () => {
@@ -12,13 +13,13 @@ describe('BacktestProof', () => {
 
     it('renders section kicker', () => {
       render(<BacktestProof />);
-      expect(screen.getByText('Backtest proof')).toBeInTheDocument();
+      expect(screen.getByText(MESSAGES.backtest.kicker)).toBeInTheDocument();
     });
 
     it('renders main heading', () => {
       render(<BacktestProof />);
       expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent(
-        /Trades drove the return/,
+        MESSAGES.backtest.title,
       );
     });
 
@@ -58,30 +59,49 @@ describe('BacktestProof', () => {
         'img',
       );
       expect(screen.getByText('Indexed growth')).toBeInTheDocument();
-      expect(screen.getByText('Strategy vs DCA Classic')).toBeInTheDocument();
+      expect(
+        screen.getByRole('heading', {
+          level: 3,
+          name: 'Reference strategy vs DCA Classic',
+        }),
+      ).toBeInTheDocument();
+    });
+
+    it('describes the chart window from the committed curve', () => {
+      const { container } = render(<BacktestProof />);
+      expect(container.querySelector('desc')).toHaveTextContent(
+        `Indexed ${equityCurve.window.days}-day equity curve`,
+      );
     });
 
     it('renders comparison row with aria-label', () => {
       const { container } = render(<BacktestProof />);
       expect(container.querySelector('.comparison-row')).toHaveAttribute(
         'aria-label',
-        'Strategy versus DCA',
+        'Reference strategy versus DCA',
       );
     });
 
     it('renders both strategy and DCA comparison items', () => {
       render(<BacktestProof />);
 
-      expect(screen.getAllByText('Strategy').length).toBeGreaterThan(0);
+      expect(
+        screen.getAllByText('DMA/FGI Portfolio Rules').length,
+      ).toBeGreaterThan(0);
       expect(screen.getAllByText('DCA Classic').length).toBeGreaterThan(0);
     });
   });
 
   describe('links', () => {
-    it('renders methodology link', () => {
+    it('links to the backtest method in the reference strategy spec', () => {
       render(<BacktestProof />);
-      const methodLink = screen.getByRole('link', { name: /Read methodology/ });
-      expect(methodLink).toHaveAttribute('href', '/docs#backtest');
+      const methodLink = screen.getByRole('link', {
+        name: /Read the backtest method/,
+      });
+      expect(methodLink).toHaveAttribute(
+        'href',
+        '/docs/track-record/dma-fgi-portfolio-rules-v1#backtest-method',
+      );
     });
   });
 
@@ -98,11 +118,18 @@ describe('BacktestProof', () => {
       );
     });
 
-    it('renders disclaimer', () => {
+    it('renders the disclaimer with its modelling assumptions', () => {
       render(<BacktestProof />);
       expect(
         screen.getByText(/Past performance does not guarantee/),
-      ).toBeInTheDocument();
+      ).toHaveTextContent(/assumes a yield/);
+    });
+
+    it('flags the S&P 500 sleeve as planned', () => {
+      const { container } = render(<BacktestProof />);
+      expect(
+        container.querySelector('[data-capability="tokenized-equities"]'),
+      ).toHaveTextContent('Planned');
     });
   });
 });

@@ -9,33 +9,29 @@ describe('Ops MCP repository wiring', () => {
   it('advertises the canonical launcher from .mcp.json', async () => {
     const raw = await readFile(path.join(repoRoot, '.mcp.json'), 'utf8');
     const config = JSON.parse(raw) as McpConfig;
-    const launcher = config.mcpServers['zap-pilot-ops'];
-    // The canonical launcher resolves the primary checkout so linked
-    // worktrees share one entry point (see scripts/ops-mcp-config.test.mjs).
-    expect(launcher?.command).toBe('node');
-    expect(launcher?.args?.[0]).toBe('-e');
-    expect(launcher?.args?.[1]).toContain('scripts/ops-mcp.mjs');
+
+    const entry = config.mcpServers['zap-pilot-ops'];
+    expect(entry?.command).toBe('node');
+    expect(entry?.args?.length).toBe(2);
+    expect(entry?.args?.[0]).toBe('-e');
+    // The launcher resolves the primary checkout so every worktree uses one
+    // entry point (see scripts/ops-mcp-config.test.mjs for the behavior).
+    expect(entry?.args?.[1]).toContain('scripts/ops-mcp.mjs');
+    expect(entry?.args?.[1]).toContain('--git-common-dir');
   });
 
   it('advertises the same launcher to OpenCode', async () => {
-    const [mcpRaw, openCodeRaw] = await Promise.all([
-      readFile(path.join(repoRoot, '.mcp.json'), 'utf8'),
-      readFile(path.join(repoRoot, 'opencode.json'), 'utf8'),
-    ]);
-    const claude = (JSON.parse(mcpRaw) as McpConfig).mcpServers[
-      'zap-pilot-ops'
-    ];
-    const config = JSON.parse(openCodeRaw) as OpenCodeConfig;
+    const claudeRaw = await readFile(path.join(repoRoot, '.mcp.json'), 'utf8');
+    const claude = JSON.parse(claudeRaw) as McpConfig;
+    const raw = await readFile(path.join(repoRoot, 'opencode.json'), 'utf8');
+    const config = JSON.parse(raw) as OpenCodeConfig;
 
-    const entry = config.mcp['zap-pilot-ops'];
-    expect(entry).toMatchObject({
+    const claudeEntry = claude.mcpServers['zap-pilot-ops'];
+    expect(config.mcp['zap-pilot-ops']).toMatchObject({
       type: 'local',
+      command: [claudeEntry?.command, ...(claudeEntry?.args ?? [])],
       enabled: true,
     });
-    expect(entry?.command).toEqual([
-      claude?.command,
-      ...(claude?.args ?? []),
-    ]);
   });
 
   it('registers the Cloudflare vendor MCP in every agent profile', async () => {

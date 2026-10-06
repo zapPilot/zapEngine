@@ -64,11 +64,11 @@ describe('TrackRecordPage', () => {
     expect(screen.getByText('Historical performance')).toBeInTheDocument();
     expect(screen.queryByText(DEMO_WALLET)).toBeNull();
     expect(
-      screen.getByText(/Wallet addresses are only shown in Live mode/),
+      screen.getByText(/only shown in Snapshots mode/),
     ).toBeInTheDocument();
   });
 
-  it('shows live results and on-chain wallets after switching to Live', () => {
+  it('shows snapshot results and the reference address after switching to Snapshots', () => {
     const base = state();
     useTrackRecord.mockReturnValue(
       state({
@@ -92,7 +92,7 @@ describe('TrackRecordPage', () => {
     );
   });
 
-  it('shows live unavailable when Live has no published snapshot', () => {
+  it('shows snapshots unavailable when no snapshot is published', () => {
     const base = state();
     useTrackRecord.mockReturnValue(
       state({
@@ -105,7 +105,7 @@ describe('TrackRecordPage', () => {
 
     render(<TrackRecordPage />);
 
-    expect(screen.getByText(/Live tracking unavailable/)).toBeInTheDocument();
+    expect(screen.getByText(/Snapshots unavailable/)).toBeInTheDocument();
   });
 
   it('holds source status banners back while the first load is still running', () => {
@@ -123,7 +123,7 @@ describe('TrackRecordPage', () => {
 
     render(<TrackRecordPage />);
 
-    expect(screen.queryByText(/Live tracking unavailable/)).toBeNull();
+    expect(screen.queryByText(/Snapshots unavailable/)).toBeNull();
     expect(screen.queryByText(/Backtest mode/)).toBeNull();
   });
 });
