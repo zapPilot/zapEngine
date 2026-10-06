@@ -96,6 +96,7 @@ overrides:
   react-router@>=6.0.0 <8.3.0: '>=8.3.0'
   serialize-javascript@<7.0.5: '>=7.0.5'
   sharp@<0.35.4: '>=0.35.4'
+  shell-quote@>=1.8.4 <1.11.0: '>=1.11.0'
   socket.io-parser@<4.2.7: '>=4.2.7'
   source-map-js@<1.2.2: '>=1.2.2'
   stream-json@<3.6.0: '>=3.6.0'
