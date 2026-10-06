@@ -196,6 +196,20 @@ describe('deck links', () => {
     ])
       expect(isAbsoluteHttpUrl(unsafe), unsafe).toBe(false);
   });
+
+  it('keeps every data-pdf-href on the site https origin', () => {
+    // scripts/export-pitch-pdf.mjs only writes same-origin PDF hrefs; if the
+    // site origin ever moves, update PDF_SITE_ORIGIN there too.
+    for (const doc of [pitch, partner]) {
+      const links = Array.from(doc.querySelectorAll('a[data-pdf-href]'));
+      expect(links.length).toBeGreaterThan(0);
+      for (const link of links) {
+        const target = link.getAttribute('data-pdf-href') ?? '';
+        expect(target.startsWith('https://www.kokode.xyz/')).toBe(true);
+        expect(new URL(target).origin).toBe('https://www.kokode.xyz');
+      }
+    }
+  });
 });
 
 describe('disclaimers', () => {

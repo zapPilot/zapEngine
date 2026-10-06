@@ -93,21 +93,27 @@ function inspectDeck() {
 }
 
 /** PDF links go to the live site and are attributed to the PDF. Runs in the
- * page via page.evaluate, so it must stay self-contained (no imports). Only
- * absolute http(s) targets are written: a `javascript:` data-pdf-href must
- * never become a live href (CodeQL js/xss-through-dom). */
+ * page via page.evaluate, so it must stay self-contained (no imports).
+ * Only same-origin https targets are written: the assigned href is rebuilt
+ * from a constant origin plus the parsed path/query/hash, so neither scheme
+ * nor host can come from page markup (`javascript:`, `data:` and foreign
+ * origins are skipped). SITE_ORIGIN must match SITE_URL in
+ * src/story/ja/site.ts; site.test.ts asserts every rendered data-pdf-href
+ * already satisfies this. */
+const PDF_SITE_ORIGIN = 'https://www.kokode.xyz';
 function useAbsoluteLinks() {
-  const isHttp = (value) => {
-    try {
-      const protocol = new URL(value).protocol;
-      return protocol === 'http:' || protocol === 'https:';
-    } catch {
-      return false;
-    }
-  };
   for (const link of document.querySelectorAll('a[data-pdf-href]')) {
     const target = link.getAttribute('data-pdf-href');
-    if (target && isHttp(target)) link.setAttribute('href', target);
+    if (!target) continue;
+    let path;
+    try {
+      const url = new URL(target);
+      if (url.origin !== PDF_SITE_ORIGIN) continue;
+      path = `${url.pathname}${url.search}${url.hash}`;
+    } catch {
+      continue;
+    }
+    link.setAttribute('href', `${PDF_SITE_ORIGIN}${path}`);
   }
 }
 
