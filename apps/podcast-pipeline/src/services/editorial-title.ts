@@ -48,6 +48,40 @@ export function normalizeEditorialTitle(value: unknown): string | null {
   return normalized;
 }
 
+export function isSameEditorialTitle(
+  candidate: string,
+  source: string,
+): boolean {
+  const normalized = canonicalizeEditorialTitle(candidate);
+  return (
+    normalized.length > 0 && normalized === canonicalizeEditorialTitle(source)
+  );
+}
+
+function canonicalizeEditorialTitle(value: string): string {
+  return convertTextToZhCN(value)
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[\p{P}\p{S}\p{Z}\p{C}]/gu, '');
+}
+
+function titleRejectionReason(
+  title: string,
+  budget: number | undefined,
+  rejectEqualTo: string | undefined,
+): string | null {
+  if (budget !== undefined && [...title].length > budget) {
+    return `超过 ${budget} 字（${[...title].length}）`;
+  }
+  if (
+    rejectEqualTo !== undefined &&
+    isSameEditorialTitle(title, rejectEqualTo)
+  ) {
+    return '与来源标题相同或仅有标点、空格差异，必须换切入点或句式重新改写';
+  }
+  return null;
+}
+
 interface EditorialTitleResult {
   title: string | null;
   model: string;
@@ -60,6 +94,7 @@ async function requestEditorialTitle(input: {
   message: string;
   operation: 'generateEditorialTitle' | 'compressEditorialTitle';
   budget?: number;
+  rejectEqualTo?: string;
 }): Promise<EditorialTitleResult> {
   let model = 'unknown';
   let provider = 'unknown';
@@ -114,8 +149,13 @@ async function requestEditorialTitle(input: {
       }
       const title =
         input.budget === undefined ? normalized : convertTextToZhCN(normalized);
-      if (input.budget !== undefined && [...title].length > input.budget) {
-        reason = `超过 ${input.budget} 字（${[...title].length}）`;
+      const rejection = titleRejectionReason(
+        title,
+        input.budget,
+        input.rejectEqualTo,
+      );
+      if (rejection !== null) {
+        reason = rejection;
         continue;
       }
       return { title, model, provider, costUsd };
@@ -125,7 +165,7 @@ async function requestEditorialTitle(input: {
   }
   logIngestEvent(
     input.budget === undefined
-      ? 'llm:title-fallback'
+      ? 'llm:title-failed'
       : 'llm:title-compression-fallback',
     { reason, ...(input.budget === undefined ? {} : { budget: input.budget }) },
   );
@@ -138,6 +178,7 @@ export async function generateEditorialTitleWithLLM(
   return requestEditorialTitle({
     promptName: 'title',
     message: sourceTitle,
+    rejectEqualTo: sourceTitle,
     operation: 'generateEditorialTitle',
   });
 }

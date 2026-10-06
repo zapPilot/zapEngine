@@ -34,8 +34,15 @@ describe('title system prompt contract', () => {
     const prompt = readPrompt('title');
     for (const anchor of [
       '不设字数目标',
-      '可以原样保留',
-      '不要为了改写而改写',
+      '不得与来源标题相同',
+      '不得只是删减、调换个别字词或改动标点',
+      '换一个切入点或句式',
+      '不得新增来源标题没有的最高级、排名或定性',
+      '只改变已有信息的表达，不增加信息',
+      '不能用问号包装来源没有的推论',
+      '来源中的疑问、引述、否定、约数与语气强度必须保留',
+      '数字属于谁就始终属于谁',
+      '不能把一家主体的涨幅写成整个赛道的涨幅',
       '读者视角',
       '不得扩大或泛化来源 claim 的范围',
       'USDT',
@@ -52,7 +59,7 @@ describe('title system prompt contract', () => {
     ])
       expect(prompt).toContain(anchor);
     expect(prompt).not.toContain('20 个');
-    expect(prompt).not.toContain('不要逐字照抄');
+    expect(prompt).not.toContain('可以原样保留');
   });
 });
 

@@ -270,6 +270,24 @@ async function ensureLocalizationScript(input: {
         }),
     );
   } else if (needsGeneratedScript(localization)) {
+    const editorialTitle = await step('generateEditorialTitle', () =>
+      generateEditorialTitleWithLLM(input.article.title),
+    );
+    input.costBreakdown.push(buildLlmCostLine('LLM title', editorialTitle));
+    if (editorialTitle.title === null) {
+      throw new Error(
+        'Editorial title generation failed; the source title will not be used as Best Title',
+      );
+    }
+    const title = convertTextToZhCN(editorialTitle.title);
+    const variants = await step('buildEditorialTitleVariants', () =>
+      buildEditorialTitleVariants(
+        title,
+        input.article.title,
+        socialTitleBudgetsFor(input.languageCode),
+      ),
+    );
+    input.costBreakdown.push(...variants.cost);
     const attempts = input.telemetry?.attempts;
     const generated = await step('generateScript', async () => {
       const result = await generateScriptWithLLM(
@@ -299,21 +317,6 @@ async function ensureLocalizationScript(input: {
         costUsd: generated.costUsd,
       }),
     );
-    const editorialTitle = await step('generateEditorialTitle', () =>
-      generateEditorialTitleWithLLM(input.article.title),
-    );
-    input.costBreakdown.push(buildLlmCostLine('LLM title', editorialTitle));
-    const title = convertTextToZhCN(
-      editorialTitle.title ?? input.article.title,
-    );
-    const variants = await step('buildEditorialTitleVariants', () =>
-      buildEditorialTitleVariants(
-        title,
-        input.article.title,
-        socialTitleBudgetsFor(input.languageCode),
-      ),
-    );
-    input.costBreakdown.push(...variants.cost);
     const packagedScript = await step('packagePodcastScript', () =>
       Promise.resolve(packagePodcastScript(generated.script)),
     );

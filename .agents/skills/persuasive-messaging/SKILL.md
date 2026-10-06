@@ -48,7 +48,7 @@ subjects: preserve named entities and core claims before improving a hook.
 
 ### Titles
 
-Best Title has no character target (4..60 generation guard) and may preserve the source verbatim after Simplified Chinese conversion. Preserve entities, core claims and reader perspective. Never expand a USDT claim into generic crypto. Generate semantically equivalent variants in ingest only when a character budget is exceeded; freeze them with title and script. Social never calls a title LLM or derives audience-specific hooks/theses. Keep source consequences, contrasts and questions;
+Best Title has no character target (4..60 generation guard) and must never be identical to the source after normalization. Change the angle or sentence structure, preserving all named entities and core claims; never invent superlatives, rankings or characterizations. Title and variants precede script; failures stop ingest without a scraped-title fallback. Preserve entities, core claims and reader perspective. Never expand a USDT claim into generic crypto. Generate semantically equivalent variants in ingest only when a character budget is exceeded; freeze them with title and script. Social never calls a title LLM or derives audience-specific hooks/theses. Keep source consequences, contrasts and questions;
 never invent them or hide the subject to manufacture suspense.
 
 ### Landing
