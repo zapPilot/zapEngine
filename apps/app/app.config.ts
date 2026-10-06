@@ -73,6 +73,7 @@ const config: ExpoConfig = {
     // was Universal. Apple rejects an update that drops a device family the
     // listing already supports (ITMS-90101), so this must stay true.
     supportsTablet: true,
+    // Only legacy links open the app directly; link.zap-pilot.org is web-first.
     associatedDomains: ['applinks:from-fed-to-chain-api.fly.dev'],
     icon: './assets/brand/icon.png',
     config: {

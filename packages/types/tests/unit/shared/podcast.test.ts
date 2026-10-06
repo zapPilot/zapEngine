@@ -1,9 +1,11 @@
 import {
+  buildPodcastEpisodeShareUrl,
   DEFAULT_PODCAST_LANGUAGE_CODE,
   EPISODE_VIDEO_VISUAL_VERSION,
   isPodcastLanguageCode,
   PODCAST_LANGUAGE_CODES,
   PODCAST_LANGUAGE_LABELS,
+  PODCAST_SHARE_ORIGIN,
   PODCAST_VIDEO_PROGRESS_STAGES,
   PODCAST_VIDEO_RENDER_STAGES,
   PODCAST_VIDEO_REVIEW_ISSUES,
@@ -51,6 +53,24 @@ describe('podcast language vocabulary', () => {
         intlLocale: 'en-US',
       },
     });
+  });
+});
+
+describe('podcast episode share links', () => {
+  it('uses the dedicated link host', () => {
+    expect(PODCAST_SHARE_ORIGIN).toBe('https://link.zap-pilot.org');
+  });
+
+  it('builds the /e/<episodeId>?lang= share URL', () => {
+    expect(buildPodcastEpisodeShareUrl('ep-1', 'ja')).toBe(
+      'https://link.zap-pilot.org/e/ep-1?lang=ja',
+    );
+  });
+
+  it('encodes the episode id and language as single components', () => {
+    expect(buildPodcastEpisodeShareUrl('episode/1', 'zh Hant&x')).toBe(
+      'https://link.zap-pilot.org/e/episode%2F1?lang=zh%20Hant%26x',
+    );
   });
 });
 

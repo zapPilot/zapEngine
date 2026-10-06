@@ -16,6 +16,19 @@ export function isPodcastLanguageCode(
   return (PODCAST_LANGUAGE_CODES as readonly string[]).includes(value);
 }
 
+/**
+ * The public host for web-first episode share links. Browsers are redirected
+ * to the web episode; opening the native app requires a user action there.
+ */
+export const PODCAST_SHARE_ORIGIN = 'https://link.zap-pilot.org';
+
+export function buildPodcastEpisodeShareUrl(
+  episodeId: string,
+  languageCode: string,
+): string {
+  return `${PODCAST_SHARE_ORIGIN}/e/${encodeURIComponent(episodeId)}?lang=${encodeURIComponent(languageCode)}`;
+}
+
 export interface PodcastLanguageLabel {
   /** English name of the language, used in LLM prompts (e.g. translation instructions). */
   english: string;

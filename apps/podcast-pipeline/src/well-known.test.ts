@@ -11,9 +11,20 @@ vi.mock('@hono/node-server', () => ({
 const app = (await import('./index.js')).default;
 
 describe('Universal Link well-known routes', () => {
+  it.each(['link.zap-pilot.org', 'unrelated.example'])(
+    'does not claim share paths on %s, even with a legacy Host header',
+    async (host) => {
+      const response = await app.request(
+        `https://${host}/.well-known/apple-app-site-association`,
+        { headers: { host: 'from-fed-to-chain-api.fly.dev' } },
+      );
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ applinks: { details: [] } });
+    },
+  );
   it('serves the Apple app site association document as JSON', async () => {
     const response = await app.request(
-      '/.well-known/apple-app-site-association',
+      'https://from-fed-to-chain-api.fly.dev/.well-known/apple-app-site-association',
     );
     const body = await response.json();
 

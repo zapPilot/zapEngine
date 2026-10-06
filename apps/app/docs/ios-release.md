@@ -196,6 +196,13 @@ generated entitlements against `ios.provisioningProfile.capabilities` in
 known to carry. Like `ascBuildNumberFloor`, that value is an operator
 attestation: update it only after the profile has actually been reissued.
 
+Podcast share links on `link.zap-pilot.org` intentionally open the web episode
+first, including when the app is installed. Do not add this host to Associated
+Domains. Its AASA must have an empty `applinks.details` list. The existing
+`applinks:from-fed-to-chain-api.fly.dev` entitlement preserves old shared links.
+The mobile web episode offers an explicit `zappilotv2://podcast/<localizationId>?lang=`
+link to open the same episode and language in the app.
+
 To recover after adding or removing a capability:
 
 1. Enable the capability on the App ID first, in the Apple Developer portal

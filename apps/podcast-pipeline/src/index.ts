@@ -185,7 +185,11 @@ export function createApp(): Hono {
   app.get('/', healthResponse);
   app.get('/health', healthResponse);
   app.get('/.well-known/apple-app-site-association', (c) =>
-    c.json(APPLE_APP_SITE_ASSOCIATION),
+    c.json(
+      new URL(c.req.url).hostname === 'from-fed-to-chain-api.fly.dev'
+        ? APPLE_APP_SITE_ASSOCIATION
+        : { applinks: { details: [] } },
+    ),
   );
   // Android App Links are deliberately disabled while Android is not
   // publicly released: no intent filters, no Play signing SHA-256, and an
