@@ -17,7 +17,7 @@ function localizeEpisodeBase<T extends EpisodeFeedResponse>(episode: T): T {
         ? { ...track, title: convertTextToZhTW(track.title) }
         : track,
     ),
-  };
+  } as T;
 }
 
 function localizeClassroomLesson(
