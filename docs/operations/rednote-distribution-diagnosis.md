@@ -48,7 +48,7 @@ by review.
 
 Topic words do not separate the groups either: 比特幣 / 加密 / 以太坊 / DeFi
 appear on both sides. This matches the existing rule in
-`apps/podcast-pipeline/CLAUDE.md` — do not answer a zero-view post by adding its
+`apps/podcast-pipeline/AGENTS.md` — do not answer a zero-view post by adding its
 subject to a term list.
 
 Two further hypotheses were tested and did not hold:

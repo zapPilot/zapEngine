@@ -1,6 +1,6 @@
 # Contributing to zapEngine
 
-This monorepo uses `pnpm`, Turbo, TypeScript, and Python/FastAPI services. Start with root [AGENTS.md](./AGENTS.md), then read the nearest scoped instruction file in the area you are changing. `AGENTS.md` holds the content at every scope, and compatibility entry points point back at it: the repository root and every `apps/*` and `packages/*` root carry a `CLAUDE.md` symlink to `AGENTS.md`, and every other scope carries only a one-line `CLAUDE.md` pointer (`pnpm lint repo` enforces both). Edit `AGENTS.md`, never its entry points.
+This monorepo uses `pnpm`, Turbo, TypeScript, and Python/FastAPI services. Start with root [AGENTS.md](./AGENTS.md), then read the nearest scoped `AGENTS.md` in the area you are changing. `AGENTS.md` holds the instructions at every scope.
 
 ## Daily workflow
 
