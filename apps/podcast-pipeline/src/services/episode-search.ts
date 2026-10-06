@@ -88,7 +88,9 @@ export function createEpisodeSearchService(
 
     do {
       const page = await loadPage(CORPUS_PAGE_SIZE, cursor, languageCode);
-      for (const row of page.rows) episodes.push(prepareEpisode(row, languageCode));
+      for (const row of page.rows) {
+        episodes.push(prepareEpisode(row, languageCode));
+      }
       cursor = page.nextCursor ? decodeCursor(page.nextCursor) : null;
     } while (cursor);
 
