@@ -16,8 +16,9 @@ pnpm build          # → ./out (static)
 
 ## Content
 
-- Marketing sections: `src/components/` (Hero, Features, UseCases, etc.)
-- Docs: MDX files under `content/docs/` — rendered via Fumadocs.
+- Home page sections: `src/components/landing-v2/` (Hero with RuntimeTrace, Ownership, Runtime, Strategies, BacktestProof, Adapters, TrustBoundary, ClosingCta). Their copy lives in `src/config/messages.ts` (`MESSAGES`); /pitch copy lives in `src/config/pitch.ts`.
+- Capability status: `src/config/runtime.ts` (`CAPABILITIES`) records whether each capability is Live, Research, In development or Planned. Copy references a capability id and pages render its `StatusBadge`; prose never states liveness. `src/config/__tests__/positioning.test.tsx` fences every claim, docs link and retired term.
+- Docs: MDX files under `content/docs/` — rendered via Fumadocs. `<CapabilityStatusTable />` renders the status table on the docs home.
 
 ## Deploy
 

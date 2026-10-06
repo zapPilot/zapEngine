@@ -8,6 +8,7 @@ import * as financialFeature from './modules/financialFeature';
 import * as podcast from './modules/podcast';
 import * as strategy from './modules/strategy';
 import * as portfolio from './modules/portfolio';
+import * as invest from './modules/invest';
 
 export const en = {
   ...common.en,
@@ -19,6 +20,7 @@ export const en = {
   ...podcast.en,
   ...strategy.en,
   ...portfolio.en,
+  ...invest.en,
 } as const;
 
 export const zhHant = {
@@ -31,6 +33,7 @@ export const zhHant = {
   ...podcast.zhHant,
   ...strategy.zhHant,
   ...portfolio.zhHant,
+  ...invest.zhHant,
 } satisfies TranslationDictionary;
 
 export const ja = {
@@ -43,6 +46,7 @@ export const ja = {
   ...podcast.ja,
   ...strategy.ja,
   ...portfolio.ja,
+  ...invest.ja,
 } satisfies TranslationDictionary;
 
 export type TranslationKey = keyof typeof en;

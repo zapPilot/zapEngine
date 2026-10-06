@@ -24,6 +24,7 @@ import {
   targetUsd6Shares,
 } from '@/integration/investTargetsModel';
 import {
+  DEFAULT_SECTOR_WEIGHTS,
   INVEST_SECTORS,
   isDefaultSectorWeights,
   sectorUsd6Shares,
@@ -50,6 +51,7 @@ import { useHyperCoreSpendable } from '@/integration/useHlpBalances';
 import { useInvest } from '@/integration/useInvest';
 import { useWalletAssets } from '@/integration/walletTokens';
 import { formatUsd6 } from '@/lib/format';
+import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 
 /**
  * Stand-in total for the source preview before any amount is typed, used only
@@ -60,6 +62,7 @@ const NO_MINIMUM_PREVIEW_USD6 = 1_000_000n;
 
 export function InvestAmountScreen() {
   const router = useRouter();
+  const { t } = useContentLanguage();
   const account = useAccount();
   const invest = useInvest();
   const balances = useWalletAssets(account.address);
@@ -195,8 +198,7 @@ export function InvestAmountScreen() {
           How much do you want to invest?
         </Text>
         <Text className="mt-2 text-[12.5px] leading-[19px] text-ink-dim">
-          Pick an amount and a mix. Zap Pilot handles the rest — you review
-          everything before anything is signed.
+          {t('invest.amount.intro')}
         </Text>
         <View className="mt-5 rounded-[22px] border border-line bg-[#111113] p-4">
           <View className="flex-row items-center justify-between">
@@ -253,7 +255,7 @@ export function InvestAmountScreen() {
           {!isDefaultSectorWeights(invest.sectorWeights) ? (
             <Tap
               accessibilityRole="button"
-              accessibilityLabel="Reset to the recommended mix"
+              accessibilityLabel={t('invest.amount.resetMix')}
               onPress={() => {
                 setPercentEdit(null);
                 invest.resetSectorWeights();
@@ -264,7 +266,10 @@ export function InvestAmountScreen() {
           ) : null}
         </View>
         <Text className="mt-2 text-[11px] text-ink-dim">
-          Recommended 60 / 40. Adjust one sector and the rest rebalances.
+          {t('invest.amount.defaultMixNote', {
+            crypto: bpsToPercentInput(DEFAULT_SECTOR_WEIGHTS.crypto),
+            stable: bpsToPercentInput(DEFAULT_SECTOR_WEIGHTS.stable),
+          })}
         </Text>
         <SectorAllocationBar weights={invest.sectorWeights} />
         <View className="gap-3">

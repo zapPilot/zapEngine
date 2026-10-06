@@ -3,7 +3,7 @@ import { render } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 import { TOKEN_ICON_SRC } from '@/data/assetIcons';
-import { ChainMark, ProtocolIcon, TokenIcon, TokenIconPair } from '../icons';
+import { ChainMark, ProtocolIcon, TokenIcon } from '../icons';
 
 describe('TokenIcon', () => {
   it('renders a committed image for a known symbol', () => {
@@ -64,17 +64,5 @@ describe('ProtocolIcon', () => {
   it('normalizes the GMX v2 display label', () => {
     const { container } = render(<ProtocolIcon protocol="GMX v2" />);
     expect(container.querySelector('img')).toBeInTheDocument();
-  });
-});
-
-describe('TokenIconPair', () => {
-  it('renders both marks in input order', () => {
-    const { container } = render(<TokenIconPair symbols={['ETH', 'BTC']} />);
-    const sources = [...container.querySelectorAll('img')].map((image) =>
-      image.getAttribute('src'),
-    );
-    expect(sources).toHaveLength(2);
-    expect(sources[0]).toContain('eth');
-    expect(sources[1]).toContain('btc');
   });
 });

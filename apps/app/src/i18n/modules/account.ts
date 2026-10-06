@@ -37,8 +37,7 @@ export const en = {
   'account.iosAuthBody':
     'Signed in with Privy. The iOS app uses Privy only for account authentication.',
   'account.webFeaturesTitle': 'Read-only on iOS',
-  'account.webFeaturesBody':
-    'Portfolio viewing is read-only on iOS. Investing, rebalancing, and withdrawals are available on Zap Pilot Web.',
+  'account.webFeaturesBody': 'Portfolio viewing is read-only on iOS.',
   'account.watchAddressTitle': 'Tracked portfolio address',
   'account.watchAddressBody':
     'If this Privy account has no Zap Pilot portfolio, enter an Ethereum address to view its portfolio in watch-only mode.',
@@ -87,8 +86,7 @@ export const zhHant = {
   'account.settingsTitle': '設定',
   'account.iosAuthBody': '已透過 Privy 登入，iOS 版僅使用 Privy 進行帳戶驗證。',
   'account.webFeaturesTitle': 'iOS 為唯讀模式',
-  'account.webFeaturesBody':
-    'iOS 上僅提供投資組合唯讀查看；投資、再平衡與提領請至 Zap Pilot 網頁版。',
+  'account.webFeaturesBody': 'iOS 上僅提供投資組合唯讀查看。',
   'account.watchAddressTitle': '追蹤的投資組合位址',
   'account.watchAddressBody':
     '如果這個 Privy 帳號沒有 Zap Pilot 投資組合，可以輸入 Ethereum 位址，以 watch-only 模式查看。',
@@ -140,8 +138,7 @@ export const ja = {
   'account.iosAuthBody':
     'Privyでサインイン中です。iOS版ではPrivyをアカウント認証のみに使用します。',
   'account.webFeaturesTitle': 'iOSでは閲覧専用',
-  'account.webFeaturesBody':
-    'iOSではポートフォリオを閲覧専用で確認できます。投資、リバランス、出金はZap Pilot Webをご利用ください。',
+  'account.webFeaturesBody': 'iOSではポートフォリオを閲覧専用で確認できます。',
   'account.watchAddressTitle': '追跡するポートフォリオアドレス',
   'account.watchAddressBody':
     'このPrivyアカウントにZap Pilotのポートフォリオがない場合、Ethereumアドレスを入力して閲覧専用で確認できます。',

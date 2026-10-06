@@ -117,8 +117,8 @@ describe('usePortfolioData', () => {
       latestSnapshotChangePct: null,
       trendPoints: [],
       allocation: [],
-      lastRebalancedLabel: 'Auto-managed by Zap Strategy',
     });
+    expect(result.data).not.toHaveProperty('lastRebalancedLabel');
     expect(result.data?.metrics.map((metric) => metric.value)).toEqual([
       '—',
       '—',
@@ -152,8 +152,8 @@ describe('usePortfolioData', () => {
       latestSnapshotChangePct: null,
       trendPoints: [],
       allocation: [],
-      lastRebalancedLabel: 'Auto-managed by Zap Strategy',
     });
+    expect(result.data).not.toHaveProperty('lastRebalancedLabel');
     expect(result.data?.metrics.map((metric) => metric.value)).toEqual([
       '—',
       '—',

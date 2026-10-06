@@ -1,4 +1,5 @@
 import { ArrowRight } from 'lucide-react';
+import { StatusNote } from '@/components/StatusBadge';
 import { MESSAGES } from '@/config/messages';
 import { CHART_DIMENSIONS } from '@/config/track-record';
 import equityCurve from '@/data/equity-curve.json';
@@ -66,17 +67,18 @@ export function BacktestProof() {
   );
   const strategyEndValue = lastPointForSeries('strategy').value.toFixed(2);
   const dcaEndValue = lastPointForSeries('dca').value.toFixed(2);
+  const { backtest } = MESSAGES;
 
   return (
     <Section
       id="proof"
       className="backtest-proof"
-      kicker="Backtest proof"
-      title={MESSAGES.backtest.title}
-      subtitle={MESSAGES.backtest.subtitle}
+      kicker={backtest.kicker}
+      title={backtest.title}
+      subtitle={backtest.subtitle}
       headingAction={
-        <a className="method-link" href={MESSAGES.backtest.ctaLink}>
-          {MESSAGES.backtest.ctaText}
+        <a className="method-link" href={backtest.methodLink.href}>
+          {backtest.methodLink.label}
           <ArrowRight aria-hidden />
         </a>
       }
@@ -84,8 +86,8 @@ export function BacktestProof() {
       <figure className="equity-curve" aria-labelledby="equity-curve-title">
         <div className="equity-curve-header">
           <div>
-            <p className="equity-curve-kicker">Indexed growth</p>
-            <h3 id="equity-curve-title">Strategy vs DCA Classic</h3>
+            <p className="equity-curve-kicker">{backtest.chart.kicker}</p>
+            <h3 id="equity-curve-title">{backtest.chart.title}</h3>
           </div>
           <div className="equity-curve-legend" aria-hidden>
             {EQUITY_SERIES.map((series) => (
@@ -103,11 +105,12 @@ export function BacktestProof() {
           role="img"
           aria-describedby="equity-curve-description"
         >
-          <title>Strategy equity curve versus DCA Classic</title>
+          <title>{backtest.chart.title}</title>
           <desc id="equity-curve-description">
-            Indexed 500-day equity curve from {equityCurve.window.start} to{' '}
-            {equityCurve.window.end}. Strategy finishes at {strategyEndValue}{' '}
-            and DCA Classic finishes at {dcaEndValue}.
+            Indexed {equityCurve.window.days}-day equity curve from{' '}
+            {equityCurve.window.start} to {equityCurve.window.end}. The
+            reference strategy finishes at {strategyEndValue} and DCA Classic
+            finishes at {dcaEndValue}.
           </desc>
 
           <rect
@@ -177,14 +180,11 @@ export function BacktestProof() {
           </g>
         </svg>
 
-        <figcaption>
-          Indexed to 100. Shaded band marks the observed max-drawdown range
-          across the backtest window.
-        </figcaption>
+        <figcaption>{backtest.chart.caption}</figcaption>
       </figure>
 
       <div className="backtest-grid">
-        {MESSAGES.backtest.stats.map((stat) => (
+        {backtest.stats.map((stat) => (
           <article className="backtest-stat" key={stat.label}>
             <p>{stat.label}</p>
             <strong>{stat.value}</strong>
@@ -193,8 +193,11 @@ export function BacktestProof() {
         ))}
       </div>
 
-      <div className="comparison-row" aria-label="Strategy versus DCA">
-        {MESSAGES.backtest.comparison.map((item) => (
+      <div
+        className="comparison-row"
+        aria-label={backtest.chart.comparisonLabel}
+      >
+        {backtest.comparison.map((item) => (
           <div className="comparison-item" key={item.label}>
             <strong>{item.label}</strong>
             <span>ROI {item.roi}</span>
@@ -204,7 +207,10 @@ export function BacktestProof() {
         ))}
       </div>
 
-      <p className="proof-disclaimer">{MESSAGES.backtest.disclaimer}</p>
+      <p className="proof-sleeve-note">
+        <StatusNote note={backtest.sleeveNote} />
+      </p>
+      <p className="proof-disclaimer">{backtest.disclaimer}</p>
     </Section>
   );
 }

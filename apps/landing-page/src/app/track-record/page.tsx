@@ -31,7 +31,7 @@ export default function TrackRecordPage() {
       {error && (
         <div className="track-record-error" role="alert">
           <p>
-            Failed to load {source === 'live' ? 'live ' : ''}track record:{' '}
+            Failed to load {source === 'live' ? 'snapshot ' : ''}track record:{' '}
             {error}
           </p>
         </div>
@@ -40,8 +40,9 @@ export default function TrackRecordPage() {
       {source === 'backtest' && !isLoading && (
         <div className="pending-banner" role="status">
           <p>
-            <strong>Backtest mode</strong> — showing historical strategy
-            results. Switch to Live above to load published IPFS snapshots.
+            <strong>Backtest mode</strong> — showing hypothetical backtest
+            results. Switch to Snapshots above to load the published IPFS
+            snapshot chain.
           </p>
         </div>
       )}
@@ -49,8 +50,8 @@ export default function TrackRecordPage() {
       {source === 'live' && !hasLiveData && !isLoading && !error && (
         <div className="pending-banner" role="status">
           <p>
-            <strong>Live tracking unavailable</strong> — no published snapshot
-            is currently available.
+            <strong>Snapshots unavailable</strong> — no published snapshot is
+            currently available.
           </p>
         </div>
       )}
@@ -107,7 +108,7 @@ export default function TrackRecordPage() {
       <MetricsRow summary={summary} />
 
       <section className="model-wallets">
-        <h3>Model Portfolio Wallets</h3>
+        <h3>Reference address</h3>
         {hasLiveData && latestSnapshot ? (
           <ul className="wallet-list">
             {latestSnapshot.walletAddresses.map((addr, i) => (
@@ -136,19 +137,20 @@ export default function TrackRecordPage() {
         ) : (
           <p className="no-data-note">
             {source === 'backtest'
-              ? 'Wallet addresses are only shown in Live mode.'
-              : 'Live wallet addresses are unavailable.'}
+              ? 'The reference address is only shown in Snapshots mode.'
+              : 'The reference address is unavailable.'}
           </p>
         )}
       </section>
 
       <section className="backtest-vs-live">
-        <h3>Backtest vs Live</h3>
+        <h3>Backtest vs snapshots</h3>
         <p>
-          Backtest covers {BACKTEST_WINDOW.days} days ({BACKTEST_WINDOW.start} →{' '}
-          {BACKTEST_WINDOW.end}). Live tracking began after first IPFS snapshot.
-          Live results include actual gas costs, slippage, and protocol fees.
-          Backtest uses estimated costs.
+          The backtest covers {BACKTEST_WINDOW.days} days (
+          {BACKTEST_WINDOW.start} → {BACKTEST_WINDOW.end}) and is hypothetical:
+          it assumes a yield on balances and models costs with fixed slippage.
+          Snapshots record the positions of one reference address each day since
+          the first IPFS snapshot. They are linked by CID but unsigned today.
         </p>
         <p>
           <Link href="/docs/track-record/dma-fgi-portfolio-rules-v1">

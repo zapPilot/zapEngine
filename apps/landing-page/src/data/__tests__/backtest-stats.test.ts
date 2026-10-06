@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   backtestDisclaimer,
+  backtestHeadline,
   backtestSubtitle,
   buildBacktestStats,
   buildComparisonRows,
+  referenceTradeSummary,
 } from '../backtest-stats';
 import strategySnapshot from '../strategy-snapshot.json';
 import { formatPercent } from '@/lib/formatPercent';
@@ -66,5 +68,37 @@ describe('backtest copy', () => {
     );
     expect(backtestDisclaimer()).toContain(strategySnapshot.window_end);
     expect(backtestDisclaimer()).not.toContain('pinned');
+  });
+
+  it('calls the trades simulated, never executed', () => {
+    expect(backtestSubtitle()).toContain(
+      `${STRATEGY.trade_count} simulated trades`,
+    );
+    expect(backtestSubtitle()).not.toMatch(/executed/);
+  });
+
+  it('discloses the assumed yield and the S&P 500 sleeve before the caveat', () => {
+    const disclaimer = backtestDisclaimer();
+    expect(disclaimer).toMatch(/^Hypothetical backtest/);
+    expect(disclaimer).toContain(
+      'assumes a yield on stablecoin and crypto balances',
+    );
+    expect(disclaimer).toContain('S&P 500 sleeve');
+    expect(disclaimer).toContain(
+      'Past performance does not guarantee future results.',
+    );
+  });
+
+  it('summarizes the reference strategy trades from the fixture', () => {
+    expect(referenceTradeSummary()).toBe(
+      `${STRATEGY.trade_count} simulated trades over the ${strategySnapshot.window_days}-day backtest`,
+    );
+    expect(referenceTradeSummary()).not.toMatch(/\d+ trades in \d+ days/);
+  });
+
+  it('names both strategies in the headline', () => {
+    expect(backtestHeadline()).toBe(
+      `${STRATEGY.display_name} vs ${DCA.display_name}`,
+    );
   });
 });

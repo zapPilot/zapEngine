@@ -1,4 +1,5 @@
 import { Activity, GitBranch, KeyRound, type LucideIcon } from 'lucide-react';
+import { StatusBadge } from '@/components/StatusBadge';
 import { LINKS } from '@/config/links';
 import { MESSAGES } from '@/config/messages';
 
@@ -17,6 +18,9 @@ export function TrustStrip() {
           const content = (
             <>
               <Icon aria-hidden />
+              {'capability' in badge ? (
+                <StatusBadge capability={badge.capability} />
+              ) : null}
               <span>{badge.label}</span>
             </>
           );

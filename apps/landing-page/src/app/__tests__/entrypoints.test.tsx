@@ -39,12 +39,14 @@ vi.mock('@/components/ErrorBoundary', () => ({
   ErrorBoundary: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));
 
+import { MESSAGES } from '@/config/messages';
 import DistributionLayout, {
   metadata as distributionMetadata,
 } from '../distribution/layout';
 import GlobalError from '../global-error';
 import RootLayout, { metadata as rootMetadata } from '../layout';
 import PitchLayout, { metadata as pitchMetadata } from '../pitch/layout';
+import { PITCH_OG } from '@/config/pitch';
 import PitchOpenGraphImage, {
   alt,
   contentType,
@@ -65,7 +67,10 @@ describe('app entrypoints', () => {
         <p>content</p>
       </RootLayout>,
     );
-    expect(rootMetadata.title).toBe('Zap Pilot — Your Net Worth, on Autopilot');
+    expect(rootMetadata.title).toBe(MESSAGES.meta.title);
+    expect(rootMetadata.openGraph?.title).toBe(MESSAGES.meta.title);
+    expect(rootMetadata.twitter?.title).toBe(MESSAGES.meta.title);
+    expect(rootMetadata.description).toBe(MESSAGES.meta.description);
     expect(screen.getByTestId('provider')).toHaveTextContent('content');
     expect(screen.queryByTestId('ga')).toBeNull();
     // Font classes land on <html>/<body>, which React does not render inside
@@ -111,6 +116,12 @@ describe('app entrypoints', () => {
     const result = PitchOpenGraphImage();
     expect(imageResponse).toHaveBeenCalledWith(expect.anything(), size);
     expect(result).toMatchObject({ options: size });
+    render(<>{(result as unknown as { element: ReactNode }).element}</>);
+    expect(screen.getByText(MESSAGES.common.brandLine)).toBeInTheDocument();
+    expect(screen.getByText(PITCH_OG.footer)).toBeInTheDocument();
+    for (const chip of MESSAGES.hero.chips) {
+      expect(screen.getByText(chip.text)).toBeInTheDocument();
+    }
     expect({ alt, contentType, dynamic, revalidate }).toEqual({
       alt: 'Zap Pilot — Investor Pitch',
       contentType: 'image/png',

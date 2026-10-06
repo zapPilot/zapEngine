@@ -1,5 +1,7 @@
 import { ImageResponse } from 'next/og';
 import { MESSAGES } from '@/config/messages';
+import { PITCH_OG } from '@/config/pitch';
+import { CAPABILITIES, STATUS_LABEL } from '@/config/runtime';
 
 /**
  * Static OG card for /pitch.
@@ -66,7 +68,7 @@ export default function PitchOpenGraphImage() {
             letterSpacing: 3,
           }}
         >
-          ZAP PILOT · INVESTOR PITCH
+          {PITCH_OG.label}
         </span>
       </div>
 
@@ -86,7 +88,7 @@ export default function PitchOpenGraphImage() {
             color: '#f4f4f5',
           }}
         >
-          {MESSAGES.hero.title.primary}
+          {MESSAGES.common.brandLine}
         </div>
         <div
           style={{
@@ -95,7 +97,37 @@ export default function PitchOpenGraphImage() {
             letterSpacing: 0.3,
           }}
         >
-          {MESSAGES.slogans.philosophy}
+          {MESSAGES.hero.eyebrow}
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+          {MESSAGES.hero.chips.map((chip) => (
+            <div
+              key={chip.text}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                fontSize: 20,
+                color: '#f4f4f5',
+              }}
+            >
+              <span
+                style={{
+                  border: '1px solid rgba(255, 255, 255, 0.24)',
+                  borderRadius: 999,
+                  padding: '2px 10px',
+                  fontSize: 14,
+                  letterSpacing: 1.5,
+                  color: '#a1a1aa',
+                }}
+              >
+                {STATUS_LABEL[
+                  CAPABILITIES[chip.capability].status
+                ].toUpperCase()}
+              </span>
+              {chip.text}
+            </div>
+          ))}
         </div>
       </div>
 
@@ -108,10 +140,8 @@ export default function PitchOpenGraphImage() {
           color: '#a1a1aa',
         }}
       >
-        <span>zap-pilot.org/pitch</span>
-        <span style={{ letterSpacing: 2 }}>
-          SELF-CUSTODY · NON-CUSTODIAL · ON-CHAIN
-        </span>
+        <span>{PITCH_OG.url}</span>
+        <span style={{ letterSpacing: 2 }}>{PITCH_OG.footer}</span>
       </div>
     </div>,
     { ...size },

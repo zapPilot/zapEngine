@@ -1,11 +1,10 @@
 import { useRegimeHistory } from '@zapengine/app-core/hooks/queries/market/useRegimeHistoryQuery';
 
-import { DEMO } from '@/data/demo';
+import type { MetricTone } from '@/integration/portfolioTypes';
 import {
+  type CompositionRow,
   compositionRows,
   currentModeLabelFor,
-  demoTextOrDash,
-  regimeDisplayFromRegime,
 } from '@/integration/strategyPresentation';
 import { useDefaultStrategyBacktest } from '@/integration/useDefaultStrategyBacktest';
 import {
@@ -13,27 +12,37 @@ import {
   useStrategySuggestion,
 } from '@/integration/useStrategySuggestion';
 
-/**
- * Shape consumed by StrategyScreen. Disconnected/demo mode can still use DEMO;
- * connected unavailable fields are explicit dashes.
- */
-type DemoStrategy = (typeof DEMO)['strategy'];
+interface StrategyMetric {
+  label: string;
+  value: string;
+  tone: MetricTone;
+}
 
-export type StrategyData = Omit<DemoStrategy, 'quote' | 'backtest'> & {
-  backtest: Omit<DemoStrategy['backtest'], 'sentiment'> & {
+/**
+ * Shape consumed by StrategyScreen. Every field comes from a live source;
+ * anything unavailable is an explicit dash, never demo data.
+ */
+export interface StrategyData {
+  backtest: {
+    returnLabel: string;
+    vsBtcLabel: string;
+    vsEthLabel: string;
+    metrics: StrategyMetric[];
+    currentModeLabel: string;
+    allocation: CompositionRow[];
     chartData: number[];
     displayName: string | null;
   };
   hasTargetAllocation: boolean;
-};
+}
 
 export interface UseStrategyDataResult {
-  data: StrategyData | null;
+  data: StrategyData;
   isLoading: boolean;
   isError: boolean;
 }
 
-function unavailableBacktestMetrics(): StrategyData['backtest']['metrics'] {
+function unavailableBacktestMetrics(): StrategyMetric[] {
   return [
     { label: 'ROI', value: '—', tone: 'positive' },
     { label: 'Max drawdown', value: '—', tone: 'negative' },
@@ -50,16 +59,16 @@ function unavailableBacktestMetrics(): StrategyData['backtest']['metrics'] {
  * Container hook for the Strategy screen.
  *
  * Wires the cleanly-available live signals — current market regime, target
- * allocation, and default backtest metrics/chart data when analytics is
- * available.
+ * allocation, and the reference strategy's default backtest metrics/chart
+ * data when analytics is available.
  *
  * @param userId Resolved account-engine user id, or null while connecting.
  *   Regime is market-wide (not user-scoped), so its hook runs as soon as the
- *   screen mounts; userId only gates the "still resolving identity" state.
+ *   screen mounts; userId only gates the user-scoped target allocation.
+ * @param backtestDays Backtest window; omitted uses the server default.
  */
 export function useStrategyData(
   userId: string | null,
-  isConnected: boolean,
   backtestDays?: number,
 ): UseStrategyDataResult {
   // Market-wide regime — no userId needed; run unconditionally (React rules).
@@ -67,71 +76,29 @@ export function useStrategyData(
   const suggestion = useStrategySuggestion(userId);
   const defaultBacktest = useDefaultStrategyBacktest(backtestDays);
 
-  const demoStrategy = DEMO.strategy;
-  const demoBacktest = demoStrategy.backtest;
-  const isDemo = !isConnected;
-
   const isLoading =
-    isDemo ||
-    regime.isLoading ||
-    suggestion.isLoading ||
-    defaultBacktest.isLoading;
+    regime.isLoading || suggestion.isLoading || defaultBacktest.isLoading;
   // Regime degrades to DEFAULT_REGIME_HISTORY internally (never errors), so a
   // genuine failure here is backtest-only.
   const isError = defaultBacktest.isError;
 
-  // --- Live: current market regime → human-readable mode label ---
-  const { regimeLabel, marketModeLabel } = regimeDisplayFromRegime(
-    regime.data?.currentRegime ?? null,
-    demoStrategy.marketModeLabel,
-    isDemo,
-  );
-  const currentModeLabel = currentModeLabelFor(
-    regimeLabel,
-    demoBacktest.currentModeLabel,
-    isDemo,
-  );
-
   const target = suggestion.data
     ? toCompositionTargetFromSuggestion(suggestion.data)
     : null;
-  const hasTargetAllocation = target !== null;
-  const pillars = compositionRows(target, demoStrategy.pillars, isDemo, {
-    valueKey: 'weight',
-  });
-  const allocation = compositionRows(target, demoBacktest.allocation, isDemo, {
-    valueKey: 'pct',
-    round: true,
-  });
-  const backtestMetrics = defaultBacktest.data
-    ? defaultBacktest.data.metrics
-    : isDemo
-      ? demoBacktest.metrics
-      : unavailableBacktestMetrics();
+  const backtest = defaultBacktest.data;
 
   const data: StrategyData = {
-    estApyLabel:
-      defaultBacktest.data?.returnLabel ??
-      demoTextOrDash(demoStrategy.estApyLabel, isDemo),
-    marketModeLabel,
-    pillars,
     backtest: {
-      returnLabel:
-        defaultBacktest.data?.returnLabel ??
-        demoTextOrDash(demoBacktest.returnLabel, isDemo),
-      vsBtcLabel:
-        defaultBacktest.data?.vsBtcLabel ??
-        demoTextOrDash(demoBacktest.vsBtcLabel, isDemo, 'Trades —'),
-      vsEthLabel:
-        defaultBacktest.data?.vsEthLabel ??
-        demoTextOrDash(demoBacktest.vsEthLabel, isDemo, 'Max DD —'),
-      metrics: backtestMetrics,
-      currentModeLabel,
-      allocation,
-      chartData: defaultBacktest.data?.chartData ?? [],
-      displayName: defaultBacktest.data?.displayName ?? null,
+      returnLabel: backtest?.returnLabel ?? '—',
+      vsBtcLabel: backtest?.vsBtcLabel ?? 'Trades —',
+      vsEthLabel: backtest?.vsEthLabel ?? 'Max DD —',
+      metrics: backtest?.metrics ?? unavailableBacktestMetrics(),
+      currentModeLabel: currentModeLabelFor(regime.data?.currentRegime),
+      allocation: compositionRows(target),
+      chartData: backtest?.chartData ?? [],
+      displayName: backtest?.displayName ?? null,
     },
-    hasTargetAllocation,
+    hasTargetAllocation: target !== null,
   };
 
   return { data, isLoading, isError };

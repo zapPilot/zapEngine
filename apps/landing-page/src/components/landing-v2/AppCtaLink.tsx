@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import { LINKS } from '@/config/links';
+import { MESSAGES } from '@/config/messages';
 import {
   trackCtaClicked,
   trackWaitlistSubmitted,
@@ -40,6 +41,7 @@ export function AppCtaLink({
   const [submitting, setSubmitting] = useState(false);
   const [joined, setJoined] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const copy = MESSAGES.waitlist;
 
   useEffect(() => {
     captureWaitlistFirstTouch();
@@ -100,7 +102,7 @@ export function AppCtaLink({
       trackWaitlistSubmitted(location, Boolean(attribution?.utmSource));
       setJoined(true);
     } catch {
-      setError('Could not join right now. Please try again.');
+      setError(copy.error);
     } finally {
       setSubmitting(false);
     }
@@ -152,9 +154,9 @@ export function AppCtaLink({
                 role="dialog"
               >
                 <div className={styles['head']}>
-                  <h2 id={`waitlist-title-${location}`}>Join the waitlist</h2>
+                  <h2 id={`waitlist-title-${location}`}>{copy.title}</h2>
                   <button
-                    aria-label="Close waitlist"
+                    aria-label={copy.close}
                     className={styles['close']}
                     type="button"
                     onClick={closeWaitlist}
@@ -164,41 +166,38 @@ export function AppCtaLink({
                 </div>
                 {joined ? (
                   <div className={styles['success']}>
-                    <strong>You’re on the list ✓</strong>
-                    <p>
-                      We’ll let you know when the new Zap Pilot app is ready.
-                    </p>
-                    <p>Join our community for updates and conversation.</p>
+                    <strong>{copy.successTitle}</strong>
+                    <p>{copy.successBody}</p>
+                    <p>{copy.community}</p>
                     <DiscordLink
                       className={styles['successCta']}
                       location="waitlist_success"
                       postWaitlist
                     >
-                      Join the Discord →
+                      {copy.discordCta}
                     </DiscordLink>
                   </div>
                 ) : (
                   <>
-                    <p className={styles['copy']}>
-                      Zap Pilot is getting ready. Leave your email and we’ll
-                      send one launch update when the new app is ready.
-                    </p>
+                    <p className={styles['copy']}>{copy.body}</p>
                     <form className={styles['form']} onSubmit={submit}>
                       <label>
-                        <span className={styles['honeypot']}>Email</span>
+                        <span className={styles['honeypot']}>
+                          {copy.emailLabel}
+                        </span>
                         <input
                           autoComplete="email"
                           autoFocus
                           className={styles['email']}
                           maxLength={320}
                           name="email"
-                          placeholder="you@example.com"
+                          placeholder={copy.emailPlaceholder}
                           required
                           type="email"
                         />
                       </label>
                       <label className={styles['honeypot']} aria-hidden="true">
-                        Company
+                        {copy.honeypotLabel}
                         <input
                           autoComplete="off"
                           name="company"
@@ -211,11 +210,9 @@ export function AppCtaLink({
                         disabled={submitting}
                         type="submit"
                       >
-                        {submitting ? 'Joining…' : 'Join waitlist'}
+                        {submitting ? copy.submitting : copy.submit}
                       </button>
-                      <p className={styles['note']}>
-                        No spam. Just launch updates.
-                      </p>
+                      <p className={styles['note']}>{copy.note}</p>
                       {error ? (
                         <p className={styles['error']} role="alert">
                           {error}

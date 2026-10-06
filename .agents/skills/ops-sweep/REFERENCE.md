@@ -196,7 +196,7 @@ become entries under "Decisions to review".
 | control-center + zap-pilot-ops MCP | Operational evidence                                                  |
 | Supabase                           | Durable product / analytics / ops state; schemas have distinct owners |
 | Cloudflare R2                      | Podcast media objects                                                 |
-| Pinata / IPFS                      | Signed track-record publication                                       |
+| Pinata / IPFS                      | Track-record snapshot publication (unsigned today)                    |
 | GitHub Actions                     | Repo-native schedules + deploy                                        |
 | Fly                                | Backend compute                                                       |
 | Vercel                             | App web / landing / control-center                                    |
@@ -209,11 +209,18 @@ Sources of truth: `.github/fly-apps.json` (Fly inventory), `.github/schedules.js
 
 A change that alters one of these is feature work and goes to the owner:
 
-- Zap Pilot is a self-custodial investment autopilot: users sign from their own
+- Zap Pilot is a runtime for programmable portfolios: strategies produce target
+  allocations, assets stay at the user's own address, users sign from their own
   wallet and must understand transaction effects before signing.
-- Lead with disciplined portfolio management, not cross-chain infrastructure.
-- Prefer one proven user path over protocol breadth.
-- Treat public track record and repeat usage as stronger evidence than feature count.
+- Every public capability claim carries its status (Live, Research, In
+  development, Planned); never describe planned work as live.
+- Strategy composability over protocol count: add an adapter when a strategy
+  needs an exposure; adapters never decide strategy.
+- Treat reproducible public evidence (open code, daily backtests with their
+  assumptions and disclaimer, on-chain recomputation) and repeat usage as
+  stronger evidence than feature count; never present a backtest as live results.
+- Deterministic automation first; any AI layer is optional, later, and bounded
+  by user policy.
 - Keep Privy as an onboarding rail rather than the product identity.
 
 ## PR body template
