@@ -9,22 +9,33 @@ describe('Ops MCP repository wiring', () => {
   it('advertises the canonical launcher from .mcp.json', async () => {
     const raw = await readFile(path.join(repoRoot, '.mcp.json'), 'utf8');
     const config = JSON.parse(raw) as McpConfig;
-
-    expect(config.mcpServers['zap-pilot-ops']).toEqual({
-      command: 'node',
-      args: ['scripts/ops-mcp.mjs'],
-    });
+    const launcher = config.mcpServers['zap-pilot-ops'];
+    // The canonical launcher resolves the primary checkout so linked
+    // worktrees share one entry point (see scripts/ops-mcp-config.test.mjs).
+    expect(launcher?.command).toBe('node');
+    expect(launcher?.args?.[0]).toBe('-e');
+    expect(launcher?.args?.[1]).toContain('scripts/ops-mcp.mjs');
   });
 
   it('advertises the same launcher to OpenCode', async () => {
-    const raw = await readFile(path.join(repoRoot, 'opencode.json'), 'utf8');
-    const config = JSON.parse(raw) as OpenCodeConfig;
+    const [mcpRaw, openCodeRaw] = await Promise.all([
+      readFile(path.join(repoRoot, '.mcp.json'), 'utf8'),
+      readFile(path.join(repoRoot, 'opencode.json'), 'utf8'),
+    ]);
+    const claude = (JSON.parse(mcpRaw) as McpConfig).mcpServers[
+      'zap-pilot-ops'
+    ];
+    const config = JSON.parse(openCodeRaw) as OpenCodeConfig;
 
-    expect(config.mcp['zap-pilot-ops']).toMatchObject({
+    const entry = config.mcp['zap-pilot-ops'];
+    expect(entry).toMatchObject({
       type: 'local',
-      command: ['node', 'scripts/ops-mcp.mjs'],
       enabled: true,
     });
+    expect(entry?.command).toEqual([
+      claude?.command,
+      ...(claude?.args ?? []),
+    ]);
   });
 
   it('registers the Cloudflare vendor MCP in every agent profile', async () => {
