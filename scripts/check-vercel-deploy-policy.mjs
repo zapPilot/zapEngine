@@ -42,11 +42,22 @@ for (const required of [
   'workflows: [CI]',
   "github.event.workflow_run.event == 'push'",
   "github.event.workflow_run.head_branch == 'main'",
+  'github.event.workflow_run.head_repository.full_name == github.repository',
+  'ref: ${{ github.sha }}',
+  'persist-credentials: false',
+  'DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}',
+  'node scripts/deploy-vercel-main.mjs "$DEPLOY_SHA"',
   'node scripts/deploy-vercel-main.mjs',
 ]) {
   if (!workflow.includes(required)) {
     fail(`deploy-vercel.yml: missing main-only deployment guard: ${required}`);
   }
+}
+
+if (workflow.includes('ref: ${{ github.event.workflow_run.head_sha }}')) {
+  fail(
+    'deploy-vercel.yml: triggering workflow code must not execute with deployment credentials',
+  );
 }
 
 if (/^concurrency:/m.test(workflow)) {
