@@ -435,7 +435,15 @@ jobs:
       verify_package_script: ${{ matrix.verify_package_script }}
       capture_release_metadata: ${{ matrix.capture_release_metadata }}
     secrets:
-      fly_token: ${{ secrets[matrix.secret_name] }}
+      # Keep matrix selection bounded to the fleet's app-scoped tokens.
+      fly_token: >-
+        ${{
+          matrix.secret_name == 'FLY_API_TOKEN_ACCOUNT' && secrets.FLY_API_TOKEN_ACCOUNT ||
+          matrix.secret_name == 'FLY_API_TOKEN_ETL' && secrets.FLY_API_TOKEN_ETL ||
+          matrix.secret_name == 'FLY_API_TOKEN_ANALYTICS' && secrets.FLY_API_TOKEN_ANALYTICS ||
+          matrix.secret_name == 'FLY_API_TOKEN_MOBILE' && secrets.FLY_API_TOKEN_MOBILE ||
+          ''
+        }}
       env_fly_token: ${{ secrets.FLY_API_TOKEN }}
       expo_token: ${{ secrets.EXPO_TOKEN }}
       vercel_token: ${{ secrets.VERCEL_TOKEN }}
