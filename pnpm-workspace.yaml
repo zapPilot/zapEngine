@@ -116,8 +116,9 @@ allowUnusedPatches: true
 
 auditConfig:
   ignoreGhsas:
-    # Patched versions unpublished upstream (extract-zip 2.0.2, image-size 2.0.3 never released)
+    # Patched version unpublished upstream (extract-zip 2.0.2 never released)
     - GHSA-jmr9-qjv8-65gv
+    # image-size 1.2.1 via metro 0.84.4 (expo 57, app build-time asset measuring only): 2.0.3+ now published upstream but metro pins 1.x and 2.x is ESM-only/breaking for its CJS require; clearing needs an Expo SDK/metro upgrade (owner decision). GitHub alerts 97, 98 stay open as owner/blocked; remove when metro supports image-size 2.x.
     - GHSA-w3rx-r6r6-pgpr
     - GHSA-5p2g-fcmc-qvqq
     # No patched release: braces 3.0.3 is latest (via chokidar/micromatch), http-cache-semantics 4.2.0 (via got/@electron/get, build-time only), node-forge 1.4.0 (via @expo/cli). GitHub alerts stay open as owner/blocked; remove when patched releases exist.
