@@ -1,7 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { describe, expect, it } from 'vitest';
 
-import type { CustomerEconomicsResponse } from '../../shared/types.js';
+import type {
+  CustomerEconomicsResponse,
+  CustomerRecord,
+} from '../../shared/types.js';
 
 import { readControlCenterConfig } from '../config/env.js';
 import { deriveCustomerSignals, loadCustomerEconomics } from './customers.js';
@@ -430,6 +433,55 @@ describe('deriveCustomerSignals', () => {
     const [freshness] = deriveCustomerSignals(response, NOW);
     expect(freshness?.status).toBe('healthy');
     expect(response.users[0]?.neverRefreshedWallets).toBe(0);
+  });
+
+  it('treats an unknown worst-stale age as fresh, never stale', () => {
+    // buildCustomers only yields neverRefreshedWallets === 0 with a defined
+    // worst age, so this branch is exercised directly: a null worst age must
+    // fall back to -1h and stay under the staleness floor.
+    const user: CustomerRecord = {
+      userId: 'user-9',
+      email: 'nine@example.com',
+      planCode: 'vip',
+      defaultTier: 'priority',
+      overrideTier: null,
+      overrideReason: null,
+      overrideExpiresAt: null,
+      effectiveTier: 'priority',
+      refreshIntervalHours: 24,
+      lastActivityAt: '2026-08-28T11:00:00.000Z',
+      inactiveDays: 0,
+      aumUsd: 100,
+      wallets: [],
+      portfolioStaleHours: null,
+      portfolioWorstStaleHours: null,
+      neverRefreshedWallets: 0,
+      dueForRefresh: false,
+      requestCount30d: 0,
+      attributedCostUsd30d: null,
+      costBasis: null,
+      revenueUsd: null,
+    };
+    const response: CustomerEconomicsResponse = {
+      generatedAt: '2026-08-28T12:00:00.000Z',
+      status: 'ok',
+      message: null,
+      summary: {
+        totalCustomers: 1,
+        priorityUsers: 1,
+        standardUsers: 0,
+        pausedUsers: 0,
+        activeLast7d: 1,
+        inactiveButPriority: 0,
+        aumUsd: 100,
+        attributedCostUsd30d: null,
+        revenueUsd: null,
+      },
+      users: [user],
+    };
+
+    const [freshness] = deriveCustomerSignals(response, NOW);
+    expect(freshness?.status).toBe('healthy');
   });
 
   it('sees a source that has never landed behind a fresh legacy timestamp', async () => {
