@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   generateEditorialTitleWithLLM,
+  isSameEditorialTitle,
   normalizeEditorialTitle,
 } from './editorial-title.js';
 
@@ -55,6 +56,26 @@ describe('normalizeEditorialTitle', () => {
   });
 });
 
+describe('isSameEditorialTitle', () => {
+  it.each([
+    ['市场 流动性', '市场流动性'],
+    ['「市场：流动性！」', '市场流动性'],
+    ['ＡＩ２０２６市场', 'ai2026市场'],
+    ['網路與軟件市場', '网路与软件市场'],
+    ['AI市场', 'ai市场'],
+    ['市场\t\n\u200b流动性★', '市场流动性'],
+  ])('recognizes normalized equality: %s', (candidate, source) => {
+    expect(isSameEditorialTitle(candidate, source)).toBe(true);
+  });
+  it.each([
+    ['', ''],
+    ['「 ！」', '★'],
+    ['市场流动性', '市场流动性如何变化'],
+  ])('does not equate empty or rewritten titles: %s', (candidate, source) => {
+    expect(isSameEditorialTitle(candidate, source)).toBe(false);
+  });
+});
+
 describe('generateEditorialTitleWithLLM', () => {
   it('sends only the source title with cheap plain text settings', async () => {
     mocks.complete.mockResolvedValue(completion('市场流动性重新定价'));
@@ -91,19 +112,38 @@ describe('generateEditorialTitleWithLLM', () => {
       );
     },
   );
-  it.each([
-    '用USDT买美股：你拿到的是股票、凭证，还是合约？',
-    '标题'.repeat(20),
-  ])(
-    'accepts an unchanged or long Best Title on the first request: %s',
-    async (title) => {
-      mocks.complete.mockResolvedValue(completion(title));
-      expect((await generateEditorialTitleWithLLM(title)).title).toBe(title);
-      expect(mocks.complete).toHaveBeenCalledTimes(1);
-    },
-  );
+  it('accepts a long rewritten Best Title on the first request', async () => {
+    const title = '标题'.repeat(20);
+    mocks.complete.mockResolvedValue(completion(title));
+    expect((await generateEditorialTitleWithLLM('来源标题')).title).toBe(title);
+    expect(mocks.complete).toHaveBeenCalledTimes(1);
+  });
+  it('rejects an identical title and accepts a rewritten correction', async () => {
+    mocks.complete
+      .mockResolvedValueOnce(completion('「ＡＩ 網路市場！」'))
+      .mockResolvedValueOnce(completion('AI如何改变网路市场？'));
+    const result = await generateEditorialTitleWithLLM('ai网路市场');
+    expect(result).toMatchObject({
+      title: 'AI如何改变网路市场？',
+      costUsd: 0.02,
+    });
+    expect(mocks.complete.mock.calls[1]![1].messages[1].content).toContain(
+      '与来源标题相同或仅有标点、空格差异，必须换切入点或句式重新改写',
+    );
+  });
+  it('returns null and billed cost after two identical titles', async () => {
+    mocks.complete.mockResolvedValue(completion('AI 網路市場！'));
+    expect(await generateEditorialTitleWithLLM('ai网路市场')).toMatchObject({
+      title: null,
+      costUsd: 0.02,
+    });
+    expect(mocks.complete).toHaveBeenCalledTimes(2);
+    expect(mocks.log).toHaveBeenCalledWith('llm:title-failed', {
+      reason: '与来源标题相同或仅有标点、空格差异，必须换切入点或句式重新改写',
+    });
+  });
   it.each(['length', 'stop'])(
-    'fails open after two invalid responses (%s)',
+    'returns null after two invalid responses (%s)',
     async (finish) => {
       mocks.complete.mockResolvedValue(
         completion(finish === 'length' ? '合法標題文字' : '**bad**', finish),
@@ -111,7 +151,7 @@ describe('generateEditorialTitleWithLLM', () => {
       await expect(
         generateEditorialTitleWithLLM('Source'),
       ).resolves.toMatchObject({ title: null, costUsd: 0.02 });
-      expect(mocks.log).toHaveBeenCalledWith('llm:title-fallback', {
+      expect(mocks.log).toHaveBeenCalledWith('llm:title-failed', {
         reason: finish === 'length' ? 'truncated' : 'invalid_title',
       });
     },
@@ -124,7 +164,7 @@ describe('generateEditorialTitleWithLLM', () => {
       '市场流动性重新定价',
     );
   });
-  it('fails open on transport errors and retains already billed cost', async () => {
+  it('returns null on transport errors and retains already billed cost', async () => {
     mocks.complete
       .mockResolvedValueOnce(completion(null))
       .mockRejectedValueOnce(new Error('offline'));
@@ -134,11 +174,11 @@ describe('generateEditorialTitleWithLLM', () => {
       model: 'resolved/model',
       provider: 'provider',
     });
-    expect(mocks.log).toHaveBeenCalledWith('llm:title-fallback', {
+    expect(mocks.log).toHaveBeenCalledWith('llm:title-failed', {
       reason: 'transport: offline',
     });
   });
-  it('fails open when configuration is unavailable', async () => {
+  it('returns null when configuration is unavailable', async () => {
     mocks.config.mockImplementation(() => {
       throw new Error('missing config');
     });

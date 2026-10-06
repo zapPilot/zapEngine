@@ -143,7 +143,8 @@ insert against a legacy cohort.
   `packaging-experiments.ts` intentionally returns no assignments.
 - `episode_localizations.title` is the Best Title and editorial source of truth.
   It has no 20-character target; valid generated titles retain the 4..60 code-point
-  guard and may preserve the source verbatim after Simplified Chinese conversion.
+  guard and must never be identical to the source after normalization.
+  Title and variants precede script generation; failures stop ingest without a scraped-title fallback.
   Semantically equivalent compression variants are generated in ingest by character
   budget and persisted atomically in `title_variants`; they are never recomputed
   by social or after resume. Social never generates titles or calls a title LLM.
