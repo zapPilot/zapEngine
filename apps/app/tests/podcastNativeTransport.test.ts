@@ -29,7 +29,7 @@ it('resolves the patched video version and includes the queue bridge and safe te
     'utf8',
   );
   expect(native).toContain(
-    'players.allObjects.isEmpty && ownsNowPlayingTargets',
+    'players.allObjects.isEmpty && ownedNowPlayingTargets',
   );
   expect(native).toContain(
     'for (command, target) in ownedTargets where target != nil',

@@ -1,7 +1,11 @@
 diff --git a/ios/NowPlayingManager.swift b/ios/NowPlayingManager.swift
 --- a/ios/NowPlayingManager.swift
 +++ b/ios/NowPlayingManager.swift
-@@ -19,12 +19,19 @@
+@@ -16,15 +16,23 @@
+   private var timeObserver: Any?
+   private weak var mostRecentInteractionPlayer: AVPlayer?
+   private var players = NSHashTable<VideoPlayer>.weakObjects()
++  private var registeredPlayerIds = Set<ObjectIdentifier>()
    private var artworkDataTask: URLSessionDataTask?
  
    private var playTarget: Any?
@@ -21,7 +25,27 @@ diff --git a/ios/NowPlayingManager.swift b/ios/NowPlayingManager.swift
    init() {
      let commandCenter = MPRemoteCommandCenter.shared()
  
-@@ -50,7 +57,11 @@
+@@ -33,6 +41,7 @@
+   }
+ 
+   func registerPlayer(_ player: VideoPlayer) {
++    registeredPlayerIds.insert(ObjectIdentifier(player))
+     players.add(player)
+     player.observer?.registerDelegate(delegate: self)
+ 
+@@ -42,6 +51,11 @@
+   }
+ 
+   func unregisterPlayer(_ player: VideoPlayer) {
++    // Disabling notifications unregisters before native deinit unregisters again.
++    // A repeated release must not clear the audio session acquired in between.
++    // Track identity separately: weak entries may already be gone during deinit.
++    guard registeredPlayerIds.remove(ObjectIdentifier(player)) != nil else { return }
++    let ownedNowPlayingTargets = ownsNowPlayingTargets
+     players.remove(player)
+     player.observer?.unregisterDelegate(delegate: self)
+ 
+@@ -50,7 +64,11 @@
        setMostRecentInteractionPlayer(player: newPlayer?.ref)
      }
  
@@ -30,11 +54,11 @@ diff --git a/ios/NowPlayingManager.swift b/ios/NowPlayingManager.swift
 +    // here, so `players` is empty on its deinit and this branch would tear down state
 +    // this manager does not own — wiping another module's (expo-audio's) lock-screen
 +    // controls and Now Playing entry, both of which are process-wide singletons.
-+    if players.allObjects.isEmpty && ownsNowPlayingTargets {
++    if players.allObjects.isEmpty && ownedNowPlayingTargets {
        let commandCenter = MPRemoteCommandCenter.shared()
  
        removeNowPlayingTargets(commandCenter: commandCenter)
-@@ -118,6 +129,7 @@
+@@ -118,6 +136,7 @@
          $0.commonKey == .commonKeyArtwork
        })
  
@@ -42,7 +66,7 @@ diff --git a/ios/NowPlayingManager.swift b/ios/NowPlayingManager.swift
        var nowPlayingInfo = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
  
        nowPlayingInfo[MPMediaItemPropertyTitle] = userMetadata?.title ?? title
-@@ -129,7 +141,8 @@
+@@ -129,7 +148,8 @@
        nowPlayingInfo[MPNowPlayingInfoPropertyMediaType] = MPNowPlayingInfoMediaType.video.rawValue // Using MPNowPlayingInfoMediaType.video causes a crash
        if let artworkUrl = userMetadata?.artwork, artworkDataTask?.originalRequest?.url != artworkUrl {
          artworkDataTask?.cancel()
@@ -52,7 +76,7 @@ diff --git a/ios/NowPlayingManager.swift b/ios/NowPlayingManager.swift
            // We can't reuse the `nowPlayingInfo` as the actual nowPlayingInfo might've changed while the image was being fetched
            var currentNowPlayingInfo = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
            currentNowPlayingInfo[MPMediaItemPropertyArtwork] = artwork
-@@ -140,6 +153,7 @@
+@@ -140,6 +160,7 @@
          nowPlayingInfo[MPMediaItemPropertyArtwork] = artwork
        }
  
@@ -60,7 +84,7 @@ diff --git a/ios/NowPlayingManager.swift b/ios/NowPlayingManager.swift
        MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
      }
    }
-@@ -169,10 +183,23 @@
+@@ -169,10 +190,23 @@
      // Otherwise they enter race conditions when addTargets is called right after calling removeExistingTargets
      // swiftlint:disable:next closure_body_length
      DispatchQueue.main.async { [weak self] in
@@ -85,7 +109,7 @@ diff --git a/ios/NowPlayingManager.swift b/ios/NowPlayingManager.swift
        playTarget = commandCenter.playCommand.addTarget { [weak self] _ in
          guard let self, let player = self.mostRecentInteractionPlayer else {
            return .commandFailed
-@@ -229,6 +256,9 @@
+@@ -229,6 +263,9 @@
  
        // `MPRemoteCommandCenter` is a process-wide singleton that other modules (e.g. expo-audio) disable on
        // teardown, so re-enable the commands we handle to keep the lock screen controls working. (issue #46711)
@@ -95,7 +119,7 @@ diff --git a/ios/NowPlayingManager.swift b/ios/NowPlayingManager.swift
        commandCenter.playCommand.isEnabled = true
        commandCenter.pauseCommand.isEnabled = true
        commandCenter.skipForwardCommand.isEnabled = true
-@@ -237,14 +267,45 @@
+@@ -237,14 +274,42 @@
      }
    }
  
@@ -109,40 +133,39 @@ diff --git a/ios/NowPlayingManager.swift b/ios/NowPlayingManager.swift
 +  }
 +
    private func removeNowPlayingTargets(commandCenter: MPRemoteCommandCenter) {
-     // Use the main queue to avoid race conditions with adding the targets (see comment in `addNowPlayingTargets`)
-     DispatchQueue.main.async { [weak self] in
+-    // Use the main queue to avoid race conditions with adding the targets (see comment in `addNowPlayingTargets`)
+-    DispatchQueue.main.async { [weak self] in
 -      commandCenter.playCommand.removeTarget(self?.playTarget)
 -      commandCenter.pauseCommand.removeTarget(self?.pauseTarget)
 -      commandCenter.skipForwardCommand.removeTarget(self?.skipForwardTarget)
 -      commandCenter.skipBackwardCommand.removeTarget(self?.skipBackwardTarget)
 -      commandCenter.changePlaybackPositionCommand.removeTarget(self?.playbackPositionTarget)
-+      guard let self else {
-+        return
-+      }
-+      // `removeTarget(nil)` drops EVERY handler registered on the shared command center,
-+      // including handlers other modules own, so only remove targets we actually added.
-+      let ownedTargets: [(MPRemoteCommand, Any?)] = [
-+        (commandCenter.playCommand, playTarget),
-+        (commandCenter.pauseCommand, pauseTarget),
-+        (commandCenter.togglePlayPauseCommand, togglePlayPauseTarget),
-+        (commandCenter.nextTrackCommand, nextTrackTarget),
-+        (commandCenter.previousTrackCommand, previousTrackTarget),
-+        (commandCenter.skipForwardCommand, skipForwardTarget),
-+        (commandCenter.skipBackwardCommand, skipBackwardTarget),
-+        (commandCenter.changePlaybackPositionCommand, playbackPositionTarget)
-+      ]
++    // Snapshot and relinquish ownership synchronously, before audio can acquire it.
++    // The queued removal must never read targets belonging to a later video session.
++    let ownedTargets: [(MPRemoteCommand, Any?)] = [
++      (commandCenter.playCommand, playTarget),
++      (commandCenter.pauseCommand, pauseTarget),
++      (commandCenter.togglePlayPauseCommand, togglePlayPauseTarget),
++      (commandCenter.nextTrackCommand, nextTrackTarget),
++      (commandCenter.previousTrackCommand, previousTrackTarget),
++      (commandCenter.skipForwardCommand, skipForwardTarget),
++      (commandCenter.skipBackwardCommand, skipBackwardTarget),
++      (commandCenter.changePlaybackPositionCommand, playbackPositionTarget)
++    ]
++    playTarget = nil
++    pauseTarget = nil
++    togglePlayPauseTarget = nil
++    nextTrackTarget = nil
++    previousTrackTarget = nil
++    skipForwardTarget = nil
++    skipBackwardTarget = nil
++    playbackPositionTarget = nil
++
++    // `removeTarget(nil)` removes other modules' handlers on the shared command center.
++    DispatchQueue.main.async {
 +      for (command, target) in ownedTargets where target != nil {
 +        command.removeTarget(target)
 +      }
-+
-+      playTarget = nil
-+      pauseTarget = nil
-+      togglePlayPauseTarget = nil
-+      nextTrackTarget = nil
-+      previousTrackTarget = nil
-+      skipForwardTarget = nil
-+      skipBackwardTarget = nil
-+      playbackPositionTarget = nil
      }
    }
  
