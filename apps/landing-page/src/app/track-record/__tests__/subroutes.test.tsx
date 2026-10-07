@@ -74,6 +74,18 @@ beforeEach(() => {
 });
 
 describe('track-record layout', () => {
+  it('keeps the Signals tab available', () => {
+    render(
+      <TrackRecordLayout>
+        <p>child route</p>
+      </TrackRecordLayout>,
+    );
+    expect(screen.getByRole('link', { name: 'Signals' })).toHaveAttribute(
+      'href',
+      '/track-record/signals',
+    );
+  });
+
   it.each([
     ['backtest', 'Backtest'],
     ['live', 'Snapshots · unsigned'],
