@@ -1,4 +1,6 @@
 export const en = {
+  'podcast.openInApp': 'Open in app',
+  'podcast.continueInBrowser': 'Continue in browser',
   'podcast.title': 'Podcast',
   'podcast.searching': 'Searching…',
   'podcast.shareEpisode': 'Share episode',
@@ -79,6 +81,8 @@ export const en = {
 } as const;
 
 export const zhHant = {
+  'podcast.openInApp': '在 App 开启',
+  'podcast.continueInBrowser': '继续浏览',
   'podcast.title': 'Podcast',
   'podcast.searching': '搜尋中…',
   'podcast.shareEpisode': '分享單集',
@@ -154,6 +158,8 @@ export const zhHant = {
 } satisfies Record<keyof typeof en, string>;
 
 export const ja = {
+  'podcast.openInApp': 'アプリで開く',
+  'podcast.continueInBrowser': 'ブラウザで続ける',
   'podcast.title': 'ポッドキャスト',
   'podcast.searching': '検索中…',
   'podcast.shareEpisode': 'エピソードを共有',
