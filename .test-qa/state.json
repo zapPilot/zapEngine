@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-06T23:51:00.000Z",
+  "generatedAt": "2026-10-07T03:01:39.000Z",
   "github": {
     "runId": 0,
     "runAttempt": 1,
-    "sha": "125609677a297dffb3696ead050f2070ba701e21"
+    "sha": "76234c174290c0f7fc7f7b93d66238723079e64e"
   },
   "scopes": {
     "apps/control-center/src/client/pages/ReliabilityPage.tsx": {
@@ -108,8 +108,8 @@
     },
     "apps/app/src/integration/podcastSections.ts": {
       "status": "clean",
-      "auditedAt": "2026-10-03T05:10:00.000Z",
-      "auditedCommit": "558aaba118d1a962fc2f21b32d8151566b3d5c11",
+      "auditedAt": "2026-10-07T03:01:39.000Z",
+      "auditedCommit": "76234c174290c0f7fc7f7b93d66238723079e64e",
       "pathShas": {
         "apps/app/src/integration/podcastSections.ts": "afd5eb225ca02315404812f53cb07ab0e2e7eb9c",
         "apps/app/tests/podcastSections.test.ts": "27ae1f1ccacfe71b5bc49b17625882d556c79ff1"
@@ -120,7 +120,8 @@
       "relatedPaths": [
         "apps/app/src/integration/podcastSections.ts"
       ],
-      "findings": []
+      "findings": [],
+      "note": "Existing tests cover section ordering and invalid/out-of-range speed behavior; no clear Phase 1 defect."
     },
     "apps/app/tests/app-100-final-branches.test.tsx": {
       "status": "clean",
@@ -348,9 +349,64 @@
       ],
       "findings": [],
       "note": "Read coverage and regular tests against production; existing tests exercise the named boundary behavior. No clear Phase 1 defect. Connector-only: selector, local test/coverage/lint/type/guard commands unavailable."
+    },
+    "apps/app/src/storage/podcastStorageCore.ts": {
+      "status": "pending",
+      "auditedAt": "2026-10-07T03:01:39.000Z",
+      "auditedCommit": "76234c174290c0f7fc7f7b93d66238723079e64e",
+      "pathShas": {
+        "apps/app/src/storage/podcastStorageCore.ts": "4edf157e036b50334181d97703e74d14797d4f63",
+        "apps/app/tests/podcastProgressStorage.test.ts": "729ed3a099c769a767ce4a8dee8053454bb5a982",
+        "apps/app/tests/podcastSortDirection.test.ts": "df17a3ac84042abbe568ae4a3faeccd972358f62"
+      },
+      "files": [
+        "apps/app/tests/podcastProgressStorage.test.ts",
+        "apps/app/tests/podcastSortDirection.test.ts",
+        "apps/app/tests/podcastProgressStorage.finite.test.ts"
+      ],
+      "relatedPaths": [
+        "apps/app/src/storage/podcastStorageCore.ts"
+      ],
+      "findings": [
+        {
+          "id": "podcast-progress-nonfinite-20261007",
+          "kind": "test",
+          "summary": "Added a JSON numeric-overflow regression case proving persisted progress rejects a position that parses to Infinity."
+        }
+      ],
+      "note": "Worker commit ce4c4d343fce8575e1726265d3e55982de9d1cf1; PR creation connector write was blocked after two attempts."
+    },
+    "apps/app/src/storage/keyValueStorage.ts": {
+      "status": "clean",
+      "auditedAt": "2026-10-07T03:01:39.000Z",
+      "auditedCommit": "76234c174290c0f7fc7f7b93d66238723079e64e",
+      "pathShas": {
+        "apps/app/src/storage/keyValueStorage.ts": "909d1cb3dcf22bdb6252c62ec505fbbcf7645b66",
+        "apps/app/tests/podcastProgressStorage.test.ts": "729ed3a099c769a767ce4a8dee8053454bb5a982",
+        "apps/app/tests/podcastSortDirection.test.ts": "df17a3ac84042abbe568ae4a3faeccd972358f62"
+      },
+      "files": [
+        "apps/app/tests/podcastProgressStorage.test.ts",
+        "apps/app/tests/podcastSortDirection.test.ts"
+      ],
+      "relatedPaths": [
+        "apps/app/src/storage/keyValueStorage.ts"
+      ],
+      "findings": [],
+      "note": "Serialized ordering and flush behavior are exercised through podcast storage integration tests; no clear Phase 1 defect."
     }
   },
   "runs": [
+    {
+      "workerRunId": "20261007T030139Z",
+      "at": "2026-10-07T03:01:39.000Z",
+      "outcome": "changed",
+      "scopes": [
+        "apps/app/src/storage/podcastStorageCore.ts",
+        "apps/app/src/storage/keyValueStorage.ts",
+        "apps/app/src/integration/podcastSections.ts"
+      ]
+    },
     {
       "workerRunId": "20261006T235100Z",
       "at": "2026-10-06T23:51:00.000Z",
