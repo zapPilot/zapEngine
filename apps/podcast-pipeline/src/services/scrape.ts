@@ -3,7 +3,7 @@ import { JSDOM, VirtualConsole } from 'jsdom';
 
 import { runWithDeadline } from '../lib/deadline.js';
 import { isPanewsHostname } from '../lib/panews.js';
-import type { Article, ImageCandidate } from '../types.js';
+import type { Article, ArticleImageContext, ImageCandidate } from '../types.js';
 
 export interface ScrapeArticleOptions {
   signal?: AbortSignal;
@@ -284,6 +284,69 @@ function deduplicateImageCandidates(
   return [...deduplicated.values()];
 }
 
+type ArticleContextEntry =
+  | { kind: 'text' | 'heading'; text: string }
+  | { kind: 'image'; image: HTMLImageElement; characters: number };
+
+function contextNodeText(node: Node): string {
+  return (node as Text).data.replace(/\s+/gu, ' ');
+}
+
+function articleContextBlock(node: Node): Element {
+  return node.parentElement!.closest(
+    'h1,h2,h3,h4,h5,h6,p,li,blockquote,figcaption,div,section,article,main,body',
+  )!;
+}
+
+function articleImageContexts(
+  document: Document,
+): Map<HTMLImageElement, ArticleImageContext> {
+  const container =
+    document.querySelector('article') ??
+    document.querySelector('main') ??
+    document.body;
+  const { entries, characters } = collectArticleContextEntries(
+    document,
+    container,
+  );
+  const contexts = new Map<HTMLImageElement, ArticleImageContext>();
+  let heading = '';
+  const adjacent = (index: number, direction: number): string => {
+    const paragraphs: string[] = [];
+    for (
+      let cursor = index + direction;
+      cursor >= 0 && cursor < entries.length;
+      cursor += direction
+    ) {
+      const entry = entries[cursor]!;
+      if (entry.kind === 'heading') break;
+      if (entry.kind !== 'text') continue;
+      paragraphs.push(entry.text.trim());
+      if (paragraphs.length === 2) break;
+    }
+    if (direction < 0) paragraphs.reverse();
+    return paragraphs.join(' ').slice(0, 200);
+  };
+  for (const [index, entry] of entries.entries()) {
+    if (entry.kind === 'heading') heading = entry.text.trim().slice(0, 80);
+    if (entry.kind !== 'image') continue;
+    contexts.set(entry.image, {
+      position: characters ? entry.characters / characters : null,
+      heading,
+      precedingText: adjacent(index, -1),
+      followingText: adjacent(index, 1),
+      caption:
+        entry.image
+          .closest('figure')
+          ?.querySelector('figcaption')
+          ?.textContent?.replace(/\s+/gu, ' ')
+          .trim()
+          .slice(0, 200) ?? '',
+    });
+  }
+  return contexts;
+}
+
 export function extractArticleImageCandidates(
   document: Document,
   sourceUrl: string,
@@ -293,6 +356,7 @@ export function extractArticleImageCandidates(
     return [];
   }
 
+  const contexts = articleImageContexts(document);
   const candidates = extractOpenGraphImageCandidates(
     document,
     normalizedSourceUrl,
@@ -301,7 +365,22 @@ export function extractArticleImageCandidates(
     'article img, figure img',
   )) {
     const candidate = imageElementCandidate(image, normalizedSourceUrl);
-    if (candidate) candidates.push(candidate);
+    if (candidate)
+      candidates.push({
+        ...candidate,
+        context: contexts.get(image) ?? {
+          position: null,
+          heading: '',
+          precedingText: '',
+          followingText: '',
+          caption:
+            image
+              .closest('figure')
+              ?.querySelector('figcaption')
+              ?.textContent?.trim()
+              .slice(0, 200) ?? '',
+        },
+      });
   }
 
   return deduplicateImageCandidates(candidates);
@@ -396,4 +475,43 @@ async function fetchArticleHtml(
     options.timeoutMs,
     'Article scrape',
   );
+}
+
+function collectArticleContextEntries(
+  document: Document,
+  container: Element,
+): { entries: ArticleContextEntry[]; characters: number } {
+  const entries: ArticleContextEntry[] = [];
+  const walker = document.createTreeWalker(container, 0xffffffff, {
+    acceptNode: (node) =>
+      node.nodeType === 1 &&
+      /^(SCRIPT|STYLE|TEMPLATE)$/u.test((node as Element).tagName)
+        ? 2
+        : 1,
+  });
+  let characters = 0;
+  let lastBlock: Element | null = null;
+  while (walker.nextNode()) {
+    const node = walker.currentNode;
+    if (node.nodeType === 1 && (node as Element).tagName === 'IMG') {
+      entries.push({
+        kind: 'image',
+        image: node as HTMLImageElement,
+        characters,
+      });
+      lastBlock = null;
+    } else if (node.nodeType === 3) {
+      const text = contextNodeText(node);
+      const block = articleContextBlock(node);
+      const kind =
+        block && /^H[1-6]$/u.test(block.tagName) ? 'heading' : 'text';
+      const previous = entries.at(-1);
+      if (block === lastBlock && previous?.kind === kind) previous.text += text;
+      else if (text.trim()) entries.push({ kind, text });
+      else continue;
+      lastBlock = block;
+      characters += text.replace(/\s/gu, '').length;
+    }
+  }
+  return { entries, characters };
 }

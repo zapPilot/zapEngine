@@ -33,6 +33,7 @@ function selection(index: number): VisualSceneSelection {
     sourceQuery: null,
     providerRank: null,
     fallbackReason: 'pool-exhausted',
+    fallbackBasis: null,
     visualCue: null,
     cueMatched: null,
     rejections: [],

@@ -7,9 +7,9 @@ import {
   getPodcastEditorialSentences,
   packagePodcastScript,
   PODCAST_INTRO,
-  PODCAST_INTRO_VISUAL_INTENT,
   PODCAST_OUTRO_VISUAL_INTENT,
   PODCAST_PACKAGING_VERSION,
+  podcastBrandVisualKind,
   podcastContentSceneCountRange,
   podcastEditorialSceneCountRange,
   splitPodcastVisualSections,
@@ -166,9 +166,7 @@ describe('applyPodcastBrandingToStoryboard', () => {
     expect(branded.scenes[0]?.startSentenceId).toBe(
       splitPodcastVisualSections(script).intro?.id,
     );
-    expect(branded.scenes[0]?.imageSearchIntent).not.toContain(
-      PODCAST_INTRO_VISUAL_INTENT,
-    );
+    expect(branded.scenes[0]?.imageSearchIntent).toBeUndefined();
     expect(branded.scenes.at(-1)?.imageSearchIntent).toEqual([
       PODCAST_OUTRO_VISUAL_INTENT,
     ]);
@@ -256,4 +254,8 @@ describe('content scene bounds', () => {
       validatePodcastStoryboardDraft(script, branded, 120_000, bounds).success,
     ).toBe(true);
   });
+});
+
+it('classifies absent storyboard intents as content before enrichment', () => {
+  expect(podcastBrandVisualKind(undefined)).toBeNull();
 });

@@ -458,7 +458,19 @@ describe('planVisualAssets resilient selection', () => {
         ...twoScenes,
         { sceneId: 'scene-03', imageSearchIntent: ['third subject'] },
       ],
-      articleImages: [candidate('article-a'), candidate('article-b')],
+      articleImages: [
+        { ...candidate('article-a'), origin: 'openGraph' },
+        {
+          ...candidate('article-b'),
+          context: {
+            position: 0,
+            heading: '',
+            precedingText: '',
+            followingText: '',
+            caption: '',
+          },
+        },
+      ],
       workingDirectory: '/work/visual-assets',
       selectionMode: 'resilient',
       onProgress: (event) => progress.push(event),

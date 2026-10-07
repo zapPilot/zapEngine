@@ -1,10 +1,12 @@
 import { z } from 'zod';
 
+import { containsShapingTerm } from '../search-vocabulary.js';
 import {
   MAX_STORYBOARD_SLIDES,
   MAX_VISUAL_CUE_CHARACTERS,
   SCENE_ID_PATTERN,
 } from './draft.js';
+import { containsEntityPhrase, englishWords } from './english-text.js';
 
 export const VISUAL_SUBJECT_TYPES = [
   'company',
@@ -34,53 +36,82 @@ export const VISUAL_SELECTION_REASONS = [
   'brand',
 ] as const;
 
-const subjectIdSchema = z.string().regex(/^subject-[a-z0-9]+(?:-[a-z0-9]+)*$/);
+export const MAX_VISUAL_SUBJECTS = 24;
+export const SUBJECT_ID_PATTERN = /^subject-[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const subjectIdSchema = z.string().regex(SUBJECT_ID_PATTERN);
 const sceneIdSchema = z.string().regex(SCENE_ID_PATTERN);
 const shortTextSchema = z.string().min(2).max(80);
 const SUBJECT_LIMITS = {
   aliases: 6,
   evidenceSceneIds: MAX_STORYBOARD_SLIDES,
-  searchQueries: 3,
   identityHints: 8,
   negativeHints: 8,
   officialDomains: 4,
   sceneCues: MAX_STORYBOARD_SLIDES,
 } as const;
 
-export const visualSubjectSchema = z
+const visualSubjectShape = {
+  id: subjectIdSchema,
+  canonicalName: shortTextSchema,
+  type: z.enum(VISUAL_SUBJECT_TYPES),
+  aliases: z.array(shortTextSchema).max(SUBJECT_LIMITS.aliases).default([]),
+  storyRole: z.enum(VISUAL_SUBJECT_ROLES),
+  evidenceSceneIds: z.array(sceneIdSchema).max(SUBJECT_LIMITS.evidenceSceneIds),
+  identityHints: z
+    .array(shortTextSchema)
+    .min(1)
+    .max(SUBJECT_LIMITS.identityHints),
+  negativeHints: z
+    .array(shortTextSchema)
+    .max(SUBJECT_LIMITS.negativeHints)
+    .default([]),
+  officialDomains: z
+    .array(
+      z
+        .string()
+        .min(3)
+        .max(120)
+        .regex(/^[a-z0-9.-]+\.[a-z]{2,}$/i),
+    )
+    .max(SUBJECT_LIMITS.officialDomains)
+    .default([]),
+};
+
+export const visualSubjectInputSchema = z
   .object({
-    id: subjectIdSchema,
-    canonicalName: shortTextSchema,
-    type: z.enum(VISUAL_SUBJECT_TYPES),
-    aliases: z.array(shortTextSchema).max(SUBJECT_LIMITS.aliases).default([]),
-    storyRole: z.enum(VISUAL_SUBJECT_ROLES),
-    evidenceSceneIds: z
-      .array(sceneIdSchema)
-      .max(SUBJECT_LIMITS.evidenceSceneIds),
-    searchQueries: z
-      .array(shortTextSchema)
-      .min(1)
-      .max(SUBJECT_LIMITS.searchQueries),
-    identityHints: z
-      .array(shortTextSchema)
-      .min(1)
-      .max(SUBJECT_LIMITS.identityHints),
-    negativeHints: z
-      .array(shortTextSchema)
-      .max(SUBJECT_LIMITS.negativeHints)
-      .default([]),
-    officialDomains: z
-      .array(
-        z
-          .string()
-          .min(3)
-          .max(120)
-          .regex(/^[a-z0-9.-]+\.[a-z]{2,}$/i),
-      )
-      .max(SUBJECT_LIMITS.officialDomains)
-      .default([]),
+    ...visualSubjectShape,
+    searchQualifier: z.string().nullable().optional(),
   })
   .strict();
+
+export const visualSubjectSchema = z
+  .object({
+    ...visualSubjectShape,
+    searchQuery: z.string().min(2).max(113),
+  })
+  .strict()
+  .superRefine((subject, context) => {
+    const names = subjectNames(subject).sort((a, b) => b.length - a.length);
+    const name = names.find((name) =>
+      containsEntityPhrase(subject.searchQuery, name),
+    );
+    const remainder = name
+      ? subject.searchQuery
+          .replace(new RegExp(escapeRegExp(name), 'iu'), '')
+          .trim()
+      : null;
+    if (
+      remainder === null ||
+      (remainder !== '' && !isIdentityQualifier(remainder))
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['searchQuery'],
+        message:
+          'searchQuery must contain a subject name and only an identity qualifier',
+      });
+    }
+  });
 
 export const visualSceneCueSchema = z
   .object({
@@ -116,8 +147,11 @@ export const visualSubjectDropSchema = z
 export const visualSubjectCatalogSchema = z
   .object({
     primarySubjectId: subjectIdSchema,
-    subjects: z.array(visualSubjectSchema).min(1).max(24),
-    droppedSubjects: z.array(visualSubjectDropSchema).max(24).optional(),
+    subjects: z.array(visualSubjectSchema).min(1).max(MAX_VISUAL_SUBJECTS),
+    droppedSubjects: z
+      .array(visualSubjectDropSchema)
+      .max(MAX_VISUAL_SUBJECTS)
+      .optional(),
     sceneCues: z
       .array(visualSceneCueSchema)
       .max(SUBJECT_LIMITS.sceneCues)
@@ -129,7 +163,15 @@ export const visualSubjectCatalogSchema = z
     if (ids.size !== catalog.subjects.length) {
       context.addIssue({
         code: 'custom',
-        message: 'Visual subject catalog contains duplicate subject IDs',
+        message: `duplicate subject ids: ${[...ids]
+          .filter(
+            (id) => catalog.subjects.filter((s) => s.id === id).length > 1,
+          )
+          .map(
+            (id) =>
+              `${id} (${catalog.subjects.filter((s) => s.id === id).length}×)`,
+          )
+          .join(', ')}`,
         path: ['subjects'],
       });
     }
@@ -272,12 +314,30 @@ export type VisualSceneSubjectAssignment = z.infer<
 export function parseVisualSubjectCatalog(
   input: unknown,
 ): VisualSubjectCatalog {
-  const parsed = visualSubjectCatalogSchema.parse(
-    normalizeVisualSubjectCatalogInput(input),
-  );
+  const normalizedInput = normalizeVisualSubjectCatalogInput(input);
+  if (
+    !isRecord(normalizedInput) ||
+    !Array.isArray(normalizedInput['subjects'])
+  ) {
+    return visualSubjectCatalogSchema.parse(normalizedInput);
+  }
+  const { subjects } = z
+    .object({
+      subjects: z
+        .array(visualSubjectInputSchema)
+        .min(1)
+        .max(MAX_VISUAL_SUBJECTS),
+    })
+    .parse(normalizedInput);
   return visualSubjectCatalogSchema.parse({
-    ...parsed,
-    subjects: parsed.subjects.map(disambiguateSubjectIdentity),
+    ...normalizedInput,
+    subjects: subjects.map((subject) => {
+      const { searchQualifier, ...stored } = subject;
+      return disambiguateSubjectIdentity({
+        ...stored,
+        searchQuery: identitySearchQuery(subject, searchQualifier),
+      });
+    }),
   });
 }
 
@@ -361,38 +421,51 @@ export function subjectNames(subject: VisualSubject): string[] {
   return [subject.canonicalName, ...subject.aliases];
 }
 
-export function prefixedSubjectQuery(
-  subject: VisualSubject,
-  phrase: string,
+export function isIdentityQualifier(value: string): boolean {
+  const words = englishWords(value);
+  return (
+    value.length <= 32 &&
+    /^[A-Za-z0-9][A-Za-z0-9+&.'’/ -]*$/u.test(value) &&
+    words.length >= 1 &&
+    words.length <= 3 &&
+    !words.some((word) => !/[A-Za-z]/u.test(word)) &&
+    !containsShapingTerm(value)
+  );
+}
+
+function restatesName(value: string, names: readonly string[]): boolean {
+  return names.some((name) => containsEntityPhrase(value, name));
+}
+
+export function identitySearchQuery(
+  subject: Pick<
+    VisualSubject,
+    'canonicalName' | 'aliases' | 'type' | 'negativeHints' | 'identityHints'
+  >,
+  qualifier?: string | null,
 ): string {
-  const trimmed = phrase.trim();
-  if (!trimmed) return subject.canonicalName.slice(0, 80).trim();
-  const lowered = trimmed.toLocaleLowerCase('en-US');
-  const names = subjectNames(subject).map((name) =>
-    name.toLocaleLowerCase('en-US'),
-  );
-  if (names.some((name) => lowered.includes(name))) {
-    return trimmed.slice(0, 80).trim();
-  }
-  return `${subject.canonicalName} ${trimmed}`.slice(0, 80).trim();
-}
-
-export function buildVisualSubjectSearchQueries(
-  subject: VisualSubject,
-): string[] {
-  const canonical = subject.canonicalName.toLocaleLowerCase('en-US');
-  const queries = subject.searchQueries.map((query) =>
-    prefixedSubjectQuery(subject, query),
-  );
+  const name = subject.canonicalName;
+  const names = [name, ...subject.aliases];
   if (
-    !queries.some((query) => query.toLocaleLowerCase('en-US') === canonical)
-  ) {
-    queries.push(subject.canonicalName);
-  }
-  return [...new Set(queries)].slice(0, 4);
+    typeof qualifier === 'string' &&
+    isIdentityQualifier(qualifier) &&
+    !restatesName(qualifier, names)
+  )
+    return `${name} ${qualifier}`;
+  if (qualifier === null && !isAmbiguousVisualSubject(subject)) return name;
+  const hint = subject.identityHints.find(
+    (hint) => isIdentityQualifier(hint) && !restatesName(hint, names),
+  );
+  return hint ? `${name} ${hint}` : name;
 }
 
-export function isAmbiguousVisualSubject(subject: VisualSubject): boolean {
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+export function isAmbiguousVisualSubject(
+  subject: Pick<VisualSubject, 'canonicalName' | 'type' | 'negativeHints'>,
+): boolean {
   const compact = subject.canonicalName.replace(/[^\p{L}\p{N}]/gu, '');
   // An object anchor is a common noun, so its bare name never identifies the
   // story's instance of it; the identity hint has to become part of the name.
@@ -422,10 +495,6 @@ function normalizeVisualSubjectInput(
     evidenceSceneIds: capArray(
       input['evidenceSceneIds'],
       SUBJECT_LIMITS.evidenceSceneIds,
-    ),
-    searchQueries: capArray(
-      input['searchQueries'],
-      SUBJECT_LIMITS.searchQueries,
     ),
     identityHints: capArray(
       input['identityHints'],

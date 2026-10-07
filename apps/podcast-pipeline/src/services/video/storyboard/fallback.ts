@@ -3,11 +3,7 @@ import {
   podcastEditorialSceneCountRange,
 } from '../../podcast-packaging.js';
 import { speakingUnits } from '../text-units.js';
-import {
-  MAX_SEARCH_INTENT_CHARACTERS,
-  type StoryboardDraft,
-  type StoryboardDraftScene,
-} from './draft.js';
+import { type StoryboardDraft, type StoryboardDraftScene } from './draft.js';
 import type {
   StoryboardProvider,
   StoryboardProviderRequest,
@@ -15,38 +11,14 @@ import type {
 } from './provider.js';
 import {
   type CanonicalSentence,
-  canonicalSentenceRangeText,
   splitCanonicalSentences,
 } from './sentences.js';
-import {
-  MAX_SCENE_DURATION_MS,
-  MIN_SCENE_DURATION_MS,
-  normalizeNumericToken,
-  NUMERIC_TOKEN_PATTERN,
-} from './validation.js';
+import { MAX_SCENE_DURATION_MS, MIN_SCENE_DURATION_MS } from './validation.js';
 import { stableSceneId } from './visual-plan.js';
-
-const keywordSegmenter = new Intl.Segmenter('zh-Hant', {
-  granularity: 'word',
-});
 
 const searchGroupSegmenter = new Intl.Segmenter('en', {
   granularity: 'word',
 });
-
-const BRIDGE_WORDS = new Set([
-  'and',
-  'of',
-  'or',
-  '以及',
-  '之',
-  '及',
-  '和',
-  '或',
-  '的',
-  '與',
-  '跟',
-]);
 
 const SEARCH_NOISE_WORDS = new Set([
   'a',
@@ -400,15 +372,12 @@ const SEARCH_NOISE_WORDS = new Set([
   '資金',
 ]);
 
-const MAX_KEYWORD_PHRASE_CHARACTERS = 32;
-const MAX_KEYWORD_PHRASE_WORDS = 6;
-
-interface PhotographicConcept {
+interface SegmentationTopic {
   signals: readonly string[];
-  subject: string;
+  id: string;
 }
 
-const PHOTOGRAPHIC_CONCEPTS: readonly PhotographicConcept[] = [
+const SEGMENTATION_TOPICS: readonly SegmentationTopic[] = [
   {
     signals: [
       'quantum',
@@ -418,7 +387,7 @@ const PHOTOGRAPHIC_CONCEPTS: readonly PhotographicConcept[] = [
       '量子計算',
       '量子计算',
     ],
-    subject: 'quantum scientists working in a laboratory photo',
+    id: 'topic-01',
   },
   {
     signals: [
@@ -442,7 +411,7 @@ const PHOTOGRAPHIC_CONCEPTS: readonly PhotographicConcept[] = [
       '工廠',
       '工厂',
     ],
-    subject: 'industrial robots and engineers in a factory photo',
+    id: 'topic-02',
   },
   {
     signals: [
@@ -465,7 +434,7 @@ const PHOTOGRAPHIC_CONCEPTS: readonly PhotographicConcept[] = [
       '驗證',
       '验证',
     ],
-    subject: 'cybersecurity team verifying digital identity office photo',
+    id: 'topic-03',
   },
   {
     signals: [
@@ -490,7 +459,7 @@ const PHOTOGRAPHIC_CONCEPTS: readonly PhotographicConcept[] = [
       '資料中心',
       '数据中心',
     ],
-    subject: 'AI engineers monitoring data center servers photo',
+    id: 'topic-04',
   },
   {
     signals: [
@@ -516,7 +485,7 @@ const PHOTOGRAPHIC_CONCEPTS: readonly PhotographicConcept[] = [
       '匯款',
       '汇款',
     ],
-    subject: 'customer using digital payment at retail checkout photo',
+    id: 'topic-05',
   },
   {
     signals: [
@@ -545,7 +514,7 @@ const PHOTOGRAPHIC_CONCEPTS: readonly PhotographicConcept[] = [
       '鏈上',
       '链上',
     ],
-    subject: 'blockchain developers office photo',
+    id: 'topic-06',
   },
   {
     signals: [
@@ -568,7 +537,7 @@ const PHOTOGRAPHIC_CONCEPTS: readonly PhotographicConcept[] = [
       '新創',
       '创新',
     ],
-    subject: 'technology startup founders collaborating in office photo',
+    id: 'topic-07',
   },
   {
     signals: [
@@ -593,7 +562,7 @@ const PHOTOGRAPHIC_CONCEPTS: readonly PhotographicConcept[] = [
       '債券',
       '债券',
     ],
-    subject: 'financial traders working at market screens photo',
+    id: 'topic-08',
   },
   {
     signals: [
@@ -616,7 +585,7 @@ const PHOTOGRAPHIC_CONCEPTS: readonly PhotographicConcept[] = [
       '氣候',
       '气候',
     ],
-    subject: 'renewable energy engineers at solar and wind site photo',
+    id: 'topic-09',
   },
   {
     signals: [
@@ -638,7 +607,7 @@ const PHOTOGRAPHIC_CONCEPTS: readonly PhotographicConcept[] = [
       '基礎建設',
       '基础设施',
     ],
-    subject: 'cargo port and freight logistics workers photo',
+    id: 'topic-10',
   },
   {
     signals: [
@@ -657,7 +626,7 @@ const PHOTOGRAPHIC_CONCEPTS: readonly PhotographicConcept[] = [
       '生态',
       '保育',
     ],
-    subject: 'conservation scientists restoring natural habitat photo',
+    id: 'topic-11',
   },
   {
     signals: [
@@ -673,7 +642,7 @@ const PHOTOGRAPHIC_CONCEPTS: readonly PhotographicConcept[] = [
       '實驗室',
       '实验室',
     ],
-    subject: 'scientists conducting research in a laboratory photo',
+    id: 'topic-12',
   },
   {
     signals: [
@@ -690,7 +659,7 @@ const PHOTOGRAPHIC_CONCEPTS: readonly PhotographicConcept[] = [
       '医院',
       '病患',
     ],
-    subject: 'medical professionals caring for patients hospital photo',
+    id: 'topic-13',
   },
   {
     signals: [
@@ -709,24 +678,9 @@ const PHOTOGRAPHIC_CONCEPTS: readonly PhotographicConcept[] = [
       '選舉',
       '选举',
     ],
-    subject: 'government officials meeting on public policy photo',
+    id: 'topic-14',
   },
 ];
-
-interface KeywordPhrase {
-  value: string;
-  index: number;
-  wordCount: number;
-}
-
-interface KeywordPhraseState {
-  current: string;
-  currentIndex: number;
-  lastWord: string;
-  pendingConnector: string;
-  pendingWhitespace: boolean;
-  wordCount: number;
-}
 
 interface SearchTextUnit {
   text: string;
@@ -734,211 +688,8 @@ interface SearchTextUnit {
   endOffset: number;
 }
 
-export interface DeterministicStoryboardSearchContext {
-  searchTitle: string;
-  searchScript: string;
-}
-
 function normalizedKeyword(value: string): string {
   return value.normalize('NFKC').toLocaleLowerCase('en-US');
-}
-
-function characterCount(value: string): number {
-  return Array.from(value).length;
-}
-
-function hasLatinOrNumber(value: string): boolean {
-  return /[A-Za-z0-9]/u.test(value);
-}
-
-const TECHNICAL_CONNECTORS = new Set(['#', '+', '&', '.', '/', '-']);
-
-function createKeywordPhraseState(): KeywordPhraseState {
-  return {
-    current: '',
-    currentIndex: 0,
-    lastWord: '',
-    pendingConnector: '',
-    pendingWhitespace: false,
-    wordCount: 0,
-  };
-}
-
-function resetKeywordPhraseState(state: KeywordPhraseState): void {
-  state.current = '';
-  state.lastWord = '';
-  state.pendingConnector = '';
-  state.pendingWhitespace = false;
-  state.wordCount = 0;
-}
-
-function trimTrailingTechnicalConnectors(value: string): string {
-  return value;
-}
-
-function flushKeywordPhrase(
-  state: KeywordPhraseState,
-  phrases: KeywordPhrase[],
-): void {
-  const phrase = trimTrailingTechnicalConnectors(state.current).trim();
-  if (characterCount(phrase) >= 2) {
-    phrases.push({
-      value: phrase,
-      index: state.currentIndex,
-      wordCount: state.wordCount,
-    });
-  }
-  resetKeywordPhraseState(state);
-}
-
-function addKeywordWord(
-  state: KeywordPhraseState,
-  phrases: KeywordPhrase[],
-  segment: string,
-  index: number,
-): void {
-  const normalized = normalizedKeyword(segment);
-  if (BRIDGE_WORDS.has(normalized)) {
-    state.pendingConnector = '';
-    return;
-  }
-  if (SEARCH_NOISE_WORDS.has(normalized)) {
-    flushKeywordPhrase(state, phrases);
-    return;
-  }
-
-  const needsSpace =
-    state.current.length > 0 &&
-    state.pendingConnector.length === 0 &&
-    (state.pendingWhitespace ||
-      (hasLatinOrNumber(state.lastWord) && hasLatinOrNumber(segment)));
-  const addition = `${state.pendingConnector}${needsSpace ? ' ' : ''}${segment}`;
-  const exceedsLimit =
-    state.current.length > 0 &&
-    (state.wordCount >= MAX_KEYWORD_PHRASE_WORDS ||
-      characterCount(`${state.current}${addition}`) >
-        MAX_KEYWORD_PHRASE_CHARACTERS);
-  if (exceedsLimit) flushKeywordPhrase(state, phrases);
-  if (!state.current) state.currentIndex = index;
-  state.current += state.current ? addition : segment;
-  state.lastWord = segment;
-  state.pendingConnector = '';
-  state.pendingWhitespace = false;
-  state.wordCount += 1;
-}
-
-function handleKeywordSeparator(
-  state: KeywordPhraseState,
-  phrases: KeywordPhrase[],
-  segments: readonly Intl.SegmentData[],
-  part: Intl.SegmentData,
-  index: number,
-): void {
-  const segment = part.segment;
-  if (segment.trim().length === 0) {
-    state.pendingWhitespace = true;
-    return;
-  }
-  if ((segment === '%' || segment === '％') && /\d$/u.test(state.current)) {
-    state.current += segment;
-    return;
-  }
-  const next = segments[index + 1];
-  if (
-    TECHNICAL_CONNECTORS.has(segment) &&
-    state.current.length > 0 &&
-    next?.isWordLike &&
-    part.index + segment.length === next.index
-  ) {
-    state.pendingConnector = segment;
-    return;
-  }
-  flushKeywordPhrase(state, phrases);
-}
-
-function keywordPhrases(value: string): KeywordPhrase[] {
-  const segments = Array.from(keywordSegmenter.segment(value));
-  const phrases: KeywordPhrase[] = [];
-  const state = createKeywordPhraseState();
-
-  for (const [index, part] of segments.entries()) {
-    if (part.isWordLike) {
-      addKeywordWord(state, phrases, part.segment, index);
-    } else {
-      handleKeywordSeparator(state, phrases, segments, part, index);
-    }
-  }
-  flushKeywordPhrase(state, phrases);
-
-  const unique = new Map<string, KeywordPhrase>();
-  for (const phrase of phrases) {
-    const normalized = normalizedKeyword(phrase.value).replace(/\s+/gu, '');
-    if (!unique.has(normalized)) unique.set(normalized, phrase);
-  }
-  return [...unique.values()];
-}
-
-function phraseScore(phrase: KeywordPhrase): number {
-  let score = Math.min(characterCount(phrase.value), 24) + phrase.wordCount * 2;
-  if (/[A-Za-z]/u.test(phrase.value)) score += 18;
-  if (/\d/u.test(phrase.value)) score += 6;
-  if (/[A-Z]{2,}/u.test(phrase.value)) score += 8;
-  if (/[A-Za-z][#+./-]|[#+./-][A-Za-z0-9]/u.test(phrase.value)) score += 5;
-  return score;
-}
-
-function selectKeywordPhrases(value: string, limit: number): string[] {
-  return keywordPhrases(value)
-    .sort((left, right) => phraseScore(right) - phraseScore(left))
-    .slice(0, limit)
-    .sort((left, right) => left.index - right.index)
-    .map((phrase) => phrase.value);
-}
-
-function groundedNumericText(
-  value: string,
-  evidence: string,
-  replacement: string,
-): string {
-  const normalizedEvidence = normalizeNumericToken(evidence);
-  return value.replace(NUMERIC_TOKEN_PATTERN, (token) =>
-    normalizedEvidence.includes(normalizeNumericToken(token))
-      ? token
-      : replacement,
-  );
-}
-
-function appendDistinctPhrase(target: string[], phrase: string): void {
-  const normalized = normalizedKeyword(phrase).replace(/\s+/gu, '');
-  const existingIndex = target.findIndex((candidate) => {
-    const candidateNormalized = normalizedKeyword(candidate).replace(
-      /\s+/gu,
-      '',
-    );
-    return (
-      candidateNormalized === normalized ||
-      candidateNormalized.includes(normalized) ||
-      normalized.includes(candidateNormalized)
-    );
-  });
-  if (existingIndex < 0) {
-    target.push(phrase);
-    return;
-  }
-  const existing = target[existingIndex]!;
-  if (characterCount(phrase) > characterCount(existing)) {
-    target[existingIndex] = phrase;
-  }
-}
-
-function combinePhrases(phrases: readonly string[]): string {
-  const selected: string[] = [];
-  for (const phrase of phrases) {
-    const candidate = [...selected, phrase].join(' ');
-    if (characterCount(candidate) > MAX_SEARCH_INTENT_CHARACTERS) continue;
-    appendDistinctPhrase(selected, phrase);
-  }
-  return selected.join(' ');
 }
 
 function normalizedSearchCorpus(value: string): string {
@@ -958,7 +709,7 @@ function containsConceptSignal(corpus: string, signal: string): boolean {
 
 function matchingSignalCount(
   corpus: string,
-  concept: PhotographicConcept,
+  concept: SegmentationTopic,
 ): number {
   return concept.signals.reduce(
     (count, signal) => count + (containsConceptSignal(corpus, signal) ? 1 : 0),
@@ -966,15 +717,15 @@ function matchingSignalCount(
   );
 }
 
-function selectPhotographicConcept(
+function selectSegmentationTopic(
   title: string,
   evidence: string,
-): PhotographicConcept | null {
+): SegmentationTopic | null {
   const titleCorpus = normalizedSearchCorpus(title);
   const sceneCorpus = normalizedSearchCorpus(evidence);
-  let best: { concept: PhotographicConcept; score: number } | null = null;
+  let best: { concept: SegmentationTopic; score: number } | null = null;
 
-  for (const concept of PHOTOGRAPHIC_CONCEPTS) {
+  for (const concept of SEGMENTATION_TOPICS) {
     const sceneMatches = matchingSignalCount(sceneCorpus, concept);
     const titleMatches = matchingSignalCount(titleCorpus, concept);
     const score = sceneMatches * 4 + titleMatches;
@@ -983,69 +734,6 @@ function selectPhotographicConcept(
     }
   }
   return best?.concept ?? null;
-}
-
-function isLikelyTechnicalPhrase(
-  phrase: string,
-  concept: PhotographicConcept | null,
-): boolean {
-  if (/\d/u.test(phrase)) return true;
-  const capitalizedWords = phrase
-    .split(/\s+/u)
-    .filter((word) => /^[A-Z]/u.test(word));
-  if (/[A-Z]{2}/u.test(phrase) || capitalizedWords.length >= 2) {
-    return true;
-  }
-  if (!concept) return false;
-  const corpus = normalizedSearchCorpus(phrase);
-  return concept.signals.some((signal) =>
-    containsConceptSignal(corpus, signal),
-  );
-}
-
-function groundedPhotographicIntent(
-  groundedPhrases: readonly string[],
-  subject: string,
-): string {
-  const selected: string[] = [];
-  for (const phrase of groundedPhrases) {
-    const candidate = [...selected, phrase, subject].join(' ');
-    if (characterCount(candidate) <= MAX_SEARCH_INTENT_CHARACTERS) {
-      appendDistinctPhrase(selected, phrase);
-    }
-  }
-  return combinePhrases([...selected, subject]);
-}
-
-function deterministicSearchIntents(
-  title: string,
-  evidence: string,
-  numericEvidence = evidence,
-): string[] {
-  const titlePhrases = selectKeywordPhrases(
-    groundedNumericText(title, numericEvidence, ''),
-    1,
-  );
-  const scenePhrases = selectKeywordPhrases(
-    groundedNumericText(evidence, numericEvidence, ' '),
-    3,
-  );
-  const concept = selectPhotographicConcept(title, evidence);
-  const photographicSubject =
-    concept?.subject ??
-    combinePhrases([...titlePhrases, 'real world documentary editorial photo']);
-  const technicalPhrases = scenePhrases.filter((phrase) =>
-    isLikelyTechnicalPhrase(phrase, concept),
-  );
-  const photographicIntent = groundedPhotographicIntent(
-    technicalPhrases,
-    photographicSubject,
-  );
-  const intents = [photographicIntent, photographicSubject].filter(
-    (intent, index, all) =>
-      characterCount(intent) >= 2 && all.indexOf(intent) === index,
-  );
-  return intents;
 }
 
 function searchTextUnits(script: string, groupCount: number): SearchTextUnit[] {
@@ -1200,7 +888,7 @@ const sentenceAnchorCache = new WeakMap<CanonicalSentence, Set<string>>();
 function sentenceConcept(sentence: CanonicalSentence): string | null {
   const cached = sentenceConceptCache.get(sentence);
   if (cached !== undefined) return cached;
-  const concept = selectPhotographicConcept('', sentence.text)?.subject ?? null;
+  const concept = selectSegmentationTopic('', sentence.text)?.id ?? null;
   sentenceConceptCache.set(sentence, concept);
   return concept;
 }
@@ -1366,26 +1054,11 @@ function chooseSemanticGroups(
   return groups;
 }
 
-function rangeText(
-  script: string,
-  sentences: readonly CanonicalSentence[],
-  group: readonly CanonicalSentence[],
-): string {
-  const first = group[0]!;
-  const last = group.at(-1)!;
-  return (
-    canonicalSentenceRangeText(script, sentences, first.id, last.id) ??
-    group.map((sentence) => sentence.text).join('')
-  );
-}
-
 export function createDeterministicStoryboard(input: {
   title: string;
   script: string;
   durationMs: number;
   sentences: readonly CanonicalSentence[];
-  searchTitle?: string;
-  searchScript?: string;
   isPackaged?: boolean;
   sceneCountRange?: { min: number; max: number };
 }): StoryboardDraft {
@@ -1412,33 +1085,13 @@ export function createDeterministicStoryboard(input: {
     range.max,
     input.durationMs,
   );
-  const searchEvidenceGroups = input.searchScript
-    ? weightedSearchEvidenceGroups(
-        input.searchScript,
-        groups.map(sentenceWeight),
-      )
-    : null;
-  const searchTitle = input.searchTitle?.trim() || input.title;
-
   const scenes = groups.map((group, index): StoryboardDraftScene => {
     const first = group[0]!;
     const last = group.at(-1)!;
-    const canonicalEvidence = rangeText(
-      input.script,
-      input.sentences,
-      group,
-    ).trim();
-    const searchEvidence =
-      searchEvidenceGroups?.[index]?.trim() || canonicalEvidence;
     return {
       sceneId: stableSceneId(index),
       startSentenceId: first.id,
       endSentenceId: last.id,
-      imageSearchIntent: deterministicSearchIntents(
-        searchTitle,
-        searchEvidence,
-        canonicalEvidence,
-      ),
     };
   });
 
@@ -1447,9 +1100,7 @@ export function createDeterministicStoryboard(input: {
 
 const DETERMINISTIC_STORYBOARD_MODEL = 'deterministic-v1';
 
-export function createDeterministicStoryboardProvider(
-  searchContext: Partial<DeterministicStoryboardSearchContext> = {},
-): StoryboardProvider {
+export function createDeterministicStoryboardProvider(): StoryboardProvider {
   return {
     name: 'deterministic',
     model: DETERMINISTIC_STORYBOARD_MODEL,
@@ -1457,7 +1108,7 @@ export function createDeterministicStoryboardProvider(
       request: StoryboardProviderRequest,
     ): Promise<StoryboardProviderResult> {
       return Promise.resolve({
-        draft: createDeterministicStoryboard({ ...request, ...searchContext }),
+        draft: createDeterministicStoryboard(request),
         model: DETERMINISTIC_STORYBOARD_MODEL,
         usage: null,
       });

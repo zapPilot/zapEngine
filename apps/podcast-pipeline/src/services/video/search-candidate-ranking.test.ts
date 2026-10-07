@@ -5,10 +5,10 @@ import {
   candidateHostname,
   canonicalCandidateUrl,
   decorativeRejection,
-  normalizedSearchTokens,
   partitionViableCandidates,
   searchCandidateScore,
 } from './search-candidate-ranking.js';
+import { normalizedSearchTokens } from './search-vocabulary.js';
 
 function candidate(overrides: Partial<ImageCandidate> = {}): ImageCandidate {
   return {

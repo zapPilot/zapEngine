@@ -11,8 +11,6 @@ import { videoAssetPaths } from './runtime-assets.js';
 import { MAX_SEARCH_INTENTS_PER_SCENE } from './storyboard/draft.js';
 import { sceneSearchEntities } from './storyboard/search-intents.js';
 import {
-  buildVisualSubjectSearchQueries,
-  prefixedSubjectQuery,
   type VisualSceneSubjectAssignment,
   type VisualSubjectCatalog,
   visualSubjectsForScene,
@@ -32,11 +30,8 @@ import {
 } from './visual-asset-shared.js';
 
 export interface PodcastVisualAssetPlanInput extends PlanVisualAssetsInput {
-  /** Absent when the catalog step produced nothing to anchor on. The episode
-   * then searches the storyboard's own deterministic intents instead of
-   * failing: a weaker query still renders a video. */
-  subjectCatalog?: VisualSubjectCatalog;
-  sceneAssignments?: readonly VisualSceneSubjectAssignment[];
+  subjectCatalog: VisualSubjectCatalog;
+  sceneAssignments: readonly VisualSceneSubjectAssignment[];
 }
 
 /**
@@ -64,6 +59,7 @@ export async function planPodcastVisualAssets(
     scenes: searchScenes,
     requireLeadCover: true,
     articleImages: input.articleImages,
+    sceneNarration: input.sceneNarration,
     workingDirectory: input.workingDirectory,
     ...(input.resumePlan
       ? { resumePlan: resumePlanForScenes(input.resumePlan, searchScenes) }
@@ -112,7 +108,6 @@ function contentScenesForPlanning(
   contentScenes: readonly VisualAssetScene[],
 ): VisualAssetScene[] {
   const { subjectCatalog, sceneAssignments } = input;
-  if (!subjectCatalog || !sceneAssignments) return [...contentScenes];
   return anchoredPlannerScenes(subjectCatalog, sceneAssignments, contentScenes);
 }
 
@@ -155,16 +150,11 @@ function subjectAnchoredScene(
   return {
     ...scene,
     imageSearchIntent: [
-      ...new Set(subjects.flatMap(buildVisualSubjectSearchQueries)),
+      ...new Set(subjects.map((subject) => subject.searchQuery)),
     ].slice(0, MAX_SEARCH_INTENTS_PER_SCENE),
     // Subject names rank a candidate that names the subject above one that does
     // not; they no longer decide whether it may be downloaded at all.
     imageSearchEntities: sceneSearchEntities(subjects),
-    // The cue is trace/ranking metadata in this phase. It deliberately does not
-    // produce another Brave request until Phase 3 is justified by review data.
-    ...(scene.visualCue
-      ? { cueQuery: prefixedSubjectQuery(primarySubject, scene.visualCue) }
-      : {}),
     // Only a scene that cites its subject in its own sentences is worth a
     // targeted request of its own; model-context and inherited subjects share
     // the existing context budget.
@@ -259,6 +249,16 @@ function resumePlanForScenes(
   const assetIds = new Set(resumedScenes.map((scene) => scene.assetId));
   return {
     scenes: resumedScenes,
+    ...(plan.imageSearch
+      ? {
+          imageSearch: {
+            ...plan.imageSearch,
+            scenes: plan.imageSearch.scenes.filter((scene) =>
+              sceneIds.has(scene.sceneId),
+            ),
+          },
+        }
+      : {}),
     assets: plan.assets.filter((asset) => assetIds.has(asset.assetId)),
   };
 }

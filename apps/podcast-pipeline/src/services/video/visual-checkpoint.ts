@@ -4,15 +4,21 @@ import { dirname, join } from 'node:path';
 import { z } from 'zod';
 
 import { contentTypeExtension } from '../../lib/content-type.js';
+import { IMAGE_SEARCH_BUDGET } from './episode-image-pool.js';
 import { generatedSlideMetadataSchema } from './episode-visual.js';
 import {
+  compactVisualSelection,
+  compactVisualSelectionSchema,
+  createImageSearchTrace,
+} from './image-search-trace.js';
+import {
+  enrichedStoryboardDraftSchema,
   MAX_STORYBOARD_SLIDES,
   SCENE_ID_PATTERN,
-  storyboardDraftSchema,
 } from './storyboard/draft.js';
 import type {
+  EnrichedStoryboardGenerationResult,
   StoryboardAttemptReport,
-  StoryboardGenerationResult,
 } from './storyboard/orchestrator.js';
 import {
   visualSceneSubjectAssignmentSchema,
@@ -77,7 +83,7 @@ export const visualCheckpointSchema = z
     searchTitleSource: z.enum(['publisher', 'english-localization', 'none']),
     storyboard: z
       .object({
-        draft: storyboardDraftSchema,
+        draft: enrichedStoryboardDraftSchema,
         effectiveProvider: z.string().min(1),
         requestedProvider: z.string().min(1),
         model: z.string().min(1).nullable(),
@@ -86,13 +92,8 @@ export const visualCheckpointSchema = z
         totalUsage: tokenUsageSchema,
       })
       .strict(),
-    searchIntentModel: z.string().min(1).nullable(),
-    subjectCatalog: visualSubjectCatalogSchema.nullable(),
-    /** Why this attempt has no catalog, when enrichment degraded rather than
-     * simply finding no named subject. Optional so a checkpoint written before
-     * the field existed still parses and its job resumes instead of replanning;
-     * absent otherwise, because a retry that reports no reason is misleading. */
-    subjectCatalogFailure: z.string().min(1).optional(),
+    searchIntentModel: z.string().min(1),
+    subjectCatalog: visualSubjectCatalogSchema,
     sceneAssignments: z
       .array(visualSceneSubjectAssignmentSchema)
       .max(MAX_STORYBOARD_SLIDES),
@@ -102,6 +103,7 @@ export const visualCheckpointSchema = z
           .object({
             sceneId: z.string().regex(SCENE_ID_PATTERN),
             assetId: z.string().regex(VISUAL_ASSET_ID_PATTERN),
+            selection: compactVisualSelectionSchema,
           })
           .strict(),
       )
@@ -119,10 +121,9 @@ export interface VisualCheckpointIdentity {
 
 export function buildVisualCheckpoint(input: {
   identity: VisualCheckpointIdentity;
-  storyboard: StoryboardGenerationResult;
-  searchIntentModel: string | null;
+  storyboard: EnrichedStoryboardGenerationResult;
+  searchIntentModel: string;
   subjectCatalog: VisualCheckpoint['subjectCatalog'];
-  subjectCatalogFailure: string | null;
   sceneAssignments: VisualCheckpoint['sceneAssignments'];
   searchTitleSource: VisualCheckpoint['searchTitleSource'];
 }): VisualCheckpoint {
@@ -142,9 +143,6 @@ export function buildVisualCheckpoint(input: {
     },
     searchIntentModel: input.searchIntentModel,
     subjectCatalog: input.subjectCatalog,
-    ...(input.subjectCatalogFailure
-      ? { subjectCatalogFailure: input.subjectCatalogFailure }
-      : {}),
     sceneAssignments: [...input.sceneAssignments],
     scenes: [],
     assets: [],
@@ -173,9 +171,15 @@ export function parseVisualCheckpoint(
 
 export function appendVisualCheckpointScene(
   checkpoint: VisualCheckpoint,
-  selection: { sceneId: string; asset: PlannedVisualImage; r2Url: string },
+  selection: {
+    sceneId: string;
+    asset: PlannedVisualImage;
+    r2Url: string;
+    selection: import('./image-search-trace.js').VisualSceneSelection;
+  },
 ): VisualCheckpoint {
   const asset = withoutLocalPath(selection.asset);
+  const record = compactVisualSelection(selection.selection);
   const alreadyStored = checkpoint.assets.some(
     (stored) => stored.assetId === asset.assetId,
   );
@@ -185,7 +189,7 @@ export function appendVisualCheckpointScene(
       ...checkpoint.scenes.filter(
         (scene) => scene.sceneId !== selection.sceneId,
       ),
-      { sceneId: selection.sceneId, assetId: asset.assetId },
+      { sceneId: selection.sceneId, assetId: asset.assetId, selection: record },
     ],
     assets: alreadyStored
       ? checkpoint.assets
@@ -201,7 +205,7 @@ export function appendVisualCheckpointScene(
 
 export function restoreVisualStoryboard(
   checkpoint: VisualCheckpoint,
-): StoryboardGenerationResult {
+): EnrichedStoryboardGenerationResult {
   return {
     draft: checkpoint.storyboard.draft,
     effectiveProvider: checkpoint.storyboard.effectiveProvider,
@@ -277,7 +281,21 @@ export async function restoreVisualCheckpointPlan(
   const available = new Set(assets.map((asset) => asset.assetId));
   return {
     assets,
-    scenes: checkpoint.scenes.filter((scene) => available.has(scene.assetId)),
+    scenes: checkpoint.scenes
+      .filter((scene) => available.has(scene.assetId))
+      .map(({ sceneId, assetId }) => ({ sceneId, assetId })),
+    imageSearch: {
+      ...createImageSearchTrace(IMAGE_SEARCH_BUDGET, checkpoint.scenes.length),
+      scenes: checkpoint.scenes
+        .filter((scene) => available.has(scene.assetId))
+        .map((scene) => ({
+          ...scene.selection,
+          sceneId: scene.sceneId,
+          rejections: [],
+          providerRank: scene.selection.providerRank,
+          visualCue: scene.selection.visualCue,
+        })),
+    },
   };
 }
 

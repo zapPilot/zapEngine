@@ -78,6 +78,12 @@ describe('extractArticleImageCandidates', () => {
         expect.objectContaining({
           imageUrl: 'https://publisher.example/figure.jpg',
           origin: 'figure',
+          context: expect.objectContaining({
+            heading: expect.any(String),
+            precedingText: expect.any(String),
+            followingText: expect.any(String),
+            caption: expect.any(String),
+          }),
           altText: 'Figure caption',
         }),
       ]),
@@ -117,6 +123,12 @@ describe('extractArticleImageCandidates', () => {
         imageUrl: 'https://publisher.example/fallback.jpg',
         sourceUrl: 'https://publisher.example/story',
         origin: 'article',
+        context: expect.objectContaining({
+          heading: expect.any(String),
+          precedingText: expect.any(String),
+          followingText: expect.any(String),
+          caption: expect.any(String),
+        }),
       },
     ]);
   });
@@ -204,6 +216,12 @@ describe('extractArticleImageCandidates', () => {
         imageUrl: 'https://www.panewslab.com/body-chart.jpg',
         sourceUrl: 'https://www.panewslab.com/zh/articles/01a-example',
         origin: 'article',
+        context: expect.objectContaining({
+          heading: expect.any(String),
+          precedingText: expect.any(String),
+          followingText: expect.any(String),
+          caption: expect.any(String),
+        }),
         altText: 'Body chart',
         width: 1600,
         height: 900,
@@ -372,6 +390,12 @@ describe('scrapeArticle', () => {
         imageUrl: 'https://publisher.example.test/images/control-room.jpg',
         sourceUrl: 'https://publisher.example.test/news/power-markets',
         origin: 'article',
+        context: expect.objectContaining({
+          heading: expect.any(String),
+          precedingText: expect.any(String),
+          followingText: expect.any(String),
+          caption: expect.any(String),
+        }),
         altText: 'Operators in a control room',
         width: 1600,
         height: 900,
@@ -380,6 +404,12 @@ describe('scrapeArticle', () => {
         imageUrl: 'https://publisher.example.test/images/chart-large.jpg',
         sourceUrl: 'https://publisher.example.test/news/power-markets',
         origin: 'article',
+        context: expect.objectContaining({
+          heading: expect.any(String),
+          precedingText: expect.any(String),
+          followingText: expect.any(String),
+          caption: expect.any(String),
+        }),
         altText: 'Electricity demand chart',
         width: 1920,
         height: 1080,
@@ -388,6 +418,12 @@ describe('scrapeArticle', () => {
         imageUrl: 'https://publisher.example.test/images/turbine-high.jpg',
         sourceUrl: 'https://publisher.example.test/news/power-markets',
         origin: 'figure',
+        context: expect.objectContaining({
+          heading: expect.any(String),
+          precedingText: expect.any(String),
+          followingText: expect.any(String),
+          caption: expect.any(String),
+        }),
         altText: 'Wind turbines near a transmission corridor',
         width: 1200,
         height: 800,
@@ -396,6 +432,12 @@ describe('scrapeArticle', () => {
         imageUrl: 'https://media.example.test/standalone-figure.webp',
         sourceUrl: 'https://publisher.example.test/news/power-markets',
         origin: 'figure',
+        context: expect.objectContaining({
+          heading: expect.any(String),
+          precedingText: expect.any(String),
+          followingText: expect.any(String),
+          caption: expect.any(String),
+        }),
         altText: 'A standalone grid map',
         width: 1280,
         height: 720,
@@ -545,5 +587,75 @@ describe('scrapeArticle', () => {
     const result = await scrapeArticle('https://example.com/test-cleanup');
     expect(result.title).toBe('Test Cleanup');
     consoleErrorSpy.mockRestore();
+  });
+});
+
+describe('publisher paragraph context', () => {
+  it('captures PANews inline images with headings and bounded adjacent paragraphs', () => {
+    const dom = new JSDOM(
+      '<article class="article-content"><h3><strong>香港牌照</strong></h3><p>第一段。</p><p>第二段。</p><p><img src="https://uploads.panewslab.com/body.jpg" alt="實際圖"></p><p>第三段。</p><h3>另一章</h3><p>第四段。</p></article>',
+    );
+    const image = extractArticleImageCandidates(
+      dom.window.document,
+      'https://panews.io/article',
+    )[0]!;
+    expect(image.altText).toBe('實際圖');
+    expect(image.context).toEqual({
+      position: 12 / 23,
+      heading: '香港牌照',
+      precedingText: '第一段。 第二段。',
+      followingText: '第三段。',
+      caption: '',
+    });
+  });
+  it('keeps caption separate from alt, ignores script text and handles text-free images', () => {
+    const dom = new JSDOM(
+      '<article><script>never include</script><style>ignore</style><template>ignore</template><figure><img src="/body.jpg" alt="original alt"><figcaption>Figure caption</figcaption></figure></article>',
+    );
+    const image = extractArticleImageCandidates(
+      dom.window.document,
+      'https://publisher.test/article',
+    )[0]!;
+    expect(image.altText).toBe('original alt');
+    expect(image.context).toMatchObject({
+      position: 0,
+      heading: '',
+      precedingText: '',
+      caption: 'Figure caption',
+    });
+    const empty = new JSDOM('<article><img src="/body.jpg"></article>');
+    expect(
+      extractArticleImageCandidates(
+        empty.window.document,
+        'https://publisher.test/article',
+      )[0]!.context!.position,
+    ).toBeNull();
+  });
+  it('caps heading and paragraph contexts without changing scraped text', () => {
+    const dom = new JSDOM(
+      `<article><h3>${'標'.repeat(100)}</h3><p>${'前'.repeat(250)}</p><img src="/body.jpg"><p>${'後'.repeat(250)}</p></article>`,
+    );
+    const context = extractArticleImageCandidates(
+      dom.window.document,
+      'https://publisher.test/article',
+    )[0]!.context!;
+    expect(context.heading).toHaveLength(80);
+    expect(context.precedingText).toHaveLength(200);
+    expect(context.followingText).toHaveLength(200);
+  });
+});
+
+it('joins inline text nodes within one paragraph without crossing its image anchor', () => {
+  const dom = new JSDOM(
+    '<article><h3><strong>Hong</strong> Kong</h3><p>First <em>paragraph</em> ends.</p><img src="/body.jpg"><p>Following <b>paragraph</b>.</p></article>',
+  );
+  const image = extractArticleImageCandidates(
+    dom.window.document,
+    'https://publisher.test/story',
+  )[0]!;
+  expect(image.context).toMatchObject({
+    heading: 'Hong Kong',
+    precedingText: 'First paragraph ends.',
+    followingText: 'Following paragraph.',
   });
 });

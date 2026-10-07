@@ -1,17 +1,22 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  fixtureAssignments,
+  fixtureCatalog,
+  fixtureQualityReport,
+} from './__fixtures__/identity-catalog.js';
+import {
   buildEpisodeVisualPayload,
   parseEpisodeVisualPayload,
   sceneSentencesForDraft,
 } from './episode-visual.js';
-import type { StoryboardGenerationResult } from './storyboard/orchestrator.js';
+import type { EnrichedStoryboardGenerationResult } from './storyboard/orchestrator.js';
 import type { PlannedVisualImage } from './visual-asset-planner.js';
 
 const episodeId = '00000000-0000-4000-8000-000000000011';
 const localizationId = '00000000-0000-4000-8000-000000000012';
 
-function storyboard(sceneCount = 1): StoryboardGenerationResult {
+function storyboard(sceneCount = 1): EnrichedStoryboardGenerationResult {
   return {
     draft: {
       scenes: Array.from({ length: sceneCount }, (_, index) => ({
@@ -78,13 +83,16 @@ function generatedAsset(
 
 function buildOne(asset = articleAsset()) {
   return buildEpisodeVisualPayload({
+    subjectCatalog: fixtureCatalog,
+    sceneAssignments: fixtureAssignments(storyboard().draft),
+    qualityReport: fixtureQualityReport,
     visualVersion: 'visual-v-test',
     visualHash: 'b'.repeat(64),
     episodeId,
     canonicalLocalizationId: localizationId,
     manifestUrl: 'https://cdn.example.test/manifest.json',
     storyboard: storyboard(),
-    searchIntentModel: null,
+    searchIntentModel: 'openrouter/free',
     selectedScenes: [{ sceneId: 'scene-01', assetId: asset.assetId }],
     assets: [asset],
     r2ImageUrls: { [asset.assetId]: 'https://cdn.example.test/image-01.png' },
@@ -101,7 +109,8 @@ const subjectCatalog = {
       aliases: [],
       storyRole: 'primary' as const,
       evidenceSceneIds: ['scene-01'],
-      searchQueries: ['Primary Company'],
+
+      searchQuery: 'Primary Company company',
       identityHints: ['company'],
       negativeHints: [],
       officialDomains: [],
@@ -110,11 +119,12 @@ const subjectCatalog = {
 };
 
 describe('episode visual coverage edges', () => {
-  it('rejects subject context when only half of the pair is present', () => {
+  it('requires both subject catalog and assignments', () => {
     const valid = buildOne();
-    expect(() =>
-      parseEpisodeVisualPayload({ ...valid, subjectCatalog }),
-    ).toThrow('must be stored together');
+    const withoutCatalog = { ...valid, subjectCatalog: undefined };
+    const withoutAssignments = { ...valid, sceneAssignments: undefined };
+    expect(() => parseEpisodeVisualPayload(withoutCatalog)).toThrow();
+    expect(() => parseEpisodeVisualPayload(withoutAssignments)).toThrow();
   });
 
   it('rejects assignments that reference unknown scenes or subjects', () => {
@@ -177,13 +187,16 @@ describe('episode visual coverage edges', () => {
   it('uses full-bleed presentation for a near-square editorial image and persists lead-cover metadata', () => {
     const asset = articleAsset();
     const payload = buildEpisodeVisualPayload({
+      subjectCatalog: fixtureCatalog,
+      sceneAssignments: fixtureAssignments(storyboard().draft),
+      qualityReport: fixtureQualityReport,
       visualVersion: 'visual-v-test',
       visualHash: 'c'.repeat(64),
       episodeId,
       canonicalLocalizationId: localizationId,
       manifestUrl: 'https://cdn.example.test/manifest.json',
       storyboard: storyboard(),
-      searchIntentModel: null,
+      searchIntentModel: 'openrouter/free',
       selectedScenes: [{ sceneId: 'scene-01', assetId: asset.assetId }],
       assets: [asset],
       r2ImageUrls: { 'image-01': 'https://cdn.example.test/image-01.jpg' },
@@ -205,13 +218,16 @@ describe('episode visual coverage edges', () => {
   it('stores and credits a generated slide as a contained Zap Pilot image', () => {
     const asset = generatedAsset();
     const payload = buildEpisodeVisualPayload({
+      subjectCatalog: fixtureCatalog,
+      sceneAssignments: fixtureAssignments(storyboard().draft),
+      qualityReport: fixtureQualityReport,
       visualVersion: 'visual-v-test',
       visualHash: 'e'.repeat(64),
       episodeId,
       canonicalLocalizationId: localizationId,
       manifestUrl: 'https://cdn.example.test/manifest.json',
       storyboard: storyboard(),
-      searchIntentModel: null,
+      searchIntentModel: 'openrouter/free',
       selectedScenes: [{ sceneId: 'scene-01', assetId: asset.assetId }],
       assets: [asset],
       r2ImageUrls: { 'image-01': 'https://cdn.example.test/image-01.png' },
@@ -250,13 +266,16 @@ describe('episode visual coverage edges', () => {
     const asset = generatedAsset();
     expect(() =>
       buildEpisodeVisualPayload({
+        subjectCatalog: fixtureCatalog,
+        sceneAssignments: fixtureAssignments(storyboard().draft),
+        qualityReport: fixtureQualityReport,
         visualVersion: 'visual-v-test',
         visualHash: 'd'.repeat(64),
         episodeId,
         canonicalLocalizationId: localizationId,
         manifestUrl: 'https://cdn.example.test/manifest.json',
         storyboard: storyboard(2),
-        searchIntentModel: null,
+        searchIntentModel: 'openrouter/free',
         selectedScenes: [
           { sceneId: 'scene-01', assetId: asset.assetId },
           { sceneId: 'scene-02', assetId: asset.assetId },

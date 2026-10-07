@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  buildVisualSubjectSearchQueries,
   isGenericVisualSubjectName,
   parseVisualSubjectCatalog,
 } from './subject-catalog.js';
@@ -14,7 +13,7 @@ function rawSubject(
     aliases: string[];
     storyRole: string;
     evidenceSceneIds: string[];
-    searchQueries: string[];
+
     identityHints: string[];
     negativeHints: string[];
   }> = {},
@@ -26,7 +25,7 @@ function rawSubject(
     aliases: [],
     storyRole: 'primary',
     evidenceSceneIds: ['scene-01'],
-    searchQueries: ['Coinbase tokenized stocks'],
+
     identityHints: ['crypto exchange', 'Base'],
     negativeHints: [],
     officialDomains: [],
@@ -68,7 +67,6 @@ describe('visual subject catalog', () => {
             canonicalName: 'Binance',
             storyRole: 'secondary',
             evidenceSceneIds: [],
-            searchQueries: ['Binance'],
           }),
         ],
       }),
@@ -88,30 +86,18 @@ describe('visual subject catalog', () => {
         rawSubject({
           storyRole: 'lead',
           evidenceSceneIds,
-          searchQueries: [
-            'Coinbase tokenized stocks',
-            'Coinbase Base exchange',
-            'Coinbase crypto news',
-            'Coinbase Wall Street',
-          ],
         }),
         rawSubject({
           id: 'subject-base',
           canonicalName: 'Base',
           storyRole: 'mentioned',
           evidenceSceneIds: ['scene-02'],
-          searchQueries: ['Base Coinbase L2'],
         }),
       ],
     });
 
     expect(catalog.subjects[0]).toMatchObject({
       storyRole: 'primary',
-      searchQueries: [
-        'Coinbase tokenized stocks',
-        'Coinbase Base exchange',
-        'Coinbase crypto news',
-      ],
     });
     expect(catalog.subjects[0]?.evidenceSceneIds).toHaveLength(150);
     expect(catalog.subjects[1]?.storyRole).toBe('supporting');
@@ -128,7 +114,7 @@ describe('visual subject catalog', () => {
           aliases: ['Alpaca Markets'],
           storyRole: 'secondary',
           evidenceSceneIds: ['scene-10'],
-          searchQueries: ['Alpaca custody broker'],
+
           identityHints: ['brokerage', 'custody'],
           negativeHints: ['animal', 'alpacas'],
         }),
@@ -140,12 +126,7 @@ describe('visual subject catalog', () => {
     );
     expect(alpaca?.canonicalName).toBe('Alpaca Markets');
     expect(alpaca?.aliases).toContain('Alpaca');
-    expect(buildVisualSubjectSearchQueries(alpaca!)).toEqual(
-      expect.arrayContaining([
-        expect.stringContaining('Alpaca'),
-        'Alpaca Markets',
-      ]),
-    );
+    expect([alpaca!.searchQuery]).toEqual(['Alpaca brokerage']);
   });
 
   it('searches a16z by its own name instead of doubling the category hint onto it', () => {
@@ -162,7 +143,7 @@ describe('visual subject catalog', () => {
           aliases: ['Andreessen Horowitz'],
           storyRole: 'secondary',
           evidenceSceneIds: ['scene-04'],
-          searchQueries: ['a16z'],
+
           identityHints: ['venture capital'],
         }),
       ],
@@ -173,10 +154,7 @@ describe('visual subject catalog', () => {
     );
     expect(a16z?.canonicalName).toBe('venture capital a16z');
     expect(a16z?.aliases).toEqual(['a16z', 'Andreessen Horowitz']);
-    expect(buildVisualSubjectSearchQueries(a16z!)).toEqual([
-      'a16z',
-      'venture capital a16z',
-    ]);
+    expect([a16z!.searchQuery]).toEqual(['a16z venture capital']);
   });
 
   it('does not prefix a hint-led query that already names the subject', () => {
@@ -189,7 +167,7 @@ describe('visual subject catalog', () => {
         rawSubject({
           id: 'subject-tether',
           canonicalName: 'Tether',
-          searchQueries: ['Tether stablecoin issuer', 'Tether'],
+
           identityHints: ['stablecoin issuer'],
         }),
       ],
@@ -197,10 +175,7 @@ describe('visual subject catalog', () => {
 
     const tether = catalog.subjects[0];
     expect(tether?.canonicalName).toBe('Tether');
-    expect(buildVisualSubjectSearchQueries(tether!)).toEqual([
-      'Tether stablecoin issuer',
-      'Tether',
-    ]);
+    expect([tether!.searchQuery]).toEqual(['Tether stablecoin issuer']);
   });
 
   it('adds Base context to B20 so camera flashes and Honda engines cannot satisfy the identity phrase', () => {
@@ -214,7 +189,7 @@ describe('visual subject catalog', () => {
           type: 'standard',
           storyRole: 'secondary',
           evidenceSceneIds: ['scene-11', 'scene-13'],
-          searchQueries: ['B20 tokenized stocks'],
+
           identityHints: ['Base', 'ERC-20'],
           negativeHints: ['Profoto', 'camera', 'Honda', 'engine'],
         }),
@@ -226,9 +201,7 @@ describe('visual subject catalog', () => {
     );
     expect(b20?.canonicalName).toBe('Base B20');
     expect(b20?.aliases).toContain('B20');
-    expect(buildVisualSubjectSearchQueries(b20!)).toEqual(
-      expect.arrayContaining(['Base B20']),
-    );
+    expect([b20!.searchQuery]).toEqual(['B20 Base']);
   });
 
   it('disambiguates a subject whose aliases already sit at the bound', () => {
@@ -255,7 +228,7 @@ describe('visual subject catalog', () => {
             'Hotel',
           ],
           evidenceSceneIds: ['scene-11'],
-          searchQueries: ['B20 tokenized stocks'],
+
           identityHints: ['Base', 'ERC-20'],
         }),
       ],
@@ -280,7 +253,6 @@ describe('visual subject catalog', () => {
             canonicalName: 'Binance',
             storyRole: 'primary',
             evidenceSceneIds: ['scene-02'],
-            searchQueries: ['Binance tokenized stocks'],
           }),
         ],
       }),
