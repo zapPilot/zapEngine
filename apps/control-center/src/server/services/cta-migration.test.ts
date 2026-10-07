@@ -11,7 +11,7 @@ it('migrates historical signups without broadening access and preserves idempote
     await db.exec(
       await readFile(
         new URL(
-          '../../../../../supabase/migrations/20261003010000_waitlist_cta_experiment.sql',
+          '../../../../../supabase/migrations/20261006232013_waitlist_cta_experiment.sql',
           import.meta.url,
         ),
         'utf8',
