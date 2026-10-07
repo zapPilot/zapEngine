@@ -17,7 +17,7 @@ function localizeEpisodeBase<T extends EpisodeFeedResponse>(episode: T): T {
         ? { ...track, title: convertTextToZhTW(track.title) }
         : track,
     ),
-  } as T;
+  };
 }
 
 function localizeClassroomLesson(
@@ -31,8 +31,7 @@ function localizeClassroomLesson(
     keywords: lesson.keywords.map((keyword) => ({
       ...keyword,
       meaning: convertTextToZhTW(keyword.meaning),
-      note:
-        keyword.note === null ? null : convertTextToZhTW(keyword.note),
+      note: keyword.note === null ? null : convertTextToZhTW(keyword.note),
     })),
   };
 }
@@ -56,8 +55,7 @@ export function localizePublicEpisode(
 
   return {
     ...localized,
-    script:
-      episode.script === null ? null : convertTextToZhTW(episode.script),
+    script: episode.script === null ? null : convertTextToZhTW(episode.script),
     languageClassrooms: episode.languageClassrooms.map(localizeClassroomLesson),
   };
 }
@@ -70,7 +68,6 @@ export function localizePublicSearchResult(
   return {
     ...result,
     episode: localizePublicEpisode(result.episode),
-    snippet:
-      result.snippet === null ? null : convertTextToZhTW(result.snippet),
+    snippet: result.snippet === null ? null : convertTextToZhTW(result.snippet),
   };
 }

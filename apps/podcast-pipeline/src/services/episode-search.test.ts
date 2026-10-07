@@ -367,6 +367,23 @@ describe('EpisodeSearchService', () => {
     expect(loadPage).toHaveBeenCalledWith(50, null, 'zh-Hant');
   });
 
+  it('still matches Simplified and shared-character Taiwan queries', async () => {
+    const loadPage = vi.fn().mockResolvedValue({
+      rows: [
+        row({
+          language_code: 'zh-Hant',
+          title: '鼠标市场',
+          script: '网络软件正在改变鼠标市场。',
+        }),
+      ],
+      nextCursor: null,
+    });
+    const service = createEpisodeSearchService({ loadPage });
+
+    expect(await service.search('鼠标', 'zh-Hant', 20)).toHaveLength(1);
+    expect(await service.search('滑鼠', 'zh-Hant', 20)).toHaveLength(1);
+  });
+
   it('reuses a language corpus until the five-minute TTL expires', async () => {
     let now = 1_000;
     const loadPage = vi.fn().mockResolvedValue({

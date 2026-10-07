@@ -10,7 +10,7 @@ import {
   listEpisodesPaged,
   toEpisodeResponse,
 } from './db.js';
-import { convertTextToZhCN } from './opencc.js';
+import { convertTextToZhCN, convertTextToZhTW } from './opencc.js';
 import { PODCAST_INTRO } from './podcast-packaging.js';
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
@@ -169,7 +169,11 @@ export function rankEpisodeSearchResults(
   rawQuery: string,
   limit: number,
 ): RankedEpisodeSearchResult[] {
-  return rankPreparedEpisodes(rows.map(prepareEpisode), rawQuery, limit);
+  return rankPreparedEpisodes(
+    rows.map((row) => prepareEpisode(row)),
+    rawQuery,
+    limit,
+  );
 }
 
 function prepareEpisode(
@@ -199,8 +203,19 @@ function prepareEpisode(
   };
 }
 
+/**
+ * The public API renders zh-Hant as Taiwan Traditional, and the search box
+ * lives inside that UI, so queries arrive in the Taiwan form. Running the
+ * corpus and the query through the same display conversion collapses both
+ * scripts and Taiwan vocabulary into one comparison space; the trailing
+ * `t -> cn` keeps it in Simplified characters. The `twp -> cn` inverse is
+ * deliberately avoided because it corrupts Simplified source vocabulary
+ * (`程序员 -> 进程员`, `什么 -> 什幺`).
+ */
 function canonicalSearchText(value: string, languageCode: string): string {
-  return languageCode === 'zh-Hant' ? convertTextToZhCN(value) : value;
+  return languageCode === 'zh-Hant'
+    ? convertTextToZhCN(convertTextToZhTW(value))
+    : value;
 }
 
 function rankPreparedEpisodes(

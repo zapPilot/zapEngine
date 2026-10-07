@@ -1,6 +1,7 @@
 import * as OpenCC from 'opencc-js';
 
-// Taiwan vocabulary conversion is only for Threads copy.
+// Display conversion for Taiwan Traditional surfaces: Threads copy and the
+// Zap Pilot-facing `/episodes` API responses (see AGENTS.md).
 const convertSimplifiedToTaiwan: (text: string) => string = OpenCC.Converter({
   from: 'cn',
   to: 'twp',

@@ -14,9 +14,7 @@ import {
 
 describe('public episode Chinese localization', () => {
   it('converts zh-Hant feed titles to Taiwan Traditional without mutating canonical data', () => {
-    const canonical = episodeFeedResponse(
-      feedRow({ title: '网络软件与鼠标' }),
-    );
+    const canonical = episodeFeedResponse(feedRow({ title: '网络软件与鼠标' }));
     canonical.audioTracks.push({
       languageCode: 'ja',
       title: '市場のソフトウェア',
