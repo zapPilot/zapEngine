@@ -299,3 +299,9 @@ does not rename the existing Play listing by itself.
 ## In-app version detection
 
 Play In-App Updates detection requires installation through Google Play. Sideloaded and development installations show only the native version when Play cannot check. Update opens the canonical production listing. The Android module is excluded from iOS autolinking and web bundles.
+
+## Back up local signing materials
+
+Run `pnpm signing:backup` from the repository root on your signing Mac. See
+[the local signing backup procedure](../../../docs/signing-backup.md) for the ZIP,
+Apple p12 password file, restore steps and completeness checks.

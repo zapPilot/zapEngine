@@ -15,6 +15,7 @@ case "${1:-}" in
     tsx scripts/contracts/export_zod_schemas.ts
     (cd apps/analytics-engine && uv run python ../../scripts/contracts/check_pydantic_parity.py)
     node scripts/check-social-release-contract.mjs
+    node --test scripts/signing-backup.test.mjs
     node --test scripts/desktop-release.test.mjs scripts/desktop-release-workflow.test.mjs scripts/app-distribution.test.mjs
     node --test scripts/deploy-vercel-main.test.mjs
     node --test scripts/distribution-snapshot-workflow.test.mjs

@@ -28,10 +28,9 @@ export interface DueUserSelection {
  * and Hyperliquid was skipped every day. Membership in `dueSources` is the
  * whole filter — do not reconstruct it here from the per-source state.
  *
- * A standard or paused wallet arrives with an empty `dueSources`, so the tier
- * check adds no filtering; it splits the skips into two counts, which is what
- * tells an operator whether a batch that fell to zero wallets was paused by an
- * override or simply refreshed an hour ago.
+ * Cadence, rather than commercial tier, defines the refresh obligation:
+ * inactive standard accounts now have a weekly interval too. Paused overrides
+ * always win, even if a malformed response includes due sources.
  */
 export async function selectDueUsers(input: {
   fetcher: SupabaseFetcher;
@@ -42,10 +41,13 @@ export async function selectDueUsers(input: {
   const { fetcher, source, jobId, log = logger } = input;
 
   const candidates = await fetcher.fetchUserServiceStates();
-  const priority = candidates.filter(
-    (candidate) => candidate.effectiveTier === 'priority',
+  const scheduled = candidates.filter(
+    (candidate) =>
+      candidate.effectiveTier !== 'paused' &&
+      candidate.refreshIntervalHours !== null &&
+      candidate.refreshIntervalHours > 0,
   );
-  const usersToUpdate = priority.filter((candidate) =>
+  const usersToUpdate = scheduled.filter((candidate) =>
     candidate.dueSources.includes(source),
   );
 
@@ -54,8 +56,8 @@ export async function selectDueUsers(input: {
     source,
     candidatesTotal: candidates.length,
     usersToUpdate: usersToUpdate.length,
-    skippedNotDue: priority.length - usersToUpdate.length,
-    skippedByTier: candidates.length - priority.length,
+    skippedNotDue: scheduled.length - usersToUpdate.length,
+    skippedByTier: candidates.length - scheduled.length,
   };
 
   if (usersToUpdate.length === 0) {

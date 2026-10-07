@@ -1,3 +1,4 @@
+import { isInactivePriorityOnFastCadence } from '../../../shared/service-cadence.js';
 import { signedCount } from '../../../shared/format.js';
 import {
   count,
@@ -464,11 +465,7 @@ export function ruleR8(input: StatementInputs): RuleFinding {
   const { customers } = input;
   const finding = empty('R8');
   const n = customers.summary.inactiveButPriority;
-  const wasted = customers.users.filter(
-    (user) =>
-      user.effectiveTier === 'priority' &&
-      (user.inactiveDays === null || user.inactiveDays >= 30),
-  );
+  const wasted = customers.users.filter(isInactivePriorityOnFastCadence);
   const cost = sumKnown(wasted.map((user) => user.attributedCostUsd30d));
   if (n > 0) {
     finding.status = 'degraded';

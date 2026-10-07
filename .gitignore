@@ -119,3 +119,8 @@ google-service-account*.json
 
 # Sample-accurate free music beds, regenerated before Studio/bundling/rendering.
 apps/video/public/music/beds/
+
+# Private local Android / Apple signing backup archives and restore passwords
+.signing-backups/
+signing-backup-*.zip
+signing-backup-*.password.txt

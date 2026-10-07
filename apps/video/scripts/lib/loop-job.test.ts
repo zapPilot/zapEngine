@@ -123,6 +123,8 @@ it('writes selected clip provenance, linear mastering, seams and beds with pendi
     await rm(input.work, { recursive: true, force: true });
   }
 });
+// The audition decodes audio through mocked ffmpeg; CI runners under
+// coverage instrumentation can exceed the 5s default.
 it('candidate auditions stay in the disposable workspace', async () => {
   const input = await job(true);
   try {
@@ -134,7 +136,7 @@ it('candidate auditions stay in the disposable workspace', async () => {
   } finally {
     await rm(input.work, { recursive: true, force: true });
   }
-});
+}, 15000);
 it('fails closed for no candidate, excessive rate, bad loudness, peak and truncated decoded clip', async () => {
   for (const mode of ['none', 'rate', 'loudness', 'peak', 'length']) {
     const input = await job();

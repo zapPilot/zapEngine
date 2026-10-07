@@ -52,3 +52,9 @@ Developer ID signing, notarization, stapling, GitHub publication, quarantine
 installation, an actual GitHub update, and Play-installed device detection require
 release credentials or store distribution. Apple Development smoke tests cannot
 prove those properties.
+
+## Back up local signing materials
+
+Run `pnpm signing:backup` from the repository root on your signing Mac. See
+[the local signing backup procedure](../../../docs/signing-backup.md) for the ZIP,
+Apple p12 password file, restore steps and completeness checks.

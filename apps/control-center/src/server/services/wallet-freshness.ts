@@ -1,3 +1,4 @@
+import { freshWindowHours as cadenceFreshWindowHours } from '../../shared/service-cadence.js';
 import type { ControlCenterConfig } from '../config/env.js';
 import { elapsedMs } from './elapsed.js';
 import { createServiceRoleClient } from './supabase.js';
@@ -15,6 +16,7 @@ import { createServiceRoleClient } from './supabase.js';
  */
 export interface WalletFreshnessRow {
   effective_tier?: string | null;
+  refresh_interval_hours?: number | string | null;
   last_portfolio_update_at?: string | null;
   source_states?: unknown;
 }
@@ -35,7 +37,7 @@ export interface WalletFreshness {
 }
 
 export interface WalletCoverage {
-  /** Priority wallets, i.e. the wallets something is supposed to refresh. */
+  /** Wallets with a scheduled refresh cadence, including weekly standard. */
   expected: number;
   fresh: number;
   stale: number;
@@ -88,9 +90,12 @@ export function summarizeWalletCoverage(
   let neverRefreshed = 0;
 
   for (const row of rows) {
-    // Standard and paused wallets are nobody's refresh obligation; counting
-    // them would dilute the ratio with wallets that are correctly untouched.
-    if (row.effective_tier !== 'priority') {
+    const interval = Number(row.refresh_interval_hours);
+    if (
+      row.effective_tier === 'paused' ||
+      !Number.isFinite(interval) ||
+      interval <= 0
+    ) {
       continue;
     }
     expected += 1;
@@ -99,7 +104,11 @@ export function summarizeWalletCoverage(
       neverRefreshed += 1;
       continue;
     }
-    if (freshness.ageHours !== null && freshness.ageHours <= freshWindowHours) {
+    if (
+      freshness.ageHours !== null &&
+      freshness.ageHours <=
+        Math.max(freshWindowHours, cadenceFreshWindowHours(interval))
+    ) {
       fresh += 1;
     }
   }

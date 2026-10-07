@@ -141,7 +141,7 @@ override-dependencies = [
     "urllib3>=2.8.0",
     "pillow>=12.3.0",
     "filelock>=3.20.3,<4",
-    "virtualenv>=20.36.1,<21",
+    "virtualenv>=21.7.13",
 ]
 
 [tool.pylint.main]

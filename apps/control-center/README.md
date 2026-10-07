@@ -225,7 +225,7 @@ Non-secret identifiers belong in `config/env/*.env`; sensitive tokens belong in 
 
 Service policy has one source of truth, `public.get_user_service_states()`, deliberately in SQL: `apps/alpha-etl` reads the same rows to decide which wallets to refresh, so the dashboard cannot report Standard for an account the pipeline is still billing as Priority. It returns commercial entitlement (`plan_code`), the operator override from `ops.user_service_overrides`, the resulting effective tier, the refresh cadence, and whether a wallet is due.
 
-Standard (free) accounts are returned but not scheduled — visible to operations, costing nothing. Turning weekly refresh on for them is a one-line change to the cadence expression in that function.
+Accounts with no activity timestamp or no activity in 30 days refresh every 168 hours, regardless of priority/standard tier. Paused overrides remain paused. Returning activity restores daily priority refresh or unscheduled active standard service. Each provider has its own success fence; daily cadence retains the 20-hour start-drift allowance, weekly cadence waits the full seven days. Freshness signals and account warnings use the returned cadence.
 
 Three numbers on that page are deliberately imprecise, and say so:
 
