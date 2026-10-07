@@ -1,4 +1,4 @@
-import type OpenAI from 'openai';
+import { APIError, type OpenAI } from 'openai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const ingestMocks = vi.hoisted(() => ({
@@ -108,6 +108,138 @@ afterEach(() => {
 });
 
 describe('shared OpenRouter model fallback', () => {
+  it('reaches the final script candidate after the mandatory-reasoning 400', async () => {
+    vi.stubEnv(
+      'LLM_FALLBACK_MODELS',
+      'minimax/minimax-m3,z-ai/glm-5.3-flash,deepseek/deepseek-v4-flash',
+    );
+    const gatewayError = APIError.generate(
+      503,
+      undefined,
+      'unavailable',
+      new Headers(),
+    );
+    const capabilityError = APIError.generate(
+      400,
+      {
+        error: {
+          message:
+            'Reasoning is mandatory for this endpoint and cannot be disabled.',
+          code: 400,
+        },
+      },
+      undefined,
+      new Headers(),
+    );
+    const create = vi
+      .fn()
+      .mockRejectedValueOnce(gatewayError)
+      .mockRejectedValueOnce(gatewayError)
+      .mockRejectedValueOnce(capabilityError)
+      .mockResolvedValueOnce(completion('deepseek/deepseek-v4-flash'));
+
+    const result = await createOpenRouterChatCompletion(
+      client(create),
+      {
+        model: 'deepseek/deepseek-v4-flash-0731',
+        messages: [{ role: 'user', content: 'Write narration' }],
+      },
+      null,
+      { reasoning: { enabled: false } },
+    );
+
+    expect(result.model).toBe('deepseek/deepseek-v4-flash');
+    expect(create.mock.calls.map(([request]) => request.model)).toEqual([
+      'deepseek/deepseek-v4-flash-0731',
+      'minimax/minimax-m3',
+      'z-ai/glm-5.3-flash',
+      'deepseek/deepseek-v4-flash',
+    ]);
+    for (const [request] of create.mock.calls) {
+      expect(request.reasoning).toEqual({ enabled: false });
+    }
+  });
+
+  it.each([
+    [400, 'Invalid request configuration', { enabled: false }, 'paid/model'],
+    [
+      401,
+      'Reasoning is mandatory for this endpoint and cannot be disabled.',
+      { enabled: false },
+      'paid/model',
+    ],
+    [403, 'Forbidden', { enabled: false }, 'paid/model'],
+    [404, 'Unknown model', { enabled: false }, 'paid/model'],
+    [
+      400,
+      'Reasoning is mandatory for this endpoint and cannot be disabled.',
+      undefined,
+      'paid/model',
+    ],
+    [
+      400,
+      'Reasoning is mandatory for this endpoint and cannot be disabled.',
+      { enabled: true },
+      'paid/model',
+    ],
+    [
+      400,
+      'Reasoning is mandatory for this endpoint and cannot be disabled.',
+      { enabled: false },
+      'openrouter/free',
+    ],
+  ])(
+    'keeps unmatched capability/auth/config failures terminal (%s, %s, %j, %s)',
+    async (status, message, reasoning, model) => {
+      vi.stubEnv('LLM_FALLBACK_MODELS', 'paid/fallback');
+      const error = APIError.generate(
+        status,
+        { error: { message, code: status } },
+        undefined,
+        new Headers(),
+      );
+      const create = vi.fn().mockRejectedValueOnce(error);
+      await expect(
+        createOpenRouterChatCompletion(
+          client(create),
+          { model, messages: [{ role: 'user', content: 'hello' }] },
+          null,
+          { reasoning },
+        ),
+      ).rejects.toBe(error);
+      expect(create).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('throws the final capability rejection without retrying it', async () => {
+    vi.stubEnv('LLM_FALLBACK_MODELS', '');
+    const error = APIError.generate(
+      400,
+      {
+        error: {
+          message:
+            'Reasoning is mandatory for this endpoint and cannot be disabled.',
+          code: 400,
+        },
+      },
+      undefined,
+      new Headers(),
+    );
+    const create = vi.fn().mockRejectedValueOnce(error);
+    await expect(
+      createOpenRouterChatCompletion(
+        client(create),
+        {
+          model: 'z-ai/glm-5.3-flash',
+          messages: [{ role: 'user', content: 'hello' }],
+        },
+        null,
+        { reasoning: { enabled: false } },
+      ),
+    ).rejects.toBe(error);
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
   it('omits reasoning for the free primary and preserves it for a paid fallback', async () => {
     vi.stubEnv('LLM_FALLBACK_MODELS', 'paid/fallback');
     const timeout = Object.assign(new Error('provider timed out'), {

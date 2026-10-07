@@ -2,7 +2,11 @@ import { readFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import OpenAI, { APIConnectionError, APIConnectionTimeoutError } from 'openai';
+import OpenAI, {
+  APIConnectionError,
+  APIConnectionTimeoutError,
+  APIError,
+} from 'openai';
 
 import { combineAbortSignalWithTimeout } from '../lib/abort.js';
 import { getRequiredEnv } from '../lib/env.js';
@@ -535,7 +539,8 @@ export async function createOpenRouterChatCompletion(
       const shouldFallback =
         Boolean(nextModel) &&
         !requestOptions.signal?.aborted &&
-        isRetryableOpenRouterError(error);
+        (isRetryableOpenRouterError(error) ||
+          isReasoningCapabilityError(error, model, requestOptions));
       if (!shouldFallback || !nextModel) {
         if (
           !nextModel &&
@@ -561,6 +566,23 @@ export async function createOpenRouterChatCompletion(
   }
 
   throw new Error('OpenRouter model fallback chain exhausted');
+}
+
+/** Candidate-local capability mismatch, not a retryable auth/config failure. */
+function isReasoningCapabilityError(
+  error: unknown,
+  model: string,
+  requestOptions: OpenRouterRequestOptions,
+): boolean {
+  return (
+    model !== OPENROUTER_FREE_MODEL &&
+    requestOptions.reasoning?.enabled === false &&
+    error instanceof APIError &&
+    error.status === 400 &&
+    isRecord(error.error) &&
+    error.error['message'] ===
+      'Reasoning is mandatory for this endpoint and cannot be disabled.'
+  );
 }
 
 async function createOpenRouterChatCompletionOnce(
@@ -799,8 +821,10 @@ function isTimeoutError(error: unknown): boolean {
 }
 
 /**
- * Transport-level failures are the only failures that advance the shared model
- * chain. Payload/semantic errors stay with the caller so retries can carry a
+ * Retryable transport failures advance the shared model chain. The candidate
+ * loop separately handles the exact disabled-reasoning capability rejection;
+ * it must not become retryable here and replay an exhausted chain.
+ * Payload/semantic errors stay with the caller so retries can carry a
  * correction prompt rather than silently changing model behavior.
  *
  * An unusable HTTP 200 -- `choices` missing, null, or not an array, or an
