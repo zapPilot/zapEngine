@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-07T03:01:39.000Z",
+  "generatedAt": "2026-10-07T03:57:42.000Z",
   "github": {
     "runId": 0,
     "runAttempt": 1,
@@ -394,6 +394,54 @@
       ],
       "findings": [],
       "note": "Serialized ordering and flush behavior are exercised through podcast storage integration tests; no clear Phase 1 defect."
+    },
+    "apps/podcast-pipeline/src/social/state.ts": {
+      "status": "clean",
+      "auditedAt": "2026-10-07T03:57:42.000Z",
+      "auditedCommit": "76234c174290c0f7fc7f7b93d66238723079e64e",
+      "pathShas": {
+        "apps/podcast-pipeline/src/social/state.ts": "6b3318e5c8fddcb9c62492a5eeea710fe9551a64",
+        "apps/podcast-pipeline/src/social/state.coverage.test.ts": "ac0c60bbce7d26c6e9efbf2c2550340d88b27d55"
+      },
+      "files": [
+        "apps/podcast-pipeline/src/social/state.coverage.test.ts"
+      ],
+      "relatedPaths": [
+        "apps/podcast-pipeline/src/social/state.ts"
+      ],
+      "findings": []
+    },
+    "apps/control-center/src/server/app.ts": {
+      "status": "clean",
+      "auditedAt": "2026-10-07T03:57:42.000Z",
+      "auditedCommit": "76234c174290c0f7fc7f7b93d66238723079e64e",
+      "pathShas": {
+        "apps/control-center/src/server/app.ts": "f9ca39fcb99465c23fae18acd99336c0c8da3a90",
+        "apps/control-center/src/server/app.coverage.test.ts": "4ba7b3d6f01a78e07c6441488eac7a75b7120513"
+      },
+      "files": [
+        "apps/control-center/src/server/app.coverage.test.ts"
+      ],
+      "relatedPaths": [
+        "apps/control-center/src/server/app.ts"
+      ],
+      "findings": []
+    },
+    "apps/podcast-pipeline/src/index.ts": {
+      "status": "clean",
+      "auditedAt": "2026-10-07T03:57:42.000Z",
+      "auditedCommit": "76234c174290c0f7fc7f7b93d66238723079e64e",
+      "pathShas": {
+        "apps/podcast-pipeline/src/index.ts": "a6eac0764e3c7afd9df9f59eccc7017245a4fd0f",
+        "apps/podcast-pipeline/src/index-main.coverage.test.ts": "d697ad470e772f67c9066a304341719c4bac9993"
+      },
+      "files": [
+        "apps/podcast-pipeline/src/index-main.coverage.test.ts"
+      ],
+      "relatedPaths": [
+        "apps/podcast-pipeline/src/index.ts"
+      ],
+      "findings": []
     }
   },
   "runs": [
@@ -475,6 +523,17 @@
         "apps/control-center/src/client/components/QueueDrawer.tsx",
         "apps/control-center/src/client/pages/ReliabilityPage.tsx"
       ]
+    },
+    {
+      "workerRunId": "20261007T035742Z",
+      "at": "2026-10-07T03:57:42.000Z",
+      "outcome": "clean",
+      "scopes": [
+        "apps/podcast-pipeline/src/social/state.ts",
+        "apps/control-center/src/server/app.ts",
+        "apps/podcast-pipeline/src/index.ts"
+      ],
+      "note": "Existing pending worker commit ce4c4d343fce8575e1726265d3e55982de9d1cf1 remains on test-qa/hourly-20261007; create_pull_request was blocked by safety checks and canonical GitHub re-read confirmed no open worker PR. Connector has no non-rewriting branch merge operation. Local selector/tests/coverage/lint/type-check/guard unavailable; GitHub source inspection used."
     }
   ]
 }
