@@ -1,5 +1,6 @@
 import { podcastEpisodeHref } from '@/integration/podcastRoutes';
 import { EpisodeDownloadButton } from '@/components/podcast/EpisodeDownloadButton';
+import { OpenEpisodeInApp } from '@/components/podcast/OpenEpisodeInApp';
 import { EpisodeDownloadStatus } from '@/components/podcast/EpisodeDownloadStatus';
 import { downloadedEpisodeRows } from '@/integration/podcastVideoDownloads';
 import { usePodcastDownloads } from '@/providers/PodcastDownloadsProvider';
@@ -301,6 +302,10 @@ export function EpisodeDetailScreen() {
           episode={episode}
           onBack={goBack}
           onLanguageSelected={handleLanguageSelected}
+        />
+        <OpenEpisodeInApp
+          localizationId={episode.localizationId}
+          languageCode={episode.languageCode}
         />
         <EpisodeHeroCard episode={episode} />
         <EpisodeMediaPlayer

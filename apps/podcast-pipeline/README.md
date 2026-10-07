@@ -26,6 +26,42 @@ response.
 id, so a client can resolve "this episode, in a different language" without
 already knowing that language's localization id.
 
+## Episode share links
+
+The canonical share URL is
+`https://link.zap-pilot.org/e/<episodeId>?lang=<zh-Hant|ja|en>`.
+The app share sheet, Telegram notices, social posts and preview metadata use
+`buildPodcastEpisodeShareUrl` from `@zapengine/types/shared`.
+
+- Interactive browsers on desktop, phones and tablets receive a `302` to
+  `https://v2.zap-pilot.org/podcast/<localizationId>?lang=`, preserving the
+  requested language. Both HTML and redirect responses use
+  `Vary: User-Agent, Accept` and `Cache-Control: no-store`.
+- Preview crawlers and requests without a User-Agent or HTML Accept header
+  receive the OG/Twitter preview page and a web link.
+- Mobile Web episode pages show nonblocking **Open in app** and
+  **Continue in browser** controls. Continue dismisses the prompt. Open uses
+  `zappilotv2://podcast/<localizationId>?lang=` only after a click; there is no
+  automatic app launch, installation detection or App Store redirect.
+- The share host has an empty AASA and Android asset links document and is
+  not claimed by the native app. The legacy API host alone retains its AASA
+  and iOS associated domain so previously shared links keep opening the app.
+
+Provision the share host's Fly certificate with
+`fly certs add link.zap-pilot.org -a from-fed-to-chain-api`, then obtain the
+exact CNAME target with `fly certs setup link.zap-pilot.org -a from-fed-to-chain-api`.
+Configure that `link` CNAME in Unstoppable Domains and check issuance with
+`fly certs check link.zap-pilot.org -a from-fed-to-chain-api`.
+As of 2026-10-07, the CNAME is `pqzpjk3.from-fed-to-chain-api.fly.dev.` with
+a five-minute TTL and the Let's Encrypt RSA/ECDSA certificate is active.
+The frontend remains on Vercel project `zap-engine-frontend` at
+`https://v2.zap-pilot.org`; the share host routes to Fly, which resolves the
+episode localization before redirecting to Vercel.
+Verify HTTPS, the empty AASA on the link host, the legacy AASA on the API host,
+browser redirects, and crawler previews before rollout. Test installed and
+uninstalled apps on iOS Safari, Android Chrome and social in-app browsers;
+browser policy may prevent an explicit app launch, but web content remains usable.
+
 ## Environment
 
 Runtime keys are registered in root `config/env.manifest.mjs`. Non-secret values

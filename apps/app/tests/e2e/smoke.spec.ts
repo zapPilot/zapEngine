@@ -558,6 +558,64 @@ test('back button from a deep-linked episode returns to the podcast list', async
   await expect(page).toHaveURL(/\/podcast$/);
 });
 
+test('mobile episode opens on the web with a dismissible app prompt', async ({
+  browser,
+  baseURL,
+}) => {
+  if (baseURL === undefined) throw new Error('Playwright baseURL is required');
+  const context = await browser.newContext({
+    baseURL,
+    userAgent:
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1',
+    viewport: { width: 390, height: 844 },
+    locale: 'en-US',
+  });
+  const page = await context.newPage();
+  try {
+    await routePodcastFeed(page);
+    await page.goto('/podcast/episode-1-zh-Hant?lang=zh-Hant');
+    const appLink = page.getByRole('link', {
+      name: 'Open in app',
+      exact: true,
+    });
+    await expect(appLink).toBeVisible({ timeout: APP_BOOT_TIMEOUT });
+    await expect(appLink).toHaveAttribute(
+      'href',
+      'zappilotv2://podcast/episode-1-zh-Hant?lang=zh-Hant',
+    );
+    await expect(
+      page.getByRole('tab', { name: 'Story', exact: true }),
+    ).toBeVisible();
+    await page
+      .getByRole('button', { name: 'Continue in browser', exact: true })
+      .click();
+    await expect(appLink).toHaveCount(0);
+    await expect(page).toHaveURL(/\/podcast\/episode-1-zh-Hant\?lang=zh-Hant$/);
+    await expect(
+      page.getByRole('tab', { name: 'Story', exact: true }),
+    ).toBeVisible();
+  } finally {
+    await context.close();
+  }
+});
+
+test('desktop episode has no app opening prompt even in a narrow viewport', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await routePodcastFeed(page);
+  await page.goto('/podcast/episode-1-zh-Hant?lang=zh-Hant');
+  await expect(
+    page.getByRole('tab', { name: 'Story', exact: true }),
+  ).toBeVisible({ timeout: APP_BOOT_TIMEOUT });
+  await expect(
+    page.getByRole('link', { name: 'Open in app', exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole('button', { name: 'Continue in browser', exact: true }),
+  ).toHaveCount(0);
+});
+
 test('choosing a language on the episode detail screen switches the displayed localization', async ({
   page,
 }) => {

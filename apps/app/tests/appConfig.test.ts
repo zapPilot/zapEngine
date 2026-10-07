@@ -37,6 +37,9 @@ describe('store identity', () => {
     expect(appConfig.ios?.associatedDomains).toEqual([
       'applinks:from-fed-to-chain-api.fly.dev',
     ]);
+    expect(appConfig.ios?.associatedDomains).not.toContain(
+      'applinks:link.zap-pilot.org',
+    );
   });
 
   it('keeps the native identifiers registered with the Privy mobile client', () => {
