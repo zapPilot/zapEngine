@@ -4,10 +4,9 @@ export const MAX_STORYBOARD_SLIDES = 150;
 
 export const SCENE_ID_PATTERN = /^scene-\d{2,3}$/;
 
-// Every producer of search intents — the deterministic table and the LLM
-// enrichment pass — has to fit the same shape this schema accepts.
+// Only catalog enrichment produces content-scene search intents.
 export const MIN_SEARCH_INTENT_CHARACTERS = 2;
-export const MAX_SEARCH_INTENT_CHARACTERS = 80;
+export const MAX_SEARCH_INTENT_CHARACTERS = 113;
 export const MAX_SEARCH_INTENTS_PER_SCENE = 3;
 export const MAX_SEARCH_ENTITIES_PER_SCENE = 4;
 export const MAX_VISUAL_CUE_WORDS = 5;
@@ -28,7 +27,8 @@ export const storyboardDraftSceneSchema = z
           .max(MAX_SEARCH_INTENT_CHARACTERS),
       )
       .min(1)
-      .max(MAX_SEARCH_INTENTS_PER_SCENE),
+      .max(MAX_SEARCH_INTENTS_PER_SCENE)
+      .optional(),
     // A compact, grounded description of the photographable moment in this
     // scene. Older checkpoints do not have it, so it must remain optional.
     visualCue: z
@@ -64,3 +64,20 @@ export const storyboardDraftSchema = z
 
 export type StoryboardDraft = z.infer<typeof storyboardDraftSchema>;
 export type StoryboardDraftScene = StoryboardDraft['scenes'][number];
+
+export const enrichedStoryboardDraftSchema = z
+  .object({
+    scenes: z
+      .array(
+        storyboardDraftSceneSchema.extend({
+          imageSearchIntent:
+            storyboardDraftSceneSchema.shape.imageSearchIntent.unwrap(),
+        }),
+      )
+      .min(1)
+      .max(MAX_STORYBOARD_SLIDES),
+  })
+  .strict();
+export type EnrichedStoryboardDraft = z.infer<
+  typeof enrichedStoryboardDraftSchema
+>;

@@ -4,7 +4,7 @@ import {
   podcastContentSceneCountRange,
   podcastEditorialSceneCountRange,
 } from '../../podcast-packaging.js';
-import type { StoryboardDraft } from './draft.js';
+import type { EnrichedStoryboardDraft, StoryboardDraft } from './draft.js';
 import { createDeterministicStoryboard } from './fallback.js';
 import type { StoryboardProvider, StoryboardTokenUsage } from './provider.js';
 import { splitCanonicalSentences } from './sentences.js';
@@ -30,6 +30,11 @@ export interface StoryboardGenerationResult {
   attempts: StoryboardAttemptReport[];
   totalUsage: StoryboardTokenUsage;
 }
+
+export type EnrichedStoryboardGenerationResult = Omit<
+  StoryboardGenerationResult,
+  'draft'
+> & { draft: EnrichedStoryboardDraft };
 
 function usageTotal(
   attempts: readonly StoryboardAttemptReport[],

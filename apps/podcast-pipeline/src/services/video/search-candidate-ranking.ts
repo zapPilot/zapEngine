@@ -1,5 +1,6 @@
 import type { ImageCandidate } from '../../types.js';
 import { partitionImageCandidates } from './image-candidates.js';
+import { normalizedSearchTokens } from './search-vocabulary.js';
 import { containsEntityPhrase } from './storyboard/english-text.js';
 
 /** One Brave request returns up to this many candidates, and the whole pool is
@@ -65,24 +66,6 @@ export function partitionViableCandidates(
   }
   return { candidates: accepted, drops, dropReasons };
 }
-
-const SEARCH_RANKING_NOISE_WORDS = new Set([
-  'adult',
-  'and',
-  'at',
-  'documentary',
-  'editorial',
-  'in',
-  'office',
-  'photo',
-  'photograph',
-  'real',
-  'the',
-  'using',
-  'with',
-  'working',
-  'world',
-]);
 
 const NON_EDUCATIONAL_PENALTY_TERMS = [
   'children',
@@ -251,15 +234,24 @@ export function mentionsAnyEntity(
   return entities.some((entity) => containsEntityPhrase(corpus, entity));
 }
 
-export function searchCueScore(candidate: ImageCandidate, cue: string): number {
+export function cueTokenMatchCount(
+  candidate: ImageCandidate,
+  cue: string,
+): number {
   if (!cue.trim()) return 0;
   const corpus = normalizedSearchCandidateCorpus(candidate);
   const score = normalizedSearchTokens(cue).reduce(
-    (total, token) =>
-      total + (containsEntityPhrase(corpus, token) ? CUE_TOKEN_BONUS : 0),
+    (total, token) => total + (containsEntityPhrase(corpus, token) ? 1 : 0),
     0,
   );
-  return Math.min(score, MAX_CUE_BONUS);
+  return score;
+}
+
+export function searchCueScore(candidate: ImageCandidate, cue: string): number {
+  return Math.min(
+    cueTokenMatchCount(candidate, cue) * CUE_TOKEN_BONUS,
+    MAX_CUE_BONUS,
+  );
 }
 
 function candidateDimensionScore(candidate: ImageCandidate): number {
@@ -353,19 +345,6 @@ function normalizedSearchCandidateCorpus(candidate: ImageCandidate): string {
     // provides deterministic metadata for ranking.
   }
   return decoded.normalize('NFKC').toLowerCase();
-}
-
-export function normalizedSearchTokens(intent: string): string[] {
-  return [
-    ...new Set(
-      (
-        intent
-          .normalize('NFKC')
-          .toLowerCase()
-          .match(/[\p{L}\p{N}]{2,}/gu) ?? []
-      ).filter((token) => !SEARCH_RANKING_NOISE_WORDS.has(token)),
-    ),
-  ];
 }
 
 function tokenMatchScore(token: string): number {

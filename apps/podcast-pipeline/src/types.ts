@@ -15,7 +15,16 @@ import type {
 
 export type ImageCandidateOrigin = 'openGraph' | 'article' | 'figure' | 'brave';
 
+export interface ArticleImageContext {
+  position: number | null;
+  heading: string;
+  precedingText: string;
+  followingText: string;
+  caption: string;
+}
+
 export interface ImageCandidate {
+  context?: ArticleImageContext;
   imageUrl: string;
   sourceUrl: string;
   origin: ImageCandidateOrigin;

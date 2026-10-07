@@ -43,26 +43,25 @@ describe('storyboard smoke CLI coverage edges', () => {
       catalog: vi.fn(),
     };
 
-    vi.doMock('./search-intents.js', () => ({
-      createOpenRouterSearchIntentProvider: () => defaultProvider,
-      enrichStoryboardSearchIntents: async (request: { draft: unknown }) => ({
-        draft: request.draft,
-        model: 'test/default-provider',
-        enrichedSceneCount: 0,
-        entityAnchoredSceneCount: 0,
-        subjectCatalog: {
-          primarySubjectId: 'subject-nvidia',
-          subjects: [],
+    defaultProvider.catalog.mockResolvedValue({
+      primarySubjectId: 'subject-nvidia',
+      subjects: [
+        {
+          id: 'subject-nvidia',
+          canonicalName: 'NVIDIA',
+          type: 'company',
+          aliases: [],
+          storyRole: 'primary',
+          evidenceSceneIds: ['scene-01'],
+          identityHints: ['GPU maker'],
+          negativeHints: [],
+          searchQualifier: null,
         },
-        sceneAssignments: [],
-      }),
-    }));
-    vi.doMock('../podcast-visual-assets.js', () => ({
-      anchoredPlannerScenes: (
-        _catalog: unknown,
-        _assignments: unknown,
-        scenes: unknown,
-      ) => scenes,
+      ],
+    });
+    vi.doMock('./search-intents.js', async (importOriginal) => ({
+      ...(await importOriginal<typeof import('./search-intents.js')>()),
+      createOpenRouterSearchIntentProvider: () => defaultProvider,
     }));
 
     const { runStoryboardSmokeCli } = await import('./smoke-cli.js');
@@ -83,10 +82,9 @@ describe('storyboard smoke CLI coverage edges', () => {
       await readFile(join(outputDirectory, 'scene-plan.json'), 'utf8'),
     ) as Record<string, unknown>[];
     expect(scenePlan[0]).toMatchObject({
-      selectionReason: null,
-      subjectIds: [],
+      selectionReason: 'direct',
+      subjectIds: ['subject-nvidia'],
       visualCue: null,
-      cueQuery: null,
     });
   });
 
@@ -95,16 +93,18 @@ describe('storyboard smoke CLI coverage edges', () => {
       'storyboard-smoke-no-reason-',
     );
 
+    const { SubjectCatalogUnavailableError } =
+      await import('./search-intents.js');
+    const failure = new SubjectCatalogUnavailableError([
+      { attempt: 1, issues: ['invalid'] },
+      { attempt: 2, issues: ['invalid'] },
+      { attempt: 3, issues: ['invalid'] },
+    ]);
     vi.doMock('./search-intents.js', () => ({
       createOpenRouterSearchIntentProvider: () => ({ model: 'test/default' }),
-      enrichStoryboardSearchIntents: async (request: { draft: unknown }) => ({
-        draft: request.draft,
-        model: 'test/default',
-        enrichedSceneCount: 0,
-        entityAnchoredSceneCount: 0,
-        subjectCatalog: null,
-        sceneAssignments: [],
-      }),
+      enrichStoryboardSearchIntents: async () => {
+        throw failure;
+      },
     }));
 
     const { runStoryboardSmokeCli } = await import('./smoke-cli.js');
@@ -120,7 +120,7 @@ describe('storyboard smoke CLI coverage edges', () => {
         outputDirectory,
         '--catalog',
       ]),
-    ).rejects.toThrow('Catalog smoke produced no subject catalog');
+    ).rejects.toBe(failure);
   });
 
   it('runs the main-module callback through runCli', async () => {

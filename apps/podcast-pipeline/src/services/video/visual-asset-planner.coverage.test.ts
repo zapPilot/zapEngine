@@ -138,10 +138,12 @@ describe('visual asset planner coverage edges', () => {
     expect(result.scenes).toEqual([
       { sceneId: 'scene-01', assetId: 'image-01' },
     ]);
-    expect(result.imageSearch?.scenes[0]?.rejections).toContainEqual({
-      cause: 'duplicate-url',
-      count: 1,
+    expect(result.imageSearch?.publisherImages).toMatchObject({
+      offered: 1,
+      resumed: 1,
+      placed: 0,
     });
+    expect(result.imageSearch?.scenes[0]?.rejections).toEqual([]);
   });
 
   it('reports never-searched exhaustion when no provider or reusable image exists', async () => {

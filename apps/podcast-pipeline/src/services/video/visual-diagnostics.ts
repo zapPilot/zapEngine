@@ -8,6 +8,7 @@ export type VisualFailureStage =
   | 'storyboard'
   | 'branding'
   | 'search-intents'
+  | 'quality-gate'
   | 'scrape-article'
   | 'plan-assets'
   | 'write-manifest'

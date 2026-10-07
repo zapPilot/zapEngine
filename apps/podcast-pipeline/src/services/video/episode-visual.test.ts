@@ -1,17 +1,22 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  fixtureAssignments,
+  fixtureCatalog,
+  fixtureQualityReport,
+} from './__fixtures__/identity-catalog.js';
+import {
   buildEpisodeVisualPayload,
   hashEpisodeVisualSelection,
   parseEpisodeVisualPayload,
 } from './episode-visual.js';
-import type { StoryboardGenerationResult } from './storyboard/orchestrator.js';
+import type { EnrichedStoryboardGenerationResult } from './storyboard/orchestrator.js';
 import type { PlannedVisualImage } from './visual-asset-planner.js';
 
 const episodeId = '00000000-0000-4000-8000-000000000001';
 const localizationId = '00000000-0000-4000-8000-000000000002';
 
-const storyboard: StoryboardGenerationResult = {
+const storyboard: EnrichedStoryboardGenerationResult = {
   draft: {
     scenes: [
       {
@@ -79,6 +84,8 @@ describe('episode visual payload', () => {
       { sceneId: 'scene-03', assetId: 'image-01' },
     ];
     const visualHash = hashEpisodeVisualSelection({
+      subjectCatalog: fixtureCatalog,
+      sceneAssignments: fixtureAssignments(storyboard.draft),
       visualVersion: 'image-only-v1',
       episodeId,
       canonicalLocalizationId: localizationId,
@@ -88,6 +95,9 @@ describe('episode visual payload', () => {
     });
 
     const payload = buildEpisodeVisualPayload({
+      subjectCatalog: fixtureCatalog,
+      sceneAssignments: fixtureAssignments(storyboard.draft),
+      qualityReport: fixtureQualityReport,
       visualVersion: 'image-only-v1',
       visualHash,
       episodeId,
@@ -138,8 +148,13 @@ describe('episode visual payload', () => {
       { sceneId: 'scene-03', assetId: 'image-01' },
     ];
     const payload = buildEpisodeVisualPayload({
+      subjectCatalog: fixtureCatalog,
+      sceneAssignments: fixtureAssignments(storyboard.draft),
+      qualityReport: fixtureQualityReport,
       visualVersion: 'image-only-v1',
       visualHash: hashEpisodeVisualSelection({
+        subjectCatalog: fixtureCatalog,
+        sceneAssignments: fixtureAssignments(storyboard.draft),
         visualVersion: 'image-only-v1',
         episodeId,
         canonicalLocalizationId: localizationId,
@@ -151,7 +166,7 @@ describe('episode visual payload', () => {
       canonicalLocalizationId: localizationId,
       manifestUrl: 'https://cdn.example.test/manifest.json',
       storyboard,
-      searchIntentModel: null,
+      searchIntentModel: 'openrouter/free',
       selectedScenes,
       assets: searchedAssets,
       r2ImageUrls: {
@@ -198,8 +213,13 @@ describe('episode visual payload', () => {
     ];
 
     const payload = buildEpisodeVisualPayload({
+      subjectCatalog: fixtureCatalog,
+      sceneAssignments: fixtureAssignments(storyboard.draft),
+      qualityReport: fixtureQualityReport,
       visualVersion: 'image-only-v1',
       visualHash: hashEpisodeVisualSelection({
+        subjectCatalog: fixtureCatalog,
+        sceneAssignments: fixtureAssignments(storyboard.draft),
         visualVersion: 'image-only-v1',
         episodeId,
         canonicalLocalizationId: localizationId,
@@ -211,7 +231,7 @@ describe('episode visual payload', () => {
       canonicalLocalizationId: localizationId,
       manifestUrl: 'https://cdn.example.test/manifest.json',
       storyboard,
-      searchIntentModel: null,
+      searchIntentModel: 'openrouter/free',
       selectedScenes,
       assets: brandedAssets,
       r2ImageUrls: {
@@ -235,13 +255,15 @@ describe('episode visual payload', () => {
 
   it('fails closed when scene selection, local assets, or uploaded URLs are missing', () => {
     const base = {
+      subjectCatalog: fixtureCatalog,
+      sceneAssignments: fixtureAssignments(storyboard.draft),
       visualVersion: 'image-only-v1',
       visualHash: 'a'.repeat(64),
       episodeId,
       canonicalLocalizationId: localizationId,
       manifestUrl: 'https://cdn.example.test/manifest.json',
       storyboard,
-      searchIntentModel: null,
+      searchIntentModel: 'openrouter/free',
       assets,
       r2ImageUrls: {
         'image-01': 'https://cdn.example.test/image-01.jpg',
@@ -251,6 +273,7 @@ describe('episode visual payload', () => {
 
     expect(() =>
       buildEpisodeVisualPayload({
+        qualityReport: fixtureQualityReport,
         ...base,
         selectedScenes: [
           { sceneId: 'scene-01', assetId: 'image-01' },
@@ -261,6 +284,7 @@ describe('episode visual payload', () => {
 
     expect(() =>
       buildEpisodeVisualPayload({
+        qualityReport: fixtureQualityReport,
         ...base,
         selectedScenes: storyboard.draft.scenes.map((scene) => ({
           sceneId: scene.sceneId,
@@ -271,6 +295,7 @@ describe('episode visual payload', () => {
 
     expect(() =>
       buildEpisodeVisualPayload({
+        qualityReport: fixtureQualityReport,
         ...base,
         selectedScenes: storyboard.draft.scenes.map((scene) => ({
           sceneId: scene.sceneId,
@@ -282,6 +307,7 @@ describe('episode visual payload', () => {
 
     expect(() =>
       buildEpisodeVisualPayload({
+        qualityReport: fixtureQualityReport,
         ...base,
         selectedScenes: storyboard.draft.scenes.map((scene) => ({
           sceneId: scene.sceneId,
@@ -299,13 +325,16 @@ describe('episode visual payload', () => {
       assetId: scene.sceneId === 'scene-02' ? 'image-02' : 'image-01',
     }));
     const valid = buildEpisodeVisualPayload({
+      subjectCatalog: fixtureCatalog,
+      sceneAssignments: fixtureAssignments(storyboard.draft),
+      qualityReport: fixtureQualityReport,
       visualVersion: 'image-only-v1',
       visualHash: 'b'.repeat(64),
       episodeId,
       canonicalLocalizationId: localizationId,
       manifestUrl: 'https://cdn.example.test/manifest.json',
       storyboard,
-      searchIntentModel: null,
+      searchIntentModel: 'openrouter/free',
       selectedScenes,
       assets,
       r2ImageUrls: {
@@ -349,6 +378,9 @@ describe('episode visual payload', () => {
     };
     expect(() =>
       buildEpisodeVisualPayload({
+        subjectCatalog: fixtureCatalog,
+        sceneAssignments: fixtureAssignments(storyboard.draft),
+        qualityReport: fixtureQualityReport,
         visualVersion: 'image-only-v1',
         visualHash: 'c'.repeat(64),
         episodeId,
@@ -358,7 +390,7 @@ describe('episode visual payload', () => {
           ...storyboard,
           draft: { scenes: [storyboard.draft.scenes[0]!] },
         },
-        searchIntentModel: null,
+        searchIntentModel: 'openrouter/free',
         selectedScenes: [{ sceneId: 'scene-01', assetId: 'image-01' }],
         assets: [malformed],
         r2ImageUrls: { 'image-01': 'https://cdn.example.test/image-01.jpg' },
@@ -368,6 +400,8 @@ describe('episode visual payload', () => {
 
   it('includes source selection in the immutable visual hash', () => {
     const base = {
+      subjectCatalog: fixtureCatalog,
+      sceneAssignments: fixtureAssignments(storyboard.draft),
       visualVersion: 'image-only-v1',
       episodeId,
       canonicalLocalizationId: localizationId,
@@ -410,8 +444,11 @@ describe('expanded episode visual schema', () => {
       },
     };
     const payload = buildEpisodeVisualPayload({
+      subjectCatalog: fixtureCatalog,
+      sceneAssignments: fixtureAssignments(storyboard.draft),
+      qualityReport: fixtureQualityReport,
       visualVersion: 'v11',
-      searchIntentModel: null,
+      searchIntentModel: 'openrouter/free',
       visualHash: 'a'.repeat(64),
       episodeId,
       canonicalLocalizationId: localizationId,

@@ -46,6 +46,11 @@ import { createFlyMachinesClient } from './services/fly-machines.js';
 import { performMultilingualIngestAndEnqueueVideo } from './services/post-ingest.js';
 import { orderedPrimaryLocalizations } from './services/primary-localizations.js';
 import {
+  localizePublicEpisode,
+  localizePublicEpisodeFeed,
+  localizePublicSearchResult,
+} from './services/public-episode-localization.js';
+import {
   createRenderCapacityReconciler,
   type RenderCapacityReconciler,
 } from './services/render-capacity.js';
@@ -388,7 +393,10 @@ export function createApp(): Hono {
       languageCode,
     );
     c.header('Server-Timing', episodeFeedServerTiming(startedAt));
-    return c.json(hydratedPage);
+    return c.json({
+      ...hydratedPage,
+      items: hydratedPage.items.map(localizePublicEpisodeFeed),
+    });
   });
 
   app.get('/episodes/search', async (c) => {
@@ -424,7 +432,7 @@ export function createApp(): Hono {
         },
       };
     });
-    return c.json({ items });
+    return c.json({ items: items.map(localizePublicSearchResult) });
   });
 
   app.get('/episodes/catalog', async (c) => {
@@ -459,12 +467,14 @@ export function createApp(): Hono {
       ]);
       const videoSummary = videoSummaries.get(localizationId);
       return c.json(
-        toEpisodeResponse(
-          row,
-          row.language_classrooms,
-          videoSummary?.video ?? null,
-          videoSummary?.videoGeneration ?? null,
-          classroomAudio.get(localizationId) ?? [],
+        localizePublicEpisode(
+          toEpisodeResponse(
+            row,
+            row.language_classrooms,
+            videoSummary?.video ?? null,
+            videoSummary?.videoGeneration ?? null,
+            classroomAudio.get(localizationId) ?? [],
+          ),
         ),
       );
     }
@@ -487,7 +497,11 @@ export function createApp(): Hono {
       });
     }
 
-    return c.json(await loadEpisodeLocalizationResponse(episode, languageCode));
+    return c.json(
+      localizePublicEpisode(
+        await loadEpisodeLocalizationResponse(episode, languageCode),
+      ),
+    );
   });
 
   app.onError((error, c) => {

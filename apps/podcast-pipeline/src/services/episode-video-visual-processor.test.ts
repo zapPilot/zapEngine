@@ -9,7 +9,13 @@ import {
   packagePodcastScript,
   PODCAST_INTRO_VISUAL_INTENT,
 } from './podcast-packaging.js';
+import {
+  fixtureCompactSelection,
+  fixtureEnrichment,
+  fixtureSelection,
+} from './video/__fixtures__/identity-catalog.js';
 import { parseEpisodeVisualPayload } from './video/episode-visual.js';
+import { enrichStoryboardSearchIntents } from './video/storyboard/search-intents.js';
 import type {
   VisualSceneSubjectAssignment,
   VisualSubjectCatalog,
@@ -32,15 +38,12 @@ const localizationId = '00000000-0000-4000-8000-000000000002';
  * than left to the real dependency so no unit test ever depends on whether the
  * machine running it happens to have an API key.
  */
-function keepDeterministicIntents() {
-  return vi.fn(async (request: { draft: unknown }) => ({
-    draft: request.draft as never,
-    model: null,
-    enrichedSceneCount: 0,
-    entityAnchoredSceneCount: 0,
-    subjectCatalog: null,
-    sceneAssignments: [],
-  }));
+function catalogIntents() {
+  return vi.fn(
+    async (request: {
+      draft: import('./video/storyboard/draft.js').StoryboardDraft;
+    }) => fixtureEnrichment(request.draft),
+  );
 }
 
 describe('createEpisodeVideoVisualProcessor', () => {
@@ -76,7 +79,7 @@ describe('createEpisodeVideoVisualProcessor', () => {
         silences: [],
       }),
       generateStoryboard,
-      enrichSearchIntents: keepDeterministicIntents(),
+      enrichSearchIntents: catalogIntents(),
       scrape,
       planAssets: vi.fn().mockResolvedValue(assetPlan()),
       upload,
@@ -98,8 +101,7 @@ describe('createEpisodeVideoVisualProcessor', () => {
       expect.objectContaining({
         title: source().title,
         script: source().script,
-        searchTitle: source().sourceTitle,
-        searchScript: source().englishScript,
+
         durationMs: 90_000,
         signal: expect.any(AbortSignal),
       }),
@@ -168,7 +170,7 @@ describe('createEpisodeVideoVisualProcessor', () => {
         .fn()
         .mockResolvedValue({ durationMs: 90_000, silences: [] }),
       generateStoryboard: vi.fn().mockResolvedValue(storyboard()),
-      enrichSearchIntents: keepDeterministicIntents(),
+      enrichSearchIntents: catalogIntents(),
       scrape: vi.fn().mockResolvedValue({
         text: 'source text',
         images: [articleCandidate()],
@@ -246,15 +248,15 @@ describe('createEpisodeVideoVisualProcessor', () => {
       draft: {
         scenes: storyboard().draft.scenes.map((scene) => ({
           ...scene,
-          imageSearchIntent: ['bank of japan press room'],
+          imageSearchIntent: ['Bank of Japan'],
           imageSearchEntities: ['Bank of Japan'],
         })),
       },
       model: 'openrouter/free',
       enrichedSceneCount: 2,
       entityAnchoredSceneCount: 2,
-      subjectCatalog: null,
-      sceneAssignments: [],
+      subjectCatalog: subjectCatalog(),
+      sceneAssignments: sceneAssignments(),
     }));
     const processor = createEpisodeVideoVisualProcessor({
       downloadNarration: vi.fn().mockResolvedValue(undefined),
@@ -294,7 +296,7 @@ describe('createEpisodeVideoVisualProcessor', () => {
         script: source().script,
         searchScript: source().englishScript,
       },
-      { signal: expect.any(AbortSignal) },
+      { signal: expect.any(AbortSignal), onCatalogRetry: expect.any(Function) },
     );
     // The point of the whole pass: image search must run on the rewritten
     // intents, not the canned ones the storyboard arrived with.
@@ -302,7 +304,7 @@ describe('createEpisodeVideoVisualProcessor', () => {
       planAssets.mock.calls[0]?.[0].scenes.map(
         (scene: { imageSearchIntent: string[] }) => scene.imageSearchIntent,
       ),
-    ).toEqual([['bank of japan press room'], ['bank of japan press room']]);
+    ).toEqual([['Bank of Japan'], ['Bank of Japan']]);
     // And on the named subjects, so the candidate gate has something to anchor.
     expect(
       planAssets.mock.calls[0]?.[0].scenes.map(
@@ -315,7 +317,7 @@ describe('createEpisodeVideoVisualProcessor', () => {
     );
     expect(logger.info).toHaveBeenCalledWith(
       expect.stringContaining(
-        'visual:intents run=run12345 episode=00000000-0000-4000-8000-000000000001 enriched=2/2 brand=0 entities=2 model=openrouter/free',
+        'visual:intents run=run12345 episode=00000000-0000-4000-8000-000000000001 enriched=2/2 brand=0 entities=2 subjects=1 primarySubject=subject-bank-of-japan model=openrouter/free',
       ),
     );
     // Enrichment shares the storyboard's slice of the bar; it must not add a
@@ -343,7 +345,7 @@ describe('createEpisodeVideoVisualProcessor', () => {
       ),
     };
     const generateStoryboard = vi.fn().mockResolvedValue(storyboard());
-    const enrichSearchIntents = keepDeterministicIntents();
+    const enrichSearchIntents = catalogIntents();
     const planAssets = vi.fn().mockResolvedValue(assetPlan());
     const processor = createEpisodeVideoVisualProcessor({
       downloadNarration: vi.fn().mockResolvedValue(undefined),
@@ -375,7 +377,6 @@ describe('createEpisodeVideoVisualProcessor', () => {
 
     expect(generateStoryboard).toHaveBeenCalledWith(
       expect.objectContaining({
-        searchScript: 'First sentence. Second sentence.',
         contentSceneBounds: { min: 0, max: 2 },
       }),
     );
@@ -389,7 +390,7 @@ describe('createEpisodeVideoVisualProcessor', () => {
         script: bareSource.script,
         searchScript: bareSource.englishScript,
       },
-      { signal: expect.any(AbortSignal) },
+      { signal: expect.any(AbortSignal), onCatalogRetry: expect.any(Function) },
     );
     expect(planAssets.mock.calls[0]?.[0].articleImages).toEqual([]);
   });
@@ -408,7 +409,7 @@ describe('createEpisodeVideoVisualProcessor', () => {
     const processor = createEpisodeVideoVisualProcessor(
       checkpointDependencies({
         generateStoryboard,
-        enrichSearchIntents: keepDeterministicIntents(),
+        enrichSearchIntents: catalogIntents(),
         persistDebug: vi.fn().mockResolvedValue(true),
         logger,
       }),
@@ -417,7 +418,7 @@ describe('createEpisodeVideoVisualProcessor', () => {
     await processor(localizedJob, localizedSource, context());
 
     expect(generateStoryboard).toHaveBeenCalledWith(
-      expect.objectContaining({ searchTitle: localizedSource.englishTitle }),
+      expect.objectContaining({ title: localizedSource.title }),
     );
     expect(logger.info).toHaveBeenCalledWith(
       expect.stringContaining('searchTitleSource=english-localization'),
@@ -440,7 +441,7 @@ describe('createEpisodeVideoVisualProcessor', () => {
     const processor = createEpisodeVideoVisualProcessor(
       checkpointDependencies({
         enrichSearchIntents: vi.fn(async () => ({
-          draft: storyboard().draft,
+          draft: fixtureEnrichment(storyboard().draft).draft,
           model: 'openrouter/free',
           enrichedSceneCount: 0,
           entityAnchoredSceneCount: 0,
@@ -468,9 +469,10 @@ describe('createEpisodeVideoVisualProcessor', () => {
     const jobContext = context();
     const processor = createEpisodeVideoVisualProcessor(
       checkpointDependencies({
-        enrichSearchIntents: keepDeterministicIntents(),
+        enrichSearchIntents: catalogIntents(),
         planAssets: vi.fn().mockImplementation(async (input) => {
           await input.onSelection?.({
+            selection: fixtureSelection(),
             sceneId: 'scene-01',
             asset: assetPlan().assets[0]!,
           });
@@ -488,7 +490,13 @@ describe('createEpisodeVideoVisualProcessor', () => {
     );
     expect(jobContext.saveCheckpoint).toHaveBeenCalledWith(
       expect.objectContaining({
-        scenes: [{ sceneId: 'scene-01', assetId: 'image-01' }],
+        scenes: [
+          {
+            sceneId: 'scene-01',
+            assetId: 'image-01',
+            selection: fixtureCompactSelection(),
+          },
+        ],
       }),
     );
   });
@@ -497,9 +505,10 @@ describe('createEpisodeVideoVisualProcessor', () => {
     const logger = { info: vi.fn() };
     const processor = createEpisodeVideoVisualProcessor(
       checkpointDependencies({
-        enrichSearchIntents: keepDeterministicIntents(),
+        enrichSearchIntents: catalogIntents(),
         planAssets: vi.fn().mockImplementation(async (input) => {
           await input.onSelection?.({
+            selection: fixtureSelection(),
             sceneId: 'scene-01',
             asset: assetPlan().assets[0]!,
           });
@@ -527,10 +536,11 @@ describe('createEpisodeVideoVisualProcessor', () => {
     jobContext.signal = controller.signal;
     const processor = createEpisodeVideoVisualProcessor(
       checkpointDependencies({
-        enrichSearchIntents: keepDeterministicIntents(),
+        enrichSearchIntents: catalogIntents(),
         planAssets: vi.fn().mockImplementation(async (input) => {
           controller.abort();
           await input.onSelection?.({
+            selection: fixtureSelection(),
             sceneId: 'scene-01',
             asset: assetPlan().assets[0]!,
           });
@@ -552,7 +562,7 @@ describe('createEpisodeVideoVisualProcessor', () => {
     const logger = { info: vi.fn() };
     const processor = createEpisodeVideoVisualProcessor(
       checkpointDependencies({
-        enrichSearchIntents: keepDeterministicIntents(),
+        enrichSearchIntents: catalogIntents(),
         planAssets: vi.fn().mockImplementation(async (input) => {
           input.onProgress?.({
             phase: 'slide',
@@ -585,7 +595,7 @@ describe('createEpisodeVideoVisualProcessor', () => {
     vi.mocked(jobContext.saveCheckpoint).mockResolvedValue(false);
     const processor = createEpisodeVideoVisualProcessor(
       checkpointDependencies({
-        enrichSearchIntents: keepDeterministicIntents(),
+        enrichSearchIntents: catalogIntents(),
         persistDebug: vi.fn().mockResolvedValue(true),
       }),
     );
@@ -658,7 +668,7 @@ describe('createEpisodeVideoVisualProcessor', () => {
           .fn()
           .mockResolvedValue({ durationMs: 20_000, silences: [] }),
         generateStoryboard: generateVisualStoryboard,
-        enrichSearchIntents: keepDeterministicIntents(),
+        enrichSearchIntents: catalogIntents(),
         planAssets: vi.fn().mockRejectedValue(new Error('stop after branding')),
         persistDebug: vi.fn().mockResolvedValue(true),
         logger,
@@ -686,7 +696,7 @@ describe('createEpisodeVideoVisualProcessor', () => {
       checkpointDependencies({
         downloadNarration,
         analyzeAudio,
-        enrichSearchIntents: keepDeterministicIntents(),
+        enrichSearchIntents: catalogIntents(),
         persistDebug: vi.fn().mockResolvedValue(true),
       }),
     );
@@ -762,8 +772,7 @@ describe('createEpisodeVideoVisualProcessor', () => {
     const deterministic = await generateVisualStoryboard({
       title: 'Title',
       script: '第一句。第二句。',
-      searchTitle: ' English title ',
-      searchScript: 'First sentence. Second sentence.',
+
       durationMs: 20_000,
     });
     expect(deterministic.effectiveProvider).toBe('deterministic');
@@ -805,7 +814,7 @@ describe('createEpisodeVideoVisualProcessor', () => {
       editorialScript,
       editorialSentences,
       isPackaged: true,
-      searchScript: 'English body evidence.',
+
       durationMs: 20_000,
       provider,
     });
@@ -828,7 +837,7 @@ describe('createEpisodeVideoVisualProcessor', () => {
         silences: [],
       }),
       generateStoryboard: vi.fn().mockResolvedValue(storyboard()),
-      enrichSearchIntents: keepDeterministicIntents(),
+      enrichSearchIntents: catalogIntents(),
       scrape: vi.fn().mockResolvedValue({
         title: 'Source article',
         text: 'source text',
@@ -891,21 +900,21 @@ describe('visual search debug checkpoints', () => {
           subjectIds: ['subject-bank-of-japan'],
           selectionReason: 'direct',
           visualCue: null,
-          queries: ['Bank of Japan headquarters', 'Bank of Japan'],
+          queries: ['Bank of Japan'],
         },
         {
           sceneId: 'scene-02',
           subjectIds: ['subject-bank-of-japan'],
           selectionReason: 'section-context',
           visualCue: null,
-          queries: ['Bank of Japan headquarters', 'Bank of Japan'],
+          queries: ['Bank of Japan'],
         },
       ],
       plannedSubjectSearches: [
         {
           subjectKey: 'bank of japan',
           subjectLabel: 'Bank of Japan',
-          query: 'Bank of Japan headquarters',
+          query: 'Bank of Japan',
           sceneCount: 2,
         },
       ],
@@ -920,10 +929,7 @@ describe('visual search debug checkpoints', () => {
           draft: {
             scenes: storyboard().draft.scenes.map((scene, index) => ({
               ...scene,
-              imageSearchIntent: [
-                'Bank of Japan headquarters',
-                'Bank of Japan',
-              ],
+              imageSearchIntent: ['Bank of Japan', 'Bank of Japan'],
               imageSearchEntities: ['Bank of Japan'],
               ...(index === 0 ? { visualCue: 'press conference podium' } : {}),
             })),
@@ -1043,50 +1049,47 @@ describe('visual search debug checkpoints', () => {
     });
   });
 
-  it('plans without a subject catalog and records why enrichment degraded', async () => {
-    const persistDebug = vi.fn().mockResolvedValue(true);
-    const planAssets = vi.fn().mockResolvedValue(assetPlan());
+  it('fails closed before side effects: plans without a subject catalog and records why enrichment degraded', async () => {
+    const planAssets = vi.fn();
+    const upload = vi.fn();
+    const persistDebug = vi.fn();
     const logger = { info: vi.fn() };
+    const jobContext = context();
     const processor = createEpisodeVideoVisualProcessor(
       checkpointDependencies({
-        enrichSearchIntents: degradedIntents(),
+        enrichSearchIntents: unavailableCatalog(),
         planAssets,
+        upload,
         persistDebug,
         logger,
       }),
     );
-
-    await processor(job(), source(), context());
-
-    // The episode is a quality degradation, not a failure: it still plans, off
-    // the deterministic intents, and says why it has no catalog.
-    expect(planAssets).toHaveBeenCalledTimes(1);
-    expect(planAssets.mock.calls[0]?.[0]).not.toHaveProperty('subjectCatalog');
-    expect(persistDebug.mock.calls[0]?.[2]).toMatchObject({
-      phase: 'planned',
-      subjectCatalog: null,
-      subjectCatalogFailure: 'subject catalog request failed: 503',
-      plannedQueries: [],
-      plannedSubjectSearches: [
-        {
-          subjectKey: 'intent:first subject',
-          subjectLabel: 'first subject',
-          query: 'first subject',
-          sceneCount: 1,
-        },
-        {
-          subjectKey: 'intent:second subject',
-          subjectLabel: 'second subject',
-          query: 'second subject',
-          sceneCount: 1,
-        },
-      ],
-    });
-    expect(logger.info).toHaveBeenCalledWith(
-      expect.stringContaining(
-        'visual:intents run=run12345 episode=00000000-0000-4000-8000-000000000001 phase=degraded reason=subject catalog request failed: 503',
-      ),
+    const failure = await processor(job(), source(), jobContext).then(
+      () => {
+        throw new Error('expected failure');
+      },
+      (error: unknown) => error,
     );
+    expect(failure).toBeInstanceOf(VisualPlanningError);
+    expect((failure as VisualPlanningError).diagnostics).toMatchObject({
+      stage: 'search-intents',
+      snapshot: {
+        subjectCatalogAttempts: expect.arrayContaining([
+          expect.objectContaining({ attempt: 1 }),
+          expect.objectContaining({ attempt: 2 }),
+          expect.objectContaining({ attempt: 3 }),
+        ]),
+      },
+    });
+    expect(planAssets).not.toHaveBeenCalled();
+    expect(upload).not.toHaveBeenCalled();
+    expect(persistDebug).not.toHaveBeenCalled();
+    expect(jobContext.saveCheckpoint).not.toHaveBeenCalled();
+    expect(
+      logger.info.mock.calls.filter(([line]) =>
+        String(line).includes('phase=catalog-retry'),
+      ),
+    ).toHaveLength(3);
   });
 
   it('fails the job when the checkpoint write no longer holds the lease', async () => {
@@ -1124,7 +1127,8 @@ describe('visual checkpoint resume', () => {
       source(),
       jobContext,
     );
-    expect(planAssets.mock.calls[0]?.[0].resumePlan).toEqual({
+    expect(planAssets.mock.calls[0]?.[0].resumePlan).toMatchObject({
+      imageSearch: expect.objectContaining({ scenes: expect.any(Array) }),
       assets: [],
       scenes: [],
     });
@@ -1135,7 +1139,7 @@ describe('visual checkpoint resume', () => {
 
   it('resumes the checkpointed scenes of an episode whose catalog degraded to none', async () => {
     const generateStoryboard = vi.fn().mockResolvedValue(storyboard());
-    const enrichSearchIntents = keepDeterministicIntents();
+    const enrichSearchIntents = catalogIntents();
     const planAssets = vi.fn().mockResolvedValue(assetPlan());
     const downloadCheckpointImage = vi.fn().mockResolvedValue(undefined);
     const processor = createEpisodeVideoVisualProcessor(
@@ -1164,8 +1168,14 @@ describe('visual checkpoint resume', () => {
       '/work/visual/images/checkpoint/image-01.jpg',
       expect.any(AbortSignal),
     );
-    expect(planAssets.mock.calls[0]?.[0].resumePlan).toEqual({
-      scenes: [{ sceneId: 'scene-01', assetId: 'image-01' }],
+    expect(planAssets.mock.calls[0]?.[0].resumePlan).toMatchObject({
+      imageSearch: expect.objectContaining({ scenes: expect.any(Array) }),
+      scenes: [
+        {
+          sceneId: 'scene-01',
+          assetId: 'image-01',
+        },
+      ],
       assets: [
         expect.objectContaining({
           assetId: 'image-01',
@@ -1175,80 +1185,96 @@ describe('visual checkpoint resume', () => {
     });
   });
 
-  it('still reports why enrichment degraded after a retry', async () => {
-    const persistDebug = vi.fn().mockResolvedValue(true);
+  it('fails closed before side effects: still reports why enrichment degraded after a retry', async () => {
+    const planAssets = vi.fn();
+    const upload = vi.fn();
+    const persistDebug = vi.fn();
+    const logger = { info: vi.fn() };
+    const jobContext = context();
     const processor = createEpisodeVideoVisualProcessor(
       checkpointDependencies({
-        enrichSearchIntents: keepDeterministicIntents(),
-        planAssets: vi.fn().mockResolvedValue(assetPlan()),
-        downloadCheckpointImage: vi.fn().mockResolvedValue(undefined),
+        enrichSearchIntents: unavailableCatalog(),
+        planAssets,
+        upload,
         persistDebug,
+        logger,
       }),
     );
-
-    const result = await processor(
-      {
-        ...job(),
-        checkpoint: resumableCheckpoint({
-          subjectCatalogFailure: 'subject catalog request failed: 503',
-        }),
+    const failure = await processor(job(), source(), jobContext).then(
+      () => {
+        throw new Error('expected failure');
       },
-      source(),
-      context(),
+      (error: unknown) => error,
     );
-
-    // Every attempt overwrites the whole transient debug row, so an attempt
-    // that reports no reason is worse than incomplete: it is misleading.
-    expect(persistDebug.mock.calls[0]?.[2]).toMatchObject({
-      phase: 'planned',
-      subjectCatalog: null,
-      subjectCatalogFailure: 'subject catalog request failed: 503',
+    expect(failure).toBeInstanceOf(VisualPlanningError);
+    expect((failure as VisualPlanningError).diagnostics).toMatchObject({
+      stage: 'search-intents',
+      snapshot: {
+        subjectCatalogAttempts: expect.arrayContaining([
+          expect.objectContaining({ attempt: 1 }),
+          expect.objectContaining({ attempt: 2 }),
+          expect.objectContaining({ attempt: 3 }),
+        ]),
+      },
     });
+    expect(planAssets).not.toHaveBeenCalled();
+    expect(upload).not.toHaveBeenCalled();
+    expect(persistDebug).not.toHaveBeenCalled();
+    expect(jobContext.saveCheckpoint).not.toHaveBeenCalled();
     expect(
-      parseEpisodeVisualPayload(result.visualPayload).provenance
-        .subjectCatalogFailure,
-    ).toBe('subject catalog request failed: 503');
+      logger.info.mock.calls.filter(([line]) =>
+        String(line).includes('phase=catalog-retry'),
+      ),
+    ).toHaveLength(3);
   });
 
-  it('carries the degradation reason into the checkpoint it writes, and nothing when nothing degraded', async () => {
-    const degradedContext = context();
-    const degradedProcessor = createEpisodeVideoVisualProcessor(
+  it('fails closed before side effects: carries the degradation reason into the checkpoint it writes, and nothing when nothing degraded', async () => {
+    const planAssets = vi.fn();
+    const upload = vi.fn();
+    const persistDebug = vi.fn();
+    const logger = { info: vi.fn() };
+    const jobContext = context();
+    const processor = createEpisodeVideoVisualProcessor(
       checkpointDependencies({
-        enrichSearchIntents: degradedIntents(),
-        planAssets: vi.fn().mockResolvedValue(assetPlan()),
-        persistDebug: vi.fn().mockResolvedValue(true),
+        enrichSearchIntents: unavailableCatalog(),
+        planAssets,
+        upload,
+        persistDebug,
+        logger,
       }),
     );
-
-    await degradedProcessor(job(), source(), degradedContext);
-
-    expect(
-      vi.mocked(degradedContext.saveCheckpoint).mock.calls[0]?.[0],
-    ).toMatchObject({
-      subjectCatalog: null,
-      subjectCatalogFailure: 'subject catalog request failed: 503',
+    const failure = await processor(job(), source(), jobContext).then(
+      () => {
+        throw new Error('expected failure');
+      },
+      (error: unknown) => error,
+    );
+    expect(failure).toBeInstanceOf(VisualPlanningError);
+    expect((failure as VisualPlanningError).diagnostics).toMatchObject({
+      stage: 'search-intents',
+      snapshot: {
+        subjectCatalogAttempts: expect.arrayContaining([
+          expect.objectContaining({ attempt: 1 }),
+          expect.objectContaining({ attempt: 2 }),
+          expect.objectContaining({ attempt: 3 }),
+        ]),
+      },
     });
-
-    const catalogContext = context();
-    const catalogProcessor = createEpisodeVideoVisualProcessor(
-      checkpointDependencies({
-        enrichSearchIntents: enrichFromSubjectCatalog(),
-        planAssets: vi.fn().mockResolvedValue(assetPlan()),
-        persistDebug: vi.fn().mockResolvedValue(true),
-      }),
-    );
-
-    await catalogProcessor(job(), source(), catalogContext);
-
+    expect(planAssets).not.toHaveBeenCalled();
+    expect(upload).not.toHaveBeenCalled();
+    expect(persistDebug).not.toHaveBeenCalled();
+    expect(jobContext.saveCheckpoint).not.toHaveBeenCalled();
     expect(
-      vi.mocked(catalogContext.saveCheckpoint).mock.calls[0]?.[0],
-    ).not.toHaveProperty('subjectCatalogFailure');
+      logger.info.mock.calls.filter(([line]) =>
+        String(line).includes('phase=catalog-retry'),
+      ),
+    ).toHaveLength(3);
   });
 
   it('names the resumed scenes in the trace it accumulates', async () => {
     const processor = createEpisodeVideoVisualProcessor(
       checkpointDependencies({
-        enrichSearchIntents: keepDeterministicIntents(),
+        enrichSearchIntents: catalogIntents(),
         planAssets: vi.fn().mockResolvedValue(assetPlan()),
         downloadCheckpointImage: vi.fn().mockResolvedValue(undefined),
         persistDebug: vi.fn().mockResolvedValue(true),
@@ -1282,7 +1308,7 @@ function resumableCheckpoint(
     sourceHash: job().source_hash,
     searchTitleSource: 'publisher',
     storyboard: {
-      draft: storyboard().draft,
+      draft: fixtureEnrichment(storyboard().draft).draft,
       effectiveProvider: 'deterministic',
       requestedProvider: 'deterministic',
       model: 'deterministic-v1',
@@ -1290,10 +1316,16 @@ function resumableCheckpoint(
       attempts: [],
       totalUsage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
     },
-    searchIntentModel: null,
-    subjectCatalog: null,
-    sceneAssignments: [],
-    scenes: [{ sceneId: 'scene-01', assetId: 'image-01' }],
+    searchIntentModel: 'openrouter/free',
+    subjectCatalog: subjectCatalog(),
+    sceneAssignments: sceneAssignments(),
+    scenes: [
+      {
+        sceneId: 'scene-01',
+        assetId: 'image-01',
+        selection: fixtureCompactSelection(),
+      },
+    ],
     assets: [
       {
         assetId: 'image-01',
@@ -1358,7 +1390,8 @@ function subjectCatalog(): VisualSubjectCatalog {
         aliases: ['BOJ'],
         storyRole: 'primary',
         evidenceSceneIds: ['scene-01'],
-        searchQueries: ['Bank of Japan headquarters'],
+
+        searchQuery: 'Bank of Japan',
         identityHints: ['central bank', 'Tokyo'],
         negativeHints: [],
         officialDomains: [],
@@ -1387,7 +1420,7 @@ function enrichFromSubjectCatalog() {
     draft: {
       scenes: storyboard().draft.scenes.map((scene) => ({
         ...scene,
-        imageSearchIntent: ['Bank of Japan headquarters', 'Bank of Japan'],
+        imageSearchIntent: ['Bank of Japan'],
         imageSearchEntities: ['Bank of Japan'],
       })),
     },
@@ -1399,16 +1432,23 @@ function enrichFromSubjectCatalog() {
   }));
 }
 
-function degradedIntents() {
-  return vi.fn(async (request: { draft: unknown }) => ({
-    draft: request.draft as never,
-    model: null,
-    enrichedSceneCount: 0,
-    entityAnchoredSceneCount: 0,
-    subjectCatalog: null,
-    sceneAssignments: [],
-    degradedReason: 'subject catalog request failed: 503',
-  }));
+function unavailableCatalog() {
+  return vi.fn(
+    async (
+      request: Parameters<typeof enrichStoryboardSearchIntents>[0],
+      options?: Parameters<typeof enrichStoryboardSearchIntents>[1],
+    ) =>
+      enrichStoryboardSearchIntents(request, {
+        ...options,
+        provider: {
+          model: 'openrouter/free',
+          catalog: vi.fn().mockResolvedValue({
+            primarySubjectId: 'subject-bank-of-japan',
+            subjects: [],
+          }),
+        },
+      }),
+  );
 }
 
 function searchRequest() {
@@ -1416,7 +1456,7 @@ function searchRequest() {
     kind: 'primary' as const,
     subjectKey: 'bank of japan',
     subjectLabel: 'Bank of Japan',
-    query: 'Bank of Japan headquarters',
+    query: 'Bank of Japan',
     sceneId: null,
     returned: 40,
     viable: 3,
@@ -1431,7 +1471,7 @@ function sceneSelection() {
     subjectKey: 'bank of japan',
     matchedSubjectKey: 'bank of japan',
     selection: 'pool' as const,
-    sourceQuery: 'Bank of Japan headquarters',
+    sourceQuery: 'Bank of Japan',
     providerRank: 3,
     fallbackReason: null,
     rejections: [{ cause: 'perceptual-duplicate', count: 1 }],
@@ -1445,7 +1485,7 @@ function searchProgress() {
     sceneIndex: 1,
     sceneCount: 2,
     provider: 'brave' as const,
-    searchIntent: 'Bank of Japan headquarters',
+    searchIntent: 'Bank of Japan',
     subjectKey: 'bank of japan',
     searchResultCount: 40,
     candidateCount: 3,
@@ -1563,7 +1603,7 @@ function storyboard() {
   };
 }
 
-function assetPlan() {
+function assetPlan(): import('./video/visual-asset-planner.js').VisualAssetPlan {
   return {
     scenes: [
       { sceneId: 'scene-01', assetId: 'image-01' },
@@ -1613,7 +1653,7 @@ function articleCandidate() {
 describe('episode video visual processor coverage gaps', () => {
   it('resumes an empty checkpoint without restoring any scene images', async () => {
     const generateStoryboard = vi.fn().mockResolvedValue(storyboard());
-    const enrichSearchIntents = keepDeterministicIntents();
+    const enrichSearchIntents = catalogIntents();
     const planAssets = vi.fn().mockResolvedValue(assetPlan());
     const downloadCheckpointImage = vi.fn().mockResolvedValue(undefined);
     const jobContext = context();
@@ -1648,58 +1688,14 @@ describe('episode video visual processor coverage gaps', () => {
     expect(result.visualPayload).toBeDefined();
   });
 
-  it('omits search text from slide evidence when a scene has no search intent', async () => {
-    const planAssets = vi.fn().mockResolvedValue(assetPlan());
-    const processor = createEpisodeVideoVisualProcessor(
-      checkpointDependencies({
-        enrichSearchIntents: vi.fn(async () => ({
-          draft: {
-            scenes: [
-              {
-                ...storyboard().draft.scenes[0]!,
-                imageSearchIntent: [],
-              },
-              { ...storyboard().draft.scenes[1]! },
-            ],
-          },
-          model: null,
-          enrichedSceneCount: 0,
-          entityAnchoredSceneCount: 0,
-          subjectCatalog: null,
-          sceneAssignments: [],
-        })),
-        planAssets,
-        persistDebug: vi.fn().mockResolvedValue(true),
-      }),
-    );
-
-    // An intent-less scene cannot survive payload validation, so the attempt
-    // fails closed — but the planner must still have received slide evidence
-    // without a searchText entry for that scene.
-    const failure = await processor(job(), source(), context()).then(
-      () => null,
-      (error: unknown) => error,
-    );
-    expect(failure).toBeInstanceOf(VisualPlanningError);
-
-    const sceneEvidence = planAssets.mock.calls[0]?.[0].slideFallback
-      .sceneEvidence as Map<string, { text: string; searchText?: string }>;
-    expect(sceneEvidence.get('scene-01')).toEqual({
-      text: expect.any(String),
-    });
-    expect(sceneEvidence.get('scene-01')).not.toHaveProperty('searchText');
-    expect(sceneEvidence.get('scene-02')).toMatchObject({
-      searchText: 'second subject',
-    });
-  });
-
   it('logs the error message when a checkpoint image upload rejects with an Error', async () => {
     const logger = { info: vi.fn() };
     const processor = createEpisodeVideoVisualProcessor(
       checkpointDependencies({
-        enrichSearchIntents: keepDeterministicIntents(),
+        enrichSearchIntents: catalogIntents(),
         planAssets: vi.fn().mockImplementation(async (input) => {
           await input.onSelection?.({
+            selection: fixtureSelection(),
             sceneId: 'scene-01',
             asset: assetPlan().assets[0]!,
           });
@@ -1725,7 +1721,7 @@ describe('episode video visual processor coverage gaps', () => {
     const logger = { info: vi.fn() };
     const processor = createEpisodeVideoVisualProcessor(
       checkpointDependencies({
-        enrichSearchIntents: keepDeterministicIntents(),
+        enrichSearchIntents: catalogIntents(),
         planAssets: vi.fn().mockImplementation(async (input) => {
           input.onProgress?.({
             phase: 'slide',
@@ -1755,7 +1751,7 @@ describe('episode video visual processor coverage gaps', () => {
   it('carries the planner lead cover into the visual payload', async () => {
     const processor = createEpisodeVideoVisualProcessor(
       checkpointDependencies({
-        enrichSearchIntents: keepDeterministicIntents(),
+        enrichSearchIntents: catalogIntents(),
         planAssets: vi.fn().mockResolvedValue({
           ...assetPlan(),
           leadCover: {
@@ -1785,7 +1781,9 @@ describe('episode video visual processor coverage gaps', () => {
     expect(result.effectiveProvider).toBe('deterministic');
     expect(result.draft.scenes.length).toBeGreaterThan(0);
     expect(
-      result.draft.scenes.every((scene) => scene.imageSearchIntent.length > 0),
+      result.draft.scenes.every(
+        (scene) => scene.imageSearchIntent === undefined,
+      ),
     ).toBe(true);
   });
 
@@ -1805,7 +1803,7 @@ describe('episode video visual processor coverage gaps', () => {
     const writeManifest = vi.fn().mockResolvedValue(undefined);
     const processor = createEpisodeVideoVisualProcessor(
       checkpointDependencies({
-        enrichSearchIntents: keepDeterministicIntents(),
+        enrichSearchIntents: catalogIntents(),
         planAssets: vi.fn().mockResolvedValue({
           ...assetPlan(),
           assets: [
@@ -1851,7 +1849,7 @@ describe('episode video visual processor coverage gaps', () => {
             ],
           },
         }),
-        enrichSearchIntents: keepDeterministicIntents(),
+        enrichSearchIntents: catalogIntents(),
         persistDebug: vi.fn().mockResolvedValue(true),
         logger,
       }),
@@ -1931,4 +1929,159 @@ describe('publisher density and translation alignment', () => {
         );
     },
   );
+});
+
+describe('pre-upload visual quality gate', () => {
+  it('rejects a non-catalog intent before manifest writing or final upload', async () => {
+    const upload = vi.fn();
+    const writeManifest = vi.fn();
+    const persistDebug = vi.fn().mockResolvedValue(true);
+    const processor = createEpisodeVideoVisualProcessor(
+      checkpointDependencies({
+        planAssets: vi.fn().mockResolvedValue({
+          ...assetPlan(),
+          imageSearch: expectedImageSearch(),
+        }),
+        enrichSearchIntents: vi.fn(async () => ({
+          ...fixtureEnrichment(storyboard().draft),
+          draft: {
+            scenes: fixtureEnrichment(storyboard().draft).draft.scenes.map(
+              (scene) => ({
+                ...scene,
+                imageSearchIntent: ['Bank of Japan office photo'],
+              }),
+            ),
+          },
+        })),
+        upload,
+        writeManifest,
+        persistDebug,
+      }),
+    );
+    const failure = await processor(job(), source(), context()).catch(
+      (error: unknown) => error,
+    );
+    expect(failure).toBeInstanceOf(VisualPlanningError);
+    expect((failure as VisualPlanningError).diagnostics).toMatchObject({
+      stage: 'quality-gate',
+      snapshot: {
+        qualityReport: {
+          passed: false,
+          violations: ['non-catalog-query', 'query-shaping-term'],
+        },
+      },
+    });
+    expect(upload).not.toHaveBeenCalled();
+    expect(writeManifest).not.toHaveBeenCalled();
+    expect(persistDebug).toHaveBeenLastCalledWith(
+      episodeId,
+      job().lease_owner,
+      expect.objectContaining({ phase: 'searched' }),
+    );
+  });
+});
+
+it('passes canonical scene evidence when English narration is absent', async () => {
+  const visualSource = { ...source(), englishScript: '' };
+  const visualJob = {
+    ...job(),
+    source_hash: hashEpisodeVideoVisualSource(visualSource.script, ''),
+  };
+  const generated = {
+    ...storyboard(),
+    draft: {
+      scenes: [{ ...storyboard().draft.scenes[0]!, endSentenceId: 's0002' }],
+    },
+  };
+  const planned = {
+    ...assetPlan(),
+    scenes: assetPlan().scenes.slice(0, 1),
+    assets: assetPlan().assets.slice(0, 1),
+  };
+  const planAssets = vi.fn().mockResolvedValue(planned);
+  const processor = createEpisodeVideoVisualProcessor(
+    checkpointDependencies({
+      generateStoryboard: vi.fn().mockResolvedValue(generated),
+      enrichSearchIntents: catalogIntents(),
+      planAssets,
+      persistDebug: vi.fn().mockResolvedValue(true),
+    }),
+  );
+  await processor(visualJob, visualSource, context());
+  expect(planAssets.mock.calls[0]![0].sceneNarration.get('scene-01')).toEqual({
+    text: '第一句。第二句。',
+  });
+});
+
+it('logs publisher lead and body placement metadata in scene order', async () => {
+  const logger = { info: vi.fn() };
+  const planAssets = vi.fn(
+    async (
+      input: Parameters<
+        typeof import('./video/podcast-visual-assets.js').planPodcastVisualAssets
+      >[0],
+    ) => {
+      input.onProgress?.({
+        phase: 'assets',
+        sceneId: 'scene-01',
+        sceneIndex: 1,
+        sceneCount: 2,
+        provider: 'article',
+        assetId: 'image-01',
+        elapsedMs: 0,
+        selection: {
+          ...fixtureSelection('scene-01'),
+          publisherImage: {
+            role: 'lead',
+            bodyIndex: null,
+            articlePosition: null,
+            lexicalScore: 0,
+          },
+        },
+      });
+      input.onProgress?.({
+        phase: 'assets',
+        sceneId: 'scene-02',
+        sceneIndex: 2,
+        sceneCount: 2,
+        provider: 'article',
+        assetId: 'image-02',
+        elapsedMs: 0,
+        selection: {
+          ...fixtureSelection('scene-02'),
+          publisherImage: {
+            role: 'body',
+            bodyIndex: 0,
+            articlePosition: 0.5,
+            lexicalScore: 0.7,
+          },
+        },
+      });
+      return {
+        ...assetPlan(),
+        assets: assetPlan().assets.map((asset) => ({
+          ...asset,
+          provider: 'article' as const,
+        })),
+      };
+    },
+  );
+  const processor = createEpisodeVideoVisualProcessor(
+    checkpointDependencies({
+      enrichSearchIntents: catalogIntents(),
+      planAssets,
+      logger,
+      persistDebug: vi.fn().mockResolvedValue(true),
+    }),
+  );
+  const result = await processor(job(), source(), context());
+  expect(logger.info).toHaveBeenCalledWith(
+    expect.stringContaining('publisherImage=lead'),
+  );
+  expect(logger.info).toHaveBeenCalledWith(
+    expect.stringContaining('publisherImage=body:1'),
+  );
+  expect(result.visualPayload['provenance']).toMatchObject({
+    qualityReport: { passed: true },
+  });
 });

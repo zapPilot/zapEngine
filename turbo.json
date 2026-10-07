@@ -164,7 +164,8 @@
       "dependsOn": ["^build"],
       "cache": false,
       "inputs": ["$TURBO_DEFAULT$", "!**/*.md"],
-      "outputs": []
+      "outputs": [],
+      "passThroughEnv": ["PLAYWRIGHT_PORT", "PLAYWRIGHT_BASE_URL"]
     },
     "test:ios:release-smoke": {
       "dependsOn": ["^build"],

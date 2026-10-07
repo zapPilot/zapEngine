@@ -1,10 +1,10 @@
 import { z } from 'zod';
 
 import {
+  type EnrichedStoryboardDraft,
   MAX_STORYBOARD_SLIDES,
   MAX_VISUAL_CUE_CHARACTERS,
   SCENE_ID_PATTERN,
-  type StoryboardDraft,
 } from './draft.js';
 
 export const IMAGE_VISUAL_PLAN_VERSION =
@@ -54,7 +54,7 @@ export const materializedVisualSceneSchema = z
     sceneId: z.string().regex(SCENE_ID_PATTERN),
     startSentenceId: z.string().regex(/^s\d{4}$/),
     endSentenceId: z.string().regex(/^s\d{4}$/),
-    imageSearchIntent: z.array(z.string().min(2).max(80)).min(1).max(3),
+    imageSearchIntent: z.array(z.string().min(2).max(113)).min(1).max(3),
     visualCue: z.string().min(2).max(MAX_VISUAL_CUE_CHARACTERS).optional(),
     // Carried through from the draft as an audit trail. v8 additionally stores
     // the episode-level subject catalog/assignment in the episode payload.
@@ -143,7 +143,7 @@ export function parseImageVisualPlan(input: unknown): ImageVisualPlan {
 }
 
 export function materializeImageVisualPlan(input: {
-  draft: StoryboardDraft;
+  draft: EnrichedStoryboardDraft;
   sceneAssets: readonly MaterializedSceneAsset[];
 }): ImageVisualPlan {
   if (input.sceneAssets.length !== input.draft.scenes.length) {

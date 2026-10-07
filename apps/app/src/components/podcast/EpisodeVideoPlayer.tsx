@@ -1,6 +1,6 @@
 import { useEvent, useEventListener } from 'expo';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { memo, useEffect, useMemo, useRef } from 'react';
+import { memo, useCallback, useLayoutEffect, useMemo, useRef } from 'react';
 import { ActivityIndicator, Image, StyleSheet, View } from 'react-native';
 
 import { isVideoHandoffSeekConfirmed } from '@/integration/episodeMediaSync';
@@ -25,6 +25,7 @@ export const EpisodeVideoPlayer = memo(function EpisodeVideoPlayer({
   initialTimeSeconds,
   playbackRate,
   shouldPlay,
+  onRemoteCommand,
   onPlayingChange,
   onPlaybackRateChange,
   onTimeUpdate,
@@ -37,6 +38,7 @@ export const EpisodeVideoPlayer = memo(function EpisodeVideoPlayer({
   initialTimeSeconds: number;
   playbackRate: number;
   shouldPlay: boolean;
+  onRemoteCommand: (command: 'nextTrack' | 'previousTrack') => void;
   onPlayingChange: (isPlaying: boolean) => void;
   onPlaybackRateChange: (rate: number) => void;
   onTimeUpdate: (seconds: number, duration: number) => void;
@@ -61,9 +63,12 @@ export const EpisodeVideoPlayer = memo(function EpisodeVideoPlayer({
     [video.thumbnailUrl],
   );
   const player = useVideoPlayer(source, (createdPlayer) => {
+    createdPlayer.showNowPlayingNotification = true;
+    createdPlayer.staysActiveInBackground = true;
     createdPlayer.playbackRate = playbackRate;
     createdPlayer.timeUpdateEventInterval = TIME_UPDATE_INTERVAL_SECONDS;
   });
+  const ownsTransportRef = useRef(true);
   const latestTimeRef = useRef(finiteVideoTime(initialTimeSeconds, 0));
   const latestExitHandlerRef = useRef(onPlaybackExit);
   const pendingAutoplayTargetRef = useRef<number | null>(null);
@@ -75,26 +80,32 @@ export const EpisodeVideoPlayer = memo(function EpisodeVideoPlayer({
     status: player.status,
   });
 
-  useEffect(() => {
-    const unregister = registerVideo(() => player.pause());
-    return () => {
-      unregister();
-      pendingAutoplayTargetRef.current = null;
-      if (pendingAutoplayTimerRef.current !== null) {
-        clearTimeout(pendingAutoplayTimerRef.current);
-        pendingAutoplayTimerRef.current = null;
-      }
-      latestExitHandlerRef.current(latestTimeRef.current);
-    };
-  }, [player, registerVideo]);
-
-  const clearPendingAutoplay = () => {
+  const clearPendingAutoplay = useCallback(() => {
     pendingAutoplayTargetRef.current = null;
     if (pendingAutoplayTimerRef.current !== null) {
       clearTimeout(pendingAutoplayTimerRef.current);
       pendingAutoplayTimerRef.current = null;
     }
-  };
+  }, []);
+
+  // Release ownership before useVideoPlayer releases its native object in passive cleanup.
+  useLayoutEffect(() => {
+    ownsTransportRef.current = true;
+    const releaseVideo = () => {
+      ownsTransportRef.current = false;
+      clearPendingAutoplay();
+      player.pause();
+      if (player.showNowPlayingNotification) {
+        player.showNowPlayingNotification = false;
+      }
+    };
+    const unregister = registerVideo(releaseVideo);
+    return () => {
+      releaseVideo();
+      unregister();
+      latestExitHandlerRef.current(latestTimeRef.current);
+    };
+  }, [clearPendingAutoplay, player, registerVideo]);
 
   const queueAutoplayAfterSeek = (targetSeconds: number) => {
     clearPendingAutoplay();
@@ -110,7 +121,12 @@ export const EpisodeVideoPlayer = memo(function EpisodeVideoPlayer({
     }, HANDOFF_SEEK_FALLBACK_MS);
   };
 
+  useEventListener(player, 'lockScreenRemoteCommand', ({ command }) => {
+    onRemoteCommand(command);
+  });
+
   useEventListener(player, 'sourceLoad', ({ duration }) => {
+    if (!ownsTransportRef.current) return;
     const actualDuration = duration > 0 ? duration : video.durationSeconds;
     const startTime = finiteVideoTime(initialTimeSeconds, actualDuration);
     latestTimeRef.current = startTime;

@@ -16,6 +16,7 @@ import {
   createEpisodeImagePool,
   deriveSearchSubjects,
   type EpisodeImagePool,
+  fallbackBasis,
   hasSearched,
   IMAGE_SEARCH_BUDGET,
   markAttempted,
@@ -51,6 +52,10 @@ import {
   type VisualSceneSelection,
   type VisualSceneSelectionKind,
 } from './image-search-trace.js';
+import {
+  alignPublisherImages,
+  type PublisherImageAlignment,
+} from './publisher-image-alignment.js';
 import {
   candidateHostname,
   canonicalCandidateUrl,
@@ -96,7 +101,6 @@ export interface VisualAssetScene {
   visualCue?: string;
   /** The subject-prefixed cue query kept for trace/smoke inspection. Phase 3 may
    * spend Brave budget on it; this planner deliberately does not. */
-  cueQuery?: string;
   /** Whether the scene cites its subject itself or inherited it from the
    * section/episode. Only a direct citation is worth a targeted request of its
    * own. Absent means direct when the scene names entities, context otherwise. */
@@ -248,6 +252,7 @@ interface VisualAssetPlannerDependencies {
 export interface PlanVisualAssetsInput {
   scenes: readonly VisualAssetScene[];
   articleImages?: readonly ImageCandidate[];
+  sceneNarration?: ReadonlyMap<string, { text: string; englishText?: string }>;
   workingDirectory: string;
   resumePlan?: VisualAssetPlan;
   requireLeadCover?: boolean;
@@ -259,6 +264,7 @@ export interface PlanVisualAssetsInput {
     sceneIndex: number;
     sceneCount: number;
     asset: PlannedVisualImage;
+    selection: VisualSceneSelection;
   }) => Promise<void>;
   slideFallback?: {
     title: string;
@@ -270,12 +276,17 @@ export interface PlanVisualAssetsInput {
 interface VisualAssetPlannerState {
   input: PlanVisualAssetsInput;
   dependencies: VisualAssetPlannerDependencies;
-  articleImages: ImageCandidate[];
-  /** The publisher `og:image` hoisted to the front of `articleImages`, or null
-   * when the article offered none that survived filtering. */
-  leadCoverCandidateUrl: string | null;
+  leadCover: ImageCandidate | null;
+  bodyImages: ImageCandidate[];
   leadCoverFallbackReason: string | null;
-  articleCursor: number;
+  heldPublisherImages: Map<
+    string,
+    {
+      asset: PlannedVisualImage;
+      publisherImage: NonNullable<VisualSceneSelection['publisherImage']>;
+    }
+  >;
+  publisherRejections: Map<string, CandidateRejections>;
   attemptedUrls: Set<string>;
   assets: PlannedVisualImage[];
   scenes: PlannedVisualScene[];
@@ -308,6 +319,8 @@ interface SelectionOrigin {
   providerRank: number | null;
   fallbackReason: VisualSceneFallbackReason | null;
   cueMatched: boolean | null;
+  fallbackBasis?: VisualSceneSelection['fallbackBasis'];
+  publisherImage?: VisualSceneSelection['publisherImage'];
 }
 
 interface SelectedVisualImage {
@@ -362,7 +375,8 @@ export async function planVisualAssets(
     input,
     dependencies: resolvePlannerDependencies(input.dependencies),
     ...leadCoverOrderedArticleImages(input.articleImages ?? []),
-    articleCursor: 0,
+    heldPublisherImages: new Map(),
+    publisherRejections: new Map(),
     // Canonical, because that is the form every later comparison uses: seeding
     // the raw URLs let a resumed scene re-download an image it already owns.
     attemptedUrls: new Set(
@@ -384,7 +398,7 @@ export async function planVisualAssets(
     allowGeneratedSlides: mode === 'resilient',
   };
 
-  if (input.requireLeadCover && !state.leadCoverCandidateUrl) {
+  if (input.requireLeadCover && !state.leadCover) {
     throw mandatoryLeadCoverError(state.leadCoverFallbackReason!);
   }
 
@@ -407,6 +421,8 @@ export async function planVisualAssets(
     }
   }
 
+  await acquirePublisherImages(state);
+  state.trace.scenes.push(...(input.resumePlan?.imageSearch?.scenes ?? []));
   const resumedSceneIds = new Set(state.scenes.map((scene) => scene.sceneId));
   for (const [sceneIndex, scene] of input.scenes.entries()) {
     input.signal?.throwIfAborted();
@@ -426,6 +442,7 @@ export async function planVisualAssets(
       sceneIndex: sceneIndex + 1,
       sceneCount: input.scenes.length,
       asset: selected.asset,
+      selection: selectionRecord(scene, selected.origin, selected.rejections),
     });
     reportSceneSelection(state, scene, sceneIndex, selected, startedAt);
   }
@@ -488,7 +505,7 @@ function leadCoverOrderedArticleImages(
   candidates: readonly ImageCandidate[],
 ): Pick<
   VisualAssetPlannerState,
-  'articleImages' | 'leadCoverCandidateUrl' | 'leadCoverFallbackReason'
+  'leadCover' | 'bodyImages' | 'leadCoverFallbackReason'
 > {
   const panewsBodyImages = requiredPanewsBodyImages(candidates);
   const { candidates: ordinaryViable, dropReasons } = partitionViableCandidates(
@@ -514,8 +531,8 @@ function leadCoverOrderedArticleImages(
   });
   if (!openGraph) {
     return {
-      articleImages: bodyImages,
-      leadCoverCandidateUrl: null,
+      bodyImages,
+      leadCover: null,
       leadCoverFallbackReason: 'missing-open-graph-image',
     };
   }
@@ -527,22 +544,19 @@ function leadCoverOrderedArticleImages(
   const lead = viableCover[0];
   if (!lead) {
     return {
-      articleImages: bodyImages,
-      leadCoverCandidateUrl: null,
+      bodyImages,
+      leadCover: null,
       leadCoverFallbackReason: dropReasons.get(openGraph.imageUrl)!,
     };
   }
 
   const leadCanonicalUrl = canonicalCandidateUrl(lead.imageUrl);
   return {
-    articleImages: [
-      lead,
-      ...bodyImages.filter(
-        (candidate) =>
-          canonicalCandidateUrl(candidate.imageUrl) !== leadCanonicalUrl,
-      ),
-    ],
-    leadCoverCandidateUrl: lead.imageUrl,
+    bodyImages: bodyImages.filter(
+      (candidate) =>
+        canonicalCandidateUrl(candidate.imageUrl) !== leadCanonicalUrl,
+    ),
+    leadCover: lead,
     leadCoverFallbackReason: null,
   };
 }
@@ -551,7 +565,8 @@ export function publisherImageSlotCount(
   candidates: readonly ImageCandidate[],
 ): number {
   if (requiredPanewsBodyImages(candidates).length === 0) return 0;
-  return leadCoverOrderedArticleImages(candidates).articleImages.length;
+  const { leadCover, bodyImages } = leadCoverOrderedArticleImages(candidates);
+  return bodyImages.length + Number(leadCover !== null);
 }
 
 /**
@@ -568,10 +583,10 @@ function observedLeadCover(
   )?.assetId;
   const leadAsset = state.assets.find((asset) => asset.assetId === leadAssetId);
   const rendered =
-    state.leadCoverCandidateUrl !== null &&
-    leadAsset?.originalImageUrl === state.leadCoverCandidateUrl;
+    state.leadCover !== null &&
+    leadAsset?.originalImageUrl === state.leadCover.imageUrl;
   if (rendered) {
-    return { imageUrl: state.leadCoverCandidateUrl, fallbackReason: null };
+    return { imageUrl: state.leadCover!.imageUrl, fallbackReason: null };
   }
   return {
     imageUrl: null,
@@ -691,13 +706,20 @@ async function tryArticleImage(
   ladder: SceneLadder,
 ): Promise<SelectedVisualImage | null> {
   const { state, scene, rejections } = ladder;
-  const asset = await acquireNextArticleImage(state, scene, rejections);
-  if (!asset) return null;
+  const held = state.heldPublisherImages.get(scene.sceneId);
+  const rejected = state.publisherRejections.get(scene.sceneId);
+  if (rejected)
+    for (const [cause, count] of rejected.causes) {
+      rejections.total += count;
+      rejections.causes.set(cause, count);
+    }
+  if (!held) return null;
+  state.heldPublisherImages.delete(scene.sceneId);
   return {
-    asset,
+    asset: held.asset,
     provider: 'article',
     rejections,
-    origin: plainOrigin('article'),
+    origin: { ...plainOrigin('article'), publisherImage: held.publisherImage },
   };
 }
 
@@ -838,6 +860,10 @@ async function acquireFromPool(
         sourceQuery: entry.requestQuery,
         providerRank: entry.providerRank,
         fallbackReason: origin.fallbackReason,
+        fallbackBasis:
+          origin.selection === 'pool-fallback'
+            ? fallbackBasis(pool, entry, scene)
+            : null,
         cueMatched: searchCueScore(entry.candidate, scene.visualCue ?? '') > 0,
       },
     };
@@ -861,7 +887,9 @@ async function ensureEpisodePool(
   const subjects = deriveSearchSubjects(
     unplannedScenes(state, ladder.sceneIndex),
   );
-  const pool = createEpisodeImagePool(subjects);
+  const pool = createEpisodeImagePool(subjects, {
+    primaryEntities: state.input.scenes[0]!.imageSearchEntities ?? [],
+  });
   state.pool = pool;
   state.trace.primarySubjects = plannedPrimarySubjects(subjects);
   for (const planned of state.trace.primarySubjects) {
@@ -878,7 +906,11 @@ function unplannedScenes(
   const planned = new Set(state.scenes.map((scene) => scene.sceneId));
   return state.input.scenes
     .slice(sceneIndex)
-    .filter((scene) => !planned.has(scene.sceneId));
+    .filter(
+      (scene) =>
+        !planned.has(scene.sceneId) &&
+        !state.heldPublisherImages.has(scene.sceneId),
+    );
 }
 
 async function runSubjectSearch(
@@ -950,6 +982,8 @@ function selectionRecord(
     sourceQuery: origin.sourceQuery,
     providerRank: origin.providerRank,
     fallbackReason: origin.fallbackReason,
+    fallbackBasis: origin.fallbackBasis ?? null,
+    ...(origin.publisherImage ? { publisherImage: origin.publisherImage } : {}),
     visualCue: scene.visualCue ?? null,
     cueMatched: origin.cueMatched,
     rejections: countedRejections(candidateRejectionRecord(rejections)),
@@ -977,7 +1011,14 @@ function reuseSelection(
     provider: 'reuse',
     reuseKind: reuse.reuseKind,
     rejections: ladder.rejections,
-    origin: { ...plainOrigin('reuse'), fallbackReason },
+    origin: {
+      ...plainOrigin('reuse'),
+      fallbackReason,
+      matchedSubjectKey:
+        [...ladder.state.subjectAssetIds].find((entry) =>
+          entry[1].includes(reuse.asset.assetId),
+        )?.[0] ?? null,
+    },
   };
 }
 
@@ -1056,6 +1097,12 @@ function reuseCandidates(
   const seen = new Set<string>();
   const consider = (asset: PlannedVisualImage | undefined): void => {
     if (!asset || asset.provider === 'generated-slide') return;
+    if (
+      [...state.heldPublisherImages.values()].some(
+        (held) => held.asset.assetId === asset.assetId,
+      )
+    )
+      return;
     if (seen.has(asset.assetId)) return;
     seen.add(asset.assetId);
     candidates.push(asset);
@@ -1079,44 +1126,185 @@ function recordSearchFailures(
   );
 }
 
-async function acquireNextArticleImage(
+async function acquirePublisherCandidate(
   state: VisualAssetPlannerState,
+  candidate: ImageCandidate,
   scene: VisualAssetScene,
   rejections: CandidateRejections,
+  lead = false,
 ): Promise<PlannedVisualImage | null> {
-  while (state.articleCursor < state.articleImages.length) {
-    const candidate = state.articleImages[state.articleCursor++]!;
-    const isMandatoryLead =
-      state.input.requireLeadCover &&
-      scene === state.input.scenes[0] &&
-      state.leadCoverCandidateUrl !== null &&
-      canonicalCandidateUrl(candidate.imageUrl) ===
-        canonicalCandidateUrl(state.leadCoverCandidateUrl);
-    const isRequiredBodyImage =
-      isPublisherBodyImage(candidate) && isPanewsPublisherImage(candidate);
-    let duplicateCheck: 'similar' | 'identical' | 'none' = isRequiredBodyImage
-      ? 'identical'
-      : 'similar';
-    if (isMandatoryLead) duplicateCheck = 'none';
-    const acquired = await tryAcquireUniqueImage({
-      candidate,
-      provider: 'article',
-      scene,
-      input: state.input,
-      dependencies: state.dependencies,
-      assets: state.assets,
-      attemptedUrls: state.attemptedUrls,
+  const required =
+    isPublisherBodyImage(candidate) && isPanewsPublisherImage(candidate);
+  let duplicateCheck: 'none' | 'identical' | 'similar' = required
+    ? 'identical'
+    : 'similar';
+  if (lead) duplicateCheck = 'none';
+  const asset = await tryAcquireUniqueImage({
+    candidate,
+    provider: 'article',
+    scene,
+    input: state.input,
+    dependencies: state.dependencies,
+    assets: state.assets,
+    attemptedUrls: state.attemptedUrls,
+    rejections,
+    allowSmallDimensions: lead || required,
+    duplicateCheck,
+  });
+  if (!asset && lead && state.input.requireLeadCover)
+    throw mandatoryLeadCoverError(
+      `open-graph-image-acquisition-${rejections.causes.keys().next().value}`,
+    );
+  return asset;
+}
+
+async function acquirePublisherImages(
+  state: VisualAssetPlannerState,
+): Promise<void> {
+  const resumed = new Set(state.scenes.map((scene) => scene.sceneId));
+  const first = state.input.scenes[0]!;
+  const lead = state.leadCover;
+  if (lead && !resumed.has(first.sceneId)) {
+    const rejections: CandidateRejections = { total: 0, causes: new Map() };
+    const asset = await acquirePublisherCandidate(
+      state,
+      lead,
+      first,
       rejections,
-      allowSmallDimensions: isMandatoryLead || isRequiredBodyImage,
-      duplicateCheck,
-    });
-    if (acquired) return acquired;
-    if (isMandatoryLead) {
-      const cause = rejections.causes.keys().next().value!;
-      throw mandatoryLeadCoverError(`open-graph-image-acquisition-${cause}`);
-    }
+      state.input.requireLeadCover === true,
+    );
+    state.publisherRejections.set(first.sceneId, rejections);
+    if (asset)
+      state.heldPublisherImages.set(first.sceneId, {
+        asset,
+        publisherImage: {
+          role: 'lead',
+          bodyIndex: null,
+          articlePosition: null,
+          lexicalScore: 0,
+        },
+      });
   }
-  return null;
+  const offered = state.bodyImages;
+  const bodies = offered.filter(
+    (image) => !state.attemptedUrls.has(canonicalCandidateUrl(image.imageUrl)!),
+  );
+  const available = state.input.scenes.filter(
+    (scene) =>
+      !resumed.has(scene.sceneId) &&
+      !state.heldPublisherImages.has(scene.sceneId),
+  );
+  const alignment = alignPublisherImages(
+    bodies,
+    state.input.scenes.map((scene) => ({
+      sceneId: scene.sceneId,
+      ...(state.input.sceneNarration?.get(scene.sceneId) ?? { text: '' }),
+    })),
+    { availableSceneIds: new Set(available.map((scene) => scene.sceneId)) },
+  );
+  const pending = new Map(
+    alignment.placements.map((placement) => [placement.bodyIndex, placement]),
+  );
+  const acquired = new Map<number, PlannedVisualImage>();
+  // DOM order is acquisition order; placement order is a separate semantic decision.
+  for (const [index, candidate] of bodies.entries()) {
+    const placement = pending.get(index);
+    const scene =
+      available.find((scene) => scene.sceneId === placement?.sceneId) ??
+      available[0];
+    if (!scene) continue;
+    const rejection: CandidateRejections = { total: 0, causes: new Map() };
+    const asset = await acquirePublisherCandidate(
+      state,
+      candidate,
+      scene,
+      rejection,
+    );
+    const accumulated = state.publisherRejections.get(scene.sceneId) ?? {
+      total: 0,
+      causes: new Map<string, number>(),
+    };
+    accumulated.total += rejection.total;
+    for (const [cause, count] of rejection.causes)
+      accumulated.causes.set(
+        cause,
+        (accumulated.causes.get(cause) ?? 0) + count,
+      );
+    state.publisherRejections.set(scene.sceneId, accumulated);
+    if (asset) acquired.set(index, asset);
+  }
+  const rejected = bodies.length - acquired.size;
+  const placed = holdAlignedPublisherImages(
+    state,
+    bodies,
+    offered,
+    alignment,
+    acquired,
+  );
+  // Overflow assets never enter reuse before being placed, and unused downloads
+  // do not become manifest assets.
+  const heldIds = new Set(
+    [...state.heldPublisherImages.values()].map((held) => held.asset.assetId),
+  );
+  const resumedIds = new Set(
+    state.input.resumePlan?.assets.map((asset) => asset.assetId) ?? [],
+  );
+  state.assets = state.assets.filter(
+    (asset) => heldIds.has(asset.assetId) || resumedIds.has(asset.assetId),
+  );
+  state.trace.publisherImages = {
+    offered: offered.length,
+    resumed: offered.length - bodies.length,
+    placed,
+    rejected,
+    overflow: alignment.overflow.length,
+  };
+}
+
+function holdAlignedPublisherImages(
+  state: VisualAssetPlannerState,
+  bodies: readonly ImageCandidate[],
+  offered: readonly ImageCandidate[],
+  alignment: PublisherImageAlignment,
+  acquired: Map<number, PlannedVisualImage>,
+): number {
+  let placed = 0;
+  let previousBodyIndex = -1;
+  for (const [placementIndex, placement] of alignment.placements.entries()) {
+    let selectedBodyIndex = placement.bodyIndex;
+    let asset = acquired.get(placement.bodyIndex);
+    if (!asset) {
+      const nextBodyIndex =
+        alignment.placements[placementIndex + 1]?.bodyIndex ?? bodies.length;
+      const backfill = alignment.overflow.find(
+        (index) =>
+          acquired.has(index) &&
+          index > previousBodyIndex &&
+          index < nextBodyIndex,
+      );
+      if (backfill !== undefined) {
+        asset = acquired.get(backfill);
+        selectedBodyIndex = backfill;
+        acquired.delete(backfill);
+      }
+    }
+    if (!asset) continue;
+    placed += 1;
+    previousBodyIndex = selectedBodyIndex;
+    state.heldPublisherImages.set(placement.sceneId, {
+      asset,
+      publisherImage: {
+        role: 'body',
+        bodyIndex: offered.indexOf(bodies[selectedBodyIndex]!),
+        articlePosition: bodies[selectedBodyIndex]!.context?.position ?? null,
+        lexicalScore:
+          selectedBodyIndex === placement.bodyIndex
+            ? placement.lexicalScore
+            : 0,
+      },
+    });
+  }
+  return placed;
 }
 
 async function generatedSlideOrThrow(
@@ -1328,10 +1516,6 @@ async function tryAcquireUniqueImage(input: {
   duplicateCheck?: 'similar' | 'identical' | 'none';
 }): Promise<PlannedVisualImage | null> {
   const canonicalUrl = canonicalCandidateUrl(input.candidate.imageUrl)!;
-  if (input.attemptedUrls.has(canonicalUrl)) {
-    recordCandidateRejection(input.rejections, 'duplicate-url');
-    return null;
-  }
   input.attemptedUrls.add(canonicalUrl);
 
   let acquired: AcquiredRemoteImage | null;

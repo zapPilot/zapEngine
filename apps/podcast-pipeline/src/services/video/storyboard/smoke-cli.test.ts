@@ -124,7 +124,7 @@ describe('storyboard smoke catalog mode', () => {
               evidenceSceneIds: request.scenes
                 .filter((scene) => scene.text.includes('NVIDIA'))
                 .map((scene) => scene.sceneId),
-              searchQueries: ['NVIDIA GPU maker'],
+
               identityHints: ['GPU maker'],
               negativeHints: [],
               officialDomains: [],
@@ -165,7 +165,7 @@ describe('storyboard smoke catalog mode', () => {
       visualCue: 'GPU launch keynote',
       subjectIds: ['subject-nvidia'],
     });
-    expect(scenePlan[0]?.['cueQuery']).toContain('NVIDIA');
+    expect(scenePlan[0]).not.toHaveProperty('cueQuery');
     expect(
       await readFile(join(outputDirectory, 'catalog.json'), 'utf8'),
     ).toContain('sceneCues');
@@ -261,7 +261,7 @@ describe('storyboard smoke catalog mode', () => {
             aliases: [],
             storyRole: 'primary',
             evidenceSceneIds: ['scene-01'],
-            searchQueries: ['AI'],
+
             identityHints: [],
             negativeHints: [],
             officialDomains: [],

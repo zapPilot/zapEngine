@@ -1,8 +1,16 @@
 diff --git a/ios/NowPlayingManager.swift b/ios/NowPlayingManager.swift
-index c276c5c918c8f8d1921f3507dc3cd42e172e5493..9df0a2965d374b550d66dbaa83b8b7e6b7d7cc20 100644
 --- a/ios/NowPlayingManager.swift
 +++ b/ios/NowPlayingManager.swift
-@@ -25,6 +25,10 @@ class NowPlayingManager: VideoPlayerObserverDelegate {
+@@ -19,12 +19,19 @@
+   private var artworkDataTask: URLSessionDataTask?
+ 
+   private var playTarget: Any?
++  private var togglePlayPauseTarget: Any?
+   private var pauseTarget: Any?
++  private var nextTrackTarget: Any?
++  private var previousTrackTarget: Any?
+   private var skipForwardTarget: Any?
+   private var skipBackwardTarget: Any?
    private var playbackPositionTarget: Any?
    private var updateNowPlayingTask: Task<(), Never>?
  
@@ -13,7 +21,7 @@ index c276c5c918c8f8d1921f3507dc3cd42e172e5493..9df0a2965d374b550d66dbaa83b8b7e6
    init() {
      let commandCenter = MPRemoteCommandCenter.shared()
  
-@@ -50,7 +54,11 @@ class NowPlayingManager: VideoPlayerObserverDelegate {
+@@ -50,7 +57,11 @@
        setMostRecentInteractionPlayer(player: newPlayer?.ref)
      }
  
@@ -26,7 +34,80 @@ index c276c5c918c8f8d1921f3507dc3cd42e172e5493..9df0a2965d374b550d66dbaa83b8b7e6
        let commandCenter = MPRemoteCommandCenter.shared()
  
        removeNowPlayingTargets(commandCenter: commandCenter)
-@@ -240,11 +248,27 @@ class NowPlayingManager: VideoPlayerObserverDelegate {
+@@ -118,6 +129,7 @@
+         $0.commonKey == .commonKeyArtwork
+       })
+ 
++      guard !Task.isCancelled, self.mostRecentInteractionPlayer == player else { return }
+       var nowPlayingInfo = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
+ 
+       nowPlayingInfo[MPMediaItemPropertyTitle] = userMetadata?.title ?? title
+@@ -129,7 +141,8 @@
+       nowPlayingInfo[MPNowPlayingInfoPropertyMediaType] = MPNowPlayingInfoMediaType.video.rawValue // Using MPNowPlayingInfoMediaType.video causes a crash
+       if let artworkUrl = userMetadata?.artwork, artworkDataTask?.originalRequest?.url != artworkUrl {
+         artworkDataTask?.cancel()
+-        artworkDataTask = fetchArtwork(url: artworkUrl) { artwork in
++        artworkDataTask = fetchArtwork(url: artworkUrl) { [weak self] artwork in
++          guard self?.mostRecentInteractionPlayer == player else { return }
+           // We can't reuse the `nowPlayingInfo` as the actual nowPlayingInfo might've changed while the image was being fetched
+           var currentNowPlayingInfo = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
+           currentNowPlayingInfo[MPMediaItemPropertyArtwork] = artwork
+@@ -140,6 +153,7 @@
+         nowPlayingInfo[MPMediaItemPropertyArtwork] = artwork
+       }
+ 
++      guard !Task.isCancelled, self.mostRecentInteractionPlayer == player else { return }
+       MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
+     }
+   }
+@@ -169,10 +183,23 @@
+     // Otherwise they enter race conditions when addTargets is called right after calling removeExistingTargets
+     // swiftlint:disable:next closure_body_length
+     DispatchQueue.main.async { [weak self] in
+-      guard let self else {
++      guard let self, mostRecentInteractionPlayer != nil else {
+         return
+       }
+ 
++      togglePlayPauseTarget = commandCenter.togglePlayPauseCommand.addTarget { [weak self] _ in
++        guard let player = self?.mostRecentInteractionPlayer else { return .commandFailed }
++        if player.rate == 0 { player.play() } else { player.pause() }
++        return .success
++      }
++
++      nextTrackTarget = commandCenter.nextTrackCommand.addTarget { [weak self] _ in
++        self?.emitRemoteCommand("nextTrack") ?? .commandFailed
++      }
++      previousTrackTarget = commandCenter.previousTrackCommand.addTarget { [weak self] _ in
++        self?.emitRemoteCommand("previousTrack") ?? .commandFailed
++      }
++
+       playTarget = commandCenter.playCommand.addTarget { [weak self] _ in
+         guard let self, let player = self.mostRecentInteractionPlayer else {
+           return .commandFailed
+@@ -229,6 +256,9 @@
+ 
+       // `MPRemoteCommandCenter` is a process-wide singleton that other modules (e.g. expo-audio) disable on
+       // teardown, so re-enable the commands we handle to keep the lock screen controls working. (issue #46711)
++      commandCenter.togglePlayPauseCommand.isEnabled = true
++      commandCenter.nextTrackCommand.isEnabled = true
++      commandCenter.previousTrackCommand.isEnabled = true
+       commandCenter.playCommand.isEnabled = true
+       commandCenter.pauseCommand.isEnabled = true
+       commandCenter.skipForwardCommand.isEnabled = true
+@@ -237,14 +267,45 @@
+     }
+   }
+ 
++  private func emitRemoteCommand(_ command: String) -> MPRemoteCommandHandlerStatus {
++    guard let player = players.allObjects.first(where: { $0.ref == mostRecentInteractionPlayer }),
++      player.appContext != nil else {
++      return .commandFailed
++    }
++    player.emit(event: "lockScreenRemoteCommand", payload: ["command": command])
++    return .success
++  }
++
    private func removeNowPlayingTargets(commandCenter: MPRemoteCommandCenter) {
      // Use the main queue to avoid race conditions with adding the targets (see comment in `addNowPlayingTargets`)
      DispatchQueue.main.async { [weak self] in
@@ -43,6 +124,9 @@ index c276c5c918c8f8d1921f3507dc3cd42e172e5493..9df0a2965d374b550d66dbaa83b8b7e6
 +      let ownedTargets: [(MPRemoteCommand, Any?)] = [
 +        (commandCenter.playCommand, playTarget),
 +        (commandCenter.pauseCommand, pauseTarget),
++        (commandCenter.togglePlayPauseCommand, togglePlayPauseTarget),
++        (commandCenter.nextTrackCommand, nextTrackTarget),
++        (commandCenter.previousTrackCommand, previousTrackTarget),
 +        (commandCenter.skipForwardCommand, skipForwardTarget),
 +        (commandCenter.skipBackwardCommand, skipBackwardTarget),
 +        (commandCenter.changePlaybackPositionCommand, playbackPositionTarget)
@@ -53,9 +137,36 @@ index c276c5c918c8f8d1921f3507dc3cd42e172e5493..9df0a2965d374b550d66dbaa83b8b7e6
 +
 +      playTarget = nil
 +      pauseTarget = nil
++      togglePlayPauseTarget = nil
++      nextTrackTarget = nil
++      previousTrackTarget = nil
 +      skipForwardTarget = nil
 +      skipBackwardTarget = nil
 +      playbackPositionTarget = nil
      }
    }
  
+diff --git a/src/VideoPlayerEvents.types.ts b/src/VideoPlayerEvents.types.ts
+--- a/src/VideoPlayerEvents.types.ts
++++ b/src/VideoPlayerEvents.types.ts
+@@ -11,6 +11,8 @@
+  * Handlers for events which can be emitted by the player.
+  */
+ export type VideoPlayerEvents = {
++  /** Queue navigation requested by iOS system/headset transport. */
++  lockScreenRemoteCommand(payload: { command: "nextTrack" | "previousTrack" }): void;
+   /**
+    * Handler for an event emitted when the status of the player changes.
+    */
+diff --git a/build/VideoPlayerEvents.types.d.ts b/build/VideoPlayerEvents.types.d.ts
+--- a/build/VideoPlayerEvents.types.d.ts
++++ b/build/VideoPlayerEvents.types.d.ts
+@@ -3,6 +3,8 @@
+  * Handlers for events which can be emitted by the player.
+  */
+ export type VideoPlayerEvents = {
++  /** Queue navigation requested by iOS system/headset transport. */
++  lockScreenRemoteCommand(payload: { command: "nextTrack" | "previousTrack" }): void;
+     /**
+      * Handler for an event emitted when the status of the player changes.
+      */

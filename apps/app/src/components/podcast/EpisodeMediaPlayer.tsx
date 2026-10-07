@@ -594,7 +594,7 @@ export function EpisodeMediaPlayer({
       videoDurationSeconds: episode.video.durationSeconds,
       playbackRate: player.speed,
       shouldPlay: player.isPlaying,
-      pauseAudio: () => player.pause(),
+      pauseAudio: () => player.pause({ releaseMediaSession: true }),
     });
     videoClockRef.current.currentTimeSeconds =
       nextVideoSession.initialTimeSeconds;
@@ -756,6 +756,19 @@ export function EpisodeMediaPlayer({
             initialTimeSeconds={videoSession.initialTimeSeconds}
             playbackRate={videoSession.playbackRate}
             shouldPlay={videoSession.shouldPlay}
+            onRemoteCommand={(command) => {
+              if (
+                command === 'nextTrack'
+                  ? !player.hasNextEpisode
+                  : !player.hasPreviousEpisode
+              )
+                return;
+              const nextEpisode =
+                command === 'nextTrack'
+                  ? player.skipToNextEpisode()
+                  : player.skipToPreviousEpisode();
+              if (nextEpisode !== null) onEpisodeChanged(nextEpisode);
+            }}
             onPlayingChange={(isPlaying) => {
               videoClockRef.current.playing = isPlaying;
             }}

@@ -114,134 +114,31 @@ describe('createDeterministicStoryboard', () => {
     ).toThrow('Cannot build a storyboard from an empty canonical script');
   });
 
-  it('uses a grounded photographic concept when the scene names one', () => {
-    const result = storyboard({
-      title: 'Quantum computing research',
-      script:
-        'Quantum scientists test qubits inside a laboratory. Engineers inspect quantum computing hardware.',
-      durationMs: 20_000,
-    });
-
-    expect(result.scenes).toHaveLength(2);
-    const combined = result.scenes[0]?.imageSearchIntent.join(' ') ?? '';
-    expect(combined).toContain('laboratory photo');
-    expect(combined).not.toContain('real world documentary editorial photo');
-  });
-
-  it('uses the generic editorial-photo fallback when no photographic concept matches', () => {
-    const result = storyboard({
-      title: 'Obscure marmalade ledger',
-      script:
-        'Marmalade ledger entries changed. Citrus jars moved between shelves.',
-      durationMs: 20_000,
-    });
-
-    expect(result.scenes[0]?.imageSearchIntent.join(' ')).toContain(
-      'real world documentary editorial photo',
-    );
-  });
-
-  it('keeps grounded percentages and removes invented title numbers', () => {
-    const result = storyboard({
-      title: 'USDC revenue 9999',
-      script:
-        'USDC revenue increased 15% during 2025. The payment network processed stablecoin transfers.',
-      durationMs: 20_000,
-    });
-
-    const intents = result.scenes.flatMap((scene) => scene.imageSearchIntent);
-    expect(intents.some((intent) => intent.includes('15%'))).toBe(true);
-    expect(intents.every((intent) => !intent.includes('9999'))).toBe(true);
-  });
-
-  it('handles acronyms, technical connectors, bridge words, and noise words', () => {
-    const result = storyboard({
-      title: 'USDC C++ Node.js systems',
-      script:
-        'Today the USDC and ETH-USDC team uses C++ and Node.js for A/B testing. Engineers monitor API systems.',
-      durationMs: 20_000,
-    });
-
-    const combined = result.scenes
-      .flatMap((scene) => scene.imageSearchIntent)
-      .join(' ');
-    expect(combined).toMatch(/USDC|ETH-USDC/u);
-    expect(combined.length).toBeGreaterThan(10);
-    for (const scene of result.scenes) {
-      for (const intent of scene.imageSearchIntent) {
-        expect(Array.from(intent).length).toBeLessThanOrEqual(80);
-        expect(intent.length).toBeGreaterThanOrEqual(2);
-      }
-    }
-  });
-
-  it('caps a long generic search subject without appending an over-limit fallback phrase', () => {
-    const token = 'HyperSpecificWidgetName'.repeat(3);
-    const result = storyboard({
-      title: token,
-      script: `${token} changed today. ${token} changed again.`,
-      durationMs: 20_000,
-    });
-
+  it.each([
+    [
+      'Quantum computing research',
+      'Quantum scientists test qubits. Engineers inspect hardware.',
+    ],
+    [
+      'Obscure marmalade ledger',
+      'Marmalade ledger entries changed. Citrus jars moved.',
+    ],
+    [
+      'USDC revenue 9999',
+      'USDC revenue increased 15% during 2025. Payments improved.',
+    ],
+    [
+      'USDC C++ Node.js',
+      'USDC and ETH-USDC use C++ and Node.js. API systems change.',
+    ],
+    ['GPU launch', 'NVIDIA GPU ships. NVIDIA scales.'],
+  ])('only segments scenes for %s', (title, script) => {
+    const result = storyboard({ title, script, durationMs: 20_000 });
+    expect(result.scenes.length).toBeGreaterThan(0);
     expect(
-      result.scenes
-        .flatMap((scene) => scene.imageSearchIntent)
-        .every((intent) => Array.from(intent).length <= 80),
+      result.scenes.every((scene) => scene.imageSearchIntent === undefined),
     ).toBe(true);
-  });
-
-  it('keeps the longer technical phrase when a later phrase is already contained by it', () => {
-    const result = storyboard({
-      title: 'GPU launch',
-      script: 'NVIDIA GPU today NVIDIA. Markets react.',
-      durationMs: 20_000,
-    });
-    expect(result.scenes[0]?.imageSearchIntent.join(' ')).toContain(
-      'NVIDIA GPU',
-    );
-  });
-
-  it('deduplicates an equal-length technical phrase already present in the subject', () => {
-    const result = storyboard({
-      title: 'UniqueWidgetX',
-      script: 'UniqueWidgetX ships. UniqueWidgetX scales.',
-      durationMs: 20_000,
-    });
-    expect(result.scenes[0]?.imageSearchIntent.join(' ')).toContain(
-      'UniqueWidgetX',
-    );
-  });
-
-  it('uses English search title/script when supplied and grounds numbers against canonical evidence', () => {
-    const result = storyboard({
-      title: '原始標題',
-      searchTitle: ' Federal Reserve 9999 ',
-      script: '聯準會在 2025 年開會。市場隨後重新定價。',
-      searchScript:
-        'Federal Reserve officials met in Washington during 9999. Markets repriced afterward.',
-      durationMs: 20_000,
-    });
-
-    const combined = result.scenes
-      .flatMap((scene) => scene.imageSearchIntent)
-      .join(' ');
-    expect(combined).toContain('Federal Reserve');
-    expect(combined).not.toContain('9999');
-  });
-
-  it('falls back to canonical evidence when a truthy search script produces no groups', () => {
-    const result = storyboard({
-      title: 'Stablecoin payments',
-      searchTitle: '   ',
-      script:
-        'Stablecoin payment terminals appeared in stores. Merchants tested checkout systems.',
-      searchScript: '   ',
-      durationMs: 20_000,
-    });
-
-    expect(
-      result.scenes.every((scene) => scene.imageSearchIntent.length > 0),
-    ).toBe(true);
+    expect(JSON.stringify(result)).not.toMatch(/photo|editorial|documentary/u);
   });
 
   it('prefers a semantic subject boundary over an equal-duration cut', () => {
@@ -373,7 +270,7 @@ describe('createDeterministicStoryboard', () => {
       sceneCountRange: { min: 1, max: 1 },
     });
     expect(result.scenes).toHaveLength(1);
-    expect(result.scenes[0]?.imageSearchIntent.length).toBeGreaterThan(0);
+    expect(result.scenes[0]?.imageSearchIntent).toBeUndefined();
   });
 
   it('uses supplied packaging mode and falls back to sentence text when canonical ids do not resolve', () => {
@@ -412,8 +309,8 @@ describe('createDeterministicStoryboard', () => {
     expect(packaged.scenes.length).toBeGreaterThan(0);
     expect(unpackaged.scenes.length).toBeGreaterThan(0);
     expect(
-      packaged.scenes.flatMap((scene) => scene.imageSearchIntent).join(' '),
-    ).toContain('Custom');
+      packaged.scenes.every((scene) => scene.imageSearchIntent === undefined),
+    ).toBe(true);
   });
 });
 
@@ -426,10 +323,7 @@ describe('createDeterministicStoryboardProvider', () => {
       durationMs: 20_000,
       sentences: splitCanonicalSentences(script),
     };
-    const provider = createDeterministicStoryboardProvider({
-      searchTitle: 'Federal Reserve meeting',
-      searchScript: 'Federal Reserve officials meet. Financial markets react.',
-    });
+    const provider = createDeterministicStoryboardProvider();
 
     expect(provider.name).toBe('deterministic');
     expect(provider.model).toBe('deterministic-v1');

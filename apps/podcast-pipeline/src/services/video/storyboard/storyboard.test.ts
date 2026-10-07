@@ -3,7 +3,11 @@ import { describe, expect, it, vi } from 'vitest';
 import type { CanonicalAudioTiming } from '../audio-analysis.js';
 import { OUTRO_TAIL_MS } from '../manifest.js';
 import type { SceneSentenceAlignment } from '../scene-alignment.js';
-import { MAX_STORYBOARD_SLIDES, type StoryboardDraft } from './draft.js';
+import {
+  type EnrichedStoryboardDraft,
+  MAX_STORYBOARD_SLIDES,
+  type StoryboardDraft,
+} from './draft.js';
 import {
   createDeterministicStoryboard,
   createDeterministicStoryboardProvider,
@@ -126,7 +130,7 @@ describe('image-only storyboard validation and fallback', () => {
     );
     expect(draft.scenes.at(-1)?.endSentenceId).toBe('s0010');
     expect(
-      draft.scenes.every((scene) => scene.imageSearchIntent.length > 0),
+      draft.scenes.every((scene) => scene.imageSearchIntent === undefined),
     ).toBe(true);
     expect(JSON.stringify(draft)).not.toMatch(
       /headline|subheadline|quote|facts|citation|evidenceText|template/,
@@ -142,16 +146,6 @@ describe('image-only storyboard validation and fallback', () => {
       '資料中心擴建伺服器機房。',
       '森林復育恢復原生棲地。',
     ].join('');
-    const englishScript = [
-      'Solar panels expand.',
-      'Battery factories expand.',
-      'Cargo ports modernize.',
-      'Freight railways modernize.',
-      'Data centers scale.',
-      'Cooling systems improve.',
-      'Forest restoration accelerates.',
-      'Wetland habitats recover.',
-    ].join(' ');
     const sentences = splitCanonicalSentences(canonicalScript);
     const request: StoryboardProviderRequest = {
       title: '全球基礎建設趨勢',
@@ -160,10 +154,8 @@ describe('image-only storyboard validation and fallback', () => {
       sentences,
     };
     const canonicalDraft = createDeterministicStoryboard(request);
-    const generated = await createDeterministicStoryboardProvider({
-      searchTitle: 'Global infrastructure outlook',
-      searchScript: englishScript,
-    }).generate(request);
+    const generated =
+      await createDeterministicStoryboardProvider().generate(request);
     const englishSearchDraft = generated.draft as StoryboardDraft;
 
     const anchors = (draft: StoryboardDraft) =>
@@ -174,23 +166,11 @@ describe('image-only storyboard validation and fallback', () => {
       }));
     expect(anchors(englishSearchDraft)).toEqual(anchors(canonicalDraft));
     expect(englishSearchDraft.scenes).toHaveLength(4);
-    expect(englishSearchDraft.scenes[0]!.imageSearchIntent.join(' ')).toContain(
-      'Solar panels',
-    );
-    expect(englishSearchDraft.scenes[1]!.imageSearchIntent.join(' ')).toContain(
-      'Cargo ports',
-    );
-    expect(englishSearchDraft.scenes[2]!.imageSearchIntent.join(' ')).toContain(
-      'Data centers',
-    );
-    expect(englishSearchDraft.scenes[3]!.imageSearchIntent.join(' ')).toContain(
-      'Wetland habitats',
-    );
     expect(
-      englishSearchDraft.scenes
-        .flatMap((scene) => scene.imageSearchIntent)
-        .join(' '),
-    ).not.toMatch(/太陽能|貨運|資料中心|森林/u);
+      englishSearchDraft.scenes.every(
+        (scene) => scene.imageSearchIntent === undefined,
+      ),
+    ).toBe(true);
     expect(
       validateStoryboardDraft(englishSearchDraft, {
         script: canonicalScript,
@@ -200,77 +180,33 @@ describe('image-only storyboard validation and fallback', () => {
     ).toBe(true);
   });
 
-  it('maps filler narration to a concrete photographic subject from the article topic', async () => {
-    const canonicalScript = '問題自然而然地出現。';
-    const request: StoryboardProviderRequest = {
-      title: '加密領域還能開發什麼？',
-      script: canonicalScript,
-      durationMs: 9_000,
-      sentences: splitCanonicalSentences(canonicalScript),
-    };
-    const generated = await createDeterministicStoryboardProvider({
-      searchTitle: 'Wintermute: What else can be built in crypto?',
-      searchScript: 'The question naturally arises.',
-    }).generate(request);
-    const intent = (generated.draft as StoryboardDraft).scenes[0]!
-      .imageSearchIntent[0]!;
-
-    expect(intent).toBe('blockchain developers office photo');
-    expect(intent).not.toMatch(/question|naturally|arises/u);
-  });
-
-  it('turns a Chinese podcast intro into topic-anchored search keywords', () => {
-    const intro =
-      '好的，各位聽眾朋友，今天我們來聊加密建設者如何塑造區塊鏈未來。';
-    const draft = createDeterministicStoryboard({
-      title: '加密產業趨勢',
-      script: intro,
-      durationMs: 9_000,
-      sentences: splitCanonicalSentences(intro),
-    });
-    const intents = draft.scenes[0]!.imageSearchIntent;
-
-    expect(intents.length).toBeGreaterThanOrEqual(1);
-    expect(intents.length).toBeLessThanOrEqual(3);
-    expect(
-      intents.every((intent) => {
-        const length = Array.from(intent).length;
-        return length >= 2 && length <= 80;
-      }),
-    ).toBe(true);
-    expect(intents[0]).toContain('加密建設者');
-    expect(intents[0]).toContain('區塊鏈未來');
-    expect(intents.join(' ')).not.toMatch(
-      /好的|各位|聽眾|朋友|今天|我們|來聊|如何|塑造/,
-    );
-    expect(intents).not.toContain(intro.replace(/。$/u, ''));
-  });
-
-  it('preserves grounded technical names and numbers without copying prose', () => {
-    const technicalScript = 'Ethereum Dencun 升級讓 Layer 2 交易費用下降 90%。';
-    const sentences = splitCanonicalSentences(technicalScript);
-    const draft = createDeterministicStoryboard({
-      title: 'Ethereum Dencun 升級',
-      script: technicalScript,
-      durationMs: 9_000,
-      sentences,
-    });
-    const intents = draft.scenes[0]!.imageSearchIntent;
-
-    expect(intents[0]).toContain('Ethereum Dencun');
-    expect(intents[0]).toContain('Layer 2');
-    expect(intents[0]).toContain('90%');
-    expect(intents[0]).toContain('blockchain developers office photo');
-    expect(intents.join(' ')).not.toContain('讓');
-    expect(intents).not.toContain(technicalScript.replace(/。$/u, ''));
-    expect(
-      validateStoryboardDraft(draft, {
-        script: technicalScript,
-        sentences,
+  it.each([
+    ['Filler', '問題自然而然地出現。'],
+    ['Intro', '好的，各位聽眾朋友，今天我們來聊加密建設者。'],
+    ['Technical', 'Ethereum Dencun 升級讓 Layer 2 交易費用下降 90%。'],
+  ])(
+    'segments %s narration without producing a search query',
+    (title, canonicalScript) => {
+      const sentences = splitCanonicalSentences(canonicalScript);
+      const draft = createDeterministicStoryboard({
+        title,
+        script: canonicalScript,
         durationMs: 9_000,
-      }).success,
-    ).toBe(true);
-  });
+        sentences,
+      });
+      expect(draft.scenes.length).toBeGreaterThan(0);
+      expect(
+        draft.scenes.every((scene) => scene.imageSearchIntent === undefined),
+      ).toBe(true);
+      expect(
+        validateStoryboardDraft(draft, {
+          script: canonicalScript,
+          sentences,
+          durationMs: 9_000,
+        }).success,
+      ).toBe(true);
+    },
+  );
 
   it('caps long and extreme-duration plans at 64 scenes', () => {
     const longScript = Array.from(
@@ -488,7 +424,7 @@ describe('shared visual plan and locale manifest materialization', () => {
   });
 
   it('requires one remote image per scene and preserves its provenance', () => {
-    const draft: StoryboardDraft = {
+    const draft: EnrichedStoryboardDraft = {
       scenes: [
         {
           sceneId: 'scene-01',
@@ -561,7 +497,7 @@ describe('shared visual plan and locale manifest materialization', () => {
       ],
       silences: [],
     };
-    const draft: StoryboardDraft = {
+    const draft: EnrichedStoryboardDraft = {
       scenes: localizedSentences.map((sentence, index) => ({
         sceneId: stableSceneId(index),
         startSentenceId: sentence.id,
@@ -646,7 +582,7 @@ describe('shared visual plan and locale manifest materialization', () => {
       ],
       silences: [],
     };
-    const draft: StoryboardDraft = {
+    const draft: EnrichedStoryboardDraft = {
       scenes: sentences.map((sentence, index) => ({
         sceneId: stableSceneId(index),
         startSentenceId: sentence.id,
@@ -693,7 +629,7 @@ describe('shared visual plan and locale manifest materialization', () => {
       ],
       silences: [],
     };
-    const draft: StoryboardDraft = {
+    const draft: EnrichedStoryboardDraft = {
       scenes: sentences.map((sentence, index) => ({
         sceneId: stableSceneId(index),
         startSentenceId: sentence.id,
@@ -747,7 +683,7 @@ describe('shared visual plan and locale manifest materialization', () => {
       captions: [{ startMs: 0, endMs: 10_000, text: 'Markets changed.' }],
       silences: [],
     };
-    const draft: StoryboardDraft = {
+    const draft: EnrichedStoryboardDraft = {
       scenes: [
         {
           sceneId: 'scene-01',
@@ -791,7 +727,7 @@ describe('shared visual plan and locale manifest materialization', () => {
       captions: [{ startMs: 0, endMs: 10_000, text: 'Markets changed.' }],
       silences: [],
     };
-    const draft: StoryboardDraft = {
+    const draft: EnrichedStoryboardDraft = {
       scenes: [
         {
           sceneId: 'scene-01',
@@ -841,7 +777,7 @@ describe('shared visual plan and locale manifest materialization', () => {
       captions: [{ startMs: 0, endMs: 10_000, text: 'Markets changed.' }],
       silences: [],
     };
-    const draft: StoryboardDraft = {
+    const draft: EnrichedStoryboardDraft = {
       scenes: [
         {
           sceneId: 'scene-01',
@@ -897,7 +833,7 @@ describe('shared visual plan and locale manifest materialization', () => {
       ],
       silences: [],
     };
-    const draft: StoryboardDraft = {
+    const draft: EnrichedStoryboardDraft = {
       scenes: [
         {
           sceneId: 'scene-01',
@@ -953,7 +889,7 @@ describe('shared visual plan and locale manifest materialization', () => {
       ],
       silences: [],
     };
-    const draft: StoryboardDraft = {
+    const draft: EnrichedStoryboardDraft = {
       scenes: [
         {
           sceneId: 'scene-01',
@@ -1002,7 +938,7 @@ describe('shared visual plan and locale manifest materialization', () => {
   });
 
   it('rejects duplicate scene asset IDs', () => {
-    const draft: StoryboardDraft = {
+    const draft: EnrichedStoryboardDraft = {
       scenes: [
         {
           sceneId: 'scene-01',
@@ -1038,7 +974,7 @@ describe('shared visual plan and locale manifest materialization', () => {
   });
 
   it('rejects a draft scene with no matching scene asset', () => {
-    const draft: StoryboardDraft = {
+    const draft: EnrichedStoryboardDraft = {
       scenes: [
         {
           sceneId: 'scene-01',

@@ -35,8 +35,10 @@ import {
   enrichStoryboardSearchIntents,
   sceneSearchEntities,
   type SearchIntentProvider,
+  SubjectCatalogUnavailableError,
 } from './search-intents.js';
 import { splitCanonicalSentences } from './sentences.js';
+import { parseVisualSubjectCatalog } from './subject-catalog.js';
 
 const TITLE = '穩定幣支付的下一步';
 const SEARCH_TITLE = 'What comes after stablecoin payments';
@@ -59,8 +61,6 @@ function deterministicDraft(): StoryboardDraft {
     script: SCRIPT,
     durationMs: DURATION_MS,
     sentences: SENTENCES,
-    searchTitle: SEARCH_TITLE,
-    searchScript: SEARCH_SCRIPT,
   });
 }
 
@@ -109,8 +109,9 @@ type CatalogSubjectOverrides = Partial<{
   aliases: string[];
   storyRole: 'primary' | 'secondary' | 'supporting';
   evidenceSceneIds: string[];
-  searchQueries: string[];
+
   identityHints: string[];
+  searchQualifier: string | null;
 }>;
 
 function catalogSubject(overrides: CatalogSubjectOverrides = {}) {
@@ -121,7 +122,7 @@ function catalogSubject(overrides: CatalogSubjectOverrides = {}) {
     aliases: [] as string[],
     storyRole: 'primary' as const,
     evidenceSceneIds: ['scene-01'],
-    searchQueries: ['CNBC newsroom journalists'],
+
     identityHints: ['financial news network'],
     negativeHints: [] as string[],
     officialDomains: [] as string[],
@@ -138,7 +139,7 @@ function stablecoinSubject(overrides: CatalogSubjectOverrides = {}) {
     id: 'subject-stablecoin',
     canonicalName: 'stablecoin',
     aliases: ['穩定幣'],
-    searchQueries: ['stablecoin remittance corridor'],
+
     identityHints: ['digital payments'],
     ...overrides,
   });
@@ -169,14 +170,7 @@ describe('storyboard search intent enrichment', () => {
 
     await expect(
       enrichStoryboardSearchIntents(request, { provider }),
-    ).resolves.toEqual({
-      draft: request.draft,
-      model: null,
-      enrichedSceneCount: 0,
-      entityAnchoredSceneCount: 0,
-      subjectCatalog: null,
-      sceneAssignments: [],
-    });
+    ).rejects.toThrow('requires content scenes');
     expect(provider.catalog).not.toHaveBeenCalled();
   });
 
@@ -298,8 +292,6 @@ describe('storyboard search intent enrichment', () => {
       script,
       durationMs: DURATION_MS,
       sentences,
-      searchTitle: SEARCH_TITLE,
-      searchScript: SEARCH_SCRIPT,
     });
     const brandedDraft = applyAndValidatePodcastBrandingToStoryboard(
       script,
@@ -348,7 +340,7 @@ describe('storyboard search intent enrichment', () => {
         id: 'subject-a16z',
         canonicalName: 'a16z',
         aliases: ['Andreessen Horowitz'],
-        searchQueries: ['a16z'],
+
         identityHints: ['venture capital'],
       }),
     ]);
@@ -380,8 +372,12 @@ describe('storyboard search intent enrichment', () => {
 
     expect(provider.catalog).toHaveBeenCalledTimes(1);
     expect(result.subjectCatalog?.primarySubjectId).toBe('subject-a16z');
-    expect(result.draft.scenes[0]?.imageSearchIntent).toContain('a16z');
-    expect(result.draft.scenes[1]?.imageSearchIntent).toContain('a16z');
+    expect(result.draft.scenes[0]?.imageSearchIntent).toContain(
+      'a16z venture capital',
+    );
+    expect(result.draft.scenes[1]?.imageSearchIntent).toContain(
+      'a16z venture capital',
+    );
     expect(result.sceneAssignments).toEqual([
       {
         sceneId: 'scene-01',
@@ -406,7 +402,7 @@ describe('storyboard search intent enrichment', () => {
       catalogSubject({
         id: 'subject-a16z',
         canonicalName: 'a16z',
-        searchQueries: ['a16z partners'],
+
         identityHints: ['venture capital'],
       }),
     ]);
@@ -446,7 +442,7 @@ describe('storyboard search intent enrichment', () => {
       catalogSubject({
         id: 'subject-sui',
         canonicalName: 'Sui',
-        searchQueries: ['Sui validators'],
+
         identityHints: ['blockchain'],
         evidenceSceneIds: ['scene-01', 'scene-02'],
       }),
@@ -454,7 +450,7 @@ describe('storyboard search intent enrichment', () => {
         id: 'subject-a16z',
         canonicalName: 'a16z',
         storyRole: 'secondary',
-        searchQueries: ['a16z partners'],
+
         identityHints: ['venture capital'],
         evidenceSceneIds: ['scene-02'],
       }),
@@ -462,7 +458,7 @@ describe('storyboard search intent enrichment', () => {
         id: 'subject-base',
         canonicalName: 'Base',
         storyRole: 'secondary',
-        searchQueries: ['Base network launch'],
+
         identityHints: ['layer 2 network'],
         evidenceSceneIds: ['scene-02'],
       }),
@@ -470,7 +466,7 @@ describe('storyboard search intent enrichment', () => {
         id: 'subject-aave',
         canonicalName: 'Aave',
         storyRole: 'secondary',
-        searchQueries: ['Aave lending pools'],
+
         identityHints: ['lending protocol'],
         evidenceSceneIds: ['scene-02'],
       }),
@@ -499,47 +495,24 @@ describe('storyboard search intent enrichment', () => {
     expect(storyboardDraftSchema.parse(result.draft)).toEqual(result.draft);
   });
 
-  it('passes catalog queries carrying an unwritten year straight to image search', async () => {
-    // Catalog searchQueries are deliberately not numeric-grounded. The per-scene
-    // gate this replaced could not tell a hallucinated year from a number inside
-    // a proper name, so one invented 2024 failed every phrase for its scene and
-    // took the whole visual job down instead of searching for a real subject.
-    const searchQueries = [
-      'Coinbase 2024 earnings',
-      'Coinbase 2024 headquarters',
-      'Coinbase 2024 trading floor',
-    ];
-    const provider = stubCatalogProvider([
-      catalogSubject({
-        id: 'subject-coinbase',
-        canonicalName: 'Coinbase',
-        searchQueries,
-        identityHints: ['crypto exchange'],
-      }),
-    ]);
-
-    const result = await enrichStoryboardSearchIntents(
-      {
-        draft: {
-          scenes: [
-            {
-              sceneId: 'scene-01',
-              startSentenceId: 's0001',
-              endSentenceId: 's0001',
-              imageSearchIntent: ['placeholder'],
-            },
-          ],
-        },
-        title: 'Coinbase expands abroad',
-        script: 'Coinbase reported record volume.',
-      },
-      { provider },
+  it('derives identity query Coinbase crypto exchange from the supplied qualifier', async () => {
+    const request = catalogEnrichmentRequest('Coinbase');
+    const provider = stubCatalogProvider(
+      [
+        catalogSubject({
+          id: 'subject-coinbase',
+          canonicalName: 'Coinbase',
+          identityHints: ['crypto exchange'],
+          searchQualifier: '2024',
+        }),
+      ],
+      'subject-coinbase',
     );
-
-    // The appended canonical name is the fourth query and the per-scene cap is
-    // three, so the three catalog queries survive verbatim and it is displaced.
-    expect(result.draft.scenes[0]?.imageSearchIntent).toEqual(searchQueries);
-    expect(result.draft.scenes[0]?.imageSearchEntities).toEqual(['Coinbase']);
+    const result = await enrichStoryboardSearchIntents(request, { provider });
+    expect(result.subjectCatalog).toBeDefined();
+    expect(result.sceneAssignments.length).toBeGreaterThan(1);
+    for (const scene of result.draft.scenes)
+      expect(scene.imageSearchIntent).toEqual(['Coinbase crypto exchange']);
   });
 
   it('caps one scene at four subject IDs however many cite it', async () => {
@@ -550,7 +523,7 @@ describe('storyboard search intent enrichment', () => {
       catalogSubject({
         id: 'subject-coinbase',
         canonicalName: 'Coinbase',
-        searchQueries: ['Coinbase exchange office'],
+
         identityHints: ['crypto exchange'],
         evidenceSceneIds: ['scene-01', 'scene-02'],
       }),
@@ -559,7 +532,7 @@ describe('storyboard search intent enrichment', () => {
           id: `subject-${name.toLowerCase()}`,
           canonicalName: name,
           storyRole: 'secondary',
-          searchQueries: [`${name} payments office`],
+
           identityHints: ['payments company'],
           evidenceSceneIds: ['scene-02'],
         }),
@@ -591,7 +564,7 @@ describe('storyboard search intent enrichment', () => {
       catalogSubject({
         id: 'subject-coinbase',
         canonicalName: 'Coinbase',
-        searchQueries: ['Coinbase exchange office'],
+
         identityHints: ['crypto exchange'],
         evidenceSceneIds: ['scene-02'],
       }),
@@ -599,7 +572,7 @@ describe('storyboard search intent enrichment', () => {
         id: 'subject-circle',
         canonicalName: 'Circle',
         storyRole: 'secondary',
-        searchQueries: ['Circle stablecoin issuer office'],
+
         identityHints: ['stablecoin issuer'],
         evidenceSceneIds: ['scene-04'],
       }),
@@ -675,7 +648,7 @@ describe('visual subject catalog grounding', () => {
         id: 'subject-financial-regulator',
         canonicalName,
         type: 'regulator',
-        searchQueries: ['financial regulator officials'],
+
         identityHints: ['Taiwan regulator'],
       }),
     ]);
@@ -691,47 +664,33 @@ describe('visual subject catalog grounding', () => {
     ]);
   });
 
-  it('degrades an ungrounded subject to deterministic intents instead of failing the episode', async () => {
+  it('fails closed for an ungrounded subject', async () => {
     const request = catalogEnrichmentRequest('財政部');
     const provider = stubCatalogProvider([
       catalogSubject({
         id: 'subject-imaginary',
         canonicalName: 'ImaginaryCorp',
-        searchQueries: ['ImaginaryCorp headquarters'],
+
         identityHints: ['technology company'],
       }),
     ]);
 
-    const result = await enrichStoryboardSearchIntents(request, { provider });
-
-    expect(result).toEqual({
-      draft: request.draft,
-      model: MODEL,
-      enrichedSceneCount: 0,
-      entityAnchoredSceneCount: 0,
-      subjectCatalog: null,
-      sceneAssignments: [],
-      degradedReason: expect.stringMatching(
-        /Visual subject subject-imaginary \(ImaginaryCorp\) is not grounded/u,
-      ),
-    });
-    expect(result.draft).toBe(request.draft);
-    expect(provider.catalog).toHaveBeenCalledTimes(1);
+    await expect(
+      enrichStoryboardSearchIntents(request, { provider }),
+    ).rejects.toBeInstanceOf(SubjectCatalogUnavailableError);
+    expect(provider.catalog).toHaveBeenCalledTimes(3);
   });
 
-  it('degrades a catalog subject that cites an unknown evidence scene', async () => {
+  it('fails closed for a catalog subject that cites an unknown evidence scene', async () => {
     const request = catalogEnrichmentRequest('CNBC');
     const provider = stubCatalogProvider([
       catalogSubject({ evidenceSceneIds: ['scene-99'] }),
     ]);
 
-    const result = await enrichStoryboardSearchIntents(request, { provider });
-
-    expect(result.subjectCatalog).toBeNull();
-    expect(result.degradedReason).toMatch(
-      /cites unknown evidence scene scene-99/u,
-    );
-    expect(provider.catalog).toHaveBeenCalledTimes(1);
+    await expect(
+      enrichStoryboardSearchIntents(request, { provider }),
+    ).rejects.toBeInstanceOf(SubjectCatalogUnavailableError);
+    expect(provider.catalog).toHaveBeenCalledTimes(3);
   });
 
   it('requires exact evidence names and leaves scene/query construction to the application', () => {
@@ -756,70 +715,52 @@ describe('visual subject catalog grounding', () => {
     );
   });
 
-  it('drops catalog queries whose numeric claim is not grounded in the scene', async () => {
+  it('derives identity query Coinbase USDT from the supplied qualifier', async () => {
     const request = catalogEnrichmentRequest('Coinbase');
-    const provider = stubCatalogProvider([
-      catalogSubject({
-        id: 'subject-coinbase',
-        canonicalName: 'Coinbase',
-        searchQueries: ['Coinbase 2024 annual report', 'Coinbase headquarters'],
-        identityHints: ['crypto exchange'],
-      }),
-    ]);
-
+    const provider = stubCatalogProvider(
+      [
+        catalogSubject({
+          id: 'subject-coinbase',
+          canonicalName: 'Coinbase',
+          identityHints: ['crypto exchange'],
+          searchQualifier: 'USDT',
+        }),
+      ],
+      'subject-coinbase',
+    );
     const result = await enrichStoryboardSearchIntents(request, { provider });
-
-    // Catalog searchQueries are deliberately not numeric-grounded. Numbers
-    // inside proper names are identity, so the 2024 query must reach image
-    // search verbatim.
-    for (const scene of result.draft.scenes) {
-      expect(scene.imageSearchIntent.join(' ')).toMatch(/2024/u);
-    }
-    expect(result.draft.scenes[0]?.imageSearchIntent).toContain(
-      'Coinbase headquarters',
-    );
-    expect(result.draft.scenes[0]?.imageSearchIntent).toContain(
-      'Coinbase 2024 annual report',
-    );
+    expect(result.subjectCatalog).toBeDefined();
+    expect(result.sceneAssignments.length).toBeGreaterThan(1);
+    for (const scene of result.draft.scenes)
+      expect(scene.imageSearchIntent).toEqual(['Coinbase USDT']);
   });
 
-  it('falls back to the canonical name when every catalog query is ungrounded', async () => {
+  it('derives identity query Coinbase from the supplied qualifier', async () => {
     const request = catalogEnrichmentRequest('Coinbase');
-    const provider = stubCatalogProvider([
-      catalogSubject({
-        id: 'subject-coinbase',
-        canonicalName: 'Coinbase',
-        searchQueries: ['Coinbase 2024 annual report'],
-        identityHints: ['crypto exchange'],
-      }),
-    ]);
-
+    const provider = stubCatalogProvider(
+      [
+        catalogSubject({
+          id: 'subject-coinbase',
+          canonicalName: 'Coinbase',
+          identityHints: ['crypto exchange'],
+          searchQualifier: null,
+        }),
+      ],
+      'subject-coinbase',
+    );
     const result = await enrichStoryboardSearchIntents(request, { provider });
-
-    // Catalog queries are passed verbatim, so an ungrounded year is preserved
-    // and the canonical name is still appended as an additional query.
-    for (const scene of result.draft.scenes) {
-      expect(scene.imageSearchIntent).toEqual([
-        'Coinbase 2024 annual report',
-        'Coinbase',
-      ]);
-    }
+    expect(result.subjectCatalog).toBeDefined();
+    expect(result.sceneAssignments.length).toBeGreaterThan(1);
+    for (const scene of result.draft.scenes)
+      expect(scene.imageSearchIntent).toEqual(['Coinbase']);
   });
-});
 
-describe('visual subject catalog degradation', () => {
-  /** A non-SDK rejection that carries nothing but an HTTP status, which is how a
-   * custom or internal catalog provider surfaces a gateway refusal. */
   function statusError(status: number, message: string): Error {
     return Object.assign(new Error(message), { status });
   }
-
   function namedError(name: string, message: string): Error {
-    const error = new Error(message);
-    error.name = name;
-    return error;
+    return Object.assign(new Error(message), { name });
   }
-
   function failingProvider(error: Error) {
     return {
       model: MODEL,
@@ -829,7 +770,7 @@ describe('visual subject catalog degradation', () => {
     };
   }
 
-  it('degrades a catalog that violates the subject schema', async () => {
+  it('fails closed for a catalog that violates the subject schema', async () => {
     const request = catalogEnrichmentRequest('CNBC');
     const provider = {
       model: MODEL,
@@ -838,19 +779,13 @@ describe('visual subject catalog degradation', () => {
       ),
     };
 
-    const result = await enrichStoryboardSearchIntents(request, { provider });
-
-    expect(result.subjectCatalog).toBeNull();
-    expect(result.sceneAssignments).toEqual([]);
-    expect(result.draft).toBe(request.draft);
-    expect(result.degradedReason).toContain('Visual subject catalog failed');
-    // A zod message is a multi-line issue dump, and this reason is stored in the
-    // visual debug payload, so it has to stay one bounded line.
-    expect(result.degradedReason).not.toMatch(/\n/u);
-    expect(result.degradedReason?.length).toBeLessThanOrEqual(200);
+    await expect(
+      enrichStoryboardSearchIntents(request, { provider }),
+    ).rejects.toBeInstanceOf(SubjectCatalogUnavailableError);
+    expect(provider.catalog).toHaveBeenCalledTimes(3);
   });
 
-  it('degrades a payload error that survived its own retry', async () => {
+  it('fails closed for a payload error that survived its own retry', async () => {
     const request = catalogEnrichmentRequest('CNBC');
     const provider = failingProvider(
       namedError(
@@ -859,15 +794,13 @@ describe('visual subject catalog degradation', () => {
       ),
     );
 
-    const result = await enrichStoryboardSearchIntents(request, { provider });
-
-    expect(result.subjectCatalog).toBeNull();
-    expect(result.degradedReason).toContain(
-      'Search intents returned malformed JSON',
-    );
+    await expect(
+      enrichStoryboardSearchIntents(request, { provider }),
+    ).rejects.toBeInstanceOf(SubjectCatalogUnavailableError);
+    expect(provider.catalog).toHaveBeenCalledTimes(3);
   });
 
-  it('degrades a literal primitive catalog rejection', async () => {
+  it('fails closed for a literal primitive catalog rejection', async () => {
     const provider = {
       model: MODEL,
       catalog: vi
@@ -875,16 +808,15 @@ describe('visual subject catalog degradation', () => {
         .mockRejectedValue('catalog primitive failure'),
     };
 
-    const result = await enrichStoryboardSearchIntents(
-      catalogEnrichmentRequest('CNBC'),
-      { provider },
-    );
-
-    expect(result.subjectCatalog).toBeNull();
-    expect(result.degradedReason).toContain('catalog primitive failure');
+    await expect(
+      enrichStoryboardSearchIntents(catalogEnrichmentRequest('CNBC'), {
+        provider,
+      }),
+    ).rejects.toBeInstanceOf(SubjectCatalogUnavailableError);
+    expect(provider.catalog).toHaveBeenCalledTimes(3);
   });
 
-  it('degrades a primitive catalog rejection with the generic bounded reason', async () => {
+  it('fails closed for a primitive catalog rejection with the generic bounded reason', async () => {
     const provider = {
       model: MODEL,
       catalog: vi.fn<SearchIntentProvider['catalog']>(async () => {
@@ -892,15 +824,12 @@ describe('visual subject catalog degradation', () => {
       }),
     };
 
-    const result = await enrichStoryboardSearchIntents(
-      catalogEnrichmentRequest('CNBC'),
-      { provider },
-    );
-
-    expect(result.subjectCatalog).toBeNull();
-    expect(result.degradedReason).toBe(
-      'Visual subject catalog failed: catalog payload invalid',
-    );
+    await expect(
+      enrichStoryboardSearchIntents(catalogEnrichmentRequest('CNBC'), {
+        provider,
+      }),
+    ).rejects.toBeInstanceOf(SubjectCatalogUnavailableError);
+    expect(provider.catalog).toHaveBeenCalledTimes(3);
   });
 
   it('fails the episode when a non-SDK provider reports an HTTP status', async () => {
@@ -1064,7 +993,7 @@ describe('OpenRouter search intent provider', () => {
         scenes: [{ sceneId: 'scene-01', text: 'CNBC reported the news.' }],
       }),
     ).rejects.toThrow(/unknown=invalid-type/u);
-    expect(llmMocks.createCompletionWithRetry).toHaveBeenCalledTimes(2);
+    expect(llmMocks.createCompletionWithRetry).toHaveBeenCalledTimes(1);
   });
 
   it('repairs the primary id defensively for a passthrough-only compact payload', async () => {
@@ -1114,7 +1043,7 @@ describe('OpenRouter search intent provider', () => {
           identityHints: ['digital payments'],
           negativeHints: [],
           evidenceSceneIds: ['scene-01'],
-          searchQueries: ['stablecoin digital payments', 'stablecoin'],
+
           officialDomains: [],
         },
       ],
@@ -1220,14 +1149,14 @@ describe('OpenRouter search intent provider', () => {
     await expect(provider.catalog(request)).rejects.toThrow(
       'Search intents returned empty content',
     );
-    expect(llmMocks.createCompletionWithRetry).toHaveBeenCalledTimes(2);
+    expect(llmMocks.createCompletionWithRetry).toHaveBeenCalledTimes(1);
 
     vi.clearAllMocks();
     mockCompletion('not json');
     await expect(
       createOpenRouterSearchIntentProvider().catalog(request),
     ).rejects.toThrow('Search intents returned malformed JSON');
-    expect(llmMocks.createCompletionWithRetry).toHaveBeenCalledTimes(2);
+    expect(llmMocks.createCompletionWithRetry).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -1246,7 +1175,10 @@ describe('named-entity-first scene assignment', () => {
   it('deduplicates aliases that normalize to the canonical search entity', () => {
     expect(
       sceneSearchEntities([
-        catalogSubject({ canonicalName: 'CNBC', aliases: ['cnbc'] }),
+        {
+          ...catalogSubject({ canonicalName: 'CNBC', aliases: ['cnbc'] }),
+          searchQuery: 'CNBC',
+        },
       ]),
     ).toEqual(['CNBC']);
   });
@@ -1267,7 +1199,7 @@ describe('named-entity-first scene assignment', () => {
               aliases: [],
               storyRole: 'primary' as const,
               evidenceSceneIds: allSceneIds,
-              searchQueries: ['Amazon'],
+
               identityHints: ['cloud retailer'],
               negativeHints: [],
               officialDomains: [],
@@ -1279,7 +1211,7 @@ describe('named-entity-first scene assignment', () => {
               aliases: [],
               storyRole: 'supporting' as const,
               evidenceSceneIds: allSceneIds,
-              searchQueries: ['Andy Jassy'],
+
               identityHints: ['Amazon CEO'],
               negativeHints: [],
               officialDomains: [],
@@ -1311,7 +1243,9 @@ describe('named-entity-first scene assignment', () => {
         selectionReason: 'direct',
       });
     }
-    expect(result.draft.scenes[1]?.imageSearchIntent[0]).toBe('Andy Jassy');
+    expect(result.draft.scenes[1]?.imageSearchIntent[0]).toBe(
+      'Andy Jassy Amazon CEO',
+    );
     expect(result.draft.scenes[1]?.imageSearchEntities).toEqual([
       'Andy Jassy',
       'Amazon',
@@ -1345,7 +1279,7 @@ describe('named-entity-first scene assignment', () => {
               aliases: [],
               storyRole: 'supporting' as const,
               evidenceSceneIds: allSceneIds,
-              searchQueries: ['data center'],
+
               identityHints: ['AI compute facility'],
               negativeHints: [],
               officialDomains: [],
@@ -1357,7 +1291,7 @@ describe('named-entity-first scene assignment', () => {
               aliases: [],
               storyRole: 'primary' as const,
               evidenceSceneIds: allSceneIds,
-              searchQueries: ['NVIDIA'],
+
               identityHints: ['GPU maker'],
               negativeHints: [],
               officialDomains: [],
@@ -1370,14 +1304,16 @@ describe('named-entity-first scene assignment', () => {
 
     const result = await enrichStoryboardSearchIntents(request, { provider });
 
-    expect(result.degradedReason).toBeUndefined();
+    expect(result.subjectCatalog).toBeDefined();
     expect(result.sceneAssignments.length).toBeGreaterThan(1);
     for (const assignment of result.sceneAssignments.slice(1)) {
       expect(assignment).toMatchObject({
         subjectIds: ['subject-nvidia', 'subject-data-center'],
       });
     }
-    expect(result.draft.scenes[1]?.imageSearchIntent[0]).toBe('NVIDIA');
+    expect(result.draft.scenes[1]?.imageSearchIntent[0]).toBe(
+      'NVIDIA GPU maker',
+    );
   });
 });
 
@@ -1409,23 +1345,24 @@ describe('object anchor search queries', () => {
       ],
     });
 
-    const catalog = (await createOpenRouterSearchIntentProvider().catalog({
-      title: 'The data center build-out',
-      scenes: [
-        {
-          sceneId: 'scene-01',
-          text: 'A new data center opened this week.',
-          searchText: 'A new data center opened this week.',
-        },
-      ],
-    })) as { subjects: { searchQueries: string[] }[] };
+    const catalog = parseVisualSubjectCatalog(
+      await createOpenRouterSearchIntentProvider().catalog({
+        title: 'The data center build-out',
+        scenes: [
+          {
+            sceneId: 'scene-01',
+            text: 'A new data center opened this week.',
+            searchText: 'A new data center opened this week.',
+          },
+        ],
+      }),
+    );
 
     // A bare "data center" query returns exactly the generic stock art the
     // anchor catalog exists to avoid, so the hint has to reach the query.
-    expect(catalog.subjects[0]?.searchQueries).toEqual([
+    expect(catalog.subjects[0]?.searchQuery).toBe(
       'data center AI compute facility',
-      'data center',
-    ]);
+    );
   });
 
   it('carries the identity hint into a long unambiguous company name too', async () => {
@@ -1455,24 +1392,23 @@ describe('object anchor search queries', () => {
       ],
     });
 
-    const catalog = (await createOpenRouterSearchIntentProvider().catalog({
-      title: 'Tether keeps minting',
-      scenes: [
-        {
-          sceneId: 'scene-01',
-          text: 'Tether keeps minting.',
-          searchText: 'Tether keeps minting.',
-        },
-      ],
-    })) as { subjects: { searchQueries: string[] }[] };
+    const catalog = parseVisualSubjectCatalog(
+      await createOpenRouterSearchIntentProvider().catalog({
+        title: 'Tether keeps minting',
+        scenes: [
+          {
+            sceneId: 'scene-01',
+            text: 'Tether keeps minting.',
+            searchText: 'Tether keeps minting.',
+          },
+        ],
+      }),
+    );
 
     // "Tether" is six characters, a real company, and carries no collision
     // hint, so every ambiguity rule called it safe -- and the bare query it
     // earned returned photographs of phone tethering cables.
-    expect(catalog.subjects[0]?.searchQueries).toEqual([
-      'Tether stablecoin issuer',
-      'Tether',
-    ]);
+    expect(catalog.subjects[0]?.searchQuery).toBe('Tether stablecoin issuer');
   });
 });
 

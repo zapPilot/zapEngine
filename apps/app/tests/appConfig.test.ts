@@ -74,11 +74,11 @@ describe('store identity', () => {
     ]);
   });
 
-  it('keeps video playback foreground-only without picture-in-picture', () => {
+  it('supports locked-screen video transport without picture-in-picture', () => {
     expect(appConfig.plugins).toContainEqual([
       'expo-video',
       {
-        supportsBackgroundPlayback: false,
+        supportsBackgroundPlayback: true,
         supportsPictureInPicture: false,
       },
     ]);
@@ -106,8 +106,8 @@ describe('store identity', () => {
   it('lists expo-audio before expo-video so the background-audio Info.plist mod wins', () => {
     // @expo/config-plugins runs each mod chain in REVERSE registration order:
     // the plugin listed FIRST runs LAST and owns the final value. expo-video
-    // (supportsBackgroundPlayback: false) strips 'audio' from UIBackgroundModes,
-    // so expo-audio must precede it or background playback is silently disabled.
+    // shares the background audio mode with expo-audio. Preserve ordering so
+    // expo-audio remains the final owner of audio-session configuration.
     const names = (appConfig.plugins ?? []).map(pluginName);
     const audioIndex = names.indexOf('expo-audio');
     const videoIndex = names.indexOf('expo-video');

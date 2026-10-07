@@ -1,4 +1,15 @@
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import {
+  fixtureBraveResults,
+  fixtureImageFingerprint,
+  fixtureRemoteImage,
+} from '../__fixtures__/planner-images.js';
+import { planPodcastVisualAssets } from '../podcast-visual-assets.js';
 
 const llmMocks = vi.hoisted(() => ({
   createCompletionWithRetry: vi.fn(),
@@ -11,7 +22,10 @@ vi.mock('../../llm.js', async (importOriginal) => ({
   getOpenRouterConfig: llmMocks.getOpenRouterConfig,
 }));
 
-import { createOpenRouterSearchIntentProvider } from './search-intents.js';
+import {
+  createOpenRouterSearchIntentProvider,
+  enrichStoryboardSearchIntents,
+} from './search-intents.js';
 import { parseVisualSubjectCatalog } from './subject-catalog.js';
 
 const MODEL = 'deepseek/deepseek-v4-flash-0731';
@@ -92,7 +106,7 @@ describe('OpenRouter search-intent provider', () => {
           expect.objectContaining({
             canonicalName: 'Federal Reserve',
             evidenceSceneIds: ['scene-01'],
-            searchQueries: ['Federal Reserve central bank', 'Federal Reserve'],
+
             officialDomains: [],
           }),
         ],
@@ -195,10 +209,30 @@ describe('OpenRouter search-intent provider', () => {
 
     const provider = createOpenRouterSearchIntentProvider();
 
-    await expect(provider.catalog(REQUEST)).resolves.toEqual(
-      expect.objectContaining({
-        primarySubjectId: 'subject-federal-reserve',
-      }),
+    const draft = {
+      scenes: [
+        {
+          sceneId: 'scene-01',
+          startSentenceId: 's0001',
+          endSentenceId: 's0001',
+        },
+      ],
+    };
+    const result = await enrichStoryboardSearchIntents(
+      { draft, title: REQUEST.title, script: REQUEST.scenes[0]!.text },
+      { provider },
+    );
+    expect(result.subjectCatalog.primarySubjectId).toBe(
+      'subject-federal-reserve',
+    );
+    const messages =
+      llmMocks.createCompletionWithRetry.mock.calls[1]![1].messages;
+    expect(messages[2]).toMatchObject({
+      role: 'user',
+      content: expect.stringContaining('malformed JSON'),
+    });
+    expect(messages[1]).toEqual(
+      llmMocks.createCompletionWithRetry.mock.calls[0]![1].messages[1],
     );
     expect(llmMocks.createCompletionWithRetry).toHaveBeenCalledTimes(2);
   });
@@ -223,7 +257,7 @@ describe('OpenRouter search-intent provider', () => {
     await expect(provider.catalog(REQUEST)).rejects.toThrow(
       `Search intents response was truncated (provider=Wafer, model=${MODEL}, finishReason=length, reasoningChars=6, outputChars=32)`,
     );
-    expect(llmMocks.createCompletionWithRetry).toHaveBeenCalledTimes(2);
+    expect(llmMocks.createCompletionWithRetry).toHaveBeenCalledTimes(1);
   });
 
   // Production never gets here any more -- the shared transport rejects a blank
@@ -251,7 +285,214 @@ describe('OpenRouter search-intent provider', () => {
     await expect(provider.catalog(REQUEST)).rejects.toThrow(
       `Search intents returned empty content (provider=Wafer, model=${MODEL}, finishReason=stop, reasoningChars=6, outputChars=0)`,
     );
-    expect(llmMocks.createCompletionWithRetry).toHaveBeenCalledTimes(2);
+    expect(llmMocks.createCompletionWithRetry).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('OpenAI identity query regression', () => {
+  it('repairs catalog limits and IDs before planning only complete identity queries', async () => {
+    vi.resetAllMocks();
+    llmMocks.getOpenRouterConfig.mockReturnValue({ openai: {}, model: MODEL });
+    const compact = (
+      id: string,
+      name: string,
+      type = 'company',
+      searchQualifier: string | null = null,
+    ) => ({
+      id,
+      canonicalName: name,
+      type,
+      aliases: [],
+      storyRole: id === 'subject-openai' ? 'primary' : 'supporting',
+      identityHints: ['OpenAI'],
+      negativeHints: [],
+      searchQualifier,
+    });
+    const completion = (subjects: unknown[]) => ({
+      model: MODEL,
+      provider: 'synthetic',
+      choices: [
+        {
+          finish_reason: 'stop',
+          message: {
+            content: JSON.stringify({
+              primarySubjectId: 'subject-openai',
+              subjects,
+            }),
+          },
+        },
+      ],
+    });
+    llmMocks.createCompletionWithRetry
+      .mockResolvedValueOnce(
+        completion(
+          Array.from({ length: 25 }, (_, index) =>
+            compact(
+              ['subject-openai', 'subject-gpt-6.1-sol'][index] ??
+                `subject-openai-${index}`,
+              'OpenAI',
+            ),
+          ),
+        ),
+      )
+      .mockResolvedValueOnce(
+        completion([
+          compact('subject-openai', 'OpenAI'),
+          compact('subject-gpt-6-1-sol', 'GPT-6.1 Sol', 'product'),
+          compact('subject-dots', 'Dots', 'product', 'OpenAI'),
+          compact('subject-sam-altman', 'Sam Altman', 'person'),
+        ]),
+      );
+    const draft = {
+      scenes: Array.from({ length: 4 }, (_, index) => ({
+        sceneId: `scene-0${index + 1}`,
+        startSentenceId: `s000${index + 1}`,
+        endSentenceId: `s000${index + 1}`,
+      })),
+    };
+    const result = await enrichStoryboardSearchIntents(
+      {
+        draft,
+        title:
+          'OpenAI 2026开发者大会：Dots个人Agent登场，GPT-6.1 Sol降价来袭！',
+        script:
+          'OpenAI公布更新。GPT-6.1 Sol价格下降。Dots提供个人Agent。Sam Altman介绍工具。',
+      },
+      { provider: createOpenRouterSearchIntentProvider() },
+    );
+    const repair =
+      llmMocks.createCompletionWithRetry.mock.calls[1]![1].messages[2];
+    expect(repair).toMatchObject({
+      role: 'user',
+      content: expect.stringContaining(
+        'at most 24 subjects in total (received 25)',
+      ),
+    });
+    expect(repair.content).toContain('subject-gpt-6-1-sol');
+    expect(result.subjectCatalog).toBeDefined();
+    expect(result.sceneAssignments).toHaveLength(4);
+    const identities = new Set([
+      'OpenAI',
+      'GPT-6.1 Sol',
+      'Dots OpenAI',
+      'Sam Altman',
+    ]);
+    expect(
+      result.draft.scenes.flatMap((scene) => scene.imageSearchIntent),
+    ).toEqual([...identities]);
+    const directory = await mkdtemp(
+      join(tmpdir(), 'openai-identity-regression-'),
+    );
+    try {
+      const search = vi.fn(async (query: string) => {
+        expect(identities.has(query)).toBe(true);
+        return fixtureBraveResults(query, 2);
+      });
+      await planPodcastVisualAssets({
+        scenes: result.draft.scenes,
+        subjectCatalog: result.subjectCatalog,
+        sceneAssignments: result.sceneAssignments,
+        workingDirectory: directory,
+        articleImages: [
+          {
+            imageUrl: 'https://publisher.test/cover.jpg',
+            sourceUrl: 'https://publisher.test/openai',
+            origin: 'openGraph',
+            width: 2400,
+            height: 1350,
+          },
+        ],
+        dependencies: {
+          acquireImage: vi.fn(async (url: string) =>
+            fixtureRemoteImage(url, directory),
+          ),
+          fingerprintImage: vi.fn(async (path: string) =>
+            fixtureImageFingerprint(path),
+          ),
+          searchProviders: [{ origin: 'brave', search }],
+        },
+      });
+      expect(search.mock.calls.length).toBeGreaterThan(0);
+      for (const [query] of search.mock.calls)
+        expect(query).not.toMatch(
+          /photo|editorial|documentary|engineers|office|working|monitoring/u,
+        );
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('RWA catalog identity repair', () => {
+  it('feeds named duplicate IDs back and derives Hong Kong qualifiers', async () => {
+    vi.resetAllMocks();
+    llmMocks.getOpenRouterConfig.mockReturnValue({ openai: {}, model: MODEL });
+    const subject = (id: string, canonicalName: string) => ({
+      id,
+      canonicalName,
+      type: 'company',
+      aliases: [],
+      storyRole: id === 'subject-rwa' ? 'primary' : 'secondary',
+      identityHints: ['Hong Kong'],
+      negativeHints: [],
+      searchQualifier: 'Hong Kong',
+    });
+    const completion = (subjects: unknown[]) => ({
+      model: MODEL,
+      choices: [
+        {
+          finish_reason: 'stop',
+          message: {
+            content: JSON.stringify({
+              primarySubjectId: 'subject-rwa',
+              subjects,
+            }),
+          },
+        },
+      ],
+    });
+    llmMocks.createCompletionWithRetry
+      .mockResolvedValueOnce(
+        completion([
+          subject('subject-rwa', 'RWA'),
+          subject('subject-rwa', 'Finloop'),
+        ]),
+      )
+      .mockResolvedValueOnce(
+        completion([
+          subject('subject-rwa', 'RWA'),
+          subject('subject-finloop', 'Finloop'),
+        ]),
+      );
+    const result = await enrichStoryboardSearchIntents(
+      {
+        title: '香港 RWA',
+        script: 'RWA介绍香港市场。Finloop解释牌照。',
+        draft: {
+          scenes: [
+            {
+              sceneId: 'scene-01',
+              startSentenceId: 's0001',
+              endSentenceId: 's0001',
+            },
+            {
+              sceneId: 'scene-02',
+              startSentenceId: 's0002',
+              endSentenceId: 's0002',
+            },
+          ],
+        },
+      },
+      { provider: createOpenRouterSearchIntentProvider() },
+    );
+    expect(result.subjectCatalog).toBeDefined();
+    expect(result.sceneAssignments).toHaveLength(2);
+    expect(
+      llmMocks.createCompletionWithRetry.mock.calls[1]![1].messages[2].content,
+    ).toContain('duplicate subject ids: subject-rwa (2×)');
+    expect(result.draft.scenes.map((scene) => scene.imageSearchIntent)).toEqual(
+      [['RWA Hong Kong'], ['Finloop Hong Kong']],
+    );
   });
 });
 
@@ -301,6 +542,39 @@ describe('named-entity-first subject materialization', () => {
     });
   });
 
+  it('keeps a grounded catalog when a discarded row has empty identity fields', async () => {
+    mockCatalog({
+      primarySubjectId: 'subject-nvidia',
+      subjects: [
+        compactSubject({
+          id: 'subject-nvidia',
+          canonicalName: 'NVIDIA',
+          aliases: ['輝達'],
+          storyRole: 'primary',
+        }),
+        compactSubject({
+          id: ' ',
+          canonicalName: ' ',
+          aliases: [' '],
+          type: '',
+        }),
+      ],
+    });
+    const catalog =
+      await createOpenRouterSearchIntentProvider().catalog(NAMED_REQUEST);
+    expect(catalog).toMatchObject({
+      droppedSubjects: [
+        {
+          id: 'unknown',
+          names: [],
+          type: 'unknown',
+          reason: 'missing-canonical-name',
+        },
+      ],
+    });
+    expect(llmMocks.createCompletionWithRetry).toHaveBeenCalledTimes(1);
+  });
+
   it('drops an ungrounded subject alone and keeps the catalog without a retry', async () => {
     mockCatalog({
       primarySubjectId: 'subject-nvidia',
@@ -329,7 +603,6 @@ describe('named-entity-first subject materialization', () => {
           id: 'subject-nvidia',
           storyRole: 'primary',
           evidenceSceneIds: ['scene-02', 'scene-03'],
-          searchQueries: ['NVIDIA identity hint', 'NVIDIA'],
         }),
       ],
       droppedSubjects: [
@@ -418,11 +691,7 @@ describe('named-entity-first subject materialization', () => {
       NAMED_REQUEST,
     )) as { subjects: unknown[] };
 
-    expect(catalog.subjects[0]).toEqual(
-      expect.objectContaining({
-        searchQueries: ['NVIDIA GPU company', 'NVIDIA'],
-      }),
-    );
+    expect(catalog.subjects[0]).toEqual(expect.objectContaining({}));
     expect(catalog.subjects[1]).toBeNull();
   });
 
@@ -554,6 +823,6 @@ describe('named-entity-first subject materialization', () => {
     ).rejects.toThrow(
       /kept no grounded named subject \(dropped subject-ai=generic-term, subject-macron=not-grounded\)/u,
     );
-    expect(llmMocks.createCompletionWithRetry).toHaveBeenCalledTimes(2);
+    expect(llmMocks.createCompletionWithRetry).toHaveBeenCalledTimes(1);
   });
 });

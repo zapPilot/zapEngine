@@ -1065,7 +1065,7 @@ describe('planVisualAssets episode image pool', () => {
         imageSearchEntities: [subject],
         searchAnchor: 'direct' as const,
       })),
-      // Five publisher images clothe scenes 1-5, the lead included.
+      // Five publisher images are distributed across scenes 1, 3, 5, 7, 9.
       articleImages: ['yard-a', 'yard-b', 'yard-c', 'yard-d', 'yard-e'].map(
         (id) => articleResult(id),
       ),
@@ -1094,7 +1094,7 @@ describe('planVisualAssets episode image pool', () => {
       'brave',
     ]);
     expect(
-      ['scene-06', 'scene-07', 'scene-08', 'scene-09'].map(
+      ['scene-02', 'scene-04', 'scene-06', 'scene-08'].map(
         (scene) => selectionFor(result, scene)?.selection,
       ),
     ).toEqual(['pool', 'pool', 'pool', 'pool']);
@@ -1115,7 +1115,7 @@ describe('planVisualAssets episode image pool', () => {
         braveResult(`donor-a-${offset + 1}`, 'market sentiment desk'),
       ),
       [weakDonorIntent]: Array.from({ length: 3 }, (_, offset) =>
-        braveResult(`donor-b-${offset + 1}`, 'market desk'),
+        braveResult(`donor-b-${offset + 1}`, 'market sentiment desk'),
       ),
       [genericIntent]: [],
     });
@@ -1137,11 +1137,13 @@ describe('planVisualAssets episode image pool', () => {
         {
           sceneId: 'scene-03',
           imageSearchIntent: [genericIntent],
+          visualCue: 'market sentiment',
           searchAnchor: 'context',
         },
         {
           sceneId: 'scene-04',
           imageSearchIntent: [genericIntent],
+          visualCue: 'market sentiment',
           searchAnchor: 'context',
         },
       ],
