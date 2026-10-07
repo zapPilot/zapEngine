@@ -16,6 +16,8 @@ Hono API service for From Fed to Chain. Turns article URLs into multilingual pod
 
 Routes include `/health`, `/ingest`, `/telegram/webhook`, `/episodes`,
 `/episodes/search`, `/episodes/catalog`, and `/episodes/:localizationId`.
+
+The stored/generated `zh-Hant` lane remains Simplified Chinese. The Zap Pilot-facing `/episodes`, `/episodes/search`, and `/episodes/:localizationId` responses convert human-visible Chinese title/transcript/classroom text to Taiwan Traditional Chinese at the HTTP boundary; audio and baked video subtitles stay on the Simplified canonical artifacts.
 `GET /episodes/catalog` returns every published localization id grouped under
 the fixed `zh-Hant`, `ja`, and `en` language keys in a `{ languages: ... }`
 response.
