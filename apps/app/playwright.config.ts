@@ -15,6 +15,8 @@ const CI_REPORTER: ReporterDescription[] = [
 
 export default defineConfig({
   testDir: './tests/e2e',
+  // Keep browser cleanup from deleting concurrent native smoke artifacts.
+  outputDir: './test-results/playwright',
   testMatch: /\.spec\.ts$/,
   fullyParallel: false,
   forbidOnly: !!process.env['CI'],

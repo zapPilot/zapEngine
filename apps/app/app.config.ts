@@ -155,13 +155,8 @@ const config: ExpoConfig = {
       // audio-playback-only app, so recording/microphone permissions are
       // explicitly disabled (recordAudioAndroid defaults to true otherwise).
       //
-      // ORDER MATTERS — expo-audio must stay ABOVE expo-video. @expo/config-plugins
-      // executes each mod chain in REVERSE array order (the plugin listed first
-      // runs last and owns the final Info.plist value). expo-video's plugin, with
-      // supportsBackgroundPlayback: false, actively REMOVES 'audio' from
-      // UIBackgroundModes; expo-audio's plugin adds it. Listed the other way
-      // round, expo-video runs last and background playback silently dies.
-      // Guarded by tests/appConfig.test.ts.
+      // Keep audio above video in the plugin chain. Both active media modes
+      // require the audio background mode for locked-screen system transport.
       'expo-audio',
       {
         microphonePermission: false,
@@ -171,11 +166,11 @@ const config: ExpoConfig = {
       },
     ],
     [
-      // Video stays foreground-only (product decision). Keep this entry BELOW
+      // Video retains system transport while locked. Keep this entry BELOW
       // expo-audio — see the ordering note above.
       'expo-video',
       {
-        supportsBackgroundPlayback: false,
+        supportsBackgroundPlayback: true,
         supportsPictureInPicture: false,
       },
     ],

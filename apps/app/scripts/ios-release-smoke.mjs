@@ -17,6 +17,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { createSmokeSimulator } from './ios-smoke-simulator.mjs';
 import { syncIosNative } from './sync-ios-native.mjs';
 
 const appRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
@@ -219,7 +220,6 @@ async function main() {
   const resultBundlePath = join(resultsRoot, 'build.xcresult');
   const derivedDataPath = mkdtempSync(join(tmpdir(), 'zappilot-ios-smoke-'));
 
-  let bootedByTest = false;
   let simulator;
 
   try {
@@ -230,7 +230,7 @@ async function main() {
     });
 
     console.log('2/4 Selecting an iPhone Simulator...');
-    simulator = selectSimulator();
+    simulator = createSmokeSimulator(selectSimulator(), capture);
     writeFileSync(
       join(resultsRoot, 'simulator.json'),
       `${JSON.stringify(simulator, null, 2)}\n`,
@@ -239,7 +239,6 @@ async function main() {
       runLogged('xcrun', ['simctl', 'boot', simulator.udid], {
         logPath: simulatorLog,
       });
-      bootedByTest = true;
     }
     runLogged('xcrun', ['simctl', 'bootstatus', simulator.udid, '-b'], {
       logPath: simulatorLog,
@@ -386,8 +385,12 @@ async function main() {
     console.log(`iOS Release cold-start smoke passed: ${resultsRoot}`);
   } finally {
     rmSync(derivedDataPath, { recursive: true, force: true });
-    if (bootedByTest && simulator) {
+    if (simulator) {
       runLogged('xcrun', ['simctl', 'shutdown', simulator.udid], {
+        logPath: simulatorLog,
+        allowFailure: true,
+      });
+      runLogged('xcrun', ['simctl', 'delete', simulator.udid], {
         logPath: simulatorLog,
         allowFailure: true,
       });

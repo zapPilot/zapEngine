@@ -197,14 +197,21 @@ export function usePodcastPlayer(): PodcastPlayer {
     [],
   );
 
-  const pause = useCallback(() => {
-    const handoff = pendingHandoffRef.current;
-    if (handoff !== null) {
-      pendingHandoffRef.current = { ...handoff, shouldPlay: false };
-      setHandoffRevision((current) => current + 1);
-    }
-    audioPlayer.pause();
-  }, [audioPlayer]);
+  const pause = useCallback(
+    (options?: { releaseMediaSession: boolean }) => {
+      const handoff = pendingHandoffRef.current;
+      if (handoff !== null) {
+        pendingHandoffRef.current = { ...handoff, shouldPlay: false };
+        setHandoffRevision((current) => current + 1);
+      }
+      audioPlayer.pause();
+      if (options?.releaseMediaSession && lockScreenActiveRef.current) {
+        audioPlayer.clearLockScreenControls();
+        lockScreenActiveRef.current = false;
+      }
+    },
+    [audioPlayer],
+  );
 
   const toggleCurrentPlayback = useCallback(() => {
     const handoff = pendingHandoffRef.current;
@@ -255,6 +262,19 @@ export function usePodcastPlayer(): PodcastPlayer {
       audioPlayer.setPlaybackRate(
         speedForSection(speedPreferences, section.kind),
       );
+      // A paused video -> audio handoff has no playing edge to trigger reclaim.
+      if (!lockScreenActiveRef.current) {
+        lockScreenActiveRef.current = true;
+        audioPlayer.setActiveForLockScreen(
+          true,
+          buildPodcastMediaMetadata(
+            episode,
+            section.kind,
+            section.languageCode,
+          ),
+          LOCK_SCREEN_OPTIONS,
+        );
+      }
       setNowPlaying(episode);
       setActiveSection(section);
     },
