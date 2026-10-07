@@ -45,10 +45,16 @@ The app share sheet, Telegram notices, social posts and preview metadata use
   not claimed by the native app. The legacy API host alone retains its AASA
   and iOS associated domain so previously shared links keep opening the app.
 
-Before publishing links, configure the `link` CNAME in Unstoppable Domains
-to `from-fed-to-chain-api.fly.dev`, provision a Fly certificate with
-`fly certs add link.zap-pilot.org -a from-fed-to-chain-api`, and check issuance
-with `fly certs check link.zap-pilot.org -a from-fed-to-chain-api`.
+Provision the share host's Fly certificate with
+`fly certs add link.zap-pilot.org -a from-fed-to-chain-api`, then obtain the
+exact CNAME target with `fly certs setup link.zap-pilot.org -a from-fed-to-chain-api`.
+Configure that `link` CNAME in Unstoppable Domains and check issuance with
+`fly certs check link.zap-pilot.org -a from-fed-to-chain-api`.
+As of 2026-10-07, the CNAME is `pqzpjk3.from-fed-to-chain-api.fly.dev.` with
+a five-minute TTL and the Let's Encrypt RSA/ECDSA certificate is active.
+The frontend remains on Vercel project `zap-engine-frontend` at
+`https://v2.zap-pilot.org`; the share host routes to Fly, which resolves the
+episode localization before redirecting to Vercel.
 Verify HTTPS, the empty AASA on the link host, the legacy AASA on the API host,
 browser redirects, and crawler previews before rollout. Test installed and
 uninstalled apps on iOS Safari, Android Chrome and social in-app browsers;
