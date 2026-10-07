@@ -54,6 +54,37 @@ describe('social publish state', () => {
       published: true,
       publishedAt: '2026-08-11T00:01:00.000Z',
     });
+
+    await markPlatformPublished({
+      episodeId: 'episode-1',
+      platform: 'x',
+      languageCode: 'ja',
+      result: {
+        published: true,
+        publishedAt: '2026-08-11T00:02:00.000Z',
+        url: 'https://x.com/example/status/ja-1',
+      },
+      path,
+    });
+
+    state = await readPublishState(path);
+    expect(getPublishedPlatform(state, 'episode-1', 'x')).toEqual({
+      published: true,
+      publishedAt: '2026-08-11T00:00:00.000Z',
+      url: 'https://x.com/example/status/1',
+    });
+    expect(getPublishedPlatform(state, 'episode-1', 'rednote')).toEqual({
+      published: true,
+      publishedAt: '2026-08-11T00:01:00.000Z',
+    });
+    expect(getPublishedPlatform(state, 'episode-1', 'x', 'ja')).toEqual({
+      published: true,
+      publishedAt: '2026-08-11T00:02:00.000Z',
+      url: 'https://x.com/example/status/ja-1',
+    });
+    expect(
+      getPublishedPlatform(state, 'episode-1', 'rednote', 'ja'),
+    ).toBeUndefined();
   });
 
   it('rejects non-object persisted state', async () => {
