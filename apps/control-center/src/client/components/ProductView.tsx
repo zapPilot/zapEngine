@@ -1,5 +1,9 @@
 import { type ReactNode, useState } from 'react';
 
+import {
+  isInactivePriorityOnFastCadence,
+  staleWindowHours,
+} from '../../shared/service-cadence.js';
 import type { StatementsResponse } from '../../shared/statements.js';
 import type {
   CustomerEconomicsResponse,
@@ -18,9 +22,6 @@ import { Funnel, type FunnelRow } from './Funnel.js';
 import { InfoRow } from './InfoRow.js';
 import { SegmentBar } from './SegmentBar.js';
 import { StatementHeader } from './StatementHeader.js';
-
-const INACTIVE_WINDOW_DAYS = 30;
-const STALE_WALLET_HOURS = 48;
 
 export function ProductView(props: {
   customers: CustomerEconomicsResponse | null;
@@ -472,33 +473,27 @@ function freshnessLabel(user: CustomerRecord): string {
 }
 
 function freshnessClass(user: CustomerRecord): string {
-  return user.neverRefreshedWallets > 0 ||
-    (user.portfolioWorstStaleHours ?? 0) >= STALE_WALLET_HOURS
+  return user.neverRefreshedWallets > 0 || isStale(user)
     ? 'cell-nowrap warning-text'
     : 'cell-nowrap';
 }
 
 /** The three conditions "Accounts needing judgment" filters on. */
 function tripsRule(user: CustomerRecord): boolean {
-  const priorityInactive =
-    user.effectiveTier === 'priority' &&
-    (user.inactiveDays === null || user.inactiveDays >= INACTIVE_WINDOW_DAYS);
+  const priorityInactive = isInactivePriorityOnFastCadence(user);
   const neverRefreshed = user.neverRefreshedWallets > 0;
-  const worstStale = (user.portfolioWorstStaleHours ?? 0) >= STALE_WALLET_HOURS;
+  const worstStale = isStale(user);
   return priorityInactive || neverRefreshed || worstStale;
 }
 
 function judgmentReason(user: CustomerRecord): string | null {
-  if (
-    user.effectiveTier === 'priority' &&
-    (user.inactiveDays === null || user.inactiveDays >= INACTIVE_WINDOW_DAYS)
-  ) {
+  if (isInactivePriorityOnFastCadence(user)) {
     return `Priority, inactive ${user.inactiveDays === null ? 'unknown' : `${integer(user.inactiveDays)}d`}`;
   }
   if (user.neverRefreshedWallets > 0) {
     return `${integer(user.neverRefreshedWallets)} wallet${user.neverRefreshedWallets === 1 ? '' : 's'} never refreshed`;
   }
-  if ((user.portfolioWorstStaleHours ?? 0) >= STALE_WALLET_HOURS) {
+  if (isStale(user)) {
     return `Worst wallet ${hoursAgo(user.portfolioWorstStaleHours)} old`;
   }
   return null;
@@ -515,17 +510,25 @@ function sortUsersForDecision(users: CustomerRecord[]): CustomerRecord[] {
 
 function decisionRisk(user: CustomerRecord): number {
   let risk = user.effectiveTier === 'priority' ? 1 : 0;
-  if (user.effectiveTier === 'priority' && (user.inactiveDays ?? 0) >= 30) {
+  if (isInactivePriorityOnFastCadence(user)) {
     risk += 8;
   }
   if (user.neverRefreshedWallets > 0) {
     risk += 10;
   }
-  if ((user.portfolioWorstStaleHours ?? 0) >= 48) {
+  if (isStale(user)) {
     risk += 6;
   }
   if (user.dueForRefresh) {
     risk += 2;
   }
   return risk;
+}
+
+function isStale(user: CustomerRecord): boolean {
+  return (
+    user.refreshIntervalHours !== null &&
+    (user.portfolioWorstStaleHours ?? 0) >=
+      staleWindowHours(user.refreshIntervalHours)
+  );
 }

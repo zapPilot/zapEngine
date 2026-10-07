@@ -76,6 +76,35 @@ describe('selectDueUsers', () => {
     });
   });
 
+  it('schedules inactive standard and priority wallets from their weekly SQL cadence', async () => {
+    const standard = candidate({
+      effectiveTier: 'standard',
+      refreshIntervalHours: 168,
+    });
+    const priority = candidate({
+      wallet: '0xweekly-priority',
+      refreshIntervalHours: 168,
+    });
+    const fresh = candidate({
+      wallet: '0xweekly-fresh',
+      refreshIntervalHours: 168,
+      dueSources: [],
+    });
+    const selection = await selectDueUsers({
+      fetcher: fetcherReturning([
+        standard,
+        priority,
+        fresh,
+        candidate({ wallet: '0xdisabled', refreshIntervalHours: 0 }),
+      ]),
+      source: 'debank',
+      jobId: 'weekly',
+    });
+    expect(selection.usersToUpdate).toEqual([standard, priority]);
+    expect(selection.skippedNotDue).toBe(1);
+    expect(selection.skippedByTier).toBe(1);
+  });
+
   it('never schedules a paused wallet even if SQL called it due', async () => {
     // Defence in depth for the one case where the two conditions disagree:
     // an override that pauses an account must win over a stale due flag.

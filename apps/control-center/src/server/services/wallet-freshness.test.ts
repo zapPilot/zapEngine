@@ -121,7 +121,11 @@ describe('walletFreshness', () => {
 
 describe('summarizeWalletCoverage', () => {
   function priority(sources: Record<string, string | null>) {
-    return { ...sourced(null, sources), effective_tier: 'priority' };
+    return {
+      ...sourced(null, sources),
+      effective_tier: 'priority',
+      refresh_interval_hours: 24,
+    };
   }
 
   const fresh = { debank: '2026-08-28T11:00:00.000Z', hyperliquid: null };
@@ -176,6 +180,44 @@ describe('summarizeWalletCoverage', () => {
     });
   });
 
+  it('uses weekly cadence for inactive standard and priority wallets without hiding missed cycles', () => {
+    const weekly = (ageHours: number, tier: string) => ({
+      effective_tier: tier,
+      refresh_interval_hours: 168,
+      source_states: {
+        debank: {
+          last_success_at: new Date(
+            NOW.getTime() - ageHours * 3_600_000,
+          ).toISOString(),
+        },
+      },
+    });
+    expect(
+      summarizeWalletCoverage(
+        [
+          weekly(150, 'standard'),
+          weekly(174, 'priority'),
+          weekly(175, 'standard'),
+          weekly(175, 'paused'),
+        ],
+        NOW,
+      ),
+    ).toEqual({ expected: 3, fresh: 2, stale: 1, neverRefreshed: 0 });
+  });
+
+  it('does not invent obligations from malformed or disabled intervals', () => {
+    expect(
+      summarizeWalletCoverage(
+        [
+          { refresh_interval_hours: 'invalid' },
+          { refresh_interval_hours: 0 },
+          { refresh_interval_hours: null },
+        ],
+        NOW,
+      ),
+    ).toEqual({ expected: 0, fresh: 0, stale: 0, neverRefreshed: 0 });
+  });
+
   it('reports an empty fleet rather than dividing by nothing', () => {
     expect(summarizeWalletCoverage([], NOW)).toEqual({
       expected: 0,
@@ -201,9 +243,14 @@ describe('loadPriorityWalletCoverage', () => {
 
   it('summarizes the policy rows the scheduler itself reads', async () => {
     const rows = [
-      { effective_tier: 'priority', source_states: null },
       {
         effective_tier: 'priority',
+        refresh_interval_hours: 24,
+        source_states: null,
+      },
+      {
+        effective_tier: 'priority',
+        refresh_interval_hours: 24,
         source_states: {
           debank: { last_success_at: '2026-08-28T11:00:00.000Z' },
           hyperliquid: { last_success_at: '2026-08-28T11:00:00.000Z' },

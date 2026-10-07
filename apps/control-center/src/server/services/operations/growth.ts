@@ -1,3 +1,4 @@
+import { readCtaExperiment } from './cta-experiment.js';
 import { unavailableContentPackaging } from '../../../shared/content-packaging.js';
 import { readContentPackagingEvidence } from './content-packaging-source.js';
 import { buildContentPackagingInsight } from './content-packaging.js';
@@ -31,15 +32,23 @@ export function createOperationsGrowth(input: {
     ttlMs: 15 * 60_000,
     load: async (force) => {
       const now = input.now?.() ?? new Date();
-      const [journey, posthog, posts, social, community, packaging] =
-        await Promise.all([
-          loadGrowthJourney(input),
-          settle(readPosthogGrowthLanes(input)),
-          settle(readRecentSocialPosts({ ...input, now })),
-          input.socialGrowth.getSocialGrowth(force),
-          input.community(force),
-          settle(readContentPackagingEvidence({ ...input, now })),
-        ]);
+      const [
+        journey,
+        posthog,
+        posts,
+        social,
+        community,
+        ctaExperiment,
+        packaging,
+      ] = await Promise.all([
+        loadGrowthJourney(input),
+        settle(readPosthogGrowthLanes(input)),
+        settle(readRecentSocialPosts({ ...input, now })),
+        input.socialGrowth.getSocialGrowth(force),
+        input.community(force),
+        readCtaExperiment({ ...input, now }),
+        settle(readContentPackagingEvidence({ ...input, now })),
+      ]);
       const laneSources = unavailableGrowthLaneSources('Source unavailable');
       laneSources.posthog = posthog.source;
       laneSources.socialPosts = posts.source;
@@ -57,6 +66,7 @@ export function createOperationsGrowth(input: {
         journey,
         community,
         laneSources,
+        ctaExperiment,
         lanes: composeGrowthLanes({
           posthog: posthog.data,
           posts: posts.data,

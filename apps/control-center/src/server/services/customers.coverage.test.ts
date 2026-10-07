@@ -147,7 +147,7 @@ describe('customers coverage', () => {
     });
     const [signal] = deriveCustomerSignals(res, NOW);
     expect(signal?.status).toBe('critical');
-    expect(signal?.title).toContain('2 priority portfolios');
+    expect(signal?.title).toContain('2 scheduled portfolios');
     expect(signal?.detail).toContain('never refreshed');
   });
 

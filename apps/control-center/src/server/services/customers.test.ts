@@ -376,6 +376,26 @@ describe('deriveCustomerSignals', () => {
     expect(signals.map((signal) => signal.status)).toEqual(['healthy']);
   });
 
+  it('does not flag normal weekly freshness or owner judgment, but detects a missed weekly run', async () => {
+    const response = await loadRows([
+      stateRow({
+        last_activity_at: null,
+        refresh_interval_hours: 168,
+        last_portfolio_update_at: '2026-08-22T12:00:00.000Z',
+      }),
+    ]);
+    expect(response.summary.inactiveButPriority).toBe(0);
+    expect(deriveCustomerSignals(response, NOW)[0]?.status).toBe('healthy');
+    const stale = await loadRows([
+      stateRow({
+        effective_tier: 'standard',
+        refresh_interval_hours: 168,
+        last_portfolio_update_at: '2026-08-20T12:00:00.000Z',
+      }),
+    ]);
+    expect(deriveCustomerSignals(stale, NOW)[0]?.status).toBe('critical');
+  });
+
   it('degrades rather than escalates when the stale AUM is small', async () => {
     const response = await loadRows([
       stateRow({

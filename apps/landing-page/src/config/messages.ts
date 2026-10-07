@@ -207,6 +207,10 @@ interface MessagesContract {
     readonly primaryCta: string;
     readonly secondaryCta: string;
   };
+  readonly ctaExperiment: {
+    readonly cta: string;
+    readonly body: string;
+  };
   readonly waitlist: {
     readonly title: string;
     readonly close: string;
@@ -663,6 +667,11 @@ export const MESSAGES = {
     ],
     primaryCta: 'Join waitlist',
     secondaryCta: 'Join the Discord',
+  },
+
+  ctaExperiment: {
+    cta: 'Get launch updates',
+    body: 'Follow the programmable portfolio runtime as it develops. Leave your email for one launch update.',
   },
 
   waitlist: {

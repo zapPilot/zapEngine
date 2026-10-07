@@ -52,7 +52,7 @@ describe('collectProductSignals default loaders', () => {
     expect(signals[0]?.evidence).toMatchObject({
       expectedWallets: 23,
       freshWallets: 23,
-      freshWindowHours: FRESH_WINDOW_HOURS,
+      dailyFreshWindowHours: FRESH_WINDOW_HOURS,
     });
   });
 

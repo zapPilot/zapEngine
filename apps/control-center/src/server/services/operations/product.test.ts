@@ -98,7 +98,7 @@ describe('collectProductSignals', () => {
       staleWallets: 0,
       neverRefreshedWallets: 0,
       coverageRatio: 1,
-      freshWindowHours: FRESH_WINDOW_HOURS,
+      dailyFreshWindowHours: FRESH_WINDOW_HOURS,
     });
     expect(signals[0]?.detail).toBeNull();
     expect(signals[1]?.evidence).toEqual({
@@ -122,14 +122,14 @@ describe('collectProductSignals', () => {
     });
 
     expect(signals[0]?.status).toBe('degraded');
-    expect(signals[0]?.detail).toContain('20 of 23 priority wallets');
+    expect(signals[0]?.detail).toContain('20 of 23 scheduled wallets');
     expect(signals[0]?.evidence).toEqual({
       expectedWallets: 23,
       freshWallets: 20,
       staleWallets: 3,
       neverRefreshedWallets: 1,
       coverageRatio: 0.87,
-      freshWindowHours: FRESH_WINDOW_HOURS,
+      dailyFreshWindowHours: FRESH_WINDOW_HOURS,
     });
     expect(signals[1]?.status).toBe('healthy');
   });
@@ -148,14 +148,14 @@ describe('collectProductSignals', () => {
     const signals = await collect({ coverage: coverage({ expected: 0 }) });
 
     expect(signals[0]?.status).toBe('healthy');
-    expect(signals[0]?.title).toBe('No priority wallets to refresh');
+    expect(signals[0]?.title).toBe('No scheduled wallets to refresh');
     expect(signals[0]?.evidence).toEqual({
       expectedWallets: 0,
       freshWallets: 0,
       staleWallets: 0,
       neverRefreshedWallets: 0,
       coverageRatio: null,
-      freshWindowHours: FRESH_WINDOW_HOURS,
+      dailyFreshWindowHours: FRESH_WINDOW_HOURS,
     });
   });
 
@@ -163,14 +163,14 @@ describe('collectProductSignals', () => {
     const signals = await collect({ coverage: null });
 
     expect(signals[0]?.status).toBe('degraded');
-    expect(signals[0]?.title).toBe('Priority wallet coverage unreadable');
+    expect(signals[0]?.title).toBe('Scheduled wallet coverage unreadable');
     expect(signals[0]?.evidence).toEqual({
       expectedWallets: null,
       freshWallets: null,
       staleWallets: null,
       neverRefreshedWallets: null,
       coverageRatio: null,
-      freshWindowHours: FRESH_WINDOW_HOURS,
+      dailyFreshWindowHours: FRESH_WINDOW_HOURS,
     });
   });
 

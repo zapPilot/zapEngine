@@ -122,7 +122,7 @@ A signal is a claim that somebody could still act. Two classes of row are failur
 
 Renders left behind by a superseded visual version are the normal case, not an edge case: a version bump is a deliberate quality change, and the episodes that were mid-flight when it landed can only be revived by `retry_episode_video_generation(p_force_replan => true)`, which re-runs the storyboard, the subject catalog and the Brave budget from scratch. That is a spend decision per episode, so it belongs to an operator deciding which back-catalogue episodes are worth re-rendering — never to an agent clearing a queue. When that decision is made, make it explicitly; do not reach it by treating the stale rows as an incident backlog.
 
-**Inactive priority accounts.** Refreshing a priority account nobody has opened in 30+ days costs a few dollars a month, and stopping it is a pricing decision, not a defect. Reporting it as `degraded` only ever produced triage that ended in "leave it alone". The count remains visible on the Customers view as `inactiveButPriority`; it is not an incident and must not be reintroduced as one.
+**Inactive accounts.** Owner policy schedules all non-paused accounts with 30+ days of inactivity (or unknown activity) weekly, including standard accounts. Active priority accounts retain daily refresh. `get_user_service_states()` owns this decision; coverage and stale-data signals read its cadence. `inactiveButPriority` now identifies inactive priority accounts still on a faster cadence, rather than treating correctly weekly accounts as unresolved pricing decisions.
 
 Withholding is not suppression: both cases stay fully readable through the ordinary Pipeline and Customers views. What is removed is the claim that somebody is supposed to do something about them.
 
@@ -211,6 +211,13 @@ sparkline is only a display summary. A SHA plus a before/after delta is correlat
 not causality. Keep low-volume results inconclusive without sufficient evidence.
 Experiment decisions and results belong in operator issues; the initial landing
 CTA proposal is [issue #574](https://github.com/zapPilot/zapEngine/issues/574).
+
+`ops_growth.ctaExperiment` provides the versioned homepage CTA readout: mature
+anonymous visitors, ordered 24h visibility/form stages, first-touch durable
+signups joined by exposure ID, source/device segments, bounded failure reasons,
+exclusions and measurement availability. `baseline` is observational;
+`review_ready` is a sample floor, not a winner. See
+[the experiment runbook](../../docs/operations/landing-cta-experiment.md).
 
 ### GitHub Security (0.13.0)
 

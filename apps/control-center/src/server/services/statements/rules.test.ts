@@ -257,6 +257,7 @@ describe('ruleR8', () => {
         users: [
           {
             effectiveTier: 'priority',
+            refreshIntervalHours: 24,
             inactiveDays: 45,
             attributedCostUsd30d: 1.5,
           },
@@ -687,6 +688,7 @@ describe('narrative direction and attribution', () => {
         users: [
           {
             effectiveTier: 'priority',
+            refreshIntervalHours: 24,
             inactiveDays: null,
             attributedCostUsd30d: null,
           },

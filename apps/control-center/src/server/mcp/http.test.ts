@@ -1,3 +1,5 @@
+import { readCtaExperiment } from '../services/operations/cta-experiment.js';
+
 import { createControlCenterApp } from '../app.js';
 import type { createOperationsService } from '../services/operations/aggregate.js';
 import { unavailableContentPackaging } from '../../shared/content-packaging.js';
@@ -195,6 +197,10 @@ describe('Ops MCP HTTP protocol', () => {
         waitlist: { status: 'unavailable' as const, message: 'offline' },
       },
       journey: await loadGrowthJourney({ config: readControlCenterConfig({}) }),
+      ctaExperiment: await readCtaExperiment({
+        config: readControlCenterConfig({}),
+        now: new Date('2026-09-19T00:00:00Z'),
+      }),
     };
     vi.mocked(operations.getGrowth).mockResolvedValue(growth);
     const { payload } = await mcpRequest(

@@ -228,7 +228,9 @@ jobs:
       - uses: ./.github/actions/setup-workspace
 
       - name: Security audit (Node + Python)
+        shell: bash
         run: |
+          set -o pipefail
           mkdir -p .ai-verify/logs
           pnpm run security audit 2>&1 | tee .ai-verify/logs/security.log
 

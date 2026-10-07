@@ -24,7 +24,7 @@ type CoverageStatus = Exclude<OperationalStatus, 'unknown'>;
 /**
  * Fleet-wide floors, deliberately not per-wallet ones.
  *
- * Against the current ~23 priority wallets, 0.95 tolerates exactly one
+ * Against the current ~23 scheduled wallets, 0.95 tolerates exactly one
  * straggler. That is the point: a single wallet that missed a cycle is already
  * named individually, and weighted by the AUM behind it, in the customers
  * domain, so a fleet-wide alarm for the same wallet would only report the fact
@@ -37,9 +37,9 @@ const HEALTHY_COVERAGE = 0.95;
 const DEGRADED_COVERAGE = 0.7;
 
 const COVERAGE_TITLE: Record<CoverageStatus, string> = {
-  healthy: 'Priority wallets are refreshing',
-  degraded: 'Priority wallets are falling behind',
-  critical: 'Priority wallet refresh has stalled',
+  healthy: 'Scheduled wallets are refreshing',
+  degraded: 'Scheduled wallets are falling behind',
+  critical: 'Scheduled wallet refresh has stalled',
 };
 
 export async function collectProductSignals(input: {
@@ -146,9 +146,9 @@ function coverageSignal(
       // told everything is current, and it is exactly the case the old signal
       // used to swallow.
       status: 'degraded',
-      title: 'Priority wallet coverage unreadable',
+      title: 'Scheduled wallet coverage unreadable',
       detail:
-        'get_user_service_states() did not answer, so whether the priority ' +
+        'get_user_service_states() did not answer, so whether the scheduled ' +
         'wallets are being refreshed is currently unknown.',
       evidence: {
         expectedWallets: null,
@@ -156,7 +156,7 @@ function coverageSignal(
         staleWallets: null,
         neverRefreshedWallets: null,
         coverageRatio: null,
-        freshWindowHours: FRESH_WINDOW_HOURS,
+        dailyFreshWindowHours: FRESH_WINDOW_HOURS,
       },
       observedAt: now,
     });
@@ -175,13 +175,13 @@ function coverageSignal(
     status,
     title:
       coverage.expected === 0
-        ? 'No priority wallets to refresh'
+        ? 'No scheduled wallets to refresh'
         : COVERAGE_TITLE[status],
     detail:
       status === 'healthy'
         ? null
-        : `${coverage.fresh} of ${coverage.expected} priority wallets refreshed ` +
-          `within ${FRESH_WINDOW_HOURS}h — ${coverage.stale} behind, ` +
+        : `${coverage.fresh} of ${coverage.expected} scheduled wallets refreshed ` +
+          `within their scheduled refresh windows — ${coverage.stale} behind, ` +
           `${coverage.neverRefreshed} never refreshed.`,
     evidence: {
       expectedWallets: coverage.expected,
@@ -189,7 +189,7 @@ function coverageSignal(
       staleWallets: coverage.stale,
       neverRefreshedWallets: coverage.neverRefreshed,
       coverageRatio: ratio === null ? null : roundRatio(ratio),
-      freshWindowHours: FRESH_WINDOW_HOURS,
+      dailyFreshWindowHours: FRESH_WINDOW_HOURS,
     },
     observedAt: now,
   });
