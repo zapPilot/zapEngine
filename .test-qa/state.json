@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-07T06:03:16.000Z",
+  "generatedAt": "2026-10-07T14:00:13.000Z",
   "github": {
     "runId": 0,
     "runAttempt": 1,
-    "sha": "99426e898b6761765961fb97849da375fdcf6b15"
+    "sha": "bf7370597b2ea243bf6803dc98477d59590842f5"
   },
   "scopes": {
     "apps/control-center/src/client/pages/ReliabilityPage.tsx": {
@@ -499,6 +499,29 @@
       ],
       "findings": [],
       "note": "Shared podcast tests cover share origin, component encoding, language vocabulary and video-stage contracts; no clear Phase 1 test defect."
+    },
+    "apps/analytics-engine/scripts/landing/market_signals.py": {
+      "status": "pending",
+      "auditedAt": "2026-10-07T14:00:13.000Z",
+      "auditedCommit": "bf7370597b2ea243bf6803dc98477d59590842f5",
+      "pathShas": {
+        "apps/analytics-engine/scripts/landing/market_signals.py": "899accd1b4a0af50eca2904b1d95036dc9d60454",
+        "apps/analytics-engine/tests/scripts/test_market_signals.py": "ab4a68bdcb2b80b7c43a3185b5a0fda7d78d1e97"
+      },
+      "files": [
+        "apps/analytics-engine/tests/scripts/test_market_signals.py"
+      ],
+      "relatedPaths": [
+        "apps/analytics-engine/scripts/landing/market_signals.py"
+      ],
+      "findings": [
+        {
+          "id": "market-signals-validator-boundaries-20261007",
+          "kind": "test",
+          "summary": "Added direct assertions that dashboard validation rejects non-object series/meta registries and a last snapshot missing snapshot_date."
+        }
+      ],
+      "note": "Worker commit 0e3a6ec8310d9cdb6d167effdfd1c48f74fb325e; PR creation blocked by connector safety checks."
     }
   },
   "runs": [
@@ -613,6 +636,15 @@
         "apps/app/src/integration/podcastSections.ts"
       ],
       "note": "Existing podcast progress worker commit ce4c4d3 remains un-PR'd: create_pull_request blocked by safety checks. Attempt to append social state language/platform isolation regression test also blocked. Podcast storage remains pending; podcast sections unchanged/clean. Connector-only commands unavailable."
+    },
+    {
+      "workerRunId": "20261007T140013Z",
+      "at": "2026-10-07T14:00:13.000Z",
+      "outcome": "changed",
+      "scopes": [
+        "apps/analytics-engine/scripts/landing/market_signals.py"
+      ],
+      "note": "Merged latest main non-rewriting into existing worker, added market-signals validator boundary tests. PR creation blocked; canonical re-read found no open test-qa worker PR. Connector-only local commands unavailable; current head status only Vercel success."
     }
   ]
 }
