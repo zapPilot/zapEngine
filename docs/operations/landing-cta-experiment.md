@@ -89,7 +89,7 @@ actual exposure start/end, exclusions, counts and uncertainty in every review.
 
 ## Deployment and setup order
 
-1. Apply `20261003010000_waitlist_cta_experiment.sql` through the existing
+1. Apply `20261006232013_waitlist_cta_experiment.sql` through the existing
    migration rail. Do not bypass the account-engine service-role route.
 2. Deploy account-engine, Landing and Control Center from the reviewed PR.
    The migration must precede the writer and the new reader.
