@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-07T04:58:20.000Z",
+  "generatedAt": "2026-10-07T06:03:16.000Z",
   "github": {
     "runId": 0,
     "runAttempt": 1,
@@ -397,19 +397,25 @@
     },
     "apps/podcast-pipeline/src/social/state.ts": {
       "status": "clean",
-      "auditedAt": "2026-10-07T03:57:42.000Z",
-      "auditedCommit": "76234c174290c0f7fc7f7b93d66238723079e64e",
+      "auditedAt": "2026-10-07T06:03:16.000Z",
+      "auditedCommit": "99426e898b6761765961fb97849da375fdcf6b15",
       "pathShas": {
         "apps/podcast-pipeline/src/social/state.ts": "6b3318e5c8fddcb9c62492a5eeea710fe9551a64",
-        "apps/podcast-pipeline/src/social/state.coverage.test.ts": "ac0c60bbce7d26c6e9efbf2c2550340d88b27d55"
+        "apps/podcast-pipeline/src/social/state.test.ts": "00794e3685094330ce5f62d8815b43ba438a39d5"
       },
       "files": [
-        "apps/podcast-pipeline/src/social/state.coverage.test.ts"
+        "apps/podcast-pipeline/src/social/state.test.ts"
       ],
       "relatedPaths": [
         "apps/podcast-pipeline/src/social/state.ts"
       ],
-      "findings": []
+      "findings": [
+        {
+          "id": "social-state-language-platform-isolation-20261007",
+          "kind": "test",
+          "summary": "Deferred: missing cross-language and cross-platform persistence isolation assertions; attempted test-only write was blocked by connector safety checks."
+        }
+      ]
     },
     "apps/control-center/src/server/app.ts": {
       "status": "clean",
@@ -596,6 +602,17 @@
         "packages/types/src/shared/podcast.ts"
       ],
       "note": "Pending worker commit ce4c4d3 remains on test-qa/hourly-20261007. PR creation blocked by safety checks and canonical re-read confirmed no open worker PR. Connector-only local commands unavailable."
+    },
+    {
+      "workerRunId": "20261007T060316Z",
+      "at": "2026-10-07T06:03:16.000Z",
+      "outcome": "deferred",
+      "scopes": [
+        "apps/podcast-pipeline/src/social/state.ts",
+        "apps/app/src/storage/podcastStorageCore.ts",
+        "apps/app/src/integration/podcastSections.ts"
+      ],
+      "note": "Existing podcast progress worker commit ce4c4d3 remains un-PR'd: create_pull_request blocked by safety checks. Attempt to append social state language/platform isolation regression test also blocked. Podcast storage remains pending; podcast sections unchanged/clean. Connector-only commands unavailable."
     }
   ]
 }
