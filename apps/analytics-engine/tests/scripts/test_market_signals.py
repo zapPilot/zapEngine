@@ -57,6 +57,26 @@ def test_validate_dashboard_payload_rejects_wrong_count() -> None:
         validate_dashboard_payload(payload)
 
 
+def test_validate_dashboard_payload_rejects_non_object_registries() -> None:
+    payload = _payload()
+    payload["series"] = []
+    with pytest.raises(ValueError, match="series registry is missing"):
+        validate_dashboard_payload(payload)
+
+    payload = _payload()
+    payload["meta"] = []
+    with pytest.raises(ValueError, match="meta.count does not match"):
+        validate_dashboard_payload(payload)
+
+
+def test_validate_dashboard_payload_rejects_last_snapshot_without_date() -> None:
+    payload = _payload()
+    payload["snapshots"][-1].pop("snapshot_date")
+
+    with pytest.raises(ValueError, match="last snapshot_date is missing"):
+        validate_dashboard_payload(payload)
+
+
 def test_normalize_meta_timestamp_is_idempotent() -> None:
     payload = _payload()
     once = normalize_meta_timestamp(payload)
