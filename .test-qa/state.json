@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-07T03:57:42.000Z",
+  "generatedAt": "2026-10-07T04:58:20.000Z",
   "github": {
     "runId": 0,
     "runAttempt": 1,
-    "sha": "76234c174290c0f7fc7f7b93d66238723079e64e"
+    "sha": "99426e898b6761765961fb97849da375fdcf6b15"
   },
   "scopes": {
     "apps/control-center/src/client/pages/ReliabilityPage.tsx": {
@@ -442,6 +442,57 @@
         "apps/podcast-pipeline/src/index.ts"
       ],
       "findings": []
+    },
+    "apps/app/src/components/podcast/OpenEpisodeInApp.web.tsx": {
+      "status": "clean",
+      "auditedAt": "2026-10-07T04:58:20.000Z",
+      "auditedCommit": "99426e898b6761765961fb97849da375fdcf6b15",
+      "pathShas": {
+        "apps/app/src/components/podcast/OpenEpisodeInApp.web.tsx": "06d9eedbe6d9655ff365ff434fb368af7c113d13",
+        "apps/app/tests/OpenEpisodeInApp.test.tsx": "d41e3cb2b7d089f7383f82503f7b36019c15e87c"
+      },
+      "files": [
+        "apps/app/tests/OpenEpisodeInApp.test.tsx"
+      ],
+      "relatedPaths": [
+        "apps/app/src/components/podcast/OpenEpisodeInApp.web.tsx"
+      ],
+      "findings": [],
+      "note": "Web mobile detection, encoded deep-link destination, desktop suppression, dismissal, prop update, and native null behavior are directly asserted; no clear Phase 1 test defect."
+    },
+    "apps/podcast-pipeline/src/services/share-page.ts": {
+      "status": "clean",
+      "auditedAt": "2026-10-07T04:58:20.000Z",
+      "auditedCommit": "99426e898b6761765961fb97849da375fdcf6b15",
+      "pathShas": {
+        "apps/podcast-pipeline/src/services/share-page.ts": "da0ec2cecab133f143fc474b893cb95764cc1707",
+        "apps/podcast-pipeline/src/services/share-page.test.ts": "5c106ea50bda4ccd1a9c0170e30f07a18a69aff1"
+      },
+      "files": [
+        "apps/podcast-pipeline/src/services/share-page.test.ts"
+      ],
+      "relatedPaths": [
+        "apps/podcast-pipeline/src/services/share-page.ts"
+      ],
+      "findings": [],
+      "note": "Share-page tests cover browser redirects, crawler metadata, fallback, not-found, escaping, media metadata, descriptions and web-only action; no clear Phase 1 test defect."
+    },
+    "packages/types/src/shared/podcast.ts": {
+      "status": "clean",
+      "auditedAt": "2026-10-07T04:58:20.000Z",
+      "auditedCommit": "99426e898b6761765961fb97849da375fdcf6b15",
+      "pathShas": {
+        "packages/types/src/shared/podcast.ts": "c61070f5c70eb7c1d3206d8f8c81c13ecac4f994",
+        "packages/types/tests/unit/shared/podcast.test.ts": "a2458babe2e36adf67fc4b384e6ebd5af3e20ef6"
+      },
+      "files": [
+        "packages/types/tests/unit/shared/podcast.test.ts"
+      ],
+      "relatedPaths": [
+        "packages/types/src/shared/podcast.ts"
+      ],
+      "findings": [],
+      "note": "Shared podcast tests cover share origin, component encoding, language vocabulary and video-stage contracts; no clear Phase 1 test defect."
     }
   },
   "runs": [
@@ -534,6 +585,17 @@
         "apps/podcast-pipeline/src/index.ts"
       ],
       "note": "Existing pending worker commit ce4c4d343fce8575e1726265d3e55982de9d1cf1 remains on test-qa/hourly-20261007; create_pull_request was blocked by safety checks and canonical GitHub re-read confirmed no open worker PR. Connector has no non-rewriting branch merge operation. Local selector/tests/coverage/lint/type-check/guard unavailable; GitHub source inspection used."
+    },
+    {
+      "workerRunId": "20261007T045820Z",
+      "at": "2026-10-07T04:58:20.000Z",
+      "outcome": "clean",
+      "scopes": [
+        "apps/app/src/components/podcast/OpenEpisodeInApp.web.tsx",
+        "apps/podcast-pipeline/src/services/share-page.ts",
+        "packages/types/src/shared/podcast.ts"
+      ],
+      "note": "Pending worker commit ce4c4d3 remains on test-qa/hourly-20261007. PR creation blocked by safety checks and canonical re-read confirmed no open worker PR. Connector-only local commands unavailable."
     }
   ]
 }
