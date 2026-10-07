@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-06T23:55:00.000Z",
+  "generatedAt": "2026-10-06T23:51:00.000Z",
   "github": {
     "runId": 0,
     "runAttempt": 1,
@@ -291,9 +291,76 @@
       "relatedPaths": [],
       "findings": [],
       "note": "Pure-tail coverage tests were read with regimeData; casts deliberately create impossible Regime shapes to exercise the defensive fallback/error branches, so retaining them is behaviorally justified."
+    },
+    "apps/alpha-etl/src/modules/macro-fear-greed/schema.ts": {
+      "status": "clean",
+      "auditedAt": "2026-10-06T23:51:00.000Z",
+      "auditedCommit": "125609677a297dffb3696ead050f2070ba701e21",
+      "pathShas": {
+        "apps/alpha-etl/src/modules/macro-fear-greed/schema.ts": "4892f6bb61134720749f84cdd3db34c9ebc4c42e",
+        "apps/alpha-etl/tests/unit/modules/macro-fear-greed/schema.coverage.test.ts": "d3fc541e0e0558c181b8cce515770669c1cd5e4e",
+        "apps/alpha-etl/tests/unit/modules/macro-fear-greed/schema.test.ts": "a9291a6381886f65a1c1af3518cbfe6c94d78a96"
+      },
+      "files": [
+        "apps/alpha-etl/tests/unit/modules/macro-fear-greed/schema.coverage.test.ts",
+        "apps/alpha-etl/tests/unit/modules/macro-fear-greed/schema.test.ts"
+      ],
+      "relatedPaths": [
+        "apps/alpha-etl/src/modules/macro-fear-greed/schema.ts"
+      ],
+      "findings": [],
+      "note": "Read coverage and regular tests against production; existing tests exercise the named boundary behavior. No clear Phase 1 defect. Connector-only: selector, local test/coverage/lint/type/guard commands unavailable."
+    },
+    "apps/alpha-etl/src/modules/macro-fear-greed/writer.ts": {
+      "status": "clean",
+      "auditedAt": "2026-10-06T23:51:00.000Z",
+      "auditedCommit": "125609677a297dffb3696ead050f2070ba701e21",
+      "pathShas": {
+        "apps/alpha-etl/src/modules/macro-fear-greed/writer.ts": "75f140921e342e3de5c5ee2e68d44767e17632b8",
+        "apps/alpha-etl/tests/unit/modules/macro-fear-greed/writer.coverage.test.ts": "5a0be97493943953bf71d0417d617b85b5cd76d5",
+        "apps/alpha-etl/tests/unit/modules/macro-fear-greed/writer.test.ts": "546397688b5aa9889e3f9cfd6068701d60c6d152"
+      },
+      "files": [
+        "apps/alpha-etl/tests/unit/modules/macro-fear-greed/writer.coverage.test.ts",
+        "apps/alpha-etl/tests/unit/modules/macro-fear-greed/writer.test.ts"
+      ],
+      "relatedPaths": [
+        "apps/alpha-etl/src/modules/macro-fear-greed/writer.ts"
+      ],
+      "findings": [],
+      "note": "Read coverage and regular tests against production; existing tests exercise the named boundary behavior. No clear Phase 1 defect. Connector-only: selector, local test/coverage/lint/type/guard commands unavailable."
+    },
+    "apps/alpha-etl/src/modules/macro-fear-greed/processor.ts": {
+      "status": "clean",
+      "auditedAt": "2026-10-06T23:51:00.000Z",
+      "auditedCommit": "125609677a297dffb3696ead050f2070ba701e21",
+      "pathShas": {
+        "apps/alpha-etl/src/modules/macro-fear-greed/processor.ts": "114a4eb640092826c7e39196fac1c9497a77b12a",
+        "apps/alpha-etl/tests/unit/modules/macro-fear-greed/processor.coverage.test.ts": "95e9530ee412f3e663022e5c545f6cbe58d6cb3b",
+        "apps/alpha-etl/tests/unit/modules/macro-fear-greed/processor.test.ts": "1a4dadebc10fda164c45b33465c0902e5ae242dc"
+      },
+      "files": [
+        "apps/alpha-etl/tests/unit/modules/macro-fear-greed/processor.coverage.test.ts",
+        "apps/alpha-etl/tests/unit/modules/macro-fear-greed/processor.test.ts"
+      ],
+      "relatedPaths": [
+        "apps/alpha-etl/src/modules/macro-fear-greed/processor.ts"
+      ],
+      "findings": [],
+      "note": "Read coverage and regular tests against production; existing tests exercise the named boundary behavior. No clear Phase 1 defect. Connector-only: selector, local test/coverage/lint/type/guard commands unavailable."
     }
   },
   "runs": [
+    {
+      "workerRunId": "20261006T235100Z",
+      "at": "2026-10-06T23:51:00.000Z",
+      "outcome": "clean",
+      "scopes": [
+        "apps/alpha-etl/src/modules/macro-fear-greed/schema.ts",
+        "apps/alpha-etl/src/modules/macro-fear-greed/writer.ts",
+        "apps/alpha-etl/src/modules/macro-fear-greed/processor.ts"
+      ]
+    },
     {
       "workerRunId": "20261006T235500Z",
       "at": "2026-10-06T23:55:00.000Z",
