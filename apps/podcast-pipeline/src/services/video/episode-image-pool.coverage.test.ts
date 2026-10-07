@@ -5,7 +5,7 @@ import {
   canSearch,
   createEpisodeImagePool,
   deriveSearchSubjects,
-  fallbackEntryMatchesSceneQuery,
+  fallbackBasis,
   hasSearched,
   markAttempted,
   plannedPrimarySubjects,
@@ -222,28 +222,14 @@ describe('episode image pool coverage edges', () => {
     ).rejects.toThrow();
   });
 
-  it('covers fallback matching for context, empty vocabularies, and actual overlap', () => {
+  it('does not borrow images when a context scene has no identity or cue evidence', () => {
     expect(
-      fallbackEntryMatchesSceneQuery(
-        { requestQuery: 'anything' },
-        {
-          imageSearchIntent: [],
-          searchAnchor: 'context',
-        },
-      ),
-    ).toBe(true);
-    expect(
-      fallbackEntryMatchesSceneQuery(
-        { requestQuery: '123 456' },
-        { imageSearchIntent: ['the and'] },
-      ),
-    ).toBe(true);
-    expect(
-      fallbackEntryMatchesSceneQuery(
-        { requestQuery: 'NVIDIA GPU launch' },
-        { imageSearchIntent: ['NVIDIA earnings'] },
-      ),
-    ).toBe(true);
+      fallbackBasis(createEpisodeImagePool([]), entry(), {
+        sceneId: 'scene-01',
+        imageSearchIntent: [],
+        searchAnchor: 'context',
+      }),
+    ).toBeNull();
   });
 
   it('ranks a context fallback scene whose search intent is empty', () => {
@@ -260,7 +246,7 @@ describe('episode image pool coverage edges', () => {
         [],
         new Map(),
       ),
-    ).toHaveLength(1);
+    ).toHaveLength(0);
   });
 
   it('marks an external entry attempted and penalizes repeated fallback draws', () => {
@@ -341,6 +327,7 @@ describe('episode image pool coverage edges', () => {
         {
           sceneId: 'scene-01',
           imageSearchIntent: ['market'],
+          visualCue: 'market overview',
           searchAnchor: 'context',
         },
         [],
@@ -403,4 +390,24 @@ describe('episode image pool coverage edges', () => {
     expect(shared.queryKeys).toHaveLength(2);
     expect(shared.providerRank).toBe(0);
   });
+});
+
+it('ranks a cue-compatible donor even when the scene has no search intent', () => {
+  const pool = createEpisodeImagePool([]);
+  pool.entries.set(
+    'generic',
+    entry({ candidate: candidate('generic', 'market overview') }),
+  );
+  expect(
+    rankFallbackEntries(
+      pool,
+      {
+        sceneId: 'scene-01',
+        imageSearchIntent: [],
+        visualCue: 'market overview',
+      },
+      [],
+      new Map(),
+    ),
+  ).toHaveLength(1);
 });

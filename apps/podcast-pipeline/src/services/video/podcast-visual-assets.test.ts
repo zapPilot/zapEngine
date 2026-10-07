@@ -9,6 +9,7 @@ import {
   PODCAST_INTRO_VISUAL_INTENT,
   PODCAST_OUTRO_VISUAL_INTENT,
 } from '../podcast-packaging.js';
+import { fixturePlannerContext } from './__fixtures__/identity-catalog.js';
 import type { AcquiredRemoteImage } from './assets.js';
 import {
   anchoredPlannerScenes,
@@ -32,6 +33,12 @@ describe('planPodcastVisualAssets', () => {
     const progress: { phase: string; sceneId: string }[] = [];
 
     const plan = await planPodcastVisualAssets({
+      ...fixturePlannerContext([
+        {
+          sceneId: 'scene-01',
+          imageSearchIntent: [PODCAST_INTRO_VISUAL_INTENT],
+        },
+      ]),
       scenes: [
         {
           sceneId: 'scene-01',
@@ -74,6 +81,16 @@ describe('planPodcastVisualAssets', () => {
 
     const cover = candidate('article-body');
     const plan = await planPodcastVisualAssets({
+      ...fixturePlannerContext([
+        {
+          sceneId: 'scene-01',
+          imageSearchIntent: [PODCAST_INTRO_VISUAL_INTENT],
+        },
+        {
+          sceneId: 'scene-02',
+          imageSearchIntent: ['Federal Reserve balance sheet'],
+        },
+      ]),
       scenes: [
         {
           sceneId: 'scene-01',
@@ -129,6 +146,13 @@ describe('planPodcastVisualAssets', () => {
   it('plans the Zap Pilot outro brand asset without search', async () => {
     const directory = await temporaryDirectory();
     const plan = await planPodcastVisualAssets({
+      ...fixturePlannerContext([
+        { sceneId: 'scene-01', imageSearchIntent: ['market'] },
+        {
+          sceneId: 'scene-02',
+          imageSearchIntent: [PODCAST_OUTRO_VISUAL_INTENT],
+        },
+      ]),
       scenes: [
         { sceneId: 'scene-01', imageSearchIntent: ['market'] },
         {
@@ -161,6 +185,9 @@ describe('planPodcastVisualAssets', () => {
 
     await expect(
       planPodcastVisualAssets({
+        ...fixturePlannerContext([
+          { sceneId: 'scene-01', imageSearchIntent: ['market'] },
+        ]),
         scenes: [{ sceneId: 'scene-01', imageSearchIntent: ['market'] }],
         articleImages: [candidate('body-photo', 'article')],
         workingDirectory: join(directory, 'images'),
@@ -189,6 +216,9 @@ describe('planPodcastVisualAssets', () => {
 
     await expect(
       planPodcastVisualAssets({
+        ...fixturePlannerContext([
+          { sceneId: 'scene-01', imageSearchIntent: ['market'] },
+        ]),
         scenes: [{ sceneId: 'scene-01', imageSearchIntent: ['market'] }],
         articleImages: [
           candidate('og-cover'),
@@ -229,6 +259,9 @@ describe('planPodcastVisualAssets', () => {
       },
     );
     const input = {
+      ...fixturePlannerContext([
+        { sceneId: 'scene-01', imageSearchIntent: ['market'] },
+      ]),
       scenes: [{ sceneId: 'scene-01', imageSearchIntent: ['market'] }],
       articleImages: [cover, candidate('body-photo', 'article')],
       workingDirectory: join(directory, 'images'),
@@ -278,6 +311,13 @@ describe('planPodcastVisualAssets', () => {
 
     const cover = candidate('publisher-cover');
     const plan = await planPodcastVisualAssets({
+      ...fixturePlannerContext([
+        {
+          sceneId: 'scene-01',
+          imageSearchIntent: ['Federal Reserve balance sheet'],
+        },
+        { sceneId: 'scene-02', imageSearchIntent: ['Treasury bond auction'] },
+      ]),
       scenes: [
         {
           sceneId: 'scene-01',
@@ -296,7 +336,7 @@ describe('planPodcastVisualAssets', () => {
     });
 
     expect(search.mock.calls.map(([query]) => query)).toEqual([
-      'Treasury bond auction',
+      'Bank of Japan',
     ]);
     expect(plan.scenes).toEqual([
       { sceneId: 'scene-01', assetId: 'image-01' },
@@ -323,7 +363,8 @@ describe('planPodcastVisualAssets', () => {
           aliases: [] as string[],
           storyRole: 'primary' as const,
           evidenceSceneIds: ['scene-01'],
-          searchQueries: ['NVIDIA GPU maker'],
+
+          searchQuery: 'NVIDIA GPU maker',
           identityHints: ['GPU maker'],
           negativeHints: [] as string[],
           officialDomains: [] as string[],
@@ -362,13 +403,13 @@ describe('planPodcastVisualAssets', () => {
       visualCue: 'chip launch keynote',
       searchAnchor: 'direct',
     });
-    expect(scenes[0]?.cueQuery).toContain('NVIDIA');
-    expect(scenes[0]?.cueQuery).toContain('chip launch keynote');
+    expect(scenes[0]?.imageSearchIntent).toEqual(['NVIDIA GPU maker']);
+    expect(scenes[0]?.visualCue).toContain('chip launch keynote');
     expect(scenes[1]).toMatchObject({
       visualCue: 'trading desk screens',
       searchAnchor: 'context',
     });
-    expect(scenes[1]?.cueQuery).toContain('NVIDIA');
+    expect(scenes[1]?.visualCue).toBe('trading desk screens');
   });
 });
 
@@ -411,3 +452,67 @@ function acquired(id: string): AcquiredRemoteImage {
     height: 900,
   };
 }
+
+it('restores only selections belonging to its content scenes', async () => {
+  const { fixtureSelection } =
+    await import('./__fixtures__/identity-catalog.js');
+  const { fixtureRemoteImage, fixtureImageFingerprint, fixtureBraveResults } =
+    await import('./__fixtures__/planner-images.js');
+  const { createImageSearchTrace } = await import('./image-search-trace.js');
+  const directory = await temporaryDirectory();
+  const cover = candidate('resume-cover');
+  const imageSearch = createImageSearchTrace(
+    { primary: 5, targeted: 3, max: 8 },
+    1,
+  );
+  imageSearch.scenes = [
+    fixtureSelection('scene-01'),
+    fixtureSelection('scene-99'),
+  ];
+  const contentScenes = [
+    { sceneId: 'scene-01', imageSearchIntent: ['Bank of Japan'] },
+    { sceneId: 'scene-02', imageSearchIntent: ['Bank of Japan'] },
+  ];
+  const result = await planPodcastVisualAssets({
+    ...fixturePlannerContext(contentScenes),
+    scenes: contentScenes,
+    workingDirectory: directory,
+    articleImages: [cover],
+    resumePlan: {
+      assets: [
+        {
+          ...fixtureRemoteImage(cover.imageUrl, directory),
+          assetId: 'image-01',
+          perceptualHash: '0'.repeat(16),
+          originalImageUrl: cover.imageUrl,
+          sourcePageUrl: cover.sourceUrl,
+          provider: 'article',
+          license: 'unknown',
+        },
+      ],
+      scenes: [{ sceneId: 'scene-01', assetId: 'image-01' }],
+      imageSearch,
+    },
+    dependencies: {
+      acquireImage: vi.fn(async (url: string) =>
+        fixtureRemoteImage(url, directory),
+      ),
+      fingerprintImage: vi.fn(async (path: string) =>
+        fixtureImageFingerprint(path),
+      ),
+      searchProviders: [
+        {
+          origin: 'brave',
+          search: vi.fn(async (query: string) => fixtureBraveResults(query, 2)),
+        },
+      ],
+    },
+  });
+  expect(result.imageSearch!.scenes.map((scene) => scene.sceneId)).toEqual([
+    'scene-01',
+    'scene-02',
+  ]);
+  expect(result.imageSearch!.scenes[0]).toMatchObject(
+    fixtureSelection('scene-01'),
+  );
+});

@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  identitySearchQuery,
   normalizeVisualSubjectCatalogInput,
   parseVisualSubjectCatalog,
-  prefixedSubjectQuery,
   visualSubjectById,
   visualSubjectsForScene,
 } from './subject-catalog.js';
@@ -16,7 +16,7 @@ function subject(overrides: Record<string, unknown> = {}) {
     aliases: [],
     storyRole: 'primary',
     evidenceSceneIds: ['scene-01'],
-    searchQueries: ['Primary Subject news'],
+
     identityHints: ['company'],
     negativeHints: [],
     officialDomains: [],
@@ -38,7 +38,7 @@ describe('subject catalog coverage edges', () => {
           }),
         ],
       }),
-    ).toThrow('duplicate subject IDs');
+    ).toThrow('duplicate subject ids: subject-primary (2×)');
   });
 
   it('rejects a missing declared primary and a declared ID that is not primary', () => {
@@ -129,7 +129,9 @@ describe('subject catalog coverage edges', () => {
 
     expect(visualSubjectById(catalog, 'subject-missing')).toBeNull();
     expect(visualSubjectsForScene(catalog, undefined)).toEqual([]);
-    expect(prefixedSubjectQuery(primary, '   ')).toBe('Primary Subject');
+    expect(identitySearchQuery({ ...primary, identityHints: [] }, '   ')).toBe(
+      'Primary Subject',
+    );
   });
 
   it('keeps an ambiguous subject unchanged when no usable identity hint exists', () => {

@@ -132,10 +132,10 @@ export function packagePodcastScript(rawBody: string): string {
 }
 
 export function podcastBrandVisualKind(
-  imageSearchIntent: readonly string[],
+  imageSearchIntent: readonly string[] | undefined,
 ): PodcastBrandVisualKind | null {
-  if (imageSearchIntent.includes(PODCAST_INTRO_VISUAL_INTENT)) return 'intro';
-  if (imageSearchIntent.includes(PODCAST_OUTRO_VISUAL_INTENT)) return 'outro';
+  if (imageSearchIntent?.includes(PODCAST_INTRO_VISUAL_INTENT)) return 'intro';
+  if (imageSearchIntent?.includes(PODCAST_OUTRO_VISUAL_INTENT)) return 'outro';
   return null;
 }
 

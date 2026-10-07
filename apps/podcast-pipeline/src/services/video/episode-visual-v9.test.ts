@@ -2,18 +2,23 @@ import { describe, expect, it } from 'vitest';
 
 import { EPISODE_VIDEO_VISUAL_VERSION } from '../video-jobs.js';
 import {
+  fixtureAssignments,
+  fixtureCatalog,
+  fixtureQualityReport,
+} from './__fixtures__/identity-catalog.js';
+import {
   buildEpisodeVisualPayload,
   hashEpisodeVisualSelection,
   parseEpisodeVisualPayload,
 } from './episode-visual.js';
 import type { VisualImageSearch } from './image-search-trace.js';
-import type { StoryboardGenerationResult } from './storyboard/orchestrator.js';
+import type { EnrichedStoryboardGenerationResult } from './storyboard/orchestrator.js';
 import type { PlannedVisualImage } from './visual-asset-planner.js';
 
 const episodeId = '00000000-0000-4000-8000-000000000001';
 const localizationId = '00000000-0000-4000-8000-000000000002';
 
-const storyboard: StoryboardGenerationResult = {
+const storyboard: EnrichedStoryboardGenerationResult = {
   draft: {
     scenes: [
       {
@@ -100,6 +105,7 @@ describe('episode visual v9 provenance', () => {
         sourceQuery: 'Justin Sun',
         providerRank: 0,
         fallbackReason: null,
+        fallbackBasis: null,
         visualCue: null,
         cueMatched: null,
         rejections: [{ cause: 'perceptual-duplicate', count: 2 }],
@@ -111,8 +117,13 @@ describe('episode visual v9 provenance', () => {
     overrides: Partial<Parameters<typeof buildEpisodeVisualPayload>[0]> = {},
   ) {
     return buildEpisodeVisualPayload({
+      subjectCatalog: fixtureCatalog,
+      sceneAssignments: fixtureAssignments(storyboard.draft),
+      qualityReport: fixtureQualityReport,
       visualVersion: EPISODE_VIDEO_VISUAL_VERSION,
       visualHash: hashEpisodeVisualSelection({
+        subjectCatalog: fixtureCatalog,
+        sceneAssignments: fixtureAssignments(storyboard.draft),
         visualVersion: EPISODE_VIDEO_VISUAL_VERSION,
         episodeId,
         canonicalLocalizationId: localizationId,
@@ -150,20 +161,13 @@ describe('episode visual v9 provenance', () => {
     expect(parseEpisodeVisualPayload(payload)).toEqual(payload);
   });
 
-  it('stores why the subject catalog degraded, and omits it when it did not', () => {
-    const degraded = buildPayload({
-      subjectCatalogFailure: 'subject catalog request failed: 503',
-    });
-
-    // Without this an episode whose catalog answer degraded is byte-identical
-    // in provenance to one whose scenes simply name nobody.
-    expect(degraded.provenance.subjectCatalogFailure).toBe(
-      'subject catalog request failed: 503',
-    );
-    expect(parseEpisodeVisualPayload(degraded)).toEqual(degraded);
-    expect(buildPayload().provenance).not.toHaveProperty(
-      'subjectCatalogFailure',
-    );
+  it('requires a completed visual quality report in stored provenance', () => {
+    const payload = buildPayload();
+    expect(payload.provenance.qualityReport.passed).toBe(true);
+    const provenance = { ...payload.provenance, qualityReport: undefined };
+    expect(() =>
+      parseEpisodeVisualPayload({ ...payload, provenance }),
+    ).toThrow();
   });
 
   it('keeps a stored per-provider search trace readable after the providers were retired', () => {

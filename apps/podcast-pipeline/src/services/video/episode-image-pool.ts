@@ -11,6 +11,7 @@ import {
 } from './image-search-trace.js';
 import {
   canonicalCandidateUrl,
+  cueTokenMatchCount,
   MAX_SEARCH_CANDIDATES_PER_REQUEST,
   mentionsAnyEntity,
   partitionViableCandidates,
@@ -59,31 +60,6 @@ export const IMAGE_SEARCH_BUDGET: ImageSearchBudget = {
 
 const BRAVE_ORIGINS: readonly ImageCandidate['origin'][] = ['brave'];
 
-/** Query-shaping words carry almost no topic identity. Keeping them would make
- * every cryptography result look compatible with every cryptography scene and
- * reproduce the exact failure this guard exists for (for example a Peter Shor
- * portrait filling a Bitcoin/BIP-32 scene because both requests are broadly
- * about signatures). */
-const FALLBACK_QUERY_NOISE = new Set([
-  'based',
-  'company',
-  'crypto',
-  'cryptocurrency',
-  'cryptography',
-  'digital',
-  'image',
-  'images',
-  'lattice',
-  'organization',
-  'photo',
-  'scheme',
-  'signature',
-  'signatures',
-  'standard',
-  'standards',
-  'technology',
-]);
-
 /** Anchors whose most recognizable picture is a mark rather than a photograph.
  * The decorative filter drops anything spelling `logo`, which for these types
  * removes the very result the query was sent for -- 64 of Tether's 100 results
@@ -103,7 +79,6 @@ export interface PoolSubjectScene {
   imageSearchEntities?: readonly string[];
   visualCue?: string;
   /** Trace-only in Phase 2. Search requests continue to use `imageSearchIntent`. */
-  cueQuery?: string;
   searchAnchor?: 'direct' | 'context';
   /** The catalog `type` of the scene's leading anchor. Only the decorative
    * filter reads it, to tell a company mark apart from a stray icon. */
@@ -131,6 +106,7 @@ export interface PoolEntry {
 
 export interface EpisodeImagePool {
   subjects: Map<string, SearchSubject>;
+  primaryEntities: readonly string[];
   subjectQueryKeys: Map<string, string>;
   entries: Map<string, PoolEntry>;
   requestedQueryKeys: Set<string>;
@@ -235,8 +211,10 @@ export function plannedPrimarySubjects(
 
 export function createEpisodeImagePool(
   subjects: readonly SearchSubject[],
+  options: { primaryEntities: readonly string[] } = { primaryEntities: [] },
 ): EpisodeImagePool {
   return {
+    primaryEntities: options.primaryEntities.map(normalizedEntityText),
     subjects: new Map(subjects.map((subject) => [subject.key, subject])),
     subjectQueryKeys: new Map(
       subjects.map((subject) => [
@@ -395,12 +373,9 @@ export function rankFallbackEntries(
   existingAssets: readonly RankedAgainstAsset[],
   poolDrawsBySubject: ReadonlyMap<string, number>,
 ): PoolEntry[] {
-  const subjectKey = poolSubjectKey(scene);
   return sortedByScore(
     untriedEntries(pool).filter(
-      (entry) =>
-        fallbackEntryMatchesSceneQuery(entry, scene) &&
-        !candidateExplicitlyNamesAnotherSubject(pool, entry, subjectKey),
+      (entry) => fallbackBasis(pool, entry, scene) !== null,
     ),
     (entry) =>
       sceneEntryScore(entry, scene, existingAssets) -
@@ -409,36 +384,39 @@ export function rankFallbackEntries(
   );
 }
 
-/**
- * Cross-subject fallback compares the request that produced an entry with the
- * scene's own query vocabulary. This is intentionally weaker than an entity
- * identity gate: unanchored scenes still degrade through the shared pool, while
- * an anchored scene refuses a donor whose query has no concrete overlap at all.
- */
-export function fallbackEntryMatchesSceneQuery(
-  entry: Pick<PoolEntry, 'requestQuery'>,
-  scene: Pick<
-    PoolSubjectScene,
-    'imageSearchIntent' | 'imageSearchEntities' | 'visualCue' | 'searchAnchor'
-  >,
-): boolean {
+export type FallbackBasis =
+  | 'shared-entity'
+  | 'candidate-names-entity'
+  | 'primary-subject'
+  | 'visual-cue';
+
+export function fallbackBasis(
+  pool: EpisodeImagePool,
+  entry: PoolEntry,
+  scene: PoolSubjectScene,
+): FallbackBasis | null {
   if (
-    scene.searchAnchor === 'context' &&
-    !scene.imageSearchEntities?.length &&
-    !scene.visualCue?.trim()
-  ) {
-    return true;
-  }
-  const sceneTerms = new Set(
-    [
-      ...scene.imageSearchIntent,
-      ...(scene.imageSearchEntities ?? []),
-      ...(scene.visualCue ? [scene.visualCue] : []),
-    ].flatMap(fallbackQueryTerms),
-  );
-  const donorTerms = fallbackQueryTerms(entry.requestQuery);
-  if (sceneTerms.size === 0 || donorTerms.length === 0) return true;
-  return donorTerms.some((term) => sceneTerms.has(term));
+    candidateExplicitlyNamesAnotherSubject(pool, entry, poolSubjectKey(scene))
+  )
+    return null;
+  const entities = normalizedSubjectEntities(scene);
+  const donors = [...pool.subjects.values()]
+    .filter((subject) =>
+      entry.queryKeys.includes(normalizeQueryKey(subject.query)),
+    )
+    .flatMap((subject) => subjectEntitiesFromKey(subject.key));
+  if (donors.some((entity) => entities.includes(entity)))
+    return 'shared-entity';
+  if (entities.length > 0 && mentionsAnyEntity(entry.candidate, entities))
+    return 'candidate-names-entity';
+  if (donors.some((entity) => pool.primaryEntities.includes(entity)))
+    return 'primary-subject';
+  if (
+    scene.visualCue &&
+    cueTokenMatchCount(entry.candidate, scene.visualCue) >= 2
+  )
+    return 'visual-cue';
+  return null;
 }
 
 export function markAttempted(pool: EpisodeImagePool, entry: PoolEntry): void {
@@ -657,18 +635,6 @@ function candidateExplicitlyNamesAnotherSubject(
 function subjectEntitiesFromKey(subjectKey: string): string[] {
   if (subjectKey.startsWith('intent:')) return [];
   return subjectKey.split('|').filter(Boolean);
-}
-
-function fallbackQueryTerms(value: string): string[] {
-  return normalizedEntityText(value)
-    .split(' ')
-    .map((term) => term.trim())
-    .filter(
-      (term) =>
-        term.length >= 2 &&
-        !FALLBACK_QUERY_NOISE.has(term) &&
-        !/^\d+$/u.test(term),
-    );
 }
 
 function sortedByScore(

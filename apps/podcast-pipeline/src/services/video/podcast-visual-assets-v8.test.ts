@@ -37,7 +37,7 @@ describe('podcast visual assets subject ranking', () => {
           aliases: [],
           storyRole: 'primary',
           evidenceSceneIds: ['scene-01'],
-          searchQueries: ['Coinbase tokenized stocks'],
+
           identityHints: ['crypto exchange', 'Base'],
           negativeHints: [],
           officialDomains: [],
@@ -49,7 +49,7 @@ describe('podcast visual assets subject ranking', () => {
           aliases: ['Alpaca Markets'],
           storyRole: 'secondary',
           evidenceSceneIds: ['scene-02'],
-          searchQueries: ['Alpaca custody broker'],
+
           identityHints: ['brokerage', 'custody'],
           negativeHints: ['animal', 'alpacas'],
           officialDomains: [],
@@ -61,7 +61,7 @@ describe('podcast visual assets subject ranking', () => {
           aliases: [],
           storyRole: 'secondary',
           evidenceSceneIds: ['scene-03'],
-          searchQueries: ['B20 tokenized stocks'],
+
           identityHints: ['Base', 'ERC-20'],
           negativeHints: ['Profoto', 'camera', 'Honda', 'engine'],
           officialDomains: [],
@@ -108,7 +108,7 @@ describe('podcast visual assets subject ranking', () => {
           ),
           braveCandidate(
             'coinbase',
-            'Coinbase tokenized stocks on Base',
+            'Coinbase crypto exchange on Base',
             'https://news.example.test/coinbase-tokenized-stocks',
           ),
         ];
@@ -190,15 +190,15 @@ describe('podcast visual assets subject ranking', () => {
     ]);
     // The catalog's own `searchQueries` reach the provider verbatim, so a
     // disambiguated subject is searched by the ambiguous name the episode
-    // actually wrote -- `B20 tokenized stocks`, not `Base B20 B20 tokenized
+    // actually wrote -- `B20 Base`, not `Base B20 B20 tokenized
     // stocks`. Identity is then a ranking bonus: the camera flash and the
     // engine stay in the pool and lose on how little else of the query they
     // answer. Each candidate is a different publisher, as three real search
     // results are, so none of them pays another's host-diversity penalty.
     expect(search.mock.calls.map(([query]) => query)).toEqual([
-      'Coinbase tokenized stocks',
-      'Alpaca custody broker',
-      'B20 tokenized stocks',
+      'Coinbase crypto exchange',
+      'Alpaca brokerage',
+      'B20 Base',
     ]);
     // One request per subject, and no scene had to pay for a targeted retry.
     expect(plan.imageSearch?.requests.map((request) => request.kind)).toEqual([
@@ -240,7 +240,7 @@ describe('podcast visual assets subject ranking', () => {
           aliases: [],
           storyRole: 'primary',
           evidenceSceneIds: ['scene-01'],
-          searchQueries: ['Coinbase tokenized stocks'],
+
           identityHints: ['crypto exchange'],
           negativeHints: [],
           officialDomains: [],
@@ -323,7 +323,7 @@ describe('podcast visual assets subject ranking', () => {
           aliases: [],
           storyRole: 'primary',
           evidenceSceneIds: ['scene-01'],
-          searchQueries: ['Sui validators'],
+
           identityHints: ['blockchain'],
           negativeHints: [],
           officialDomains: [],
@@ -494,7 +494,7 @@ function ambiguousSubject(
     aliases: [],
     storyRole: overrides.storyRole ?? 'secondary',
     evidenceSceneIds: ['scene-01'],
-    searchQueries: [searchQuery],
+
     identityHints: [identityHint],
     negativeHints: [],
     officialDomains: [],
@@ -522,7 +522,7 @@ async function planWithPublisherCover(input: PodcastVisualAssetPlanInput) {
     sceneAssignments: [
       {
         sceneId: 'publisher-cover',
-        subjectIds: [input.subjectCatalog!.primarySubjectId],
+        subjectIds: [input.subjectCatalog.primarySubjectId],
         selectionReason: 'direct',
       },
       ...(input.sceneAssignments ?? []),

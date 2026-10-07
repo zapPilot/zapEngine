@@ -189,12 +189,6 @@ export async function runStoryboardSmokeCli(
         provider: providers.catalog ?? createOpenRouterSearchIntentProvider(),
       },
     );
-    if (!enrichment.subjectCatalog) {
-      throw new Error(
-        enrichment.degradedReason ??
-          'Catalog smoke produced no subject catalog',
-      );
-    }
     const contentScenes = enrichment.draft.scenes.filter(
       (scene) => podcastBrandVisualKind(scene.imageSearchIntent) === null,
     ) as VisualAssetScene[];
@@ -213,14 +207,13 @@ export async function runStoryboardSmokeCli(
       deriveSearchSubjects(plannerScenes),
     );
     const scenePlan = plannerScenes.map((scene) => {
-      const assignment = assignments.get(scene.sceneId);
+      const assignment = assignments.get(scene.sceneId)!;
       return {
         sceneId: scene.sceneId,
-        selectionReason: assignment?.selectionReason ?? null,
-        subjectIds: assignment?.subjectIds ?? [],
+        selectionReason: assignment.selectionReason,
+        subjectIds: assignment.subjectIds,
         visualCue: scene.visualCue ?? null,
         queries: [...scene.imageSearchIntent],
-        cueQuery: scene.cueQuery ?? null,
         plannedRequests: plannedRequests.filter(
           (request) => request.subjectKey === poolSubjectKey(scene),
         ),

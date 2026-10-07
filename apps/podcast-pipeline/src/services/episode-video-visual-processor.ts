@@ -41,11 +41,16 @@ import { logVideoWorkerEvent } from './video/log.js';
 import { planPodcastVisualAssets } from './video/podcast-visual-assets.js';
 import { createDeterministicStoryboardProvider } from './video/storyboard/fallback.js';
 import {
+  type EnrichedStoryboardGenerationResult,
   generateStoryboard,
   type StoryboardGenerationResult,
 } from './video/storyboard/orchestrator.js';
 import type { StoryboardProvider } from './video/storyboard/provider.js';
-import { enrichStoryboardSearchIntents } from './video/storyboard/search-intents.js';
+import {
+  contentSceneEvidence,
+  enrichStoryboardSearchIntents,
+  SubjectCatalogUnavailableError,
+} from './video/storyboard/search-intents.js';
 import { splitCanonicalSentences } from './video/storyboard/sentences.js';
 import type {
   VisualSceneSubjectAssignment,
@@ -71,6 +76,11 @@ import {
   type VisualFailureStage,
   VisualPlanningError,
 } from './video/visual-diagnostics.js';
+import {
+  evaluateVisualQuality,
+  VisualQualityGateError,
+  type VisualQualityReport,
+} from './video/visual-quality-gate.js';
 import {
   EPISODE_VIDEO_VISUAL_VERSION,
   type EpisodeVideoVisualCompletion,
@@ -233,8 +243,6 @@ export function createEpisodeVideoVisualProcessor(
           editorialSentences,
           isPackaged: visualSections.isPackaged,
           contentSceneBounds,
-          ...(visualSearchTitle ? { searchTitle: visualSearchTitle } : {}),
-          searchScript: englishBodyScript,
           durationMs: analysis.durationMs,
           signal: context.signal,
         });
@@ -273,7 +281,18 @@ export function createEpisodeVideoVisualProcessor(
             script: source.script,
             ...(englishBodyScript ? { searchScript: englishBodyScript } : {}),
           },
-          { signal: context.signal },
+          {
+            signal: context.signal,
+            onCatalogRetry: (record) =>
+              logVisualProgress(dependencies.logger, 'visual:intents', {
+                run: context.runId,
+                episode: source.episodeId,
+                phase: 'catalog-retry',
+                attempt: `${record.attempt}/3`,
+                issues: record.issues.length,
+                reason: quotedField(record.issues.join('; ')),
+              }),
+          },
         );
         logVisualProgress(dependencies.logger, 'visual:intents', {
           run: context.runId,
@@ -281,12 +300,12 @@ export function createEpisodeVideoVisualProcessor(
           enriched: `${intents.enrichedSceneCount}/${intents.draft.scenes.length}`,
           brand: countBrandScenes(brandedDraft),
           entities: intents.entityAnchoredSceneCount,
-          subjects: intents.subjectCatalog?.subjects.length,
-          primarySubject: intents.subjectCatalog?.primarySubjectId,
-          model: intents.model ?? 'deterministic',
+          subjects: intents.subjectCatalog.subjects.length,
+          primarySubject: intents.subjectCatalog.primarySubjectId,
+          model: intents.model,
           cues: intents.sceneCueCount,
         });
-        for (const droppedSubject of intents.subjectCatalog?.droppedSubjects ??
+        for (const droppedSubject of intents.subjectCatalog.droppedSubjects ??
           []) {
           logVisualProgress(dependencies.logger, 'visual:intents', {
             run: context.runId,
@@ -297,24 +316,11 @@ export function createEpisodeVideoVisualProcessor(
             names: JSON.stringify(droppedSubject.names.join(' / ')),
           });
         }
-        // A catalog-less episode still plans, off the deterministic intents, so
-        // the reason it degraded is the only thing that separates that from an
-        // episode whose scenes simply name nobody.
-        const subjectCatalogFailure = intents.degradedReason ?? null;
-        if (subjectCatalogFailure) {
-          logVisualProgress(dependencies.logger, 'visual:intents', {
-            run: context.runId,
-            episode: source.episodeId,
-            phase: 'degraded',
-            reason: subjectCatalogFailure,
-          });
-        }
         return {
           storyboard: { ...generated, draft: intents.draft },
           searchIntentModel: intents.model,
           subjectCatalog: intents.subjectCatalog,
           sceneAssignments: intents.sceneAssignments,
-          subjectCatalogFailure,
           resumePlan: null,
         };
       };
@@ -331,7 +337,6 @@ export function createEpisodeVideoVisualProcessor(
         searchIntentModel,
         subjectCatalog,
         sceneAssignments,
-        subjectCatalogFailure,
       } = prepared;
       failureSnapshot['searchIntentModel'] = searchIntentModel;
       failureSnapshot['subjectCatalog'] = subjectCatalog;
@@ -352,7 +357,6 @@ export function createEpisodeVideoVisualProcessor(
           storyboard,
           searchIntentModel,
           subjectCatalog,
-          subjectCatalogFailure,
           sceneAssignments,
           searchTitleSource,
         });
@@ -386,7 +390,6 @@ export function createEpisodeVideoVisualProcessor(
         scenes: storyboard.draft.scenes,
         searchTitleSource,
         model: searchIntentModel,
-        subjectCatalogFailure,
       });
       if (job.lease_owner) {
         const persisted = await dependencies.persistDebug(
@@ -424,12 +427,9 @@ export function createEpisodeVideoVisualProcessor(
       const sceneEvidence = new Map(
         sceneSentences.map((scene) => {
           const searchText = storyboard.draft.scenes
-            .find((candidate) => candidate.sceneId === scene.sceneId)
-            ?.imageSearchIntent.join(' ');
-          return [
-            scene.sceneId,
-            { text: scene.text, ...(searchText ? { searchText } : {}) },
-          ] as const;
+            .find((candidate) => candidate.sceneId === scene.sceneId)!
+            .imageSearchIntent.join(' ');
+          return [scene.sceneId, { text: scene.text, searchText }] as const;
         }),
       );
       const trace = createImageSearchTrace(
@@ -479,6 +479,7 @@ export function createEpisodeVideoVisualProcessor(
               sceneId: selection.sceneId,
               asset: selection.asset,
               r2Url,
+              selection: selection.selection,
             });
             await saveCheckpointOrThrow(context, checkpoint);
           },
@@ -486,8 +487,21 @@ export function createEpisodeVideoVisualProcessor(
             title: visualSearchTitle || source.title,
             sceneEvidence,
           },
-          ...(subjectCatalog ? { subjectCatalog } : {}),
-          ...(sceneAssignments.length > 0 ? { sceneAssignments } : {}),
+          subjectCatalog,
+          sceneAssignments,
+          sceneNarration: new Map(
+            contentSceneEvidence({
+              draft: storyboard.draft,
+              script: source.script,
+              ...(englishBodyScript ? { searchScript: englishBodyScript } : {}),
+            }).map((scene) => [
+              scene.sceneId,
+              {
+                text: scene.text,
+                ...(scene.searchText ? { englishText: scene.searchText } : {}),
+              },
+            ]),
+          ),
           onProgress: (progress) => {
             appendImageSearchProgress(trace, progress);
             logPlannerProgress(
@@ -530,6 +544,7 @@ export function createEpisodeVideoVisualProcessor(
         });
         throw cause;
       }
+      if (assetPlan.imageSearch) Object.assign(trace, assetPlan.imageSearch);
       await persistSearchTraceCheckpoint({
         persistDebug: dependencies.persistDebug,
         episodeId: source.episodeId,
@@ -538,6 +553,21 @@ export function createEpisodeVideoVisualProcessor(
         phase: 'searched',
         imageSearch: trace,
       });
+
+      failureStage = 'quality-gate';
+      const qualityReport = evaluateVisualQuality({
+        draft: storyboard.draft,
+        catalog: subjectCatalog,
+        imageSearch: assetPlan.imageSearch ?? trace,
+      });
+      failureSnapshot['qualityReport'] = qualityReport;
+      logVisualProgress(dependencies.logger, 'visual:quality', {
+        run: context.runId,
+        episode: source.episodeId,
+        passed: String(qualityReport.passed),
+        violations: qualityReport.violations.join('; '),
+      });
+      assertVisualQualityReport(qualityReport);
 
       const visualHash = hashEpisodeVisualSelection({
         visualVersion: job.visual_version,
@@ -559,6 +589,7 @@ export function createEpisodeVideoVisualProcessor(
         assetPlan,
         subjectCatalog,
         sceneAssignments,
+        qualityReport,
       });
       await dependencies.writeManifest(
         manifestPath,
@@ -604,6 +635,7 @@ export function createEpisodeVideoVisualProcessor(
         manifestUrl: uploaded.manifestUrl,
         storyboard,
         searchIntentModel,
+        qualityReport,
         selectedScenes: assetPlan.scenes,
         assets: assetPlan.assets,
         r2ImageUrls: uploaded.imageUrls,
@@ -615,7 +647,7 @@ export function createEpisodeVideoVisualProcessor(
         // The planner's own trace is authoritative; the accumulated one only
         // has to cover an attempt that threw before returning a plan.
         imageSearch: assetPlan.imageSearch ?? trace,
-        ...(subjectCatalogFailure ? { subjectCatalogFailure } : {}),
+
         sceneSentences,
       });
       return {
@@ -626,6 +658,8 @@ export function createEpisodeVideoVisualProcessor(
         r2Prefix: uploaded.r2Prefix,
       };
     } catch (error) {
+      if (error instanceof SubjectCatalogUnavailableError)
+        failureSnapshot['subjectCatalogAttempts'] = error.attempts;
       if (context.signal.aborted || error instanceof VisualPlanningError) {
         throw error;
       }
@@ -658,12 +692,11 @@ interface VisualSearchDebugQuery {
 }
 
 function buildVisualSearchDebugPayload(input: {
-  subjectCatalog: VisualSubjectCatalog | null;
+  subjectCatalog: VisualSubjectCatalog;
   sceneAssignments: readonly VisualSceneSubjectAssignment[];
   scenes: readonly PoolSubjectScene[];
   searchTitleSource: 'publisher' | 'english-localization' | 'none';
   model: string | null;
-  subjectCatalogFailure: string | null;
 }): Record<string, unknown> {
   const assignmentByScene = new Map(
     input.sceneAssignments.map((assignment) => [
@@ -697,9 +730,6 @@ function buildVisualSearchDebugPayload(input: {
     phase: 'planned',
     searchTitleSource: input.searchTitleSource,
     searchIntentModel: input.model,
-    ...(input.subjectCatalogFailure
-      ? { subjectCatalogFailure: input.subjectCatalogFailure }
-      : {}),
     subjectCatalog: input.subjectCatalog,
     sceneAssignments: input.sceneAssignments,
     plannedQueries,
@@ -750,8 +780,6 @@ export async function generateVisualStoryboard(input: {
   editorialSentences?: readonly import('./video/storyboard/sentences.js').CanonicalSentence[];
   isPackaged?: boolean;
   contentSceneBounds?: import('./podcast-packaging.js').ContentSceneBounds;
-  searchTitle?: string;
-  searchScript?: string;
   durationMs: number;
   signal?: AbortSignal;
   provider?: StoryboardProvider;
@@ -766,13 +794,6 @@ export async function generateVisualStoryboard(input: {
   const providerSentences = isPackaged
     ? editorialSentences
     : splitCanonicalSentences(input.script);
-  let englishBody: string | undefined;
-  if (input.searchScript !== undefined) {
-    englishBody =
-      input.editorialSentences !== undefined
-        ? input.searchScript
-        : getEnglishBodyScript(input.searchScript, isPackaged);
-  }
   return generateStoryboard({
     title: input.title,
     script: providerScript,
@@ -782,14 +803,13 @@ export async function generateVisualStoryboard(input: {
       ? { contentSceneBounds: input.contentSceneBounds }
       : {}),
     ...(isPackaged ? { isPackaged } : {}),
-    provider:
-      input.provider ??
-      createDeterministicStoryboardProvider({
-        ...(input.searchTitle ? { searchTitle: input.searchTitle } : {}),
-        ...(englishBody ? { searchScript: englishBody } : {}),
-      }),
+    provider: input.provider ?? createDeterministicStoryboardProvider(),
     ...(input.signal ? { signal: input.signal } : {}),
   });
+}
+
+function assertVisualQualityReport(report: VisualQualityReport): void {
+  if (!report.passed) throw new VisualQualityGateError(report);
 }
 
 function assertCurrentVisualJob(
@@ -813,10 +833,11 @@ function assertCurrentVisualJob(
 function createSourceVisualManifest(input: {
   job: EpisodeVideoVisualJobRow;
   source: EpisodeVideoVisualSource;
-  storyboard: StoryboardGenerationResult;
+  storyboard: EnrichedStoryboardGenerationResult;
   visualHash: string;
   assetPlan: Awaited<ReturnType<typeof planPodcastVisualAssets>>;
-  subjectCatalog: VisualSubjectCatalog | null;
+  qualityReport: VisualQualityReport;
+  subjectCatalog: VisualSubjectCatalog;
   sceneAssignments: readonly VisualSceneSubjectAssignment[];
 }): Record<string, unknown> {
   return {
@@ -826,12 +847,9 @@ function createSourceVisualManifest(input: {
     sourceHash: input.job.source_hash,
     episodeId: input.source.episodeId,
     canonicalLocalizationId: input.source.canonicalLocalizationId,
-    ...(input.subjectCatalog
-      ? {
-          subjectCatalog: input.subjectCatalog,
-          sceneAssignments: input.sceneAssignments,
-        }
-      : {}),
+    subjectCatalog: input.subjectCatalog,
+    sceneAssignments: input.sceneAssignments,
+    qualityReport: input.qualityReport,
     storyboard: {
       provider: input.storyboard.effectiveProvider,
       model: input.storyboard.model,
@@ -891,6 +909,7 @@ function logPlannerProgress(
     matchedSubjectKey: quotedField(selection?.matchedSubjectKey),
     providerRank: selection?.providerRank ?? undefined,
     fallbackReason: selection?.fallbackReason ?? undefined,
+    publisherImage: publisherImageLogField(selection?.publisherImage),
     assetId: progress.assetId,
     sourceHostname: progress.sourceHostname,
     reuseKind: progress.reuseKind,
@@ -898,6 +917,13 @@ function logPlannerProgress(
     rejectionSummary: progress.rejectionSummary,
     elapsedMs: progress.elapsedMs,
   });
+}
+
+function publisherImageLogField(
+  image: import('./video/image-search-trace.js').VisualSceneSelection['publisherImage'],
+): string | undefined {
+  if (!image) return undefined;
+  return image.role === 'lead' ? 'lead' : `body:${image.bodyIndex + 1}`;
 }
 
 /** Subject keys and queries carry spaces, so an unquoted value would merge into
@@ -920,13 +946,11 @@ function logVisualProgress(
 export const processEpisodeVideoVisualJob = createEpisodeVideoVisualProcessor();
 
 interface PreparedStoryboard {
-  storyboard: StoryboardGenerationResult;
-  searchIntentModel: string | null;
-  subjectCatalog: VisualSubjectCatalog | null;
+  storyboard: EnrichedStoryboardGenerationResult;
+  searchIntentModel: string;
+  subjectCatalog: VisualSubjectCatalog;
   sceneAssignments: VisualSceneSubjectAssignment[];
-  /** Why this episode has no subject catalog, when enrichment degraded rather
-   * than simply finding no named subject. */
-  subjectCatalogFailure: string | null;
+
   resumePlan: VisualAssetPlan | null;
 }
 
@@ -943,7 +967,6 @@ async function restorePreparedStoryboard(
     searchIntentModel: checkpoint.searchIntentModel,
     subjectCatalog: checkpoint.subjectCatalog,
     sceneAssignments: [...checkpoint.sceneAssignments],
-    subjectCatalogFailure: checkpoint.subjectCatalogFailure ?? null,
     resumePlan:
       checkpoint.scenes.length > 0
         ? await restoreVisualCheckpointPlan(checkpoint, options)
@@ -961,7 +984,7 @@ async function saveCheckpointOrThrow(
 }
 
 function countBrandScenes(draft: {
-  scenes: readonly { imageSearchIntent: readonly string[] }[];
+  scenes: readonly { imageSearchIntent?: readonly string[] }[];
 }): number {
   return draft.scenes.filter(
     (scene) => podcastBrandVisualKind(scene.imageSearchIntent) !== null,
@@ -975,7 +998,7 @@ function logBranding(
   draft: {
     scenes: readonly {
       sceneId: string;
-      imageSearchIntent: readonly string[];
+      imageSearchIntent?: readonly string[];
     }[];
   },
 ): void {

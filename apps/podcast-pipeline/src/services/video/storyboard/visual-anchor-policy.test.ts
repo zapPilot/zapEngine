@@ -49,7 +49,7 @@ describe('visual anchor policy', () => {
             aliases: [],
             storyRole: 'primary',
             evidenceSceneIds: ['scene-01'],
-            searchQueries: ['GPU AI accelerator hardware', 'GPU'],
+
             identityHints: ['AI accelerator hardware'],
             negativeHints: [],
             officialDomains: [],

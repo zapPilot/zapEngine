@@ -12,7 +12,7 @@ import {
   SCENE_ID_PATTERN,
   type StoryboardDraft,
 } from './storyboard/draft.js';
-import type { StoryboardGenerationResult } from './storyboard/orchestrator.js';
+import type { EnrichedStoryboardGenerationResult } from './storyboard/orchestrator.js';
 import {
   canonicalSentenceRangeText,
   splitCanonicalSentences,
@@ -37,6 +37,10 @@ import {
   VISUAL_ASSET_ID_PATTERN,
   visualAssetIdentityFields,
 } from './visual-asset-shared.js';
+import {
+  type VisualQualityReport,
+  visualQualityReportSchema,
+} from './visual-quality-gate.js';
 
 export const EPISODE_VISUAL_PAYLOAD_SCHEMA_VERSION =
   'podcast-episode-visual.v1' as const;
@@ -123,8 +127,8 @@ export const episodeVisualPayloadSchema = z
     assets: z.array(visualAssetMetadataSchema).min(1),
     // Optional keeps stored v1 payloads readable. Fresh visual-v8+ payloads
     // write both fields so the editorial decision can be audited later.
-    subjectCatalog: visualSubjectCatalogSchema.optional(),
-    sceneAssignments: z.array(visualSceneSubjectAssignmentSchema).optional(),
+    subjectCatalog: visualSubjectCatalogSchema,
+    sceneAssignments: z.array(visualSceneSubjectAssignmentSchema),
     provenance: z
       .object({
         storyboardProvider: z.string().min(1),
@@ -135,12 +139,8 @@ export const episodeVisualPayloadSchema = z
         usedFallback: z.boolean(),
         // Null means every scene kept its deterministic search intent, so a
         // payload can never imply a model that shaped nothing.
-        searchIntentModel: z.string().min(1).nullable(),
-        // Absent on an episode whose scenes simply named nobody. Present only
-        // when the catalog answer itself degraded, which is otherwise
-        // indistinguishable in a completed payload. Optional keeps stored
-        // v1-v9 payloads parseable.
-        subjectCatalogFailure: z.string().min(1).max(400).optional(),
+        searchIntentModel: z.string().min(1),
+        qualityReport: visualQualityReportSchema,
         // v9 audit fields are optional so stored v1-v8 payloads remain readable.
         searchTitleSource: z
           .enum(['publisher', 'english-localization', 'none'])
@@ -206,16 +206,7 @@ export const episodeVisualPayloadSchema = z
 
     addGeneratedSlideIssues(payload, context);
 
-    if (payload.subjectCatalog || payload.sceneAssignments) {
-      if (!payload.subjectCatalog || !payload.sceneAssignments) {
-        context.addIssue({
-          code: 'custom',
-          message:
-            'Visual subject catalog and scene assignments must be stored together',
-          path: ['subjectCatalog'],
-        });
-        return;
-      }
+    {
       const subjectIds = new Set(
         payload.subjectCatalog.subjects.map((subject) => subject.id),
       );
@@ -279,8 +270,8 @@ export function hashEpisodeVisualSelection(input: {
   }[];
   selectedScenes: readonly PlannedVisualScene[];
   assets: readonly PlannedVisualImage[];
-  subjectCatalog?: VisualSubjectCatalog | null;
-  sceneAssignments?: readonly VisualSceneSubjectAssignment[];
+  subjectCatalog: VisualSubjectCatalog;
+  sceneAssignments: readonly VisualSceneSubjectAssignment[];
 }): string {
   const hashInput = {
     visualVersion: input.visualVersion,
@@ -288,8 +279,8 @@ export function hashEpisodeVisualSelection(input: {
     canonicalLocalizationId: input.canonicalLocalizationId,
     scenes: input.scenes,
     selectedScenes: input.selectedScenes,
-    subjectCatalog: input.subjectCatalog ?? null,
-    sceneAssignments: input.sceneAssignments ?? [],
+    subjectCatalog: input.subjectCatalog,
+    sceneAssignments: input.sceneAssignments,
     assets: input.assets.map((asset) => ({
       assetId: asset.assetId,
       contentType: asset.contentType,
@@ -312,14 +303,14 @@ export function buildEpisodeVisualPayload(input: {
   episodeId: string;
   canonicalLocalizationId: string;
   manifestUrl: string;
-  storyboard: StoryboardGenerationResult;
-  searchIntentModel: string | null;
-  subjectCatalogFailure?: string;
+  storyboard: EnrichedStoryboardGenerationResult;
+  searchIntentModel: string;
+  qualityReport: VisualQualityReport;
   selectedScenes: readonly PlannedVisualScene[];
   assets: readonly PlannedVisualImage[];
   r2ImageUrls: Readonly<Record<string, string>>;
-  subjectCatalog?: VisualSubjectCatalog | null;
-  sceneAssignments?: readonly VisualSceneSubjectAssignment[];
+  subjectCatalog: VisualSubjectCatalog;
+  sceneAssignments: readonly VisualSceneSubjectAssignment[];
   searchTitleSource?: 'publisher' | 'english-localization' | 'none';
   articleImageCandidateCount?: number;
   leadCover?: VisualAssetLeadCover;
@@ -373,13 +364,10 @@ export function buildEpisodeVisualPayload(input: {
     }),
   });
 
-  const subjectContext =
-    input.subjectCatalog && input.sceneAssignments
-      ? {
-          subjectCatalog: input.subjectCatalog,
-          sceneAssignments: [...input.sceneAssignments],
-        }
-      : {};
+  const subjectContext = {
+    subjectCatalog: input.subjectCatalog,
+    sceneAssignments: [...input.sceneAssignments],
+  };
   const articleImageAssetCount = input.assets.filter(
     (asset) => asset.provider === 'article',
   ).length;
@@ -423,9 +411,7 @@ export function buildEpisodeVisualPayload(input: {
       storyboardPromptVersion: EPISODE_VISUAL_STORYBOARD_PROMPT_VERSION,
       usedFallback: input.storyboard.usedFallback,
       searchIntentModel: input.searchIntentModel,
-      ...(input.subjectCatalogFailure
-        ? { subjectCatalogFailure: input.subjectCatalogFailure }
-        : {}),
+      qualityReport: input.qualityReport,
       ...(input.searchTitleSource
         ? { searchTitleSource: input.searchTitleSource }
         : {}),

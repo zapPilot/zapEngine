@@ -414,7 +414,7 @@ describe('planVisualAssets', () => {
     });
 
     expect(searchImages).not.toHaveBeenCalled();
-    expect(acquireImage).toHaveBeenCalledOnce();
+    expect(acquireImage).toHaveBeenCalledTimes(2);
     expect(acquireImage).toHaveBeenCalledWith(
       thumbnail.imageUrl,
       expect.objectContaining({ allowSmallDimensions: true }),
@@ -526,7 +526,7 @@ describe('planVisualAssets', () => {
   });
 
   it('uses Brave after article images and only reuses non-consecutively', async () => {
-    const article = candidate('article-a');
+    const article = candidate('article-a', 'openGraph');
     const searched = {
       ...candidate('search-b', 'brave'),
       altText: 'second subject',
@@ -1249,8 +1249,23 @@ describe('planVisualAssets', () => {
     const searchImages = vi.fn().mockResolvedValue([]);
 
     const result = await planVisualAssets({
-      scenes,
-      articleImages: [candidate('article-a'), candidate('article-b')],
+      scenes: [
+        ...scenes,
+        { sceneId: 'scene-04', imageSearchIntent: ['third subject'] },
+      ],
+      articleImages: [
+        candidate('article-a', 'openGraph'),
+        {
+          ...candidate('article-b'),
+          context: {
+            position: 0,
+            heading: '',
+            precedingText: '',
+            followingText: '',
+            caption: '',
+          },
+        },
+      ],
       workingDirectory: '/work/visual-assets',
       dependencies: {
         acquireImage: vi
@@ -1266,10 +1281,14 @@ describe('planVisualAssets', () => {
     });
 
     expect(result.scenes.at(-1)).toEqual({
+      sceneId: 'scene-04',
+      assetId: 'image-02',
+    });
+    expect(searchImages).toHaveBeenCalledOnce();
+    expect(result.scenes[2]).toEqual({
       sceneId: 'scene-03',
       assetId: 'image-01',
     });
-    expect(searchImages).toHaveBeenCalledOnce();
   });
 
   it('does not hide a provider failure behind reusable article assets', async () => {
@@ -1280,7 +1299,19 @@ describe('planVisualAssets', () => {
     await expect(
       planVisualAssets({
         scenes,
-        articleImages: [candidate('article-a'), candidate('article-b')],
+        articleImages: [
+          candidate('article-a', 'openGraph'),
+          {
+            ...candidate('article-b'),
+            context: {
+              position: 0,
+              heading: '',
+              precedingText: '',
+              followingText: '',
+              caption: '',
+            },
+          },
+        ],
         workingDirectory: '/work/visual-assets',
         dependencies: {
           acquireImage: vi

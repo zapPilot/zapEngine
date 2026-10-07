@@ -4,7 +4,12 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { StoryboardGenerationResult } from './storyboard/orchestrator.js';
+import {
+  fixtureCatalog,
+  fixtureCompactSelection,
+  fixtureSelection,
+} from './__fixtures__/identity-catalog.js';
+import type { EnrichedStoryboardGenerationResult } from './storyboard/orchestrator.js';
 import type { PlannedVisualImage } from './visual-asset-planner.js';
 import {
   appendVisualCheckpointScene,
@@ -19,7 +24,7 @@ import {
 
 const identity = { visualVersion: 'v9', sourceHash: 'hash' };
 
-function storyboard(): StoryboardGenerationResult {
+function storyboard(): EnrichedStoryboardGenerationResult {
   return {
     draft: {
       scenes: [
@@ -46,15 +51,12 @@ function storyboard(): StoryboardGenerationResult {
   };
 }
 
-function checkpoint(
-  subjectCatalogFailure: string | null = null,
-): VisualCheckpoint {
+function checkpoint(): VisualCheckpoint {
   return buildVisualCheckpoint({
     identity,
     storyboard: storyboard(),
-    searchIntentModel: null,
-    subjectCatalog: null,
-    subjectCatalogFailure,
+    searchIntentModel: 'openrouter/free',
+    subjectCatalog: fixtureCatalog,
     sceneAssignments: [],
     searchTitleSource: 'publisher',
   });
@@ -90,13 +92,12 @@ describe('visual checkpoint primitives', () => {
       identity,
       storyboard: source,
       searchIntentModel: 'model',
-      subjectCatalog: null,
-      subjectCatalogFailure: 'catalog unavailable',
+      subjectCatalog: fixtureCatalog,
       sceneAssignments: [],
       searchTitleSource: 'english-localization',
     });
 
-    expect(built.subjectCatalogFailure).toBe('catalog unavailable');
+    expect(built.subjectCatalog).toEqual(fixtureCatalog);
     expect(built.storyboard.attempts).toEqual(source.attempts);
     expect(built.storyboard.attempts).not.toBe(source.attempts);
     expect(restoreVisualStoryboard(built)).toEqual(source);
@@ -123,6 +124,7 @@ describe('visual checkpoint primitives', () => {
 
   it('replaces scene selections and stores each asset only once without local paths', () => {
     const first = appendVisualCheckpointScene(checkpoint(), {
+      selection: fixtureSelection(),
       sceneId: 'scene-01',
       asset: asset(),
       r2Url: 'https://cdn.example.test/image-01.jpg',
@@ -130,16 +132,22 @@ describe('visual checkpoint primitives', () => {
     expect(first.assets[0]).not.toHaveProperty('path');
 
     const replaced = appendVisualCheckpointScene(first, {
+      selection: fixtureSelection(),
       sceneId: 'scene-01',
       asset: asset(),
       r2Url: 'https://cdn.example.test/ignored-duplicate.jpg',
     });
     expect(replaced.scenes).toEqual([
-      { sceneId: 'scene-01', assetId: 'image-01' },
+      {
+        sceneId: 'scene-01',
+        assetId: 'image-01',
+        selection: fixtureCompactSelection('scene-01'),
+      },
     ]);
     expect(replaced.assets).toHaveLength(1);
 
     const second = appendVisualCheckpointScene(replaced, {
+      selection: fixtureSelection(),
       sceneId: 'scene-02',
       asset: asset('image-02', join(tmpdir(), 'second.jpg')),
       r2Url: 'https://cdn.example.test/image-02.jpg',
@@ -216,20 +224,34 @@ describe('downloadVisualCheckpointImage', () => {
 describe('restoreVisualCheckpointPlan', () => {
   function storedCheckpoint(): VisualCheckpoint {
     const first = appendVisualCheckpointScene(checkpoint(), {
+      selection: fixtureSelection(),
       sceneId: 'scene-01',
       asset: asset(),
       r2Url: 'https://cdn.example.test/image-01.jpg',
     });
     return {
       ...appendVisualCheckpointScene(first, {
+        selection: fixtureSelection(),
         sceneId: 'scene-02',
         asset: asset('image-02', join(tmpdir(), 'second.jpg')),
         r2Url: 'https://cdn.example.test/image-02.jpg',
       }),
       scenes: [
-        { sceneId: 'scene-01', assetId: 'image-01' },
-        { sceneId: 'scene-02', assetId: 'image-02' },
-        { sceneId: 'scene-03', assetId: 'image-99' },
+        {
+          sceneId: 'scene-01',
+          assetId: 'image-01',
+          selection: fixtureCompactSelection('scene-01'),
+        },
+        {
+          sceneId: 'scene-02',
+          assetId: 'image-02',
+          selection: fixtureCompactSelection('scene-02'),
+        },
+        {
+          sceneId: 'scene-03',
+          assetId: 'image-99',
+          selection: fixtureCompactSelection('scene-03'),
+        },
       ],
     };
   }
@@ -256,6 +278,9 @@ describe('restoreVisualCheckpointPlan', () => {
     expect(result.scenes).toEqual([
       { sceneId: 'scene-02', assetId: 'image-02' },
     ]);
+    expect(result.imageSearch?.scenes[0]).toMatchObject(
+      fixtureSelection('scene-02'),
+    );
   });
 
   it('rethrows non-expiry download failures', async () => {
@@ -294,9 +319,14 @@ describe('expanded checkpoint scenes', () => {
     value.scenes = value.storyboard.draft.scenes.map((scene) => ({
       sceneId: scene.sceneId,
       assetId: 'image-150',
+      selection: fixtureCompactSelection(scene.sceneId),
     }));
     expect(parseVisualCheckpoint(value, identity)?.scenes).toHaveLength(150);
-    value.scenes.push({ sceneId: 'scene-151', assetId: 'image-150' });
+    value.scenes.push({
+      sceneId: 'scene-151',
+      assetId: 'image-150',
+      selection: fixtureCompactSelection('scene-151'),
+    });
     expect(parseVisualCheckpoint(value, identity)).toBeNull();
   });
 });

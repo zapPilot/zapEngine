@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { ImageCandidate } from '../../../types.js';
-import { fallbackEntryMatchesSceneQuery } from '../episode-image-pool.js';
+import {
+  createEpisodeImagePool,
+  fallbackBasis,
+} from '../episode-image-pool.js';
 import {
   CUE_TOKEN_BONUS,
   MAX_CUE_BONUS,
@@ -37,7 +40,7 @@ function nvidiaSubject() {
     aliases: [] as string[],
     storyRole: 'primary' as const,
     evidenceSceneIds: ['scene-01'],
-    searchQueries: ['NVIDIA GPU maker'],
+
     identityHints: ['GPU maker'],
     negativeHints: [] as string[],
     officialDomains: [] as string[],
@@ -111,7 +114,7 @@ describe('scene visual cues', () => {
       },
     );
 
-    expect(result.degradedReason).toBeUndefined();
+    expect(result.subjectCatalog).toBeDefined();
     expect(result.sceneAssignments.length).toBeGreaterThan(1);
     expect(result.sceneAssignments.map((row) => row.selectionReason)).toContain(
       'model-context',
@@ -155,7 +158,7 @@ describe('scene visual cues', () => {
           ]),
         },
       );
-      expect(result.degradedReason).toBeUndefined();
+      expect(result.subjectCatalog).toBeDefined();
       expect(result.sceneAssignments.length).toBeGreaterThan(1);
       expect(result.subjectCatalog?.sceneCues).toEqual([]);
     },
@@ -225,18 +228,32 @@ describe('visual cue candidate scoring', () => {
     expect(searchCueScore(candidate('charter flight'), 'stock chart')).toBe(0);
   });
 
-  it('lets a donor query overlap a cue even when the base query does not', () => {
+  it('requires two cue terms in the candidate itself for borrowing', () => {
+    const entry = {
+      candidate: candidate('chart plunge'),
+      canonicalUrl: 'https://test.test/a.jpg',
+      queryKeys: [],
+      providerRank: 0,
+      requestSubjectKey: 'unknown',
+      requestQuery: 'Unknown',
+      attempted: false,
+    };
+    const scene = {
+      sceneId: 'scene-01',
+      imageSearchIntent: ['NVIDIA'],
+      imageSearchEntities: ['NVIDIA'],
+      visualCue: 'stock chart plunge',
+    };
+    expect(fallbackBasis(createEpisodeImagePool([]), entry, scene)).toBe(
+      'visual-cue',
+    );
     expect(
-      fallbackEntryMatchesSceneQuery(
-        { requestQuery: 'market plunge Reuters photo' },
-        {
-          imageSearchIntent: ['NVIDIA GPU maker'],
-          imageSearchEntities: ['NVIDIA'],
-          visualCue: 'stock chart plunge',
-          searchAnchor: 'context',
-        },
+      fallbackBasis(
+        createEpisodeImagePool([]),
+        { ...entry, candidate: candidate('chart') },
+        scene,
       ),
-    ).toBe(true);
+    ).toBeNull();
   });
 });
 

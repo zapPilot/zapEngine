@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
+import { fixtureQualityReport } from './__fixtures__/identity-catalog.js';
 import {
   buildEpisodeVisualPayload,
   hashEpisodeVisualSelection,
 } from './episode-visual.js';
-import type { StoryboardGenerationResult } from './storyboard/orchestrator.js';
+import type { EnrichedStoryboardGenerationResult } from './storyboard/orchestrator.js';
 import type {
   VisualSceneSubjectAssignment,
   VisualSubjectCatalog,
@@ -14,7 +15,7 @@ import type { PlannedVisualImage } from './visual-asset-planner.js';
 const episodeId = '00000000-0000-4000-8000-000000000011';
 const localizationId = '00000000-0000-4000-8000-000000000012';
 
-const storyboard: StoryboardGenerationResult = {
+const storyboard: EnrichedStoryboardGenerationResult = {
   draft: {
     scenes: [
       {
@@ -44,7 +45,8 @@ const catalog: VisualSubjectCatalog = {
       aliases: [],
       storyRole: 'primary',
       evidenceSceneIds: [],
-      searchQueries: ['Coinbase tokenized stocks'],
+
+      searchQuery: 'Coinbase crypto exchange',
       identityHints: ['crypto exchange', 'Base'],
       negativeHints: [],
       officialDomains: [],
@@ -88,6 +90,7 @@ describe('episode visual v8 context', () => {
       sceneAssignments: assignments,
     });
     const payload = buildEpisodeVisualPayload({
+      qualityReport: fixtureQualityReport,
       visualVersion: 'podcast-image-visual-plan.v8',
       visualHash,
       episodeId,

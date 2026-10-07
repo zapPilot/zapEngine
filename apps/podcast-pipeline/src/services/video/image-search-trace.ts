@@ -102,7 +102,28 @@ const visualImageSearchRequestSchema = z
   })
   .strict();
 
-const visualSceneSelectionSchema = z
+const publisherImageFields = {
+  articlePosition: z.number().min(0).max(1).nullable(),
+  lexicalScore: z.number().min(0).max(1),
+};
+export const publisherImageSchema = z.discriminatedUnion('role', [
+  z
+    .object({
+      ...publisherImageFields,
+      role: z.literal('lead'),
+      bodyIndex: z.null(),
+    })
+    .strict(),
+  z
+    .object({
+      ...publisherImageFields,
+      role: z.literal('body'),
+      bodyIndex: z.number().int().nonnegative(),
+    })
+    .strict(),
+]);
+
+export const visualSceneSelectionSchema = z
   .object({
     sceneId: z.string().regex(SCENE_ID_PATTERN),
     subjectKey: z.string().min(1).max(320).nullable(),
@@ -111,6 +132,16 @@ const visualSceneSelectionSchema = z
     sourceQuery: z.string().min(1).max(200).nullable(),
     providerRank: z.number().int().nonnegative().nullable(),
     fallbackReason: z.enum(VISUAL_SCENE_FALLBACK_REASONS).nullable(),
+    fallbackBasis: z
+      .enum([
+        'shared-entity',
+        'candidate-names-entity',
+        'primary-subject',
+        'visual-cue',
+      ])
+      .nullable()
+      .default(null),
+    publisherImage: publisherImageSchema.optional(),
     visualCue: z
       .string()
       .min(1)
@@ -121,6 +152,16 @@ const visualSceneSelectionSchema = z
     rejections: z.array(countedCauseSchema).max(MAX_TRACE_REJECTION_ENTRIES),
   })
   .strict();
+
+export const compactVisualSelectionSchema = visualSceneSelectionSchema.omit({
+  sceneId: true,
+  rejections: true,
+});
+export function compactVisualSelection(
+  selection: VisualSceneSelection,
+): z.infer<typeof compactVisualSelectionSchema> {
+  return compactVisualSelectionSchema.strip().parse(selection);
+}
 
 const visualPrimarySubjectSchema = z
   .object({
@@ -133,6 +174,16 @@ const visualPrimarySubjectSchema = z
 
 export const visualImageSearchSchema = z
   .object({
+    publisherImages: z
+      .object({
+        offered: z.number().int().nonnegative(),
+        resumed: z.number().int().nonnegative(),
+        placed: z.number().int().nonnegative(),
+        rejected: z.number().int().nonnegative(),
+        overflow: z.number().int().nonnegative(),
+      })
+      .strict()
+      .optional(),
     requestCount: z.number().int().nonnegative(),
     budget: z
       .object({

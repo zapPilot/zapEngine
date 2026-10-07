@@ -1,4 +1,5 @@
 import OpenAI, { APIError } from 'openai';
+import { z } from 'zod';
 
 import { throwIfAborted } from '../../../lib/abort.js';
 import { errorMessage } from '../../../lib/errorMessage.js';
@@ -15,6 +16,8 @@ import {
 } from '../../podcast-packaging.js';
 import { speakingUnits } from '../text-units.js';
 import {
+  type EnrichedStoryboardDraft,
+  enrichedStoryboardDraftSchema,
   MAX_SEARCH_ENTITIES_PER_SCENE,
   MAX_SEARCH_INTENTS_PER_SCENE,
   MAX_VISUAL_CUE_WORDS,
@@ -28,7 +31,6 @@ import {
   splitCanonicalSentences,
 } from './sentences.js';
 import {
-  buildVisualSubjectSearchQueries,
   isGenericVisualSubjectName,
   parseVisualSubjectCatalog,
   subjectNames,
@@ -43,8 +45,7 @@ import {
 import { normalizeNumericToken, numericTokens } from './validation.js';
 
 const SEARCH_INTENT_REASONING = { enabled: false } as const;
-const SEARCH_INTENT_PAYLOAD_MAX_ATTEMPTS = 2;
-const MAX_DEGRADED_REASON_CHARS = 200;
+export const SUBJECT_CATALOG_MAX_ATTEMPTS = 3;
 const CJK_CHARACTER_CAPTURE_PATTERN =
   /([\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}])/gu;
 
@@ -58,6 +59,7 @@ export interface SearchIntentCatalogRequest {
   title: string;
   scenes: readonly SearchIntentScene[];
   signal?: AbortSignal;
+  repairIssues?: readonly string[];
 }
 
 export interface SearchIntentProvider {
@@ -66,19 +68,13 @@ export interface SearchIntentProvider {
 }
 
 export interface SearchIntentEnrichment {
-  draft: StoryboardDraft;
-  model: string | null;
+  draft: EnrichedStoryboardDraft;
+  model: string;
   enrichedSceneCount: number;
   entityAnchoredSceneCount: number;
   sceneCueCount?: number;
-  subjectCatalog: VisualSubjectCatalog | null;
+  subjectCatalog: VisualSubjectCatalog;
   sceneAssignments: VisualSceneSubjectAssignment[];
-  /**
-   * Set when the catalog LLM answered with something unusable. The episode then
-   * keeps the deterministic storyboard intents and renders anyway, so this is
-   * the only surviving evidence of why its images were never subject-anchored.
-   */
-  degradedReason?: string;
 }
 
 interface SearchIntentCompletionDiagnostics {
@@ -95,17 +91,20 @@ class SearchIntentPayloadError extends Error {
   }
 }
 
-/**
- * A catalog response that arrived and could not be used. Separating it from the
- * causes that never reached a model is what lets the episode degrade: three
- * fail_episode_video_visual attempts were being burned on one bad LLM answer,
- * replaying the whole storyboard each time, for an episode whose deterministic
- * intents would have rendered.
- */
-class SearchIntentQualityError extends Error {
-  constructor(message: string, options?: ErrorOptions) {
-    super(message, options);
-    this.name = 'SearchIntentQualityError';
+export interface SubjectCatalogAttempt {
+  attempt: number;
+  issues: string[];
+}
+
+export class SubjectCatalogUnavailableError extends Error {
+  constructor(readonly attempts: SubjectCatalogAttempt[]) {
+    super(
+      `Visual subject catalog unavailable after ${attempts.length} attempts: ${attempts.at(-1)?.issues.join('; ')}`.slice(
+        0,
+        400,
+      ),
+    );
+    this.name = 'SubjectCatalogUnavailableError';
   }
 }
 
@@ -117,7 +116,11 @@ export async function enrichStoryboardSearchIntents(
     script: string;
     searchScript?: string;
   },
-  options: { provider?: SearchIntentProvider; signal?: AbortSignal } = {},
+  options: {
+    provider?: SearchIntentProvider;
+    signal?: AbortSignal;
+    onCatalogRetry?: (attempt: SubjectCatalogAttempt) => void;
+  } = {},
 ): Promise<SearchIntentEnrichment> {
   throwIfAborted(options.signal);
   const provider = options.provider ?? createOpenRouterSearchIntentProvider();
@@ -129,37 +132,19 @@ export async function enrichStoryboardSearchIntents(
       'Search intents cannot map every storyboard scene onto canonical sentences',
     );
   }
-  if (scenes.length === 0) {
-    return {
-      draft: request.draft,
-      model: null,
-      enrichedSceneCount: 0,
-      entityAnchoredSceneCount: 0,
-      subjectCatalog: null,
-      sceneAssignments: [],
-    };
-  }
+  if (scenes.length === 0)
+    throw new Error('Visual subject catalog requires content scenes');
 
   const searchTitle = request.searchTitle?.trim() || request.title;
-  let subjectCatalog: VisualSubjectCatalog;
-  try {
-    subjectCatalog = await buildSubjectCatalog(provider, {
+  const subjectCatalog = await buildSubjectCatalog(
+    provider,
+    {
       title: searchTitle,
       scenes,
       ...(options.signal ? { signal: options.signal } : {}),
-    });
-  } catch (error) {
-    if (!(error instanceof SearchIntentQualityError)) throw error;
-    return {
-      draft: request.draft,
-      model: provider.model,
-      enrichedSceneCount: 0,
-      entityAnchoredSceneCount: 0,
-      subjectCatalog: null,
-      sceneAssignments: [],
-      degradedReason: degradedCatalogReason(error),
-    };
-  }
+    },
+    options.onCatalogRetry,
+  );
 
   return enrichFromSubjectCatalog(
     request.draft,
@@ -167,13 +152,6 @@ export async function enrichStoryboardSearchIntents(
     subjectCatalog,
     provider.model,
   );
-}
-
-function degradedCatalogReason(error: unknown): string {
-  const reason = errorMessage(error).replace(/\s+/gu, ' ').trim();
-  return reason.length > MAX_DEGRADED_REASON_CHARS
-    ? `${reason.slice(0, MAX_DEGRADED_REASON_CHARS - 1)}…`
-    : reason;
 }
 
 /**
@@ -270,7 +248,7 @@ function enrichFromSubjectCatalog(
       (subjectId) => visualSubjectById(catalog, subjectId)!,
     );
     const imageSearchIntent = [
-      ...new Set(subjects.flatMap(buildVisualSubjectSearchQueries)),
+      ...new Set(subjects.map((subject) => subject.searchQuery)),
     ].slice(0, MAX_SEARCH_INTENTS_PER_SCENE);
     const imageSearchEntities = sceneSearchEntities(subjects);
     entityAnchoredSceneCount += 1;
@@ -287,7 +265,7 @@ function enrichFromSubjectCatalog(
   // numeric grounding is deliberately not re-applied because numbers embedded
   // in proper names such as a16z, web3 or GPT-5 are identity, not factual claims.
   return {
-    draft: { scenes: enrichedScenes },
+    draft: enrichedStoryboardDraftSchema.parse({ scenes: enrichedScenes }),
     model,
     enrichedSceneCount: scenes.length,
     entityAnchoredSceneCount,
@@ -327,20 +305,56 @@ export function sceneSearchEntities(
 async function buildSubjectCatalog(
   provider: SearchIntentProvider,
   request: SearchIntentCatalogRequest,
+  onRetry?: (attempt: SubjectCatalogAttempt) => void,
 ): Promise<VisualSubjectCatalog> {
-  try {
-    const raw = await provider.catalog(request);
-    const catalog = parseVisualSubjectCatalog(raw);
-    validateSubjectCatalogGrounding(catalog, request);
-    return groundSceneCues(catalog, request);
-  } catch (error) {
+  const attempts: SubjectCatalogAttempt[] = [];
+  for (let attempt = 1; attempt <= SUBJECT_CATALOG_MAX_ATTEMPTS; attempt += 1) {
     throwIfAborted(request.signal);
-    if (isUpstreamCatalogError(error)) throw error;
-    throw new SearchIntentQualityError(
-      `Visual subject catalog failed: ${errorMessage(error)}`,
-      { cause: error },
-    );
+    let raw: unknown;
+    try {
+      raw = await provider.catalog({
+        ...request,
+        repairIssues: attempts.at(-1)?.issues,
+      });
+      const catalog = parseVisualSubjectCatalog(raw);
+      validateSubjectCatalogGrounding(catalog, request);
+      return groundSceneCues(catalog, request);
+    } catch (error) {
+      throwIfAborted(request.signal);
+      if (isUpstreamCatalogError(error)) throw error;
+      const record = { attempt, issues: catalogRepairIssues(error, raw) };
+      attempts.push(record);
+      onRetry?.(record);
+    }
   }
+  throw new SubjectCatalogUnavailableError(attempts);
+}
+
+export function catalogRepairIssues(error: unknown, raw: unknown): string[] {
+  const subjects =
+    isRecord(raw) && Array.isArray(raw['subjects']) ? raw['subjects'] : [];
+  const issues =
+    error instanceof z.ZodError
+      ? error.issues.map((issue) => {
+          const index = issue.path.find(
+            (part): part is number => typeof part === 'number',
+          );
+          const subject = index === undefined ? null : subjects[index];
+          const label = isRecord(subject)
+            ? ` (${String(subject['id'])}: ${String(subject['canonicalName'])})`
+            : '';
+          if (issue.code === 'too_big' && issue.maximum === 24)
+            return `return at most 24 subjects in total (received ${subjects.length})`;
+          if (issue.path.includes('id'))
+            return `subjects id must be lowercase ASCII kebab-case such as subject-gpt-6-1-sol${label}`;
+          if (issue.path.includes('canonicalName'))
+            return `canonicalName must be 2–80 characters${label}`;
+          return `${issue.path.join('.')}: ${issue.message}${label}`;
+        })
+      : [errorMessage(error)];
+  return issues
+    .slice(0, 12)
+    .map((issue) => issue.replace(/\s+/gu, ' ').slice(0, 240));
 }
 
 export function groundSceneCues(
@@ -450,28 +464,14 @@ export function createOpenRouterSearchIntentProvider(): SearchIntentProvider {
   return {
     model,
     catalog: async (request) => {
-      let attempt = 1;
-      while (true) {
-        try {
-          const raw = await completeSearchIntentRequest({
-            openai,
-            model,
-            messages: subjectCatalogMessages(request),
-            operation: 'buildVisualSubjectCatalog',
-            signal: request.signal,
-          });
-          return materializeVisualSubjectCatalog(raw, request);
-        } catch (error) {
-          throwIfAborted(request.signal);
-          if (
-            !(error instanceof SearchIntentPayloadError) ||
-            attempt >= SEARCH_INTENT_PAYLOAD_MAX_ATTEMPTS
-          ) {
-            throw error;
-          }
-          attempt += 1;
-        }
-      }
+      const raw = await completeSearchIntentRequest({
+        openai,
+        model,
+        messages: subjectCatalogMessages(request),
+        operation: 'buildVisualSubjectCatalog',
+        signal: request.signal,
+      });
+      return materializeVisualSubjectCatalog(raw, request);
     },
   };
 }
@@ -630,10 +630,17 @@ function judgeCompactSubject(
 
   return {
     kept: {
-      ...subject,
+      id: subject['id'],
+      canonicalName: subject['canonicalName'],
+      type: subject['type'],
+      storyRole: subject['storyRole'],
+      identityHints: subject['identityHints'],
+      negativeHints: subject['negativeHints'],
+      ...(subject['searchQualifier'] !== undefined
+        ? { searchQualifier: subject['searchQualifier'] }
+        : {}),
       aliases,
       evidenceSceneIds,
-      searchQueries: deterministicSubjectSearchQueries(subject),
       officialDomains: [],
     },
   };
@@ -658,7 +665,18 @@ function dropVerdict(
   type: string,
   reason: VisualSubjectDrop['reason'],
 ): CompactSubjectVerdict {
-  return { drop: { id, names: names.slice(0, 7), type, reason } };
+  return {
+    drop: {
+      id: id.trim().slice(0, 80) || 'unknown',
+      names: names
+        .map((name) => name.trim())
+        .filter(Boolean)
+        .slice(0, 7)
+        .map((name) => name.slice(0, 80)),
+      type: type.trim().slice(0, 40) || 'unknown',
+      reason,
+    },
+  };
 }
 
 /**
@@ -709,31 +727,6 @@ function rawSubjectNames(subject: Record<string, unknown>): string[] {
   ];
 }
 
-function deterministicSubjectSearchQueries(
-  subject: Record<string, unknown>,
-): string[] {
-  const canonical = (subject['canonicalName'] as string).trim();
-  // The hint always leads the query, whatever the name looks like. Gating it on
-  // an "ambiguous" shape -- object anchors, collision hints, short names --
-  // asked Brave for a bare `Tether`, which returned photographs of tethering
-  // cables: a name being long and unique says nothing about whether it collides
-  // with an ordinary English word. The bare name stays as the second query.
-  const hint = compactStringArray(subject['identityHints'])[0]?.trim();
-  const descriptive = hint
-    ? `${canonical} ${hint}`.slice(0, 80).trim()
-    : canonical;
-  return [...new Set([descriptive, canonical])];
-}
-
-function compactStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value.flatMap((entry) => {
-    if (typeof entry !== 'string') return [];
-    const trimmed = entry.trim();
-    return trimmed ? [trimmed] : [];
-  });
-}
-
 export function buildSubjectCatalogSystemPrompt(): string {
   return [
     'Build a compact visual anchor catalog for this entire news episode. The catalog drives image search for a news video, so every anchor must point to something that can produce recognizable, story-relevant photographs or logos.',
@@ -747,22 +740,30 @@ export function buildSubjectCatalogSystemPrompt(): string {
     '- Use only these type values: company, person, product, protocol, place, regulator, asset, standard, organization, object. Map a brand to company/product/organization as appropriate, and a government institution to regulator/organization/place as appropriate.',
     '- canonicalName and aliases are identity labels. Do not merge competitors or similarly named things.',
     '- Copy canonicalName verbatim from the title or scenes. When both an English and a local-script name are present, use the English spelling for canonicalName and put the local-script spelling in aliases (example: canonicalName "NVIDIA", aliases ["輝達"]). Put descriptive industry, category, role, and physical-context terms only in identityHints.',
-    '- identityHints are 2 to 6 short positive disambiguators such as industry, product, chain, role, location, or physical context. The first one is appended to the name to form the image-search query for every anchor, so it must help image search identify this anchor, not describe a generic mood.',
+    '- identityHints provide ranking and borrowing context, such as industry, product, chain, role or location.',
+    '- Return at most 24 subjects in total, usually 3–12. Choose anchors that best identify the scenes. canonicalName must be 2–80 characters.',
+    '- searchQualifier is null when the name alone identifies the subject (OpenAI), otherwise 1–3 English words, at most 32 characters, with no purely numeric word. Examples: Tether -> USDT, Finloop -> Hong Kong, Dots -> OpenAI. Common words or abbreviated names require a qualifier. Never describe people, actions, settings, or photographic styles.',
     '- negativeHints are only known name-collision meanings to reject (for example animal, camera, engine); do not list ordinary competitors as negative hints.',
     '- Do not output evidenceSceneIds, image-search queries, or domains on subjects. The application derives scene evidence and final search queries deterministically from the anchor identity.',
-    '- Separately, return "scenes": one entry per input sceneId, {"sceneId","subjectId","visualCue"}. subjectId is the catalog subject the scene is most about, or null. visualCue is 2 to 5 English words naming the concrete, photographable moment the narration describes: a place, object, action or event a news photographer could have shot (examples: "stock chart plunge", "chip launch keynote", "courtroom exterior", "container port cranes"). Never a mood, abstraction, caption, or a number the scene does not state. Do not repeat the subject name inside visualCue; the application prepends it.',
-    '- Use stable IDs shaped like subject-nvidia, subject-andy-jassy, or subject-gpu.',
-    'Return valid JSON only: {"primarySubjectId":"subject-nvidia","subjects":[{"id":"subject-nvidia","canonicalName":"NVIDIA","type":"company","aliases":["輝達"],"storyRole":"primary","identityHints":["GPU maker","AI chips"],"negativeHints":[]},{"id":"subject-andy-jassy","canonicalName":"Andy Jassy","type":"person","aliases":[],"storyRole":"supporting","identityHints":["Amazon CEO"],"negativeHints":[]},{"id":"subject-gpu","canonicalName":"GPU","type":"object","aliases":[],"storyRole":"supporting","identityHints":["AI accelerator hardware"],"negativeHints":[]}],"scenes":[{"sceneId":"scene-01","subjectId":"subject-nvidia","visualCue":"GPU launch keynote"}]}',
+    '- Separately, return "scenes": one entry per input sceneId, {"sceneId","subjectId","visualCue"}. subjectId is the catalog subject the scene is most about, or null. visualCue is 2 to 5 English words naming the concrete, photographable moment the narration describes: a place, object, action or event a news photographer could have shot (examples: "stock chart plunge", "chip launch keynote", "courtroom exterior", "container port cranes"). Never a mood, abstraction, caption, or a number the scene does not state. Do not repeat the subject name inside visualCue; this cue only ranks images.',
+    '- Use stable IDs shaped like subject-nvidia, subject-andy-jassy, or subject-gpt-6-1-sol. IDs must be lowercase ASCII kebab-case.',
+    'Return valid JSON only: {"primarySubjectId":"subject-nvidia","subjects":[{"id":"subject-nvidia","canonicalName":"NVIDIA","type":"company","aliases":["輝達"],"storyRole":"primary","searchQualifier":null,"identityHints":["GPU maker","AI chips"],"negativeHints":[]},{"id":"subject-andy-jassy","canonicalName":"Andy Jassy","type":"person","aliases":[],"storyRole":"supporting","searchQualifier":null,"identityHints":["Amazon CEO"],"negativeHints":[]},{"id":"subject-gpu","canonicalName":"GPU","type":"object","aliases":[],"storyRole":"supporting","searchQualifier":"AI accelerator","identityHints":["AI accelerator hardware"],"negativeHints":[]}],"scenes":[{"sceneId":"scene-01","subjectId":"subject-nvidia","visualCue":"GPU launch keynote"}]}',
   ].join('\n');
 }
 
 function subjectCatalogMessages(
   request: SearchIntentCatalogRequest,
 ): OpenAI.Chat.ChatCompletionMessageParam[] {
-  return promptMessages(buildSubjectCatalogSystemPrompt(), {
+  const messages = promptMessages(buildSubjectCatalogSystemPrompt(), {
     title: request.title,
     scenes: promptScenes(request.scenes),
   });
+  if (request.repairIssues?.length)
+    messages.push({
+      role: 'user',
+      content: `Correct the previous catalog response. Preserve grounding and fix all issues:\n${request.repairIssues.join('\n')}`,
+    });
+  return messages;
 }
 
 function promptScenes(scenes: readonly SearchIntentScene[]): unknown[] {
@@ -810,6 +811,20 @@ function parseSearchIntentContent(
       { cause: error },
     );
   }
+}
+
+export function contentSceneEvidence(request: {
+  draft: StoryboardDraft;
+  script: string;
+  searchScript?: string;
+}): SearchIntentScene[] {
+  const scenes = searchIntentScenes(
+    request,
+    splitCanonicalSentences(request.script),
+  );
+  if (!scenes)
+    throw new Error('Content scene evidence cannot map canonical sentences');
+  return scenes;
 }
 
 function searchIntentScenes(

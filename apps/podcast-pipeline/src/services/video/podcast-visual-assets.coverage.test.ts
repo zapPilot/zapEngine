@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { PODCAST_INTRO_VISUAL_INTENT } from '../podcast-packaging.js';
+import { fixturePlannerContext } from './__fixtures__/identity-catalog.js';
 import { anchoredPlannerScenes } from './podcast-visual-assets.js';
 
 const directories: string[] = [];
@@ -20,7 +21,8 @@ function catalog() {
         aliases: [] as string[],
         storyRole: 'primary' as const,
         evidenceSceneIds: ['scene-01'],
-        searchQueries: ['Primary Company'],
+
+        searchQuery: 'Primary Company company',
         identityHints: ['company'],
         negativeHints: [] as string[],
         officialDomains: [] as string[],
@@ -114,6 +116,9 @@ describe('podcast visual asset coverage edges', () => {
     };
 
     const result = await planPodcastVisualAssets({
+      ...fixturePlannerContext([
+        { sceneId: 'scene-01', imageSearchIntent: ['market'] },
+      ]),
       scenes: [{ sceneId: 'scene-01', imageSearchIntent: ['market'] }],
       articleImages: [cover],
       workingDirectory,
@@ -185,6 +190,9 @@ describe('podcast visual asset coverage edges', () => {
 
     await expect(
       planPodcastVisualAssets({
+        ...fixturePlannerContext([
+          { sceneId: 'scene-01', imageSearchIntent: ['market'] },
+        ]),
         scenes: [{ sceneId: 'scene-01', imageSearchIntent: ['market'] }],
         workingDirectory: await directory('podcast-visual-no-cover-'),
         selectionMode: 'resilient',
@@ -213,6 +221,9 @@ describe('podcast visual asset coverage edges', () => {
 
     await expect(
       planPodcastVisualAssets({
+        ...fixturePlannerContext([
+          { sceneId: 'scene-01', imageSearchIntent: ['market'] },
+        ]),
         scenes: [{ sceneId: 'scene-01', imageSearchIntent: ['market'] }],
         workingDirectory: await directory('podcast-visual-no-scene-'),
         selectionMode: 'resilient',
@@ -254,6 +265,9 @@ describe('podcast visual asset coverage edges', () => {
       await import('./podcast-visual-assets.js');
 
     await planPodcastVisualAssets({
+      ...fixturePlannerContext([
+        { sceneId: 'scene-01', imageSearchIntent: ['market'] },
+      ]),
       scenes: [{ sceneId: 'scene-01', imageSearchIntent: ['market'] }],
       workingDirectory: await directory('podcast-visual-progress-'),
       selectionMode: 'resilient',
@@ -278,6 +292,12 @@ describe('podcast visual asset coverage edges', () => {
 
     await expect(
       planPodcastVisualAssets({
+        ...fixturePlannerContext([
+          {
+            sceneId: 'scene-01',
+            imageSearchIntent: [PODCAST_INTRO_VISUAL_INTENT],
+          },
+        ]),
         scenes: [
           {
             sceneId: 'scene-01',

@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { createEpisodeVideoProcessor } from './episode-video-processor.js';
+import {
+  fixtureCatalog,
+  fixtureQualityReport,
+} from './video/__fixtures__/identity-catalog.js';
 import { prepareVideoCover } from './video/video-cover.js';
 import {
   EPISODE_VIDEO_VISUAL_VERSION,
@@ -279,6 +283,7 @@ function generatedManifest(manifestHash: string) {
     manifestHash,
     scriptHash: 'script-hash',
     provenance: {
+      qualityReport: fixtureQualityReport,
       storyboardProvider: 'deterministic',
       storyboardModel: 'deterministic-v1',
       promptVersion: 'semantic-scene-alignment-v1',
@@ -290,6 +295,8 @@ function generatedManifest(manifestHash: string) {
 function visualManifest(leadCoverImageUrl: string): Record<string, unknown> {
   return {
     schemaVersion: 'podcast-episode-visual.v1',
+    subjectCatalog: fixtureCatalog,
+    sceneAssignments: [],
     visualVersion: EPISODE_VIDEO_VISUAL_VERSION,
     visualHash,
     episodeId,
@@ -341,6 +348,7 @@ function visualManifest(leadCoverImageUrl: string): Record<string, unknown> {
       },
     ],
     provenance: {
+      qualityReport: fixtureQualityReport,
       storyboardProvider: 'deterministic',
       storyboardModel: 'deterministic-v1',
       storyboardPromptVersion: 'image-storyboard-v2',

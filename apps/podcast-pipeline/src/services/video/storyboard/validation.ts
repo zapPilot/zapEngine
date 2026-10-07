@@ -186,7 +186,7 @@ export function validateStoryboardDraft(
     );
     if (!rangeText) return;
 
-    const combinedIntent = scene.imageSearchIntent.join('\n');
+    const combinedIntent = scene.imageSearchIntent?.join('\n') ?? '';
     if (
       combinedIntent.includes('\uFFFD') ||
       containsDisallowedControlCharacters(combinedIntent)

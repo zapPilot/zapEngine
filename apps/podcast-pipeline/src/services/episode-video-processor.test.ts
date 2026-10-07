@@ -8,6 +8,10 @@ import {
   renderTimeoutMsFor,
 } from './episode-video-processor.js';
 import {
+  fixtureCatalog,
+  fixtureQualityReport,
+} from './video/__fixtures__/identity-catalog.js';
+import {
   EPISODE_VIDEO_VISUAL_VERSION,
   type EpisodeVideoJobRow,
   type EpisodeVideoSource,
@@ -126,6 +130,7 @@ describe('createEpisodeVideoProcessor', () => {
     const customSource = source();
     const manifest = customSource.visualManifest as {
       provenance: {
+        qualityReport: typeof fixtureQualityReport;
         leadCoverImageUrl: string | null;
         leadCoverFallbackReason: string | null;
       };
@@ -965,6 +970,7 @@ function generatedManifest(manifestHash: string) {
     manifestHash,
     scriptHash: 'script-hash',
     provenance: {
+      qualityReport: fixtureQualityReport,
       storyboardProvider: 'deterministic',
       storyboardModel: 'deterministic-v1',
       promptVersion: 'semantic-scene-alignment-v1',
@@ -976,6 +982,8 @@ function generatedManifest(manifestHash: string) {
 function visualManifest(): Record<string, unknown> {
   return {
     schemaVersion: 'podcast-episode-visual.v1',
+    subjectCatalog: fixtureCatalog,
+    sceneAssignments: [],
     visualVersion: EPISODE_VIDEO_VISUAL_VERSION,
     visualHash,
     episodeId,
@@ -1027,6 +1035,7 @@ function visualManifest(): Record<string, unknown> {
       },
     ],
     provenance: {
+      qualityReport: fixtureQualityReport,
       storyboardProvider: 'deterministic',
       storyboardModel: 'deterministic-v1',
       storyboardPromptVersion: 'image-storyboard-v2',
