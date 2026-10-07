@@ -590,6 +590,27 @@ describe('usePodcastPlayer native source handoff', () => {
 });
 
 describe('usePodcastPlayer iOS Now Playing reclaim', () => {
+  it('reclaims transport when paused video hands back to paused Story', async () => {
+    const harness = await render();
+    await act(async () => queue.args?.playEpisode(episode));
+    await act(async () =>
+      harness.current().pause({ releaseMediaSession: true }),
+    );
+    audio.player.setActiveForLockScreen.mockClear();
+    audio.player.play.mockClear();
+    const section = harness.current().sections[0];
+    expect(section).toBeDefined();
+    await act(async () => {
+      if (section) queue.args?.playEpisodeSection(episode, section, 37, false);
+    });
+    expect(audio.player.setActiveForLockScreen).toHaveBeenCalledWith(
+      true,
+      expect.objectContaining({ title: 'Episode one' }),
+      expect.anything(),
+    );
+    expect(audio.player.play).not.toHaveBeenCalled();
+  });
+
   it('reclaims the media session when paused audio resumes without a metadata change', async () => {
     const harness = await render();
 
@@ -599,7 +620,11 @@ describe('usePodcastPlayer iOS Now Playing reclaim', () => {
     audio.player.setActiveForLockScreen.mockClear();
     audio.player.updateLockScreenMetadata.mockClear();
 
-    // Audio -> video handoff pauses audio; pausing must never steal Now Playing.
+    // Audio -> video releases audio targets before video claims Now Playing.
+    await act(async () =>
+      harness.current().pause({ releaseMediaSession: true }),
+    );
+    expect(audio.player.clearLockScreenControls).toHaveBeenCalledOnce();
     await setPlaying(harness, false);
     expect(harness.current().isPlaying).toBe(false);
     expect(audio.player.setActiveForLockScreen).not.toHaveBeenCalled();

@@ -29,7 +29,8 @@ export interface PodcastPlayer {
   queueIndex: number;
   hasPreviousEpisode: boolean;
   hasNextEpisode: boolean;
-  pause: () => void;
+  /** Release native transport targets when handing ownership to video. */
+  pause: (options?: { releaseMediaSession: boolean }) => void;
   toggle: (episode: PodcastEpisode) => void;
   playFromQueue: (
     episodes: readonly PodcastEpisode[],

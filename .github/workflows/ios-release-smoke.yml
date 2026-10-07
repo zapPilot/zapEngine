@@ -44,6 +44,7 @@ jobs:
               - 'apps/app/scripts/assert-ios-native-dependencies.cjs'
               - 'apps/app/scripts/assert-workspace-dist-fresh.cjs'
               - 'apps/app/scripts/ios-release-smoke.mjs'
+              - 'apps/app/scripts/ios-smoke-simulator.mjs'
               - 'apps/app/scripts/sync-ios-native.mjs'
               - 'apps/app/scripts/with-app-store-icon.cjs'
               - 'packages/app-core/src/**'

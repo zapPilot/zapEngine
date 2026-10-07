@@ -178,7 +178,11 @@ for (const width of [390, 1440]) {
     await page.goto('/podcast/shell-episode?lang=en');
     const back = page.getByRole('button', { name: 'Back', exact: true });
     await expect(back).toBeVisible();
-    if (width === 390) expect((await back.boundingBox())!.x).toBeCloseTo(20, 0);
+    if (width === 390) {
+      await expect
+        .poll(async () => (await back.boundingBox())?.x)
+        .toBeCloseTo(20, 0);
+    }
     await noOverflow(page);
   });
 }

@@ -375,7 +375,19 @@ test('guest wallet search switches to a verified bundle, survives navigation and
   await page.getByRole('link', { name: 'Podcast', exact: true }).click();
   await expect(page).toHaveURL(/\/podcast$/);
   await page.getByRole('link', { name: 'Home', exact: true }).click();
-  await expect(page).toHaveURL(new RegExp(`userId=${BUNDLE_USER_ID}`));
+  // Tab navigation may retain or drop the query; the store retains the account.
+  await expect.poll(() => new URL(page.url()).pathname).toBe('/home');
+  await expect(page.getByText(/Read-only view · 0x1234…5678/)).toBeVisible();
+  for (const name of OWNER_ONLY_BUTTONS)
+    await expect(
+      page.getByRole('button', { name, exact: true }),
+    ).toBeDisabled();
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.getByRole('button', { name: 'Share portfolio' }).click();
+  await expect(page.getByText('Link copied', { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+    `${new URL(page.url()).origin}/home?userId=${BUNDLE_USER_ID}`,
+  );
   await page
     .getByRole('button', { name: 'Clear wallet search', exact: true })
     .first()
