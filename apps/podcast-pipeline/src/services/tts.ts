@@ -31,7 +31,7 @@ function normalizeTtsOptions(opts: {
 }): TtsSynthesizeOptions {
   return {
     languageCode: opts.languageCode,
-    config: getTtsConfig(),
+    config: getTtsConfig(opts.languageCode),
     costLabel: opts.costLabel ?? 'TTS audio',
   };
 }

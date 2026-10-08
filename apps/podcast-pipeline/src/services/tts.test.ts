@@ -121,9 +121,44 @@ describe('Fish Audio TTS facade', () => {
   );
 
   it('returns Fish Audio metadata', () => {
+    expect(getTtsMetadata({ languageCode: 'zh-Hant' })).toEqual({
+      languageCode: 'zh-Hant',
+      voiceName: 'fish-reference',
+    });
+  });
+
+  it('routes Japanese narration to someone else’s voice', async () => {
+    await textToSpeech('日本語ナレーション', { languageCode: 'ja' });
+
+    expect(mocks.synthesize).toHaveBeenCalledWith('日本語ナレーション', {
+      languageCode: 'ja',
+      config: {
+        modelId: '63bc41e652214372b15d9416a30a60b4',
+        engine: 's2.1-pro-free',
+      },
+      costLabel: 'TTS audio',
+    });
     expect(getTtsMetadata({ languageCode: 'ja' })).toEqual({
       languageCode: 'ja',
-      voiceName: 'fish-reference',
+      voiceName: '63bc41e652214372b15d9416a30a60b4',
+    });
+  });
+
+  it('prefers FISH_AUDIO_REFERENCE_ID_JA for Japanese narration only', async () => {
+    vi.stubEnv('FISH_AUDIO_REFERENCE_ID_JA', 'ja-override');
+
+    await textToSpeech('日本語ナレーション', { languageCode: 'ja' });
+    expect(mocks.synthesize).toHaveBeenCalledWith('日本語ナレーション', {
+      languageCode: 'ja',
+      config: { modelId: 'ja-override', engine: 's2.1-pro-free' },
+      costLabel: 'TTS audio',
+    });
+
+    await textToSpeech('中文旁白', { languageCode: 'zh-Hant' });
+    expect(mocks.synthesize).toHaveBeenCalledWith('中文旁白', {
+      languageCode: 'zh-Hant',
+      config: { modelId: 'fish-reference', engine: 's2.1-pro-free' },
+      costLabel: 'TTS audio',
     });
   });
 
@@ -139,8 +174,17 @@ describe('Fish Audio TTS facade', () => {
   it('fails closed on metadata when the Fish Audio reference id is missing', () => {
     vi.stubEnv('FISH_AUDIO_REFERENCE_ID', '');
 
-    expect(() => getTtsMetadata({ languageCode: 'ja' })).toThrow(
+    expect(() => getTtsMetadata({ languageCode: 'zh-Hant' })).toThrow(
       'FISH_AUDIO_REFERENCE_ID is required for Fish Audio TTS',
+    );
+    expect(mocks.getMetadata).not.toHaveBeenCalled();
+  });
+
+  it('fails closed on Japanese metadata when the JA override is blank', () => {
+    vi.stubEnv('FISH_AUDIO_REFERENCE_ID_JA', '   ');
+
+    expect(() => getTtsMetadata({ languageCode: 'ja' })).toThrow(
+      'FISH_AUDIO_REFERENCE_ID_JA is required for Japanese Fish Audio TTS when set',
     );
     expect(mocks.getMetadata).not.toHaveBeenCalled();
   });

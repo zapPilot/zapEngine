@@ -41,11 +41,15 @@ export interface AuditionOperations {
   save: (name: string, audio: Buffer) => Promise<void>;
 }
 export async function auditionMixedLanguage(
-  config: TtsSynthesizeOptions['config'],
+  config:
+    | TtsSynthesizeOptions['config']
+    | ((languageCode: string) => TtsSynthesizeOptions['config']),
   operations: AuditionOperations,
 ): Promise<string> {
   const raw = new Map<string, Promise<TtsSynthesisResult>>();
   const reports: string[] = [];
+  const resolveConfig = (languageCode: string) =>
+    typeof config === 'function' ? config(languageCode) : config;
   const memo = (text: string, opts: TtsSynthesizeOptions) => {
     const key = JSON.stringify([text, opts.config.engine, opts.config.modelId]);
     let result = raw.get(key);
@@ -56,7 +60,10 @@ export async function auditionMixedLanguage(
     return result;
   };
   for (const sample of AUDITION_SAMPLES) {
-    const opts = { config, languageCode: sample.languageCode };
+    const opts = {
+      config: resolveConfig(sample.languageCode),
+      languageCode: sample.languageCode,
+    };
     const parts = buildMixedLanguagePlan(sample.text, sample.languageCode)!;
     for (const part of parts)
       if (part.kind === 'speech') {
@@ -79,7 +86,7 @@ export async function auditionMixedLanguage(
       );
       if (sample.id === 'btc') {
         const english = await memo('Bitcoin is a digital asset.', {
-          config,
+          config: resolveConfig('en'),
           languageCode: 'en',
         });
         const joined = await operations.concat([result.audio, english.audio]);

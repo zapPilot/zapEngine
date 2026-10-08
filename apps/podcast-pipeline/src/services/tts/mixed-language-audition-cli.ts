@@ -14,16 +14,19 @@ const { values } = parseArgs({ options: { output: { type: 'string' } } });
 const output =
   values.output ?? (await mkdtemp(join(tmpdir(), 'tts-audition-')));
 await mkdir(output, { recursive: true });
-const report = await auditionMixedLanguage(getTtsConfig(), {
-  synthesize,
-  render: synthesizeMixedLanguage,
-  measure: measureSilences,
-  concat: concatMp3Buffers,
-  save: async (name, audio) => {
-    const file = join(output, name);
-    await writeFile(file, audio);
-    console.log(`afplay '${file}'`);
+const report = await auditionMixedLanguage(
+  (languageCode: string) => getTtsConfig(languageCode),
+  {
+    synthesize,
+    render: synthesizeMixedLanguage,
+    measure: measureSilences,
+    concat: concatMp3Buffers,
+    save: async (name, audio) => {
+      const file = join(output, name);
+      await writeFile(file, audio);
+      console.log(`afplay '${file}'`);
+    },
   },
-});
+);
 await writeFile(join(output, 'CHECKLIST.md'), report);
 console.log(output);

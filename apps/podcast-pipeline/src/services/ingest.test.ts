@@ -1303,7 +1303,7 @@ describe('performIngest failure paths', () => {
       'completed',
       expect.objectContaining({
         ttsLanguageCode: 'ja',
-        ttsVoiceName: 'test-fish-reference',
+        ttsVoiceName: '63bc41e652214372b15d9416a30a60b4',
       }),
     );
     expect(mockGenerateLanguageClassroomsWithLLM).not.toHaveBeenCalled();

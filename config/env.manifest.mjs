@@ -384,6 +384,9 @@ export const ENV_MANIFEST = {
     requiredFor: ['podcast-pipeline:fish-audio'],
     sensitive: true,
   }),
+  FISH_AUDIO_REFERENCE_ID_JA: server(['podcast-pipeline'], {
+    sensitive: true,
+  }),
   FISH_AUDIO_RETRY_DELAY_MS: server(['podcast-pipeline']),
   FISH_AUDIO_TIMEOUT_MS: server(['podcast-pipeline']),
   FISH_AUDIO_IDLE_TIMEOUT_MS: server(['podcast-pipeline']),

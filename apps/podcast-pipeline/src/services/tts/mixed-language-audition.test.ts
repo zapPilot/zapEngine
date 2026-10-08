@@ -41,6 +41,51 @@ it('synthesizes each raw fragment once and isolates matrix renders, including cl
   expect(report).toContain('production 4.1');
   expect(report).toContain('raw');
 });
+it('resolves a per-language voice when given a resolver', async () => {
+  const synthesize = vi.fn(
+    async (
+      ...args: [
+        text: string,
+        opts?: { languageCode: string; config: { modelId: string } },
+      ]
+    ) => ({
+      audio: Buffer.from(args[0]),
+      cost: [],
+    }),
+  );
+  const render = vi.fn(async (parts, opts, deps) => {
+    for (const part of parts)
+      if (part.kind === 'speech') await deps.synthesize(part.text, opts);
+    return { audio: Buffer.from('render'), cost: [] };
+  });
+  const measure = vi.fn(async () => ({
+    durationSeconds: 1,
+    silences: [{ start: 0, end: 0.1 }],
+  }));
+  const save = vi.fn(async () => {});
+  const concat = vi.fn(async () => Buffer.from('join'));
+  const resolveConfig = vi.fn((languageCode: string) => ({
+    engine: 'e',
+    modelId: languageCode === 'ja' ? 'ja-voice' : 'owner-voice',
+  }));
+  await auditionMixedLanguage(resolveConfig, {
+    synthesize,
+    render,
+    measure,
+    save,
+    concat,
+  });
+  expect(resolveConfig).toHaveBeenCalledWith('ja');
+  expect(resolveConfig).toHaveBeenCalledWith('zh-Hant');
+  expect(resolveConfig).toHaveBeenCalledWith('en');
+  const jaCalls = synthesize.mock.calls.filter(
+    ([, opts]) => opts?.languageCode === 'ja',
+  );
+  expect(jaCalls.length).toBeGreaterThan(0);
+  for (const [, opts] of jaCalls) {
+    expect(opts?.config.modelId).toBe('ja-voice');
+  }
+});
 it('propagates failed raw synthesis', async () => {
   await expect(
     auditionMixedLanguage(
