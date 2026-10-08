@@ -20,33 +20,39 @@ describe('approved Motion geometry', () => {
     expect(scene.faces.every((f) => f.tf.includes('var(--zp-u)'))).toBe(true);
     expect(engineScene(0, 0, true).ox).toBe('50%');
   });
-  it('produces finite geometry at every frame and all seven stages', () => {
-    const invalidFrames: number[] = [];
-    const undersizedFrames: number[] = [];
-    for (let frame = 0; frame <= 1000; frame++) {
-      const scene = engineScene(frame / 1000, frame / 30, frame % 2 === 0);
-      if (/NaN|Infinity|undefined/.test(JSON.stringify(scene)))
-        invalidFrames.push(frame);
-      if (scene.faces.length <= 40) undersizedFrames.push(frame);
-    }
-    expect(invalidFrames).toEqual([]);
-    expect(undersizedFrames).toEqual([]);
-    expect(STAGES.map((s) => s.name)).toEqual([
-      'Parts',
-      'Observe',
-      'Evaluate',
-      'Target',
-      'Plan',
-      'Check',
-      'Sign',
-      'Status',
-    ]);
-    const end = engineScene(1);
-    expect(end.dial.val).toBe(`${engineDecision().stablePercent}%`);
-    expect(end.labels.map((l) => l.t)).toContain('YOUR MACHINE');
-    expect(engineScene(-1)).toEqual(engineScene(0));
-    expect(engineScene(2)).toEqual(engineScene(1));
-  });
+  it(
+    'produces finite geometry at every frame and all seven stages',
+    // CI runners exceed the 5s default: 5.7s in run 37727273799 and 7.9s in
+    // coverage for the same 1001-frame exhaustive check under cache contention.
+    { timeout: 20_000 },
+    () => {
+      const invalidFrames: number[] = [];
+      const undersizedFrames: number[] = [];
+      for (let frame = 0; frame <= 1000; frame++) {
+        const scene = engineScene(frame / 1000, frame / 30, frame % 2 === 0);
+        if (/NaN|Infinity|undefined/.test(JSON.stringify(scene)))
+          invalidFrames.push(frame);
+        if (scene.faces.length <= 40) undersizedFrames.push(frame);
+      }
+      expect(invalidFrames).toEqual([]);
+      expect(undersizedFrames).toEqual([]);
+      expect(STAGES.map((s) => s.name)).toEqual([
+        'Parts',
+        'Observe',
+        'Evaluate',
+        'Target',
+        'Plan',
+        'Check',
+        'Sign',
+        'Status',
+      ]);
+      const end = engineScene(1);
+      expect(end.dial.val).toBe(`${engineDecision().stablePercent}%`);
+      expect(end.labels.map((l) => l.t)).toContain('YOUR MACHINE');
+      expect(engineScene(-1)).toEqual(engineScene(0));
+      expect(engineScene(2)).toEqual(engineScene(1));
+    },
+  );
 });
 describe('pinned replay geometry', () => {
   it('holds at chapters, starts at the first date and reaches the pinned result', () => {
