@@ -1,57 +1,57 @@
 {
-  "asOf": "2026-10-07T06:19:04.254215+00:00",
+  "asOf": "2026-10-08T09:03:28.698+00:00",
   "coverage": {
     "firstEpisodeAt": "2026-04-26T13:24:28.506345+00:00",
-    "lastEpisodeAt": "2026-10-07T06:19:04.254215+00:00",
+    "lastEpisodeAt": "2026-10-08T04:28:12.625225+00:00",
     "firstPostAt": "2026-08-12T07:13:20.207+00:00",
-    "lastPostAt": "2026-10-07T06:03:20.894+00:00"
+    "lastPostAt": "2026-10-08T09:03:28.698+00:00"
   },
   "funnel": {
-    "articles": 428,
-    "localizations": 1213,
-    "videos": 536,
-    "posts": 587,
+    "articles": 429,
+    "localizations": 1216,
+    "videos": 586,
+    "posts": 611,
     "platforms": 4,
-    "reach": 31638
+    "reach": 32505
   },
   "languages": [
     {
       "code": "zh-Hant",
-      "localizations": 428,
-      "mainAudio": 425,
-      "classroomAudio": 373,
-      "posts": 320,
-      "reach": 25368
+      "localizations": 429,
+      "mainAudio": 426,
+      "classroomAudio": 374,
+      "posts": 332,
+      "reach": 25961
     },
     {
       "code": "ja",
-      "localizations": 394,
-      "mainAudio": 391,
+      "localizations": 395,
+      "mainAudio": 392,
       "classroomAudio": 25,
-      "posts": 134,
-      "reach": 4079
+      "posts": 140,
+      "reach": 4317
     },
     {
       "code": "en",
-      "localizations": 391,
-      "mainAudio": 385,
+      "localizations": 392,
+      "mainAudio": 386,
       "classroomAudio": 22,
-      "posts": 133,
-      "reach": 2191
+      "posts": 139,
+      "reach": 2227
     }
   ],
   "channels": [
     {
       "platform": "rednote",
       "language": "zh-Hant",
-      "posts": 132,
-      "postsWithMetrics": 132,
-      "reach": 13090,
-      "likes": 303,
+      "posts": 138,
+      "postsWithMetrics": 137,
+      "reach": 13504,
+      "likes": 321,
       "comments": 15,
-      "shares": 29,
+      "shares": 30,
       "firstPostAt": "2026-08-12T08:18:27.658+00:00",
-      "lastPostAt": "2026-10-07T06:02:11.705+00:00"
+      "lastPostAt": "2026-10-08T09:02:09.992+00:00"
     },
     {
       "platform": "x",
@@ -68,26 +68,26 @@
     {
       "platform": "threads",
       "language": "zh-Hant",
-      "posts": 99,
-      "postsWithMetrics": 99,
-      "reach": 5126,
+      "posts": 105,
+      "postsWithMetrics": 104,
+      "reach": 5305,
       "likes": 22,
       "comments": 0,
       "shares": 32,
       "firstPostAt": "2026-08-15T14:15:16.306+00:00",
-      "lastPostAt": "2026-10-07T06:02:48.576+00:00"
+      "lastPostAt": "2026-10-08T09:02:53.086+00:00"
     },
     {
       "platform": "x",
       "language": "ja",
-      "posts": 74,
-      "postsWithMetrics": 74,
-      "reach": 3249,
+      "posts": 80,
+      "postsWithMetrics": 79,
+      "reach": 3487,
       "likes": 7,
-      "comments": 1,
+      "comments": 2,
       "shares": 1,
       "firstPostAt": "2026-08-26T03:00:25.768+00:00",
-      "lastPostAt": "2026-10-07T06:03:20.894+00:00"
+      "lastPostAt": "2026-10-08T09:03:18.821+00:00"
     },
     {
       "platform": "x",
@@ -104,14 +104,14 @@
     {
       "platform": "youtube",
       "language": "en",
-      "posts": 90,
-      "postsWithMetrics": 90,
-      "reach": 777,
+      "posts": 96,
+      "postsWithMetrics": 95,
+      "reach": 813,
       "likes": 2,
       "comments": 0,
       "shares": 1,
       "firstPostAt": "2026-08-26T00:32:40.916+00:00",
-      "lastPostAt": "2026-10-07T06:01:51.676+00:00"
+      "lastPostAt": "2026-10-08T09:03:28.698+00:00"
     },
     {
       "platform": "youtube",
@@ -163,11 +163,11 @@
     }
   ],
   "reliability": {
-    "publishJobs": 726,
-    "publishJobsCompleted": 586,
+    "publishJobs": 734,
+    "publishJobsCompleted": 610,
     "publishJobsFailed": 0,
-    "metricSnapshots": 4765,
-    "metricSnapshotsCollected": 4634
+    "metricSnapshots": 4938,
+    "metricSnapshotsCollected": 4799
   },
   "example": {
     "title": "Dan Koe 最新长文：要想成功，你就得活在幻想中",
