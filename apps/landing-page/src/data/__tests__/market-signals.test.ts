@@ -97,6 +97,10 @@ describe('market signals accessor', () => {
     });
     expect(signalsAsOf(signals)).toBe('2026-08-21');
   });
+
+  it('reports an empty date when there are no snapshots', () => {
+    expect(signalsAsOf({ ...fixture(), snapshots: [] })).toBe('');
+  });
 });
 
 it('has no as-of date when a valid response contains no snapshots', () => {

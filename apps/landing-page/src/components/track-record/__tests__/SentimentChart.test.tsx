@@ -30,6 +30,40 @@ describe('SentimentChart', () => {
       screen.getByText('No Crypto FGI signal data available.'),
     ).toBeInTheDocument();
   });
+
+  it.each([
+    [10, 'Extreme Fear'],
+    [25, 'Extreme Fear'],
+    [30, 'Fear'],
+    [45, 'Fear'],
+    [50, 'Neutral'],
+    [60, 'Greed'],
+    [75, 'Greed'],
+    [90, 'Extreme Greed'],
+  ])('derives the %s regime label for %i', (value, regime) => {
+    render(
+      <SentimentChart
+        kicker="Sentiment"
+        points={[{ date: '2026-08-20', value, regime: null }]}
+        title="Crypto FGI"
+      />,
+    );
+    expect(screen.getByText(`${value} · ${regime}`)).toBeInTheDocument();
+  });
+
+  it('renders the caption when provided', () => {
+    const { container } = render(
+      <SentimentChart
+        caption="Source: example."
+        kicker="Sentiment"
+        points={POINTS}
+        title="Crypto FGI"
+      />,
+    );
+    expect(container.querySelector('figcaption')).toHaveTextContent(
+      'Source: example.',
+    );
+  });
 });
 
 it.each([
