@@ -7,6 +7,15 @@ export interface ReplayEvent {
   fromAssets: readonly string[];
   toAsset: string | null;
 }
+const percentOf = (fraction: number): string =>
+  `${Number((fraction * 100).toFixed(2))}%`;
+
+/** The opening split, read from the pinned allocation trace rather than retyped. */
+export function startSplitBody(): string {
+  const [btc, , spy, stable] = replay.allocations.values[0]!;
+  return `Start ${replay.snapshot.total_capital.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })} split ${percentOf(btc!)} BTC, ${percentOf(spy!)} S&P 500, ${percentOf(stable!)} stables.`;
+}
+
 const assetName = (asset: string): string =>
   asset === 'SPY' ? 'S&P 500' : asset;
 export function eventLabel(event: ReplayEvent): string {

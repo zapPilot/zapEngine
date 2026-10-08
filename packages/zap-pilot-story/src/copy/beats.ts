@@ -4,7 +4,7 @@ import {
   engineDecision,
 } from '../facts/index.js';
 import type { CapabilityId } from '../facts/capabilities.js';
-import { defendActivity } from './replay.js';
+import { defendActivity, startSplitBody } from './replay.js';
 const decision = engineDecision();
 export const HERO = {
   eyebrow: 'A runtime for programmable portfolios',
@@ -129,7 +129,7 @@ export const CHAPTER_COPY = [
   {
     title: 'Start',
     rule: 'Starting split',
-    body: 'The reference strategy starts with BTC, an S&P 500 sleeve and stables.',
+    body: startSplitBody(),
   },
   {
     title: 'Risk on',

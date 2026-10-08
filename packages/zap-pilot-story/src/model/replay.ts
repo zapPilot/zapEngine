@@ -2,6 +2,7 @@ import { clamp, easeInOutCubic } from '@zapengine/story-kit';
 import { replay } from '../facts/replay.js';
 import { chapters } from '../facts/chapters.js';
 import { eventLabel } from '../copy/replay.js';
+import { ruleOf } from '../facts/rules.js';
 const series = replay.series[0]!;
 const max = series.values.length - 1;
 export function dayAt(progress: number) {
@@ -47,6 +48,7 @@ export function replayView(progress: number) {
     fired: events.length,
     last: eventLabel(last),
     lastDate: last.date,
+    lastRule: ruleOf(last.reason),
   };
 }
 export const replayChart = replay.series.map((item) =>

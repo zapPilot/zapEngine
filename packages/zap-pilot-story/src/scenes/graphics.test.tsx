@@ -47,10 +47,17 @@ it('pairs each target model with its own glyph and numeric badge', () => {
     expect(label.textContent).toContain(`${shown[i]!.toFixed(2)}%`),
   );
 });
+it('names the rule behind the latest move while the replay is playing', () => {
+  const { container } = render(<ReplayBoard progress={0.3} />);
+  expect(container.querySelector('.zp-r-rule')?.textContent).toMatch(
+    /^Rule [1-6]$/,
+  );
+});
 it('compares Rules and DCA using paired bars while retaining the disclosure', () => {
   const { container } = render(<ReplayBoard />);
   expect(container.querySelectorAll('.zp-stat-bar')).toHaveLength(6);
-  expect(container.textContent).not.toContain('What the rules held');
+  expect(container.textContent).toContain('What the rules held');
+  expect(container.querySelectorAll('.zp-r-legend li')).toHaveLength(4);
   expect(container.textContent).toContain(
     'Past performance does not guarantee future results.',
   );

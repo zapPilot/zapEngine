@@ -38,18 +38,30 @@ export function Captions({ time }: { time: number }) {
       {beat.name === 'Check' && (
         <div className="zp-gate-icons" aria-hidden="true">
           {[
-            'M12 2 3 6v6c0 5 9 10 9 10s9-5 9-10V6Z',
-            'M3 17h18M6 5v8l6 4 6-4V5',
-            'M3 3h18v18H3ZM7 12l3 3 7-7',
-          ].map((path) => (
-            <svg key={path} viewBox="0 0 24 24">
-              <path
-                d={path}
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-              />
-            </svg>
+            {
+              path: 'M12 2 3 6v6c0 5 9 10 9 10s9-5 9-10V6Z',
+              label: 'Approval capped',
+            },
+            {
+              path: 'M3 17h18M6 5v8l6 4 6-4V5',
+              label: 'Minimum received',
+            },
+            {
+              path: 'M3 3h18v18H3ZM7 12l3 3 7-7',
+              label: 'Simulated',
+            },
+          ].map(({ path, label }) => (
+            <div key={path} className="zp-gate">
+              <svg viewBox="0 0 24 24">
+                <path
+                  d={path}
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                />
+              </svg>
+              <span>{label}</span>
+            </div>
           ))}
         </div>
       )}

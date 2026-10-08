@@ -49,15 +49,6 @@ export function SignalGraphic({ target }: { target: number | null }) {
               />
             );
           })}
-          <text
-            x="50"
-            y="54"
-            textAnchor="middle"
-            fill="var(--ink)"
-            fontSize="12"
-          >
-            100%
-          </text>
         </svg>
       )}
       {(target === null ? sleeves.slice(0, 3) : sleeves).map((asset, i) => {
@@ -107,9 +98,17 @@ export function SignalGraphic({ target }: { target: number | null }) {
         );
       })}
       <p className="zp-lbl">
-        {target === null
-          ? `${decision.previousDate} → ${decision.date} · 200DMA dashed · scale per asset`
-          : 'Sleeve weights · hypothetical reference strategy'}
+        {target === null ? (
+          <>
+            <span>
+              {decision.previousDate} → {decision.date}
+            </span>
+            <br />
+            <span>200DMA dashed · scale per asset</span>
+          </>
+        ) : (
+          'Sleeve weights · hypothetical reference strategy'
+        )}
       </p>
     </div>
   );

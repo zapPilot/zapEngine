@@ -13,7 +13,9 @@
   outline: 2px solid var(--sign-ink);
   outline-offset: 3px;
 }
+/* Shares the 1440 frame with the stage: 1312 content plus 64px gutters. */
 .zp-wrap {
+  box-sizing: content-box;
   max-width: 1312px;
   margin: 0 auto;
   padding-left: clamp(20px, 4.4vw, 64px);
@@ -175,14 +177,17 @@
 }
 
 .zp-stage {
+  --zp-frame-x: max(0px, calc((100cqw - 1440px) / 2));
+  --zp-inset: calc(var(--zp-frame-x) + clamp(20px, 4.4cqw, 64px));
+  --zp-cq: min(1cqw, 14.4px);
   overflow: hidden;
   container-type: size;
   isolation: isolate;
 }
 .zp-persp {
   position: absolute;
-  inset: 0;
-  overflow: hidden;
+  inset: 0 var(--zp-frame-x);
+  overflow: visible;
   pointer-events: none;
 }
 .zp-world {
@@ -331,9 +336,11 @@
   pointer-events: none;
   background: linear-gradient(
     90deg,
-    var(--ground) 0%,
-    color-mix(in srgb, var(--ground) 86%, transparent) 30%,
-    transparent 52%
+    var(--ground) 0,
+    var(--ground) var(--zp-frame-x),
+    color-mix(in srgb, var(--ground) 86%, transparent)
+      calc(var(--zp-frame-x) + min(100cqw, 1440px) * 0.3),
+    transparent calc(var(--zp-frame-x) + min(100cqw, 1440px) * 0.52)
   );
 }
 
@@ -385,7 +392,7 @@
 .zp-hero {
   position: absolute;
   z-index: 3;
-  left: clamp(20px, 4.4cqw, 64px);
+  left: var(--zp-inset);
   top: 0;
   bottom: 64px;
   width: min(46cqw, 640px);
@@ -394,7 +401,7 @@
   justify-content: center;
 }
 .zp-hero-t {
-  font-size: clamp(46px, 5.5cqw, 96px);
+  font-size: clamp(46px, calc(5.5 * var(--zp-cq)), 96px);
   font-stretch: 104%;
   letter-spacing: -0.045em;
   line-height: 0.94;
@@ -402,7 +409,7 @@
 .zp-hero-p {
   margin: 30px 0 0;
   max-width: 31em;
-  font-size: clamp(16px, 1.25cqw, 19px);
+  font-size: clamp(16px, calc(1.25 * var(--zp-cq)), 19px);
   line-height: 1.55;
   color: var(--ink-2);
   text-wrap: pretty;
@@ -441,7 +448,7 @@
 .zp-capbox {
   position: absolute;
   z-index: 3;
-  left: clamp(20px, 4.4cqw, 64px);
+  left: var(--zp-inset);
   top: 0;
   bottom: 84px;
   width: min(41cqw, 560px);
@@ -455,12 +462,12 @@
   color: var(--ink);
 }
 .zp-cap-t {
-  font-size: clamp(34px, 4cqw, 62px);
+  font-size: clamp(34px, calc(4 * var(--zp-cq)), 62px);
 }
 .zp-cap-s {
   margin: 26px 0 0;
   max-width: 30em;
-  font-size: clamp(15px, 1.15cqw, 18px);
+  font-size: clamp(15px, calc(1.15 * var(--zp-cq)), 18px);
   line-height: 1.55;
   color: var(--ink-2);
   text-wrap: pretty;
@@ -500,8 +507,8 @@
 .zp-hud {
   position: absolute;
   z-index: 4;
-  left: clamp(20px, 4.4cqw, 64px);
-  right: clamp(20px, 4.4cqw, 64px);
+  left: var(--zp-inset);
+  right: var(--zp-inset);
   bottom: 16px;
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -558,6 +565,8 @@
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
+  max-width: 1440px;
+  margin-inline: auto;
   gap: clamp(10px, 1.3cqw, 20px);
   padding: clamp(22px, 3.2cqw, 52px) clamp(20px, 4.4cqw, 64px)
     clamp(16px, 2cqw, 30px);
@@ -870,7 +879,7 @@
 }
 
 .zp-j-h {
-  font-size: clamp(44px, 6.2vw, 96px);
+  font-size: clamp(44px, calc(6.2 * min(1vw, 14.4px)), 96px);
   font-stretch: 104%;
   letter-spacing: -0.045em;
   line-height: 0.96;
@@ -995,6 +1004,10 @@
   .zp-r-disc {
     margin-left: 30px;
   }
+  /* Keep the chapter numerals clear of the live readout above the chart. */
+  .zp-r-chart {
+    margin-top: 34px;
+  }
   .zp-r-ax {
     left: -34px;
     width: 28px;
@@ -1011,18 +1024,21 @@
   }
 }
 
-.zp-motion {
+.zp-motion,
+.zp-motion [data-theme] {
   --sk-ink: var(--ink);
   --sk-sign-ink: var(--sign-ink);
   --sk-ink-3: var(--ink-3);
   --sk-easing-scene: var(--easing-scene);
+}
+.zp-motion {
   background: var(--ground);
   color: var(--ink);
   font-family: var(--font-text);
   overflow-x: clip;
 }
 .zp-stage {
-  --zp-u: min(0.8cqw, 1.4cqh);
+  --zp-u: min(calc(0.8 * var(--zp-cq)), 1.4cqh);
   position: relative;
   height: 820px;
 }
@@ -1040,6 +1056,9 @@
 }
 .zp-rstage {
   height: 820px;
+}
+.zp-replay {
+  background: var(--ground);
 }
 .zp-engine,
 .zp-replay,
@@ -1197,21 +1216,21 @@
 }
 .zp-signal {
   margin-top: 24px;
-  width: min(100%, 380px);
+  width: min(100%, 420px);
 }
 .zp-signal-row {
   display: grid;
-  grid-template-columns: 22px 1fr 100px 64px;
+  grid-template-columns: 22px 1fr 100px 72px;
   gap: 8px;
   align-items: center;
   padding: 8px 0;
   border-bottom: 1px solid var(--rule);
-  font: 11px var(--font-mono);
+  font: 12px var(--font-mono);
   color: var(--ink-2);
 }
 .zp-signal-row svg {
   width: 100%;
-  height: 22px;
+  height: 10px;
 }
 .zp-signal-row strong {
   color: var(--ink);
@@ -1227,6 +1246,21 @@
   width: 32px;
   height: 32px;
   color: var(--ink);
+}
+.zp-gate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+}
+.zp-gate span {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  line-height: 14px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
 }
 .zp-r-sv,
 .zp-r-sd {
@@ -1257,4 +1291,41 @@
 .zp-blb .zp-asset-glyph {
   width: 18px;
   height: 18px;
+}
+
+/* The allocation strip is labelled with live shares, matching the design. */
+.zp-r-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px 24px;
+  margin: 0 0 8px 40px;
+}
+.zp-r-legend ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--ink-2);
+}
+.zp-r-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-variant-numeric: tabular-nums;
+}
+.zp-r-legend i {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 1px;
+}
+.zp-join .zp-lbl {
+  color: var(--ink-2);
 }

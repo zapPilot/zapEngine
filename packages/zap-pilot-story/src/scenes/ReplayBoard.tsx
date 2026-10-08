@@ -10,6 +10,12 @@ import {
   replayView,
 } from '../model/replay.js';
 import { StatusBadge } from './StatusBadge.js';
+const SLEEVE_LABEL: Record<string, string> = {
+  btc: 'BTC',
+  eth: 'ETH',
+  spy: 'S&P',
+  stable: 'Stables',
+};
 const percent = (value: number) =>
   `${value < 0 ? '−' : '+'}${Math.abs(value).toFixed(2)}%`;
 export function ReplayBoard({ progress = 1 }: { progress?: number }) {
@@ -156,6 +162,18 @@ export function ReplayBoard({ progress = 1 }: { progress?: number }) {
         })}
       </div>
       <div>
+        <div className="zp-r-legend">
+          <p className="zp-lbl">What the rules held</p>
+          <ul>
+            {replay.allocations.assets.map((asset, slot) => (
+              <li key={asset}>
+                <i style={{ background: `var(--sleeve-${asset})` }} />
+                {SLEEVE_LABEL[asset]}{' '}
+                {(view.allocation[slot]! * 100).toFixed(1)}
+              </li>
+            ))}
+          </ul>
+        </div>
         <div className="zp-r-strip">
           <svg
             className="zp-r-svg"
@@ -197,7 +215,10 @@ export function ReplayBoard({ progress = 1 }: { progress?: number }) {
           {progress < 0.99 ? (
             <div>
               <p className="zp-lbl">Latest move · {view.lastDate}</p>
-              <p className="zp-r-lt">{view.last}</p>
+              <p className="zp-r-lt">
+                <span className="zp-r-rule">Rule {view.lastRule}</span>
+                {view.last}
+              </p>
               <p className="zp-r-fired">
                 {view.fired} rule-driven moves so far
               </p>
