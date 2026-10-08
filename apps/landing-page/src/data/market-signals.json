@@ -51,860 +51,6 @@
   },
   "snapshots": [
     {
-      "snapshot_date": "2025-09-23",
-      "values": {
-        "btc": {
-          "value": 112014.49967652,
-          "indicators": {
-            "dma_200": {
-              "value": 103733.05567651,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "eth": {
-          "value": 4165.50390991,
-          "indicators": {
-            "dma_200": {
-              "value": 2900.84980076,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "spy": {
-          "value": 659.45513916,
-          "indicators": {
-            "dma_200": {
-              "value": 592.14888443,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "eth_btc": {
-          "value": 0.03718718,
-          "indicators": {
-            "dma_200": {
-              "value": 0.02736371,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "fgi": {
-          "value": 40.0,
-          "indicators": {},
-          "tags": {
-            "regime": "f"
-          }
-        },
-        "macro_fear_greed": {
-          "value": 56.77,
-          "indicators": {},
-          "tags": {
-            "label": "greed",
-            "regime": "greed",
-            "source": "cnn_fear_greed_unofficial"
-          }
-        }
-      }
-    },
-    {
-      "snapshot_date": "2025-09-24",
-      "values": {
-        "btc": {
-          "value": 113328.63040886,
-          "indicators": {
-            "dma_200": {
-              "value": 103868.9258625,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "eth": {
-          "value": 4153.46915508,
-          "indicators": {
-            "dma_200": {
-              "value": 2910.60959543,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "spy": {
-          "value": 657.35699463,
-          "indicators": {
-            "dma_200": {
-              "value": 592.45085983,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "eth_btc": {
-          "value": 0.03664978,
-          "indicators": {
-            "dma_200": {
-              "value": 0.0274192,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "fgi": {
-          "value": 39.0,
-          "indicators": {},
-          "tags": {
-            "regime": "f"
-          }
-        },
-        "macro_fear_greed": {
-          "value": 54.57,
-          "indicators": {},
-          "tags": {
-            "label": "neutral",
-            "regime": "neutral",
-            "source": "cnn_fear_greed_unofficial"
-          }
-        }
-      }
-    },
-    {
-      "snapshot_date": "2025-09-25",
-      "values": {
-        "btc": {
-          "value": 109049.287957,
-          "indicators": {
-            "dma_200": {
-              "value": 104011.16709573,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "eth": {
-          "value": 3868.33406088,
-          "indicators": {
-            "dma_200": {
-              "value": 2919.87372019,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "spy": {
-          "value": 654.32427979,
-          "indicators": {
-            "dma_200": {
-              "value": 592.74258316,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "eth_btc": {
-          "value": 0.03547326,
-          "indicators": {
-            "dma_200": {
-              "value": 0.02747153,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "fgi": {
-          "value": 41.0,
-          "indicators": {},
-          "tags": {
-            "regime": "f"
-          }
-        },
-        "macro_fear_greed": {
-          "value": 50.66,
-          "indicators": {},
-          "tags": {
-            "label": "neutral",
-            "regime": "neutral",
-            "source": "cnn_fear_greed_unofficial"
-          }
-        }
-      }
-    },
-    {
-      "snapshot_date": "2025-09-26",
-      "values": {
-        "btc": {
-          "value": 109712.83151827,
-          "indicators": {
-            "dma_200": {
-              "value": 104167.07124428,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "eth": {
-          "value": 4035.88782583,
-          "indicators": {
-            "dma_200": {
-              "value": 2930.74740237,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "spy": {
-          "value": 658.07299805,
-          "indicators": {
-            "dma_200": {
-              "value": 593.04740128,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "eth_btc": {
-          "value": 0.03678592,
-          "indicators": {
-            "dma_200": {
-              "value": 0.02753696,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "fgi": {
-          "value": 32.0,
-          "indicators": {},
-          "tags": {
-            "regime": "f"
-          }
-        },
-        "macro_fear_greed": {
-          "value": 51.29,
-          "indicators": {},
-          "tags": {
-            "label": "neutral",
-            "regime": "neutral",
-            "source": "cnn_fear_greed_unofficial"
-          }
-        }
-      }
-    },
-    {
-      "snapshot_date": "2025-09-27",
-      "values": {
-        "btc": {
-          "value": 109681.9424832,
-          "indicators": {
-            "dma_200": {
-              "value": 104301.16991579,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "eth": {
-          "value": 4018.65823636,
-          "indicators": {
-            "dma_200": {
-              "value": 2941.2414688,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "spy": {
-          "value": 658.07299805,
-          "indicators": {
-            "dma_200": {
-              "value": 593.04740128,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "eth_btc": {
-          "value": 0.0366392,
-          "indicators": {
-            "dma_200": {
-              "value": 0.02760432,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "fgi": {
-          "value": 34.0,
-          "indicators": {},
-          "tags": {
-            "regime": "f"
-          }
-        },
-        "macro_fear_greed": {
-          "value": 51.29,
-          "indicators": {},
-          "tags": {
-            "label": "neutral",
-            "regime": "neutral",
-            "source": "cnn_fear_greed_unofficial"
-          }
-        }
-      }
-    },
-    {
-      "snapshot_date": "2025-09-28",
-      "values": {
-        "btc": {
-          "value": 109654.81021076,
-          "indicators": {
-            "dma_200": {
-              "value": 104430.83215709,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "eth": {
-          "value": 4018.16745311,
-          "indicators": {
-            "dma_200": {
-              "value": 2951.78739264,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "spy": {
-          "value": 658.07299805,
-          "indicators": {
-            "dma_200": {
-              "value": 593.04740128,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "eth_btc": {
-          "value": 0.03664379,
-          "indicators": {
-            "dma_200": {
-              "value": 0.02767353,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "fgi": {
-          "value": 34.0,
-          "indicators": {},
-          "tags": {
-            "regime": "f"
-          }
-        },
-        "macro_fear_greed": {
-          "value": 51.29,
-          "indicators": {},
-          "tags": {
-            "label": "neutral",
-            "regime": "neutral",
-            "source": "cnn_fear_greed_unofficial"
-          }
-        }
-      }
-    },
-    {
-      "snapshot_date": "2025-09-29",
-      "values": {
-        "btc": {
-          "value": 112142.57362753,
-          "indicators": {
-            "dma_200": {
-              "value": 104586.21151838,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "eth": {
-          "value": 4217.34158519,
-          "indicators": {
-            "dma_200": {
-              "value": 2963.55925233,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "spy": {
-          "value": 659.92242432,
-          "indicators": {
-            "dma_200": {
-              "value": 593.37684128,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "eth_btc": {
-          "value": 0.03760696,
-          "indicators": {
-            "dma_200": {
-              "value": 0.02774666,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "fgi": {
-          "value": 39.0,
-          "indicators": {},
-          "tags": {
-            "regime": "f"
-          }
-        },
-        "macro_fear_greed": {
-          "value": 50.97,
-          "indicators": {},
-          "tags": {
-            "label": "neutral",
-            "regime": "neutral",
-            "source": "cnn_fear_greed_unofficial"
-          }
-        }
-      }
-    },
-    {
-      "snapshot_date": "2025-09-30",
-      "values": {
-        "btc": {
-          "value": 114309.15041119,
-          "indicators": {
-            "dma_200": {
-              "value": 104737.91177184,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "eth": {
-          "value": 4145.9577272,
-          "indicators": {
-            "dma_200": {
-              "value": 2974.74170336,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "spy": {
-          "value": 662.40826416,
-          "indicators": {
-            "dma_200": {
-              "value": 593.72794479,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "eth_btc": {
-          "value": 0.03626969,
-          "indicators": {
-            "dma_200": {
-              "value": 0.02781431,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "fgi": {
-          "value": 43.0,
-          "indicators": {},
-          "tags": {
-            "regime": "f"
-          }
-        },
-        "macro_fear_greed": {
-          "value": 51.4,
-          "indicators": {},
-          "tags": {
-            "label": "neutral",
-            "regime": "neutral",
-            "source": "cnn_fear_greed_unofficial"
-          }
-        }
-      }
-    },
-    {
-      "snapshot_date": "2025-10-01",
-      "values": {
-        "btc": {
-          "value": 114024.2278355,
-          "indicators": {
-            "dma_200": {
-              "value": 104886.31736873,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "eth": {
-          "value": 4144.23046337,
-          "indicators": {
-            "dma_200": {
-              "value": 2985.7758823,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "spy": {
-          "value": 664.66540527,
-          "indicators": {
-            "dma_200": {
-              "value": 594.06744431,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "eth_btc": {
-          "value": 0.03634517,
-          "indicators": {
-            "dma_200": {
-              "value": 0.02788118,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "fgi": {
-          "value": 42.0,
-          "indicators": {},
-          "tags": {
-            "regime": "f"
-          }
-        },
-        "macro_fear_greed": {
-          "value": 52.49,
-          "indicators": {},
-          "tags": {
-            "label": "neutral",
-            "regime": "neutral",
-            "source": "cnn_fear_greed_unofficial"
-          }
-        }
-      }
-    },
-    {
-      "snapshot_date": "2025-10-02",
-      "values": {
-        "btc": {
-          "value": 118503.24451752,
-          "indicators": {
-            "dma_200": {
-              "value": 105065.93513685,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "eth": {
-          "value": 4343.95198344,
-          "indicators": {
-            "dma_200": {
-              "value": 2998.05846712,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "spy": {
-          "value": 665.43096924,
-          "indicators": {
-            "dma_200": {
-              "value": 594.42614578,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "eth_btc": {
-          "value": 0.03665682,
-          "indicators": {
-            "dma_200": {
-              "value": 0.02795018,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "fgi": {
-          "value": 51.0,
-          "indicators": {},
-          "tags": {
-            "regime": "n"
-          }
-        },
-        "macro_fear_greed": {
-          "value": 54.54,
-          "indicators": {},
-          "tags": {
-            "label": "neutral",
-            "regime": "neutral",
-            "source": "cnn_fear_greed_unofficial"
-          }
-        }
-      }
-    },
-    {
-      "snapshot_date": "2025-10-03",
-      "values": {
-        "btc": {
-          "value": 120611.71911591,
-          "indicators": {
-            "dma_200": {
-              "value": 105248.61528895,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "eth": {
-          "value": 4484.00624591,
-          "indicators": {
-            "dma_200": {
-              "value": 3010.84348384,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "spy": {
-          "value": 665.42114258,
-          "indicators": {
-            "dma_200": {
-              "value": 594.78538773,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "eth_btc": {
-          "value": 0.0371772,
-          "indicators": {
-            "dma_200": {
-              "value": 0.02802147,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "fgi": {
-          "value": 57.0,
-          "indicators": {},
-          "tags": {
-            "regime": "g"
-          }
-        },
-        "macro_fear_greed": {
-          "value": 52.57,
-          "indicators": {},
-          "tags": {
-            "label": "neutral",
-            "regime": "neutral",
-            "source": "cnn_fear_greed_unofficial"
-          }
-        }
-      }
-    },
-    {
-      "snapshot_date": "2025-10-04",
-      "values": {
-        "btc": {
-          "value": 122250.15186843,
-          "indicators": {
-            "dma_200": {
-              "value": 105446.2735367,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "eth": {
-          "value": 4515.75906816,
-          "indicators": {
-            "dma_200": {
-              "value": 3023.75956214,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "spy": {
-          "value": 665.42114258,
-          "indicators": {
-            "dma_200": {
-              "value": 594.78538773,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "eth_btc": {
-          "value": 0.03693868,
-          "indicators": {
-            "dma_200": {
-              "value": 0.02808935,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "fgi": {
-          "value": 59.0,
-          "indicators": {},
-          "tags": {
-            "regime": "g"
-          }
-        },
-        "macro_fear_greed": {
-          "value": 52.57,
-          "indicators": {},
-          "tags": {
-            "label": "neutral",
-            "regime": "neutral",
-            "source": "cnn_fear_greed_unofficial"
-          }
-        }
-      }
-    },
-    {
-      "snapshot_date": "2025-10-05",
-      "values": {
-        "btc": {
-          "value": 122380.93708463,
-          "indicators": {
-            "dma_200": {
-              "value": 105623.90709232,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "eth": {
-          "value": 4487.70665167,
-          "indicators": {
-            "dma_200": {
-              "value": 3035.90934973,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "spy": {
-          "value": 665.42114258,
-          "indicators": {
-            "dma_200": {
-              "value": 594.78538773,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "eth_btc": {
-          "value": 0.03666998,
-          "indicators": {
-            "dma_200": {
-              "value": 0.02815424,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "fgi": {
-          "value": 58.0,
-          "indicators": {},
-          "tags": {
-            "regime": "g"
-          }
-        },
-        "macro_fear_greed": {
-          "value": 52.57,
-          "indicators": {},
-          "tags": {
-            "label": "neutral",
-            "regime": "neutral",
-            "source": "cnn_fear_greed_unofficial"
-          }
-        }
-      }
-    },
-    {
-      "snapshot_date": "2025-10-06",
-      "values": {
-        "btc": {
-          "value": 123506.18520028,
-          "indicators": {
-            "dma_200": {
-              "value": 105820.6020513,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "eth": {
-          "value": 4515.32139197,
-          "indicators": {
-            "dma_200": {
-              "value": 3048.57545721,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "spy": {
-          "value": 667.80749512,
-          "indicators": {
-            "dma_200": {
-              "value": 595.1438884,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "eth_btc": {
-          "value": 0.03655948,
-          "indicators": {
-            "dma_200": {
-              "value": 0.02821929,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "fgi": {
-          "value": 59.0,
-          "indicators": {},
-          "tags": {
-            "regime": "g"
-          }
-        },
-        "macro_fear_greed": {
-          "value": 53.97,
-          "indicators": {},
-          "tags": {
-            "label": "neutral",
-            "regime": "neutral",
-            "source": "cnn_fear_greed_unofficial"
-          }
-        }
-      }
-    },
-    {
       "snapshot_date": "2025-10-07",
       "values": {
         "btc": {
@@ -1012,7 +158,7 @@
           "value": 55.0,
           "indicators": {},
           "tags": {
-            "regime": "g"
+            "regime": "n"
           }
         },
         "macro_fear_greed": {
@@ -1073,7 +219,7 @@
           "value": 58.0,
           "indicators": {},
           "tags": {
-            "regime": "g"
+            "regime": "n"
           }
         },
         "macro_fear_greed": {
@@ -1317,7 +463,7 @@
           "value": 40.0,
           "indicators": {},
           "tags": {
-            "regime": "f"
+            "regime": "n"
           }
         },
         "macro_fear_greed": {
@@ -1378,7 +524,7 @@
           "value": 42.0,
           "indicators": {},
           "tags": {
-            "regime": "f"
+            "regime": "n"
           }
         },
         "macro_fear_greed": {
@@ -1622,7 +768,7 @@
           "value": 25.0,
           "indicators": {},
           "tags": {
-            "regime": "ef"
+            "regime": "f"
           }
         },
         "macro_fear_greed": {
@@ -2171,7 +1317,7 @@
           "value": 42.0,
           "indicators": {},
           "tags": {
-            "regime": "f"
+            "regime": "n"
           }
         },
         "macro_fear_greed": {
@@ -2232,7 +1378,7 @@
           "value": 42.0,
           "indicators": {},
           "tags": {
-            "regime": "f"
+            "regime": "n"
           }
         },
         "macro_fear_greed": {
@@ -2720,7 +1866,7 @@
           "value": 20.0,
           "indicators": {},
           "tags": {
-            "regime": "ef"
+            "regime": "f"
           }
         },
         "macro_fear_greed": {
@@ -2781,7 +1927,7 @@
           "value": 24.0,
           "indicators": {},
           "tags": {
-            "regime": "ef"
+            "regime": "f"
           }
         },
         "macro_fear_greed": {
@@ -2842,7 +1988,7 @@
           "value": 21.0,
           "indicators": {},
           "tags": {
-            "regime": "ef"
+            "regime": "f"
           }
         },
         "macro_fear_greed": {
@@ -2903,7 +2049,7 @@
           "value": 25.0,
           "indicators": {},
           "tags": {
-            "regime": "ef"
+            "regime": "f"
           }
         },
         "macro_fear_greed": {
@@ -2964,7 +2110,7 @@
           "value": 24.0,
           "indicators": {},
           "tags": {
-            "regime": "ef"
+            "regime": "f"
           }
         },
         "macro_fear_greed": {
@@ -3208,7 +2354,7 @@
           "value": 25.0,
           "indicators": {},
           "tags": {
-            "regime": "ef"
+            "regime": "f"
           }
         },
         "macro_fear_greed": {
@@ -3269,7 +2415,7 @@
           "value": 22.0,
           "indicators": {},
           "tags": {
-            "regime": "ef"
+            "regime": "f"
           }
         },
         "macro_fear_greed": {
@@ -4123,7 +3269,7 @@
           "value": 20.0,
           "indicators": {},
           "tags": {
-            "regime": "ef"
+            "regime": "f"
           }
         },
         "macro_fear_greed": {
@@ -4184,7 +3330,7 @@
           "value": 20.0,
           "indicators": {},
           "tags": {
-            "regime": "ef"
+            "regime": "f"
           }
         },
         "macro_fear_greed": {
@@ -4245,7 +3391,7 @@
           "value": 20.0,
           "indicators": {},
           "tags": {
-            "regime": "ef"
+            "regime": "f"
           }
         },
         "macro_fear_greed": {
@@ -4306,7 +3452,7 @@
           "value": 20.0,
           "indicators": {},
           "tags": {
-            "regime": "ef"
+            "regime": "f"
           }
         },
         "macro_fear_greed": {
@@ -4428,7 +3574,7 @@
           "value": 22.0,
           "indicators": {},
           "tags": {
-            "regime": "ef"
+            "regime": "f"
           }
         },
         "macro_fear_greed": {
@@ -4550,7 +3696,7 @@
           "value": 25.0,
           "indicators": {},
           "tags": {
-            "regime": "ef"
+            "regime": "f"
           }
         },
         "macro_fear_greed": {
@@ -4611,7 +3757,7 @@
           "value": 21.0,
           "indicators": {},
           "tags": {
-            "regime": "ef"
+            "regime": "f"
           }
         },
         "macro_fear_greed": {
@@ -4672,7 +3818,7 @@
           "value": 22.0,
           "indicators": {},
           "tags": {
-            "regime": "ef"
+            "regime": "f"
           }
         },
         "macro_fear_greed": {
@@ -4733,7 +3879,7 @@
           "value": 24.0,
           "indicators": {},
           "tags": {
-            "regime": "ef"
+            "regime": "f"
           }
         },
         "macro_fear_greed": {
@@ -4794,7 +3940,7 @@
           "value": 25.0,
           "indicators": {},
           "tags": {
-            "regime": "ef"
+            "regime": "f"
           }
         },
         "macro_fear_greed": {
@@ -5160,7 +4306,7 @@
           "value": 24.0,
           "indicators": {},
           "tags": {
-            "regime": "ef"
+            "regime": "f"
           }
         },
         "macro_fear_greed": {
@@ -5221,7 +4367,7 @@
           "value": 22.0,
           "indicators": {},
           "tags": {
-            "regime": "ef"
+            "regime": "f"
           }
         },
         "macro_fear_greed": {
@@ -5282,7 +4428,7 @@
           "value": 25.0,
           "indicators": {},
           "tags": {
-            "regime": "ef"
+            "regime": "f"
           }
         },
         "macro_fear_greed": {
@@ -5343,7 +4489,7 @@
           "value": 22.0,
           "indicators": {},
           "tags": {
-            "regime": "ef"
+            "regime": "f"
           }
         },
         "macro_fear_greed": {
@@ -5404,7 +4550,7 @@
           "value": 21.0,
           "indicators": {},
           "tags": {
-            "regime": "ef"
+            "regime": "f"
           }
         },
         "macro_fear_greed": {
@@ -6380,7 +5526,7 @@
           "value": 40.0,
           "indicators": {},
           "tags": {
-            "regime": "f"
+            "regime": "n"
           }
         },
         "macro_fear_greed": {
@@ -6441,7 +5587,7 @@
           "value": 42.0,
           "indicators": {},
           "tags": {
-            "regime": "f"
+            "regime": "n"
           }
         },
         "macro_fear_greed": {
@@ -6624,7 +5770,7 @@
           "value": 43.0,
           "indicators": {},
           "tags": {
-            "regime": "f"
+            "regime": "n"
           }
         },
         "macro_fear_greed": {
@@ -6685,7 +5831,7 @@
           "value": 41.0,
           "indicators": {},
           "tags": {
-            "regime": "f"
+            "regime": "n"
           }
         },
         "macro_fear_greed": {
@@ -6746,7 +5892,7 @@
           "value": 40.0,
           "indicators": {},
           "tags": {
-            "regime": "f"
+            "regime": "n"
           }
         },
         "macro_fear_greed": {
@@ -6807,7 +5953,7 @@
           "value": 40.0,
           "indicators": {},
           "tags": {
-            "regime": "f"
+            "regime": "n"
           }
         },
         "macro_fear_greed": {
@@ -6922,7 +6068,7 @@
           "value": 41.0,
           "indicators": {},
           "tags": {
-            "regime": "f"
+            "regime": "n"
           }
         },
         "macro_fear_greed": {
@@ -7288,7 +6434,7 @@
           "value": 45.0,
           "indicators": {},
           "tags": {
-            "regime": "f"
+            "regime": "n"
           }
         },
         "macro_fear_greed": {
@@ -7349,7 +6495,7 @@
           "value": 42.0,
           "indicators": {},
           "tags": {
-            "regime": "f"
+            "regime": "n"
           }
         },
         "macro_fear_greed": {
@@ -9904,7 +9050,7 @@
           "value": 20.0,
           "indicators": {},
           "tags": {
-            "regime": "ef"
+            "regime": "f"
           }
         },
         "macro_fear_greed": {
@@ -10026,7 +9172,7 @@
           "value": 25.0,
           "indicators": {},
           "tags": {
-            "regime": "ef"
+            "regime": "f"
           }
         },
         "macro_fear_greed": {
@@ -10087,7 +9233,7 @@
           "value": 20.0,
           "indicators": {},
           "tags": {
-            "regime": "ef"
+            "regime": "f"
           }
         },
         "macro_fear_greed": {
@@ -10270,7 +9416,7 @@
           "value": 21.0,
           "indicators": {},
           "tags": {
-            "regime": "ef"
+            "regime": "f"
           }
         },
         "macro_fear_greed": {
@@ -10331,7 +9477,7 @@
           "value": 25.0,
           "indicators": {},
           "tags": {
-            "regime": "ef"
+            "regime": "f"
           }
         },
         "macro_fear_greed": {
@@ -10697,7 +9843,7 @@
           "value": 45.0,
           "indicators": {},
           "tags": {
-            "regime": "f"
+            "regime": "n"
           }
         },
         "macro_fear_greed": {
@@ -10758,7 +9904,7 @@
           "value": 43.0,
           "indicators": {},
           "tags": {
-            "regime": "f"
+            "regime": "n"
           }
         },
         "macro_fear_greed": {
@@ -11063,7 +10209,7 @@
           "value": 25.0,
           "indicators": {},
           "tags": {
-            "regime": "ef"
+            "regime": "f"
           }
         },
         "macro_fear_greed": {
@@ -11368,7 +10514,7 @@
           "value": 23.0,
           "indicators": {},
           "tags": {
-            "regime": "ef"
+            "regime": "f"
           }
         },
         "macro_fear_greed": {
@@ -11429,7 +10575,7 @@
           "value": 23.0,
           "indicators": {},
           "tags": {
-            "regime": "ef"
+            "regime": "f"
           }
         },
         "macro_fear_greed": {
@@ -11490,7 +10636,7 @@
           "value": 23.0,
           "indicators": {},
           "tags": {
-            "regime": "ef"
+            "regime": "f"
           }
         },
         "macro_fear_greed": {
@@ -11551,7 +10697,7 @@
           "value": 25.0,
           "indicators": {},
           "tags": {
-            "regime": "ef"
+            "regime": "f"
           }
         },
         "macro_fear_greed": {
@@ -12100,7 +11246,7 @@
           "value": 43.0,
           "indicators": {},
           "tags": {
-            "regime": "f"
+            "regime": "n"
           }
         },
         "macro_fear_greed": {
@@ -12161,7 +11307,7 @@
           "value": 45.0,
           "indicators": {},
           "tags": {
-            "regime": "f"
+            "regime": "n"
           }
         },
         "macro_fear_greed": {
@@ -12344,7 +11490,7 @@
           "value": 42.0,
           "indicators": {},
           "tags": {
-            "regime": "f"
+            "regime": "n"
           }
         },
         "macro_fear_greed": {
@@ -12527,7 +11673,7 @@
           "value": 55.0,
           "indicators": {},
           "tags": {
-            "regime": "g"
+            "regime": "n"
           }
         },
         "macro_fear_greed": {
@@ -12588,7 +11734,7 @@
           "value": 56.0,
           "indicators": {},
           "tags": {
-            "regime": "g"
+            "regime": "n"
           }
         },
         "macro_fear_greed": {
@@ -12832,7 +11978,7 @@
           "value": 55.0,
           "indicators": {},
           "tags": {
-            "regime": "g"
+            "regime": "n"
           }
         },
         "macro_fear_greed": {
@@ -12893,7 +12039,7 @@
           "value": 57.0,
           "indicators": {},
           "tags": {
-            "regime": "g"
+            "regime": "n"
           }
         },
         "macro_fear_greed": {
@@ -13123,7 +12269,7 @@
           "value": 44.0,
           "indicators": {},
           "tags": {
-            "regime": "f"
+            "regime": "n"
           }
         },
         "macro_fear_greed": {
@@ -13238,7 +12384,7 @@
           "value": 44.0,
           "indicators": {},
           "tags": {
-            "regime": "f"
+            "regime": "n"
           }
         },
         "macro_fear_greed": {
@@ -13299,7 +12445,7 @@
           "value": 41.0,
           "indicators": {},
           "tags": {
-            "regime": "f"
+            "regime": "n"
           }
         },
         "macro_fear_greed": {
@@ -13583,7 +12729,7 @@
           "value": 45.0,
           "indicators": {},
           "tags": {
-            "regime": "f"
+            "regime": "n"
           }
         },
         "macro_fear_greed": {
@@ -14355,7 +13501,7 @@
           "value": 42.0,
           "indicators": {},
           "tags": {
-            "regime": "f"
+            "regime": "n"
           }
         },
         "macro_fear_greed": {
@@ -14416,7 +13562,7 @@
           "value": 42.0,
           "indicators": {},
           "tags": {
-            "regime": "f"
+            "regime": "n"
           }
         },
         "macro_fear_greed": {
@@ -14599,7 +13745,7 @@
           "value": 40.0,
           "indicators": {},
           "tags": {
-            "regime": "f"
+            "regime": "n"
           }
         },
         "macro_fear_greed": {
@@ -14660,7 +13806,7 @@
           "value": 40.0,
           "indicators": {},
           "tags": {
-            "regime": "f"
+            "regime": "n"
           }
         },
         "macro_fear_greed": {
@@ -14904,7 +14050,7 @@
           "value": 41.0,
           "indicators": {},
           "tags": {
-            "regime": "f"
+            "regime": "n"
           }
         },
         "macro_fear_greed": {
@@ -16124,7 +15270,7 @@
           "value": 21.0,
           "indicators": {},
           "tags": {
-            "regime": "ef"
+            "regime": "f"
           }
         },
         "macro_fear_greed": {
@@ -16185,7 +15331,7 @@
           "value": 23.0,
           "indicators": {},
           "tags": {
-            "regime": "ef"
+            "regime": "f"
           }
         },
         "macro_fear_greed": {
@@ -16246,7 +15392,7 @@
           "value": 25.0,
           "indicators": {},
           "tags": {
-            "regime": "ef"
+            "regime": "f"
           }
         },
         "macro_fear_greed": {
@@ -16307,7 +15453,7 @@
           "value": 23.0,
           "indicators": {},
           "tags": {
-            "regime": "ef"
+            "regime": "f"
           }
         },
         "macro_fear_greed": {
@@ -16368,7 +15514,7 @@
           "value": 22.0,
           "indicators": {},
           "tags": {
-            "regime": "ef"
+            "regime": "f"
           }
         },
         "macro_fear_greed": {
@@ -16490,7 +15636,7 @@
           "value": 21.0,
           "indicators": {},
           "tags": {
-            "regime": "ef"
+            "regime": "f"
           }
         },
         "macro_fear_greed": {
@@ -16551,7 +15697,7 @@
           "value": 22.0,
           "indicators": {},
           "tags": {
-            "regime": "ef"
+            "regime": "f"
           }
         },
         "macro_fear_greed": {
@@ -16612,7 +15758,7 @@
           "value": 22.0,
           "indicators": {},
           "tags": {
-            "regime": "ef"
+            "regime": "f"
           }
         },
         "macro_fear_greed": {
@@ -16734,7 +15880,7 @@
           "value": 20.0,
           "indicators": {},
           "tags": {
-            "regime": "ef"
+            "regime": "f"
           }
         },
         "macro_fear_greed": {
@@ -17222,7 +16368,7 @@
           "value": 20.0,
           "indicators": {},
           "tags": {
-            "regime": "ef"
+            "regime": "f"
           }
         },
         "macro_fear_greed": {
@@ -17283,7 +16429,7 @@
           "value": 23.0,
           "indicators": {},
           "tags": {
-            "regime": "ef"
+            "regime": "f"
           }
         },
         "macro_fear_greed": {
@@ -17344,7 +16490,7 @@
           "value": 25.0,
           "indicators": {},
           "tags": {
-            "regime": "ef"
+            "regime": "f"
           }
         },
         "macro_fear_greed": {
@@ -18381,7 +17527,7 @@
           "value": 40.0,
           "indicators": {},
           "tags": {
-            "regime": "f"
+            "regime": "n"
           }
         },
         "macro_fear_greed": {
@@ -19479,7 +18625,7 @@
           "value": 40.0,
           "indicators": {},
           "tags": {
-            "regime": "f"
+            "regime": "n"
           }
         },
         "macro_fear_greed": {
@@ -19601,7 +18747,7 @@
           "value": 40.0,
           "indicators": {},
           "tags": {
-            "regime": "f"
+            "regime": "n"
           }
         },
         "macro_fear_greed": {
@@ -20089,7 +19235,7 @@
           "value": 40.0,
           "indicators": {},
           "tags": {
-            "regime": "f"
+            "regime": "n"
           }
         },
         "macro_fear_greed": {
@@ -20150,7 +19296,7 @@
           "value": 41.0,
           "indicators": {},
           "tags": {
-            "regime": "f"
+            "regime": "n"
           }
         },
         "macro_fear_greed": {
@@ -20333,7 +19479,7 @@
           "value": 76.0,
           "indicators": {},
           "tags": {
-            "regime": "eg"
+            "regime": "g"
           }
         },
         "macro_fear_greed": {
@@ -20394,7 +19540,7 @@
           "value": 76.0,
           "indicators": {},
           "tags": {
-            "regime": "eg"
+            "regime": "g"
           }
         },
         "macro_fear_greed": {
@@ -20699,7 +19845,7 @@
           "value": 77.0,
           "indicators": {},
           "tags": {
-            "regime": "eg"
+            "regime": "g"
           }
         },
         "macro_fear_greed": {
@@ -20760,7 +19906,7 @@
           "value": 78.0,
           "indicators": {},
           "tags": {
-            "regime": "eg"
+            "regime": "g"
           }
         },
         "macro_fear_greed": {
@@ -22102,7 +21248,7 @@
           "value": 78.0,
           "indicators": {},
           "tags": {
-            "regime": "eg"
+            "regime": "g"
           }
         },
         "macro_fear_greed": {
@@ -22163,7 +21309,7 @@
           "value": 78.0,
           "indicators": {},
           "tags": {
-            "regime": "eg"
+            "regime": "g"
           }
         },
         "macro_fear_greed": {
@@ -22237,12 +21383,805 @@
           }
         }
       }
+    },
+    {
+      "snapshot_date": "2026-09-24",
+      "values": {
+        "btc": {
+          "value": 84695.0,
+          "indicators": {
+            "dma_200": {
+              "value": 70716.9512724,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "eth": {
+          "value": 2691.37,
+          "indicators": {
+            "dma_200": {
+              "value": 2083.47509307,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "spy": {
+          "value": 765.94,
+          "indicators": {
+            "dma_200": {
+              "value": 715.5339868,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "eth_btc": {
+          "value": 0.0317772,
+          "indicators": {
+            "dma_200": {
+              "value": 0.02937221,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "fgi": {
+          "value": 74.0,
+          "indicators": {},
+          "tags": {
+            "regime": "g"
+          }
+        },
+        "macro_fear_greed": {
+          "value": 35.94,
+          "indicators": {},
+          "tags": {
+            "label": "fear",
+            "regime": "fear",
+            "source": "cnn_fear_greed_unofficial"
+          }
+        }
+      }
+    },
+    {
+      "snapshot_date": "2026-09-25",
+      "values": {
+        "btc": {
+          "value": 83918.0,
+          "indicators": {
+            "dma_200": {
+              "value": 70800.18531851,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "eth": {
+          "value": 2692.36,
+          "indicators": {
+            "dma_200": {
+              "value": 2087.08842408,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "spy": {
+          "value": 771.35,
+          "indicators": {
+            "dma_200": {
+              "value": 716.03474559,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "eth_btc": {
+          "value": 0.03208322,
+          "indicators": {
+            "dma_200": {
+              "value": 0.02938623,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "fgi": {
+          "value": 72.0,
+          "indicators": {},
+          "tags": {
+            "regime": "g"
+          }
+        },
+        "macro_fear_greed": {
+          "value": 37.0,
+          "indicators": {},
+          "tags": {
+            "label": "fear",
+            "regime": "fear",
+            "source": "cnn_fear_greed_unofficial"
+          }
+        }
+      }
+    },
+    {
+      "snapshot_date": "2026-09-26",
+      "values": {
+        "btc": {
+          "value": 83933.0,
+          "indicators": {
+            "dma_200": {
+              "value": 70889.66952939,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "eth": {
+          "value": 2686.07,
+          "indicators": {
+            "dma_200": {
+              "value": 2090.82564945,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "spy": {
+          "value": 771.35,
+          "indicators": {
+            "dma_200": {
+              "value": 716.03474559,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "eth_btc": {
+          "value": 0.03200255,
+          "indicators": {
+            "dma_200": {
+              "value": 0.02939946,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "fgi": {
+          "value": 72.0,
+          "indicators": {},
+          "tags": {
+            "regime": "g"
+          }
+        },
+        "macro_fear_greed": {
+          "value": 37.0,
+          "indicators": {},
+          "tags": {
+            "label": "fear",
+            "regime": "fear",
+            "source": "cnn_fear_greed_unofficial"
+          }
+        }
+      }
+    },
+    {
+      "snapshot_date": "2026-09-27",
+      "values": {
+        "btc": {
+          "value": 84549.0,
+          "indicators": {
+            "dma_200": {
+              "value": 70970.11795254,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "eth": {
+          "value": 2687.74,
+          "indicators": {
+            "dma_200": {
+              "value": 2094.30257331,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "spy": {
+          "value": 771.35,
+          "indicators": {
+            "dma_200": {
+              "value": 716.03474559,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "eth_btc": {
+          "value": 0.03178914,
+          "indicators": {
+            "dma_200": {
+              "value": 0.02941289,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "fgi": {
+          "value": 72.0,
+          "indicators": {},
+          "tags": {
+            "regime": "g"
+          }
+        },
+        "macro_fear_greed": {
+          "value": 37.0,
+          "indicators": {},
+          "tags": {
+            "label": "fear",
+            "regime": "fear",
+            "source": "cnn_fear_greed_unofficial"
+          }
+        }
+      }
+    },
+    {
+      "snapshot_date": "2026-09-28",
+      "values": {
+        "btc": {
+          "value": 83882.0,
+          "indicators": {
+            "dma_200": {
+              "value": 71040.11290816,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "eth": {
+          "value": 2694.98,
+          "indicators": {
+            "dma_200": {
+              "value": 2097.60142857,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "spy": {
+          "value": 767.2,
+          "indicators": {
+            "dma_200": {
+              "value": 716.49158635,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "eth_btc": {
+          "value": 0.03212823,
+          "indicators": {
+            "dma_200": {
+              "value": 0.02942791,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "fgi": {
+          "value": 70.0,
+          "indicators": {},
+          "tags": {
+            "regime": "g"
+          }
+        },
+        "macro_fear_greed": {
+          "value": 34.46,
+          "indicators": {},
+          "tags": {
+            "label": "fear",
+            "regime": "fear",
+            "source": "cnn_fear_greed_unofficial"
+          }
+        }
+      }
+    },
+    {
+      "snapshot_date": "2026-09-30",
+      "values": {
+        "btc": {
+          "value": 84308.0,
+          "indicators": {
+            "dma_200": {
+              "value": 71110.51881421,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "eth": {
+          "value": 2687.19,
+          "indicators": {
+            "dma_200": {
+              "value": 2100.77872273,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "spy": {
+          "value": 768.83,
+          "indicators": {
+            "dma_200": {
+              "value": 717.37244,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "eth_btc": {
+          "value": 0.03187349,
+          "indicators": {
+            "dma_200": {
+              "value": 0.0294412,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "fgi": {
+          "value": 69.0,
+          "indicators": {},
+          "tags": {
+            "regime": "g"
+          }
+        },
+        "macro_fear_greed": {
+          "value": 34.77,
+          "indicators": {},
+          "tags": {
+            "label": "fear",
+            "regime": "fear",
+            "source": "cnn_fear_greed_unofficial"
+          }
+        }
+      }
+    },
+    {
+      "snapshot_date": "2026-10-01",
+      "values": {
+        "btc": {
+          "value": 84172.0,
+          "indicators": {
+            "dma_200": {
+              "value": 71178.65668743,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "eth": {
+          "value": 2679.61,
+          "indicators": {
+            "dma_200": {
+              "value": 2103.79419158,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "spy": {
+          "value": 761.04,
+          "indicators": {
+            "dma_200": {
+              "value": 717.78928307,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "eth_btc": {
+          "value": 0.03183493,
+          "indicators": {
+            "dma_200": {
+              "value": 0.0294532,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "fgi": {
+          "value": 68.0,
+          "indicators": {},
+          "tags": {
+            "regime": "g"
+          }
+        },
+        "macro_fear_greed": {
+          "value": 27.0,
+          "indicators": {},
+          "tags": {
+            "label": "fear",
+            "regime": "fear",
+            "source": "cnn_fear_greed_unofficial"
+          }
+        }
+      }
+    },
+    {
+      "snapshot_date": "2026-10-02",
+      "values": {
+        "btc": {
+          "value": 85435.0,
+          "indicators": {
+            "dma_200": {
+              "value": 71251.005276,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "eth": {
+          "value": 2701.12,
+          "indicators": {
+            "dma_200": {
+              "value": 2106.83475989,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "spy": {
+          "value": 769.64,
+          "indicators": {
+            "dma_200": {
+              "value": 718.23739304,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "eth_btc": {
+          "value": 0.03161608,
+          "indicators": {
+            "dma_200": {
+              "value": 0.02946381,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "fgi": {
+          "value": 69.0,
+          "indicators": {},
+          "tags": {
+            "regime": "g"
+          }
+        },
+        "macro_fear_greed": {
+          "value": 31.17,
+          "indicators": {},
+          "tags": {
+            "label": "fear",
+            "regime": "fear",
+            "source": "cnn_fear_greed_unofficial"
+          }
+        }
+      }
+    },
+    {
+      "snapshot_date": "2026-10-03",
+      "values": {
+        "btc": {
+          "value": 84783.0,
+          "indicators": {
+            "dma_200": {
+              "value": 71318.83477086,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "eth": {
+          "value": 2681.52,
+          "indicators": {
+            "dma_200": {
+              "value": 2109.75957804,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "spy": {
+          "value": 769.64,
+          "indicators": {
+            "dma_200": {
+              "value": 718.23739304,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "eth_btc": {
+          "value": 0.03162804,
+          "indicators": {
+            "dma_200": {
+              "value": 0.02947476,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "fgi": {
+          "value": 67.0,
+          "indicators": {},
+          "tags": {
+            "regime": "g"
+          }
+        },
+        "macro_fear_greed": {
+          "value": 31.17,
+          "indicators": {},
+          "tags": {
+            "label": "fear",
+            "regime": "fear",
+            "source": "cnn_fear_greed_unofficial"
+          }
+        }
+      }
+    },
+    {
+      "snapshot_date": "2026-10-04",
+      "values": {
+        "btc": {
+          "value": 85263.0,
+          "indicators": {
+            "dma_200": {
+              "value": 71381.74020459,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "eth": {
+          "value": 2697.32,
+          "indicators": {
+            "dma_200": {
+              "value": 2112.37087846,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "spy": {
+          "value": 769.64,
+          "indicators": {
+            "dma_200": {
+              "value": 718.23739304,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "eth_btc": {
+          "value": 0.03163529,
+          "indicators": {
+            "dma_200": {
+              "value": 0.02948331,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "fgi": {
+          "value": 68.0,
+          "indicators": {},
+          "tags": {
+            "regime": "g"
+          }
+        },
+        "macro_fear_greed": {
+          "value": 31.17,
+          "indicators": {},
+          "tags": {
+            "label": "fear",
+            "regime": "fear",
+            "source": "cnn_fear_greed_unofficial"
+          }
+        }
+      }
+    },
+    {
+      "snapshot_date": "2026-10-05",
+      "values": {
+        "btc": {
+          "value": 85579.0,
+          "indicators": {
+            "dma_200": {
+              "value": 71435.34446109,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "eth": {
+          "value": 2708.79,
+          "indicators": {
+            "dma_200": {
+              "value": 2114.15896382,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "spy": {
+          "value": 775.95,
+          "indicators": {
+            "dma_200": {
+              "value": 718.71456736,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "eth_btc": {
+          "value": 0.03165251,
+          "indicators": {
+            "dma_200": {
+              "value": 0.02948453,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "fgi": {
+          "value": 67.0,
+          "indicators": {},
+          "tags": {
+            "regime": "g"
+          }
+        },
+        "macro_fear_greed": {
+          "value": 43.74,
+          "indicators": {},
+          "tags": {
+            "label": "fear",
+            "regime": "fear",
+            "source": "cnn_fear_greed_unofficial"
+          }
+        }
+      }
+    },
+    {
+      "snapshot_date": "2026-10-06",
+      "values": {
+        "btc": {
+          "value": 85746.0,
+          "indicators": {
+            "dma_200": {
+              "value": 71494.44306613,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "eth": {
+          "value": 2704.35,
+          "indicators": {
+            "dma_200": {
+              "value": 2116.0901158,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "spy": {
+          "value": 780.3,
+          "indicators": {
+            "dma_200": {
+              "value": 719.20702835,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "eth_btc": {
+          "value": 0.03153908,
+          "indicators": {
+            "dma_200": {
+              "value": 0.02948544,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "fgi": {
+          "value": 67.0,
+          "indicators": {},
+          "tags": {
+            "regime": "g"
+          }
+        },
+        "macro_fear_greed": {
+          "value": 48.89,
+          "indicators": {},
+          "tags": {
+            "label": "neutral",
+            "regime": "neutral",
+            "source": "cnn_fear_greed_unofficial"
+          }
+        }
+      }
+    },
+    {
+      "snapshot_date": "2026-10-07",
+      "values": {
+        "btc": {
+          "value": 83464.0,
+          "indicators": {
+            "dma_200": {
+              "value": 71555.48374862,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "eth": {
+          "value": 2569.83,
+          "indicators": {
+            "dma_200": {
+              "value": 2117.92236551,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "spy": {
+          "value": 777.5428,
+          "indicators": {
+            "dma_200": {
+              "value": 719.69594505,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "eth_btc": {
+          "value": 0.03078968,
+          "indicators": {
+            "dma_200": {
+              "value": 0.02948477,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "fgi": {
+          "value": 61.0,
+          "indicators": {},
+          "tags": {
+            "regime": "g"
+          }
+        },
+        "macro_fear_greed": {
+          "value": 44.34,
+          "indicators": {},
+          "tags": {
+            "label": "fear",
+            "regime": "fear",
+            "source": "cnn_fear_greed_unofficial"
+          }
+        }
+      }
     }
   ],
   "meta": {
     "primary_series": "btc",
     "days_requested": 366,
-    "count": 365,
-    "timestamp": "2026-09-23T00:00:00Z"
+    "count": 364,
+    "timestamp": "2026-10-07T00:00:00Z"
   }
 }
