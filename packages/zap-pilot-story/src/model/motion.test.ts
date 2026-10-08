@@ -20,7 +20,12 @@ describe('approved Motion geometry', () => {
     expect(scene.faces.every((f) => f.tf.includes('var(--zp-u)'))).toBe(true);
     expect(engineScene(0, 0, true).ox).toBe('50%');
   });
-  it('produces finite geometry at every frame and all seven stages', () => {
+  it(
+    'produces finite geometry at every frame and all seven stages',
+    // CI runners exceed the 5s default: 5.7s in run 37727273799 and 7.9s in
+    // coverage for the same 1001-frame exhaustive check under cache contention.
+    { timeout: 20_000 },
+    () => {
     const invalidFrames: number[] = [];
     const undersizedFrames: number[] = [];
     for (let frame = 0; frame <= 1000; frame++) {
