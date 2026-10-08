@@ -330,6 +330,8 @@ class EngineModel {
         });
       }
     };
+    const sleeveHeight = (pct: number) =>
+      1.8 + 7.4 * Math.sqrt(Math.max(0, pct) / 100);
     const assetModel = (
       asset: Sleeve,
       x: number,
@@ -346,6 +348,13 @@ class EngineModel {
         top: `linear-gradient(135deg, color-mix(in srgb, ${color} 65%, var(--material-top)), ${color})`,
         left: `color-mix(in srgb, ${color} 72%, var(--material-ink-left))`,
       };
+      face({
+        w: 4,
+        h: 4,
+        tf: T3(x - 0.8, y - 0.8, z + 0.01),
+        bg: 'radial-gradient(closest-side, var(--material-shadow), transparent)',
+        op: op * 0.7,
+      });
       if (asset === 'spy') {
         [0.55, 1, 0.72].forEach((scale, i) =>
           box(
@@ -723,7 +732,7 @@ class EngineModel {
           s0[1]! - 1.2,
           s0[2]! - 1.2,
           s0[3]! - 0.45,
-          1.4,
+          2.4,
           bo * sg(0.105 + k * 0.009, 0.14 + k * 0.009),
         );
       } else {
@@ -773,27 +782,27 @@ class EngineModel {
         -3 + m * 3,
         -25.4,
         top,
-        Math.max(0.18, 0.11 * pct),
+        sleeveHeight(pct),
         1,
       );
       pin(
         [
           -1.8 + m * 3,
           -24.2,
-          top + Math.max(0.18, 0.11 * pct) + 1.1 + (m < 3 ? m * 1.5 : 0),
+          top + sleeveHeight(pct) + 1.1 + (m < 3 ? m * 1.5 : 0),
         ],
         SL[m]!.toUpperCase(),
         pct.toFixed(2) + '%',
         {
           asset: SL[m]! as Sleeve,
-          op: sg(0.425, 0.455) * (1 - sg(0.53, 0.56)),
+          op: (pct < 0.5 ? 0 : 1) * sg(0.425, 0.455) * (1 - sg(0.53, 0.56)),
           stem: 0.7 + (m < 3 ? m * 1.5 : 0),
         },
       );
       face({
         w: 2.4,
         h: 2.4,
-        tf: T3(-3 + m * 3, -25.4, top + Math.max(0.04, 0.11 * HELD[m]!) + 0.02),
+        tf: T3(-3 + m * 3, -25.4, top + sleeveHeight(HELD[m]!) + 0.02),
         bd: '1.5px dashed var(--ink-2)',
         op: heldOp,
       });

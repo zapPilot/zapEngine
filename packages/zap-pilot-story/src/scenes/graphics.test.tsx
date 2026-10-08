@@ -38,11 +38,13 @@ it('pairs each target model with its own glyph and numeric badge', () => {
   const labels = [...container.querySelectorAll('.zp-blb')].filter((label) =>
     label.querySelector('.zp-asset-glyph'),
   );
-  expect(labels).toHaveLength(4);
+  // Sub-0.5% sleeves keep their column but drop the badge to avoid clutter.
+  const shown = engineDecision()
+    .target.slice(0, 4)
+    .filter((pct) => pct >= 0.5);
+  expect(labels).toHaveLength(shown.length);
   labels.forEach((label, i) =>
-    expect(label.textContent).toContain(
-      `${engineDecision().target[i]!.toFixed(2)}%`,
-    ),
+    expect(label.textContent).toContain(`${shown[i]!.toFixed(2)}%`),
   );
 });
 it('compares Rules and DCA using paired bars while retaining the disclosure', () => {

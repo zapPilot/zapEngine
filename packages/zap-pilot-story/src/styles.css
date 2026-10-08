@@ -1048,6 +1048,8 @@
   scroll-margin-top: 68px;
 }
 .zp-join {
+  background: var(--ground);
+  color: var(--ink);
   border-top: 1px solid var(--rule);
 }
 .zp-join-wrap {
@@ -1102,6 +1104,8 @@
   margin-left: auto;
 }
 .zp-site-footer {
+  background: var(--ground);
+  color: var(--ink-2);
   border-top: 1px solid var(--rule);
   padding-block: 28px 32px;
 }
