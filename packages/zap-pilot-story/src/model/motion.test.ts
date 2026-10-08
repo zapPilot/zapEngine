@@ -26,32 +26,33 @@ describe('approved Motion geometry', () => {
     // coverage for the same 1001-frame exhaustive check under cache contention.
     { timeout: 20_000 },
     () => {
-    const invalidFrames: number[] = [];
-    const undersizedFrames: number[] = [];
-    for (let frame = 0; frame <= 1000; frame++) {
-      const scene = engineScene(frame / 1000, frame / 30, frame % 2 === 0);
-      if (/NaN|Infinity|undefined/.test(JSON.stringify(scene)))
-        invalidFrames.push(frame);
-      if (scene.faces.length <= 40) undersizedFrames.push(frame);
-    }
-    expect(invalidFrames).toEqual([]);
-    expect(undersizedFrames).toEqual([]);
-    expect(STAGES.map((s) => s.name)).toEqual([
-      'Parts',
-      'Observe',
-      'Evaluate',
-      'Target',
-      'Plan',
-      'Check',
-      'Sign',
-      'Status',
-    ]);
-    const end = engineScene(1);
-    expect(end.dial.val).toBe(`${engineDecision().stablePercent}%`);
-    expect(end.labels.map((l) => l.t)).toContain('YOUR MACHINE');
-    expect(engineScene(-1)).toEqual(engineScene(0));
-    expect(engineScene(2)).toEqual(engineScene(1));
-  });
+      const invalidFrames: number[] = [];
+      const undersizedFrames: number[] = [];
+      for (let frame = 0; frame <= 1000; frame++) {
+        const scene = engineScene(frame / 1000, frame / 30, frame % 2 === 0);
+        if (/NaN|Infinity|undefined/.test(JSON.stringify(scene)))
+          invalidFrames.push(frame);
+        if (scene.faces.length <= 40) undersizedFrames.push(frame);
+      }
+      expect(invalidFrames).toEqual([]);
+      expect(undersizedFrames).toEqual([]);
+      expect(STAGES.map((s) => s.name)).toEqual([
+        'Parts',
+        'Observe',
+        'Evaluate',
+        'Target',
+        'Plan',
+        'Check',
+        'Sign',
+        'Status',
+      ]);
+      const end = engineScene(1);
+      expect(end.dial.val).toBe(`${engineDecision().stablePercent}%`);
+      expect(end.labels.map((l) => l.t)).toContain('YOUR MACHINE');
+      expect(engineScene(-1)).toEqual(engineScene(0));
+      expect(engineScene(2)).toEqual(engineScene(1));
+    },
+  );
 });
 describe('pinned replay geometry', () => {
   it('holds at chapters, starts at the first date and reaches the pinned result', () => {
