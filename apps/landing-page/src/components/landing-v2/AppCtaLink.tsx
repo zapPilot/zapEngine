@@ -1,11 +1,11 @@
 'use client';
+import { postWaitlist, waitlistFailure } from '@/lib/waitlist-request';
 
 import type { FormEvent, MouseEvent, ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
 
 import { createPortal } from 'react-dom';
 
-import { LINKS } from '@/config/links';
 import { MESSAGES } from '@/config/messages';
 import {
   trackCtaClicked,
@@ -20,7 +20,7 @@ import {
 } from '@/lib/waitlist-attribution';
 
 import styles from './AppCtaLink.module.css';
-import { useCtaExperiment } from './CtaExperiment';
+import { useCtaExperiment } from '@/components/site/CtaExperiment';
 import { DiscordLink } from './DiscordLink';
 
 /**
@@ -146,27 +146,15 @@ export function AppCtaLink({
 
     let failure: CtaFailureReason = 'network_or_timeout';
     try {
-      const response = await fetch(LINKS.waitlistApi, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        signal: AbortSignal.timeout(15000),
-        body: JSON.stringify({
-          email,
-          company,
-          ctaLocation: location,
-          ...(formContext.current
-            ? { ctaExperiment: formContext.current }
-            : {}),
-          ...(attribution ?? {}),
-        }),
+      const response = await postWaitlist({
+        email,
+        company,
+        ctaLocation: location,
+        ...(formContext.current ? { ctaExperiment: formContext.current } : {}),
+        ...(attribution ?? {}),
       });
       if (!response.ok) {
-        failure =
-          response.status === 429
-            ? 'rate_limited'
-            : response.status >= 500
-              ? 'server_error'
-              : 'request_rejected';
+        failure = waitlistFailure(response.status);
         throw new Error('Waitlist signup failed');
       }
 

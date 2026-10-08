@@ -51,6 +51,7 @@ import { useHyperCoreSpendable } from '@/integration/useHlpBalances';
 import { useInvest } from '@/integration/useInvest';
 import { useWalletAssets } from '@/integration/walletTokens';
 import { formatUsd6 } from '@/lib/format';
+import { palette } from '@/lib/palette';
 import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 
 /**
@@ -194,37 +195,39 @@ export function InvestAmountScreen() {
       <InvestStepHeader title="Invest" step="Step 1 of 2" />
       <StepProgress current={1} />
       <View className="pt-5">
-        <Text className="font-serif text-[28px] leading-[32px] text-ink">
+        <Text className="font-display text-title leading-[32px] text-ink">
           How much do you want to invest?
         </Text>
-        <Text className="mt-2 text-[12.5px] leading-[19px] text-ink-dim">
+        <Text className="font-text mt-2 text-caption leading-[19px] text-ink-2">
           {t('invest.amount.intro')}
         </Text>
-        <View className="mt-5 rounded-[22px] border border-line bg-[#111113] p-4">
+        <View className="mt-5 rounded-panel border border-rule bg-well p-4">
           <View className="flex-row items-center justify-between">
-            <Text className="text-[11px] text-ink-dim">You invest</Text>
-            <Text className="font-mono text-[10.5px] text-ink-dim">
+            <Text className="font-mono-medium text-label text-ink-2">
+              You invest
+            </Text>
+            <Text className="font-mono text-data text-ink-2">
               {availableLabel}
             </Text>
           </View>
           <View className="mt-2 flex-row items-center">
-            <Text className="mr-2 font-sans-semibold text-[30px] text-ink-faint">
+            <Text className="mr-2 font-text-semibold text-title text-ink-3">
               $
             </Text>
             <TextInput
               accessibilityLabel="Total investment in US dollars"
-              className="min-w-0 flex-1 font-sans-semibold text-[42px] leading-[48px] text-ink"
+              className="min-w-0 flex-1 font-text-semibold text-display leading-[48px] text-ink"
               keyboardType="decimal-pad"
               placeholder="0"
               placeholderTextColor="#52525b"
-              selectionColor="#d4c5a3"
+              selectionColor={palette['sign-ink']}
               value={invest.amountInput}
               onChangeText={(value) =>
                 invest.setAmountInput(normalizeAmountInput(value))
               }
             />
-            <View className="rounded-full bg-[#242427] px-3 py-2">
-              <Text className="font-sans-semibold text-[12px] text-ink-dim">
+            <View className="rounded-round bg-well px-3 py-2">
+              <Text className="font-text-semibold text-caption text-ink-2">
                 USD
               </Text>
             </View>
@@ -249,7 +252,7 @@ export function InvestAmountScreen() {
           onUseRecommended={invest.clearFundingPreferences}
         />
         <View className="mt-5 flex-row items-center justify-between">
-          <Text className="font-sans-semibold text-[16px] text-ink">
+          <Text className="font-text-semibold text-body-lg text-ink">
             Your mix
           </Text>
           {!isDefaultSectorWeights(invest.sectorWeights) ? (
@@ -261,11 +264,13 @@ export function InvestAmountScreen() {
                 invest.resetSectorWeights();
               }}
             >
-              <Text className="text-[11px] text-accent">Reset</Text>
+              <Text className="font-mono-medium text-label text-ink">
+                Reset
+              </Text>
             </Tap>
           ) : null}
         </View>
-        <Text className="mt-2 text-[11px] text-ink-dim">
+        <Text className="font-mono-medium mt-2 text-label text-ink-2">
           {t('invest.amount.defaultMixNote', {
             crypto: bpsToPercentInput(DEFAULT_SECTOR_WEIGHTS.crypto),
             stable: bpsToPercentInput(DEFAULT_SECTOR_WEIGHTS.stable),
@@ -299,7 +304,7 @@ export function InvestAmountScreen() {
         {amountNotice ? (
           <Text
             accessibilityRole="alert"
-            className="mt-3 text-[11px] text-danger"
+            className="font-mono-medium mt-3 text-label text-alert"
           >
             {amountNotice}
           </Text>
@@ -321,7 +326,7 @@ export function InvestAmountScreen() {
             className="mt-4 self-center"
             onPress={() => router.push('/invest/bridge')}
           >
-            <Text className="text-[10.5px] text-ink-faint underline">
+            <Text className="font-mono-medium text-label text-ink-3 underline">
               Bridge diagnostics
             </Text>
           </Tap>

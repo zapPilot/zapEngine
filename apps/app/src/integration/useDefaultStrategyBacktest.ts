@@ -171,12 +171,12 @@ function metricsFromSummary(
     {
       label: 'Sharpe',
       value: numberMetric(summary.sharpe_ratio),
-      tone: 'accent',
+      tone: 'neutral',
     },
     {
       label: 'Calmar',
       value: numberMetric(summary.calmar_ratio),
-      tone: 'accent',
+      tone: 'neutral',
     },
     {
       label: 'Volatility',

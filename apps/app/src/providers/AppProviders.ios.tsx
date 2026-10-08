@@ -1,3 +1,4 @@
+import { palette } from '@/lib/palette';
 import { PrivyElements } from '@privy-io/expo/ui';
 import * as SplashScreen from 'expo-splash-screen';
 
@@ -23,7 +24,7 @@ export const AppProviders = createAppProviders({
         config={{
           appearance: {
             colorScheme: 'dark',
-            accentColor: '#d4c5a3',
+            accentColor: palette.sign,
           },
         }}
       />

@@ -124,7 +124,7 @@ export const ProofScene: React.FC<{ readonly scene: SceneOf<'proof'> }> = ({
                 style={{
                   fontFamily: font.mono,
                   fontSize: 30,
-                  color: color.inkDim,
+                  color: color['ink-2'],
                 }}
               >
                 {calls.path}
@@ -134,7 +134,7 @@ export const ProofScene: React.FC<{ readonly scene: SceneOf<'proof'> }> = ({
               text={facts.example.verdict}
               from={answerAt + 2}
               style={{
-                fontFamily: font.serif,
+                fontFamily: font.display,
                 fontSize: 78,
                 lineHeight: 1.02,
                 color: color.ink,

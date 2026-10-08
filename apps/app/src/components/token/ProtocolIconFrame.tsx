@@ -22,8 +22,8 @@ export function ProtocolIconFrame({
 }: ProtocolIconFrameProps) {
   return (
     <View
-      className="shrink-0 items-center justify-center overflow-hidden border border-line bg-[rgba(255,255,255,.04)]"
-      // Proportional rather than a fixed `rounded-xl`: at the 18–26pt sizes
+      className="shrink-0 items-center justify-center overflow-hidden border border-rule bg-well"
+      // Proportional rather than a fixed panel radius: at the 18–26pt sizes
       // this renders at, a 12px radius rounds the square into a circle and the
       // asset-versus-venue shape distinction disappears.
       style={{ width: size, height: size, borderRadius: size * 0.28 }}

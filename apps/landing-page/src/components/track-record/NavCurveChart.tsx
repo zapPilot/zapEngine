@@ -128,7 +128,7 @@ export function NavCurveChart({
             id: 'strategy',
             label: 'Strategy',
             value: points[index]!.value.toFixed(2),
-            color: 'var(--accent)',
+            color: 'var(--ink)',
           },
         ]}
         focusYForIndex={(index) =>

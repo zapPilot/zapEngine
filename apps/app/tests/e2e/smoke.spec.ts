@@ -651,7 +651,7 @@ test('choosing a language on the episode detail screen switches the displayed lo
   // rendered (currently hidden) inside the media player's Video tab panel,
   // so a bare getByText would hit a strict-mode violation.
   await expect(
-    page.locator('div[class*="text-[25px]"]', {
+    page.locator('div[class*="text-title"]', {
       hasText: 'E2E Fed to Chain briefing (EN)',
     }),
   ).toBeVisible();

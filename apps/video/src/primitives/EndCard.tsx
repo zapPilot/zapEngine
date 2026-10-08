@@ -26,7 +26,7 @@ export const EndCard: React.FC<{
       }}
     >
       <Img
-        src={staticFile('brand/zap-pilot-logo.svg')}
+        src={staticFile('brand/zap-pilot-logo-night.svg')}
         style={{
           height: 84,
           marginBottom: 56,
@@ -37,7 +37,7 @@ export const EndCard: React.FC<{
         text={claim}
         from={from + 6}
         style={{
-          fontFamily: font.serif,
+          fontFamily: font.display,
           fontSize: 112,
           lineHeight: 1.04,
           color: color.ink,
@@ -48,11 +48,11 @@ export const EndCard: React.FC<{
         from={punchFrom}
         stagger={4}
         style={{
-          fontFamily: font.serif,
+          fontFamily: font.display,
           fontStyle: 'italic',
           fontSize: 132,
           lineHeight: 1.1,
-          color: color.accent,
+          color: color['ink'],
         }}
       />
       <div
@@ -72,11 +72,11 @@ export const EndCard: React.FC<{
           style={{
             height: 2,
             width: `${rise(frame, punchFrom + 20, 24) * 100}%`,
-            background: color.accent,
+            background: color['ink'],
           }}
         />
         <span
-          style={{ fontFamily: font.mono, fontSize: 24, color: color.inkDim }}
+          style={{ fontFamily: font.mono, fontSize: 24, color: color['ink-2'] }}
         >
           {meta}
         </span>

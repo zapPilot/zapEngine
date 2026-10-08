@@ -14,12 +14,8 @@ vi.mock('lucide-react-native', () => ({
   Coins: () => <span data-icon="coins" />,
   TrendingUp: () => <span data-icon="trending-up" />,
 }));
-vi.mock('@zapengine/design-tokens/tokens', () => ({
-  tokens: {
-    color: { 'ink-faint': '#8a8a8a', success: '#7fbf7f', error: '#ef9292' },
-  },
-}));
 vi.mock('react-native', () => ({
+  Platform: { OS: 'web' },
   Text: ({
     children,
     className,
@@ -110,7 +106,7 @@ describe('HomeAttributionBreakdown', () => {
   it('marks a negative bucket with the error colour', async () => {
     await render(summary({ marketUsd: -1_200 }));
 
-    const negative = [...container.querySelectorAll('span.text-danger')].map(
+    const negative = [...container.querySelectorAll('span.text-down')].map(
       (node) => node.textContent,
     );
     expect(negative).toContain('−$1,200');
@@ -128,3 +124,18 @@ describe('HomeAttributionBreakdown', () => {
     expect(container.textContent).toBe('');
   });
 });
+
+vi.mock('react-native-svg', () => ({
+  default: ({ children }: { children?: React.ReactNode }) => (
+    <svg>{children}</svg>
+  ),
+  Circle: () => <circle />,
+  Path: () => <path />,
+  Rect: () => <rect />,
+  Defs: ({ children }: { children?: React.ReactNode }) => (
+    <defs>{children}</defs>
+  ),
+  ClipPath: ({ children }: { children?: React.ReactNode }) => (
+    <clipPath>{children}</clipPath>
+  ),
+}));

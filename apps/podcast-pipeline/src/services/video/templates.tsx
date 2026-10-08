@@ -10,19 +10,19 @@ const portraitCanvasWidth = PORTRAIT_TEMPLATE_WIDTH;
 const portraitCanvasHeight = PORTRAIT_TEMPLATE_HEIGHT;
 const portraitMediaTop = 1_240;
 const portraitMediaBottom = 3_160;
-const sans = 'Noto Sans TC';
-const mono = 'JetBrains Mono';
+const sans = 'Archivo Text, Noto Sans TC';
+const mono = 'MartianMono SemiBold, Noto Sans TC';
 
 const colors = {
-  bg: tokens.color.bg,
-  surface: tokens.color.surface,
-  elevated: tokens.color['surface-elevated'],
-  ink: tokens.color.ink,
-  inkDim: tokens.color['ink-dim'],
-  inkFaint: tokens.color['ink-faint'],
-  accent: tokens.color.accent,
-  accentSoft: tokens.color['accent-soft'],
-  line: tokens.color['line-hi'],
+  bg: tokens.mode.night.ground,
+  surface: tokens.mode.night.sheet,
+  elevated: tokens.mode.night.well,
+  ink: tokens.mode.night.ink,
+  inkDim: tokens.mode.night['ink-2'],
+  inkFaint: tokens.mode.night['ink-3'],
+  accent: tokens.mode.night.ink,
+  accentSoft: tokens.mode.night.well,
+  line: tokens.mode.night['rule-2'],
 } as const;
 
 function Eyebrow({ children }: Readonly<{ children: string }>): ReactElement {
@@ -117,9 +117,9 @@ function BrandFrameTemplate({
             alignItems: 'center',
             marginTop: 44,
             padding: '44px 64px',
-            backgroundColor: '#ffffff',
+            backgroundColor: tokens.mode.paper.sheet,
             borderRadius: 28,
-            color: '#101014',
+            color: tokens.mode.paper.ink,
           }}
         >
           {frame.titleLines.map((line, index) => (

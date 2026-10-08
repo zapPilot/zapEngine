@@ -27,22 +27,3 @@ export function OwnershipCards() {
     </div>
   );
 }
-
-export function Ownership() {
-  const { ownership } = MESSAGES;
-  return (
-    <section
-      id="ownership"
-      className="zp-section"
-      aria-labelledby="ownership-title"
-    >
-      <div className="zp-container">
-        <p className="zp-kicker">{ownership.kicker}</p>
-        <h2 id="ownership-title" className="zp-h2">
-          {ownership.title}
-        </h2>
-        <OwnershipCards />
-      </div>
-    </section>
-  );
-}

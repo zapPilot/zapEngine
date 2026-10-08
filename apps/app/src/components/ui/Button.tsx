@@ -7,11 +7,10 @@ import { Icon } from './Icon';
 import { Spinner } from './Spinner';
 import { cn } from '@/lib/cn';
 const variants = {
-  primary: 'bg-accent',
-  secondary: 'border border-line-hi bg-surface',
-  tonal: 'border border-accent-line bg-accent-soft',
+  primary: 'bg-sign',
+  secondary: 'border border-rule-2 bg-sheet',
   ghost: 'bg-transparent',
-  destructive: 'border border-danger-line bg-danger-soft',
+  destructive: 'border border-alert bg-alert-wash',
 } as const;
 const sizes = {
   sm: 'min-h-control-sm py-1.5',
@@ -43,10 +42,8 @@ export function Button({
     variant === 'primary'
       ? 'inverse'
       : variant === 'destructive'
-        ? 'danger'
-        : variant === 'tonal'
-          ? 'accent'
-          : 'default';
+        ? 'alert'
+        : 'default';
   return (
     <Tap
       {...props}
@@ -74,7 +71,7 @@ export function Button({
         {leadingIcon ? <Icon icon={leadingIcon} size="sm" tone={tone} /> : null}
         {Children.map(children, (child) =>
           typeof child === 'string' || typeof child === 'number' ? (
-            <Text variant="label" tone={tone} numberOfLines={1}>
+            <Text variant="action" tone={tone} numberOfLines={1}>
               {child}
             </Text>
           ) : (
@@ -87,13 +84,13 @@ export function Button({
       </View>
       {loading ? (
         <View className="absolute">
-          <Spinner tone={variant === 'primary' ? 'inverse' : 'accent'} />
+          <Spinner tone={variant === 'primary' ? 'inverse' : 'default'} />
         </View>
       ) : null}
       {showIndicator ? (
         <View
           accessible={false}
-          className="absolute right-2 h-1.5 w-1.5 rounded-pill bg-accent"
+          className="absolute right-2 h-1.5 w-1.5 rounded-round bg-sign"
         />
       ) : null}
     </Tap>

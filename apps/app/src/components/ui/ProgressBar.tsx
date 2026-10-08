@@ -53,7 +53,7 @@ export function ProgressBar({
         Animated.sequence([
           Animated.timing(progress, {
             toValue: 100,
-            duration: tokens.duration.slower * 3,
+            duration: tokens.duration.ambient * 3,
             easing: Easing.linear,
             useNativeDriver: false,
           }),
@@ -75,7 +75,7 @@ export function ProgressBar({
     // carry it. One JS-driven tween on an otherwise idle placeholder is fine.
     const animation = Animated.timing(progress, {
       toValue: percent,
-      duration: tokens.duration.slower,
+      duration: tokens.duration.ambient,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
     });
@@ -96,11 +96,11 @@ export function ProgressBar({
         ? { 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': now }
         : {})}
       onLayout={onLayout}
-      className={cn('w-full overflow-hidden rounded-pill bg-line', className)}
+      className={cn('w-full overflow-hidden rounded-round bg-rule', className)}
       style={{ height }}
     >
       <Animated.View
-        className="h-full rounded-pill bg-accent"
+        className="h-full rounded-round bg-ink"
         style={{
           width: progress.interpolate({
             inputRange: [0, 100],

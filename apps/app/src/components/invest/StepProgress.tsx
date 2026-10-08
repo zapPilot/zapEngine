@@ -15,8 +15,8 @@ export function StepProgress({ current, total = 2 }: StepProgressProps) {
         <View
           key={index}
           className={cn(
-            'h-[3px] flex-1 rounded-full',
-            index < current ? 'bg-accent' : 'bg-[rgba(255,255,255,.1)]',
+            'h-[3px] flex-1 rounded-round',
+            index < current ? 'bg-ink' : 'bg-well',
           )}
         />
       ))}

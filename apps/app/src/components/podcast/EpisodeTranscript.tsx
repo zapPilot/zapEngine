@@ -72,12 +72,15 @@ export function EpisodeTranscript({
 
   return (
     <View className="pt-7">
-      <Text className="font-sans-semibold text-[17px] text-ink">
+      <Text className="font-text-semibold text-body-lg text-ink">
         {t('podcast.transcript')}
       </Text>
-      <View className="mt-3 border-t border-line pt-3">
+      <View className="mt-3 border-t border-rule pt-3">
         {segments.length === 0 || currentIndex < 0 ? (
-          <Text selectable className="text-[13px] leading-[22px] text-ink-dim">
+          <Text
+            selectable
+            className="font-text text-body-sm leading-[22px] text-ink-2"
+          >
             {body !== undefined && body !== ''
               ? body
               : t('podcast.noTranscript')}
@@ -97,9 +100,9 @@ export function EpisodeTranscript({
                     player.seek(segment.start);
                   }}
                   className={cn(
-                    'rounded-xl border-l-2 px-2 py-2',
+                    'rounded-panel border-l-2 px-2 py-2',
                     isCurrentSegment
-                      ? 'border-accent bg-[rgba(212,197,163,.1)]'
+                      ? 'border-ink bg-well'
                       : 'border-transparent',
                     index < currentIndex && 'opacity-45',
                   )}
@@ -107,8 +110,8 @@ export function EpisodeTranscript({
                   <View className="flex-row gap-3">
                     <Text
                       className={cn(
-                        'w-11 font-mono text-[10px]',
-                        isCurrentSegment ? 'text-accent' : 'text-ink-faint',
+                        'w-11 font-mono text-data',
+                        isCurrentSegment ? 'text-ink' : 'text-ink-3',
                       )}
                     >
                       {formatPodcastClock(segment.start)}
@@ -116,8 +119,11 @@ export function EpisodeTranscript({
                     <Text
                       selectable
                       className={cn(
-                        'min-w-0 flex-1 text-[13px] leading-[21px]',
-                        isCurrentSegment ? 'text-ink' : 'text-ink-dim',
+                        'font-text text-body',
+                        cn(
+                          'min-w-0 flex-1 text-body-sm leading-[21px]',
+                          isCurrentSegment ? 'text-ink' : 'text-ink-2',
+                        ),
                       )}
                     >
                       {segment.text}

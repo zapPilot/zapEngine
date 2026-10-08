@@ -46,7 +46,7 @@ export function AddWalletForm({
 
   return (
     <View className="gap-3">
-      <Text className="text-[11.5px] leading-[17px] text-ink-dim">
+      <Text className="font-mono-medium text-label leading-[17px] text-ink-2">
         Add any wallet now. It will stay unverified until you prove ownership
         from the wallet row.
       </Text>
@@ -67,7 +67,7 @@ export function AddWalletForm({
         onChangeText={setAddress}
       />
       {error ? (
-        <Text className="text-[11.5px] leading-[16px] text-[#ef9292]">
+        <Text className="font-mono-medium text-label leading-[16px] text-alert">
           {error}
         </Text>
       ) : null}
@@ -83,7 +83,7 @@ export function AddWalletForm({
           className="min-h-9 justify-center px-3"
           onPress={onCancel}
         >
-          <Text className="font-sans-semibold text-[12px] text-ink-dim">
+          <Text className="font-text-semibold text-caption text-ink-2">
             Cancel
           </Text>
         </Tap>

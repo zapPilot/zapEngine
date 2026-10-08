@@ -31,3 +31,37 @@ describe('SentimentChart', () => {
     ).toBeInTheDocument();
   });
 });
+
+it.each([
+  [25, 'Extreme Fear'],
+  [26, 'Fear'],
+  [45, 'Fear'],
+  [46, 'Neutral'],
+  [54, 'Neutral'],
+  [55, 'Greed'],
+  [75, 'Greed'],
+  [76, 'Extreme Greed'],
+])('labels a missing provider regime at boundary %s', (value, regime) => {
+  render(
+    <SentimentChart
+      kicker="Sentiment"
+      title="FGI"
+      points={[{ date: '2026-08-20', value, regime: null }]}
+    />,
+  );
+  expect(screen.getByText(`${value} · ${regime}`)).toBeVisible();
+});
+it('keeps the provider label and renders its caption and custom class', () => {
+  const { container } = render(
+    <SentimentChart
+      kicker="Sentiment"
+      title="FGI"
+      className="custom-signal"
+      caption="Source: provider"
+      points={[{ date: '2026-08-20', value: 50, regime: 'Provider neutral' }]}
+    />,
+  );
+  expect(screen.getByText('50 · Provider neutral')).toBeVisible();
+  expect(screen.getByText('Source: provider').tagName).toBe('FIGCAPTION');
+  expect(container.querySelector('figure')).toHaveClass('custom-signal');
+});

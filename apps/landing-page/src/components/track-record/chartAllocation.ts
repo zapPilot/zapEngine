@@ -24,7 +24,7 @@ const SEGMENTS = [
   { id: 'btc', label: 'BTC', color: MARKER_COLOR.BTC },
   { id: 'eth', label: 'ETH', color: MARKER_COLOR.ETH },
   { id: 'spy', label: 'SPY', color: MARKER_COLOR.SPY },
-  { id: 'stable', label: 'Cash', color: 'var(--event-stable)' },
+  { id: 'stable', label: 'Cash', color: 'var(--sleeve-stable)' },
 ] as const;
 
 /**

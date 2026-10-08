@@ -1,4 +1,5 @@
-import { tokens } from '@zapengine/design-tokens/tokens';
+import { cn } from '@/lib/cn';
+import { Icon } from '@/components/ui/Icon';
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -84,23 +85,23 @@ function DisclosureRow({
       className="flex-row items-center gap-3 py-2"
     >
       <View style={{ width: iconColumnWidth }}>
-        <View className="h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-line">
+        <View className="h-9 w-9 shrink-0 items-center justify-center rounded-panel border border-rule">
           {icon}
         </View>
       </View>
       <View className="min-w-0 flex-1">
-        <Text className="text-[13px] text-ink">{title}</Text>
+        <Text className="font-text text-body-sm text-ink">{title}</Text>
         {subtitle ? (
           <Text
             numberOfLines={1}
-            className="mt-0.5 font-mono text-[9.5px] text-ink-faint"
+            className="mt-0.5 font-mono text-data text-ink-3"
           >
             {subtitle}
           </Text>
         ) : null}
       </View>
       {trailing}
-      <Chevron size={14} strokeWidth={2} color={tokens.color['ink-faint']} />
+      <Icon icon={Chevron} size="xs" tone="muted" />
     </Tap>
   );
 }
@@ -125,7 +126,7 @@ function PositionIcon({ row }: { row: HomeProtocolIncomeRow }) {
       {visibleTokens.map((symbol, index) => (
         <View
           key={symbol}
-          className="absolute rounded-full border border-[#0a0a0a] bg-[#0a0a0a]"
+          className="absolute rounded-round border border-ground bg-ground"
           style={{
             left: TOKEN_BADGE_LEFT + index * TOKEN_BADGE_STEP,
             top: TOKEN_BADGE_LEFT,
@@ -146,16 +147,16 @@ function IncomeRowDetail({ row }: { row: HomeProtocolIncomeRow }) {
   const hasBorrowedLeg = row.tokenValues.some((token) => token.valueUsd < 0);
 
   return (
-    <View className="mb-1 ml-3 border-l border-line pl-3">
+    <View className="mb-1 ml-3 border-l border-rule pl-3">
       {row.impliedAnnualPct === undefined ? null : (
-        <Text className="py-1 font-mono text-[10.5px] text-ink-dim">
+        <Text className="py-1 font-mono text-data text-ink-2">
           {t('home.incomeImpliedRate', {
             rate: formatSignedPct(row.impliedAnnualPct),
           })}
         </Text>
       )}
       {row.tokenValues.length > 0 ? (
-        <Text className="mt-1 text-[10px] text-ink-faint">
+        <Text className="font-mono-medium mt-1 text-label text-ink-3">
           {t('home.incomeComposition')}
         </Text>
       ) : null}
@@ -175,21 +176,22 @@ function IncomeRowDetail({ row }: { row: HomeProtocolIncomeRow }) {
           />
           <Text
             numberOfLines={1}
-            className="min-w-0 flex-1 text-[11.5px] text-ink-dim"
+            className="font-mono-medium min-w-0 flex-1 text-label text-ink-2"
           >
             {token.symbol}
           </Text>
           <Text
-            className={`font-mono text-[11px] ${
-              token.valueUsd < 0 ? 'text-[#ef9292]' : 'text-ink-dim'
-            }`}
+            className={cn(
+              'font-mono text-data',
+              token.valueUsd < 0 ? 'text-down' : 'text-ink-2',
+            )}
           >
             {formatSignedUsd(token.valueUsd)}
           </Text>
         </View>
       ))}
       {hasBorrowedLeg ? (
-        <Text className="mt-1 text-[9.5px] leading-[14px] text-ink-faint">
+        <Text className="font-mono-medium mt-1 text-label leading-[14px] text-ink-3">
           {t('home.incomeCompositionBasis')}
         </Text>
       ) : null}
@@ -231,13 +233,13 @@ function IncomeRow({
     <>
       <PositionIcon row={row} />
       <View className="min-w-0 flex-1">
-        <Text numberOfLines={1} className="text-[13px] text-ink">
+        <Text numberOfLines={1} className="font-text text-body-sm text-ink">
           {row.label}
         </Text>
         {metadata ? (
           <Text
             numberOfLines={1}
-            className="mt-0.5 font-mono text-[9.5px] text-ink-faint"
+            className="mt-0.5 font-mono text-data text-ink-3"
           >
             {metadata}
           </Text>
@@ -245,14 +247,15 @@ function IncomeRow({
       </View>
       <View className="items-end">
         <Text
-          className={`font-mono-semibold text-[12px] ${
-            isCost ? 'text-[#ef9292]' : 'text-accent'
-          }`}
+          className={cn(
+            'font-mono-semibold text-data',
+            isCost ? 'text-down' : 'text-ink',
+          )}
         >
           {amount}
         </Text>
         {positionLabel ? (
-          <Text className="mt-0.5 font-mono text-[9.5px] text-ink-faint">
+          <Text className="mt-0.5 font-mono text-data text-ink-3">
             {positionLabel}
           </Text>
         ) : null}
@@ -260,13 +263,7 @@ function IncomeRow({
       {/* Held open whether or not this row expands, so every amount in the
           card lines up against the same right edge. */}
       <View className="w-3.5 shrink-0 items-center">
-        {canExpand ? (
-          <Chevron
-            size={14}
-            strokeWidth={2}
-            color={tokens.color['ink-faint']}
-          />
-        ) : null}
+        {canExpand ? <Icon icon={Chevron} size="xs" tone="muted" /> : null}
       </View>
     </>
   );
@@ -320,9 +317,7 @@ function OtherIncomeRow({ partition }: { partition: HomeIncomePartition }) {
   return (
     <>
       <DisclosureRow
-        icon={
-          <Layers size={16} strokeWidth={2} color={tokens.color['ink-faint']} />
-        }
+        icon={<Icon icon={Layers} size="sm" tone="muted" />}
         title={t('home.incomeOther')}
         subtitle={subtitle || null}
         expanded={expanded}
@@ -358,23 +353,17 @@ function BorrowingRiskSection({ risk }: { risk: HomeBorrowingRiskView }) {
   });
 
   return (
-    <View className="mt-3 border-t border-line pt-2">
+    <View className="mt-3 border-t border-rule pt-2">
       <DisclosureRow
-        icon={
-          <ShieldAlert
-            size={16}
-            strokeWidth={2}
-            color={tokens.color['ink-faint']}
-          />
-        }
+        icon={<Icon icon={ShieldAlert} size="sm" tone="muted" />}
         title={title}
         subtitle={summary}
         trailing={
           <View className="items-end">
-            <Text className="font-mono-semibold text-[12px] text-accent">
+            <Text className="font-mono-semibold text-data text-ink">
               {nearestLabel}
             </Text>
-            <Text className="mt-0.5 text-[9.5px] text-ink-faint">
+            <Text className="font-mono-medium mt-0.5 text-label text-ink-3">
               {toLiquidation}
             </Text>
           </View>
@@ -387,7 +376,7 @@ function BorrowingRiskSection({ risk }: { risk: HomeBorrowingRiskView }) {
       />
 
       {expanded ? (
-        <View className="mt-1 border-t border-line/70 pt-1">
+        <View className="mt-1 border-t border-rule/70 pt-1">
           {risk.positions.map((position, index) => {
             const collateral = position.collateralSymbols.join(' + ') || '—';
             const debt = position.debtSymbols.join(' + ') || '—';
@@ -411,28 +400,31 @@ function BorrowingRiskSection({ risk }: { risk: HomeBorrowingRiskView }) {
               >
                 <ProtocolIcon protocol={position.protocol} size={30} />
                 <View className="min-w-0 flex-1">
-                  <Text numberOfLines={1} className="text-[12.5px] text-ink">
+                  <Text
+                    numberOfLines={1}
+                    className="font-text text-caption text-ink"
+                  >
                     {position.protocol}
                   </Text>
                   <Text
                     numberOfLines={1}
-                    className="mt-0.5 font-mono text-[9.5px] text-ink-faint"
+                    className="mt-0.5 font-mono text-data text-ink-3"
                   >
                     {position.chain} · {collateral} → {debt}
                   </Text>
                 </View>
                 <View className="items-end">
-                  <Text className="font-mono-semibold text-[11.5px] text-ink-dim">
+                  <Text className="font-mono-semibold text-data text-ink-2">
                     {bufferLabel}
                   </Text>
-                  <Text className="mt-0.5 font-mono text-[9.5px] text-ink-faint">
+                  <Text className="mt-0.5 font-mono text-data text-ink-3">
                     HF {position.healthRate.toFixed(2)}
                   </Text>
                 </View>
               </View>
             );
           })}
-          <Text className="mt-1 text-[9.5px] leading-[14px] text-ink-faint">
+          <Text className="font-mono-medium mt-1 text-label leading-[14px] text-ink-3">
             {t('home.liquidationRiskScenario')}
           </Text>
         </View>
@@ -486,7 +478,7 @@ export function HomeIncomeCard({
               <SkeletonBlock className="mt-3 h-4 w-64" />
             </>
           ) : income.status !== 'ready' ? (
-            <Text className="text-[12px] leading-[18px] text-ink-dim">
+            <Text className="font-text text-caption leading-[18px] text-ink-2">
               {t(
                 income.status === 'insufficient'
                   ? 'home.incomeInsufficient'
@@ -495,12 +487,12 @@ export function HomeIncomeCard({
             </Text>
           ) : (
             <>
-              <Text className="font-serif text-[25px] leading-[31px] text-ink">
+              <Text className="font-display text-title leading-[31px] text-ink">
                 {t('home.passiveIncomePerMonth', {
                   amount: formatUsd(income.passiveMonthlyUsd),
                 })}
               </Text>
-              <Text className="mt-1.5 text-[11px] leading-[16px] text-ink-dim">
+              <Text className="font-mono-medium mt-1.5 text-label leading-[16px] text-ink-2">
                 {t('home.passiveIncomeBasis')}
               </Text>
 
@@ -511,10 +503,10 @@ export function HomeIncomeCard({
                     accessibilityLabel={t('home.passiveIncomeGrossA11y', {
                       amount: formatUsd(income.incomeMonthlyUsd),
                     })}
-                    className="flex-1 flex-row items-center gap-1.5 rounded-xl border border-line bg-[rgba(255,255,255,.025)] px-3 py-2.5"
+                    className="flex-1 flex-row items-center gap-1.5 rounded-panel border border-rule bg-well px-3 py-2.5"
                   >
-                    <ArrowUpRight size={13} color="#d4c5a3" strokeWidth={2} />
-                    <Text className="font-mono-semibold text-[12px] text-accent">
+                    <Icon icon={ArrowUpRight} size="xs" tone="sign" />
+                    <Text className="font-mono-semibold text-data text-ink">
                       {formatSignedUsd(income.incomeMonthlyUsd)}
                     </Text>
                   </View>
@@ -523,10 +515,10 @@ export function HomeIncomeCard({
                     accessibilityLabel={t('home.passiveCostGrossA11y', {
                       amount: formatUsd(Math.abs(income.costMonthlyUsd)),
                     })}
-                    className="flex-1 flex-row items-center gap-1.5 rounded-xl border border-line bg-[rgba(255,255,255,.025)] px-3 py-2.5"
+                    className="flex-1 flex-row items-center gap-1.5 rounded-panel border border-rule bg-well px-3 py-2.5"
                   >
-                    <ArrowDownRight size={13} color="#ef9292" strokeWidth={2} />
-                    <Text className="font-mono-semibold text-[12px] text-[#ef9292]">
+                    <Icon icon={ArrowDownRight} size="xs" tone="default" />
+                    <Text className="font-mono-semibold text-data text-alert">
                       {formatSignedUsd(income.costMonthlyUsd)}
                     </Text>
                   </View>
@@ -534,7 +526,7 @@ export function HomeIncomeCard({
               ) : null}
 
               {income.protocolRows.length > 0 ? (
-                <View className="mt-3 border-t border-line pt-1">
+                <View className="mt-3 border-t border-rule pt-1">
                   {incomeRows.map((row) => (
                     <IncomeRow
                       key={`${row.protocol}:${row.chain ?? ''}:income`}
@@ -542,7 +534,7 @@ export function HomeIncomeCard({
                     />
                   ))}
                   {incomeRows.length > 0 && costRows.length > 0 ? (
-                    <View className="my-1 h-px bg-line" />
+                    <View className="my-1 h-px bg-rule" />
                   ) : null}
                   {costRows.map((row) => (
                     <IncomeRow

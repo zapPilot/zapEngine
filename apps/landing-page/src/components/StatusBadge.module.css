@@ -1,5 +1,5 @@
 /*
- * Rendered inside `.zp-root` (landing), `.shell-root` (pitch, track record)
+ * Rendered inside `.zp-root` (landing), `.track-record-root` (pitch, track record)
  * and Fumadocs pages, so colors come only from the global design-token
  * variables, never from a surface-scoped palette.
  */
@@ -22,7 +22,7 @@
   display: inline-flex;
   align-items: center;
   flex: none;
-  border: 1px solid var(--line-hi);
+  border: 1px solid var(--rule-2);
   border-radius: 999px;
   padding: 2px 8px;
   font-family: var(--font-mono), ui-monospace, 'SFMono-Regular', monospace;
@@ -35,27 +35,27 @@
 }
 
 .badge[data-status='live'] {
-  border-color: var(--success-line);
-  background: var(--success-soft);
-  color: var(--success);
+  border-color: var(--rule-2);
+  background: var(--well);
+  color: var(--ink);
 }
 
 .badge[data-status='research'] {
-  border-color: var(--accent-line);
-  background: var(--accent-subtle);
-  color: var(--accent);
+  border-color: var(--rule-2);
+  background: var(--well);
+  color: var(--ink);
 }
 
 .badge[data-status='in-development'] {
-  border-color: var(--warning-line);
-  background: var(--warning-soft);
-  color: var(--warning);
+  border-color: var(--rule-2);
+  background: var(--well);
+  color: var(--ink-2);
 }
 
 .badge[data-status='planned'] {
   border-style: dashed;
   background: transparent;
-  color: var(--ink-muted);
+  color: var(--ink-3);
 }
 
 .qualifier {
@@ -63,5 +63,5 @@
   font-size: 9.5px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--ink-muted);
+  color: var(--ink-3);
 }

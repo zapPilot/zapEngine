@@ -1,21 +1,17 @@
 import type { ReactElement, ReactNode } from 'react';
-import {
-  CircleCheck,
-  Info,
-  ShieldCheck,
-  TriangleAlert,
-} from 'lucide-react-native';
+import { CircleCheck, Info, TriangleAlert } from 'lucide-react-native';
 import { View } from 'react-native';
 import { Text } from './Text';
 import { Icon } from './Icon';
 import { Button } from './Button';
+import { Rail } from './Rail';
+import { palette } from '@/lib/palette';
 import { cn } from '@/lib/cn';
 const tones = {
-  neutral: 'border-line bg-surface',
-  info: 'border-accent-line bg-accent-subtle',
-  success: 'border-success-line bg-success-soft',
-  warning: 'border-warning-line bg-warning-soft',
-  danger: 'border-danger-line bg-danger-soft',
+  neutral: 'border-rule bg-sheet',
+  caution: 'border-dashed border-rule-2 bg-sheet',
+  alert: 'border-alert bg-alert-wash',
+  done: 'border-rule bg-sheet',
 } as const;
 interface CalloutAction {
   label: string;
@@ -43,27 +39,28 @@ export function Callout({
   className,
 }: CalloutProps): ReactElement {
   const icon =
-    tone === 'info'
-      ? ShieldCheck
-      : tone === 'success'
-        ? CircleCheck
-        : tone === 'danger' || tone === 'warning'
-          ? TriangleAlert
-          : Info;
+    tone === 'done'
+      ? CircleCheck
+      : tone === 'alert' || tone === 'caution'
+        ? TriangleAlert
+        : Info;
   const textTone =
-    tone === 'info' ? 'accent' : tone === 'neutral' ? 'default' : tone;
+    tone === 'alert' ? 'alert' : tone === 'caution' ? 'secondary' : 'default';
   return (
     <View
-      {...(tone === 'danger' || tone === 'warning'
+      {...(tone === 'alert' || tone === 'caution'
         ? { accessibilityRole: 'alert' as const }
         : {})}
-      className={cn('rounded-card border p-4', tones[tone], className)}
+      className={cn('rounded-panel border p-4', tones[tone], className)}
     >
+      {tone === 'caution' ? (
+        <Rail status="planned" color={palette['rule-2']} />
+      ) : null}
       <View className="flex-row items-start gap-3">
         <Icon icon={icon} tone={textTone} />
         <View className="min-w-0 flex-1">
           {title ? (
-            <Text variant="subheading" tone={textTone}>
+            <Text variant="heading" tone={textTone}>
               {title}
             </Text>
           ) : null}

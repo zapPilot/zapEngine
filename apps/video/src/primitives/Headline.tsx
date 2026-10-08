@@ -20,7 +20,7 @@ export const Headline: React.FC<{
   return (
     <div
       style={{
-        fontFamily: font.serif,
+        fontFamily: font.display,
         fontSize: size,
         lineHeight: 1.08,
         color: color.ink,
@@ -34,7 +34,7 @@ export const Headline: React.FC<{
           <RevealText
             text={accent}
             from={from + leadWords * 3 + 4}
-            style={{ fontStyle: 'italic', color: color.accent }}
+            style={{ fontStyle: 'italic', color: color['ink'] }}
           />
         </>
       )}

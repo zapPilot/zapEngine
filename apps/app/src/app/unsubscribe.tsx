@@ -41,12 +41,12 @@ export default function UnsubscribeRoute(): ReactElement {
         <PageHeader title="Email preferences" />
         <View className="pt-5">
           <Card className="p-5">
-            <Text className="font-sans-semibold text-[17px] text-ink">
+            <Text className="font-text-semibold text-body-lg text-ink">
               {status === 'success'
                 ? 'Weekly reports are turned off'
                 : 'Unsubscribe from weekly reports?'}
             </Text>
-            <Text className="mt-2 text-[13px] leading-5 text-ink-dim">
+            <Text className="font-text mt-2 text-body-sm leading-5 text-ink-2">
               {status === 'success'
                 ? 'You will no longer receive Zap Pilot weekly portfolio reports. You can subscribe again from the app at any time.'
                 : 'This stops weekly portfolio emails for the address linked to this report. It does not change your wallets or assets.'}
@@ -54,7 +54,7 @@ export default function UnsubscribeRoute(): ReactElement {
 
             {hasError ? (
               <Callout
-                tone="danger"
+                tone="alert"
                 className="mt-5"
                 title="This link could not be verified"
                 body="The unsubscribe link is invalid or no longer matches the email address on the account."

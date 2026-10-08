@@ -19,9 +19,6 @@ vi.mock('lucide-react-native', () => ({
   Layers: () => <span data-icon="layers" />,
   ShieldAlert: () => <span data-icon="shield-alert" />,
 }));
-vi.mock('@zapengine/design-tokens/tokens', () => ({
-  tokens: { color: { 'ink-faint': '#8a8a8a' } },
-}));
 vi.mock('@/components/ui/Tap', () => ({
   Tap: ({
     accessibilityLabel,
@@ -45,6 +42,7 @@ vi.mock('@/components/ui/Tap', () => ({
   ),
 }));
 vi.mock('react-native', () => ({
+  Platform: { OS: 'web' },
   Text: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
   View: ({
     accessibilityLabel,
@@ -546,3 +544,18 @@ describe('HomeIncomeCard borrowing risk', () => {
     expect(labels()).toContain('home.liquidationRiskA11y|0.0%');
   });
 });
+
+vi.mock('react-native-svg', () => ({
+  default: ({ children }: { children?: React.ReactNode }) => (
+    <svg>{children}</svg>
+  ),
+  Circle: () => <circle />,
+  Path: () => <path />,
+  Rect: () => <rect />,
+  Defs: ({ children }: { children?: React.ReactNode }) => (
+    <defs>{children}</defs>
+  ),
+  ClipPath: ({ children }: { children?: React.ReactNode }) => (
+    <clipPath>{children}</clipPath>
+  ),
+}));

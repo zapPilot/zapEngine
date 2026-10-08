@@ -59,7 +59,7 @@ const config: ExpoConfig = {
   scheme: appScheme,
   version: '3.0.1',
   orientation: 'portrait',
-  userInterfaceStyle: 'automatic',
+  userInterfaceStyle: 'dark',
   icon: './assets/brand/icon.png',
   ios: {
     appStoreUrl: 'https://apps.apple.com/app/id6749248542',
@@ -115,14 +115,14 @@ const config: ExpoConfig = {
     package: 'com.fromfedtochain.app',
     adaptiveIcon: {
       foregroundImage: './assets/brand/adaptive-icon.png',
-      backgroundColor: '#0a0a0a',
+      backgroundColor: tokens.mode.night.ground,
     },
   },
   web: {
     bundler: 'metro',
     output: 'single',
     favicon: './assets/brand/favicon.png',
-    themeColor: tokens.color.bg,
+    themeColor: tokens.mode.night['ground'],
     description:
       "Portfolio tracking, a reference strategy's daily decisions, wallet-signed deposits, and the From Fed to Chain podcast from Zap Pilot.",
   },
@@ -182,7 +182,7 @@ const config: ExpoConfig = {
         image: './assets/brand/splash-icon.png',
         imageWidth: 180,
         resizeMode: 'contain',
-        backgroundColor: '#0a0a0a',
+        backgroundColor: tokens.mode.night.ground,
       },
     ],
   ],

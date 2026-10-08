@@ -1,3 +1,5 @@
+import { cn } from '@/lib/cn';
+import { Icon } from '@/components/ui/Icon';
 import { CloudOff, ExternalLink, XCircle } from 'lucide-react-native';
 import { Linking, Text, View } from 'react-native';
 
@@ -8,15 +10,15 @@ import {
 } from '@/integration/simulationPreviewModel';
 
 export const VERDICT_CLASSES: Record<SimulationVerdictTone, string> = {
-  success: 'border-success/30 bg-success/10',
-  error: 'border-danger-line bg-danger-soft',
-  neutral: 'border-line-hi bg-surface-elevated',
+  success: 'border-ink/30 bg-ink/10',
+  error: 'border-alert bg-alert-wash',
+  neutral: 'border-rule-2 bg-well',
 };
 
 export const VERDICT_TEXT_CLASSES: Record<SimulationVerdictTone, string> = {
-  success: 'text-success',
-  error: 'text-danger',
-  neutral: 'text-ink-dim',
+  success: 'text-ink',
+  error: 'text-alert',
+  neutral: 'text-ink-2',
 };
 
 export function SimulationBlockingBanner({
@@ -31,21 +33,21 @@ export function SimulationBlockingBanner({
       accessibilityRole="alert"
       className={
         failed
-          ? 'flex-row items-start gap-3 rounded-2xl border border-danger-line bg-danger-soft p-4'
-          : 'flex-row items-start gap-3 rounded-2xl border border-line-hi bg-surface p-4'
+          ? 'flex-row items-start gap-3 rounded-panel border border-alert bg-alert-wash p-4'
+          : 'flex-row items-start gap-3 rounded-panel border border-rule-2 bg-sheet p-4'
       }
     >
       {failed ? (
-        <XCircle size={18} color="#ff6f61" />
+        <Icon icon={XCircle} size="md" tone="alert" />
       ) : (
-        <CloudOff size={18} color="#a1a1aa" />
+        <Icon icon={CloudOff} size="md" tone="secondary" />
       )}
       <View className="min-w-0 flex-1">
         <Text
           className={
             failed
-              ? 'font-sans-semibold text-[12px] text-danger'
-              : 'font-sans-semibold text-[12px] text-ink'
+              ? 'font-text-semibold text-caption text-alert'
+              : 'font-text-semibold text-caption text-ink'
           }
         >
           {failed
@@ -53,11 +55,12 @@ export function SimulationBlockingBanner({
             : 'We could not verify this transaction'}
         </Text>
         <Text
-          className={
+          className={cn(
+            'font-text text-body',
             failed
-              ? 'mt-1 text-[11px] leading-[17px] text-danger'
-              : 'mt-1 text-[11px] leading-[17px] text-ink-dim'
-          }
+              ? 'mt-1 text-label leading-[17px] text-alert'
+              : 'mt-1 text-label leading-[17px] text-ink-2',
+          )}
         >
           {reason}
         </Text>
@@ -79,18 +82,18 @@ export function SimulationEvidenceStats({
   return (
     <View className={className}>
       <View className="flex-1">
-        <Text className="font-mono-semibold text-[8px] uppercase tracking-[.6px] text-ink-faint">
+        <Text className="font-mono-semibold text-data uppercase tracking-[.6px] text-ink-3">
           Block
         </Text>
-        <Text className="mt-1 font-mono text-[10px] text-ink-dim">
+        <Text className="mt-1 font-mono text-data text-ink-2">
           {blockNumber?.toLocaleString('en-US') ?? 'Unavailable'}
         </Text>
       </View>
       <View className="flex-1">
-        <Text className="font-mono-semibold text-[8px] uppercase tracking-[.6px] text-ink-faint">
+        <Text className="font-mono-semibold text-data uppercase tracking-[.6px] text-ink-3">
           Call gas
         </Text>
-        <Text className="mt-1 font-mono text-[10px] text-ink-dim">
+        <Text className="mt-1 font-mono text-data text-ink-2">
           {formatInteger(callGas)}
         </Text>
       </View>
@@ -105,7 +108,7 @@ export function SimulationEvidenceStats({
 export function SimulationShareLinks({
   shareUrls,
   label,
-  className = 'gap-2 border-t border-line pt-3',
+  className = 'gap-2 border-t border-rule pt-3',
 }: {
   shareUrls: readonly string[];
   label: (index: number) => string;
@@ -117,7 +120,7 @@ export function SimulationShareLinks({
 
   return (
     <View className={className}>
-      <Text className="font-mono-semibold text-[8px] uppercase tracking-[.6px] text-ink-faint">
+      <Text className="font-mono-semibold text-data uppercase tracking-[.6px] text-ink-3">
         Public simulation results
       </Text>
       <View className="flex-row flex-wrap gap-2">
@@ -126,12 +129,12 @@ export function SimulationShareLinks({
             key={`${url}-${index}`}
             accessibilityLabel={`View simulation ${index + 1} on Tenderly`}
             accessibilityRole="link"
-            className="min-h-9 max-w-full flex-row items-center gap-2 rounded-xl border border-line-hi bg-bg px-3"
+            className="min-h-9 max-w-full flex-row items-center gap-2 rounded-panel border border-rule-2 bg-ground px-3"
             onPress={() => void Linking.openURL(url)}
           >
-            <ExternalLink size={13} color="#d4c5a3" />
+            <Icon icon={ExternalLink} size="xs" tone="sign" />
             <Text
-              className="max-w-[230px] font-sans-semibold text-[10px] text-accent"
+              className="max-w-[230px] font-text-semibold text-label text-ink"
               numberOfLines={1}
             >
               {label(index)}

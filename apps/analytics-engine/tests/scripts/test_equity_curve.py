@@ -107,6 +107,7 @@ def test_generate_writes_indexed_equity_curve_shape(tmp_path: Path) -> None:
     assert payload["source"].startswith(
         "Generated from sweep_production_window.py for the window ending 2026-01-03"
     )
+    assert all("color" not in series for series in payload["series"])
     assert payload["series"][0]["id"] == "strategy"
     assert payload["series"][0]["values"] == [
         {"date": "2026-01-01", "value": 100.0},

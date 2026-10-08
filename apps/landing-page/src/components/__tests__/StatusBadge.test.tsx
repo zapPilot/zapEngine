@@ -2,7 +2,7 @@ import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { StatusBadge, StatusNote } from '@/components/StatusBadge';
-import { CAPABILITIES, STATUS_LABEL } from '@/config/runtime';
+import { CAPABILITIES, STATUS_LABEL } from '@zapengine/zap-pilot-story/facts';
 
 describe('StatusBadge', () => {
   it('renders the recorded status label for a capability', () => {

@@ -1,3 +1,4 @@
+import { Icon } from '@/components/ui/Icon';
 import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 import * as Linking from 'expo-linking';
 import { Bell } from 'lucide-react-native';
@@ -30,19 +31,19 @@ export function TelegramCard() {
   return (
     <Card className="mt-4 p-5">
       <View className="flex-row items-center gap-2">
-        <Bell size={16} strokeWidth={1.8} color="#d4c5a3" />
-        <Text className="font-sans-semibold text-[15px] text-ink">
+        <Icon icon={Bell} size="sm" tone="sign" />
+        <Text className="font-text-semibold text-body text-ink">
           Telegram notifications
         </Text>
       </View>
 
       {!telegram.enabled ? (
-        <Text className="mt-2 text-[12.5px] leading-5 text-ink-dim">
+        <Text className="font-text mt-2 text-caption leading-5 text-ink-2">
           Connect your wallet first to enable notifications.
         </Text>
       ) : view.kind === 'locked' ? (
         <>
-          <Text className="mt-2 text-body-sm text-ink-dim">
+          <Text className="font-text mt-2 text-body-sm text-ink-2">
             {t('home.telegramLocked')}
           </Text>
           <Button
@@ -54,12 +55,12 @@ export function TelegramCard() {
           </Button>
         </>
       ) : view.kind === 'loading' ? (
-        <Text className="mt-2 text-[12.5px] leading-5 text-ink-dim">
+        <Text className="font-text mt-2 text-caption leading-5 text-ink-2">
           Checking connection…
         </Text>
       ) : view.kind === 'connecting' ? (
         <>
-          <Text className="mt-2 text-[12.5px] leading-5 text-ink-dim">
+          <Text className="font-text mt-2 text-caption leading-5 text-ink-2">
             Open Telegram and tap Start to finish connecting. Waiting for
             confirmation…
           </Text>
@@ -69,14 +70,14 @@ export function TelegramCard() {
             onPress={() => openLink(view.deepLink)}
             className="mt-3"
           >
-            <Text className="text-[12.5px] font-sans-semibold text-accent">
+            <Text className="text-caption font-text-semibold text-ink">
               Re-open Telegram link
             </Text>
           </Tap>
         </>
       ) : view.kind === 'error' ? (
         <>
-          <Text className="mt-2 text-[12.5px] leading-5 text-ink-dim">
+          <Text className="font-text mt-2 text-caption leading-5 text-ink-2">
             {view.message}
           </Text>
           <Button className="mt-3" variant="secondary" onPress={telegram.retry}>
@@ -85,7 +86,7 @@ export function TelegramCard() {
         </>
       ) : view.status.isConnected ? (
         <>
-          <Text className="mt-2 text-[12.5px] leading-5 text-ink-dim">
+          <Text className="font-text mt-2 text-caption leading-5 text-ink-2">
             Connected. Portfolio alerts and strategy suggestions are on.
           </Text>
           <Button
@@ -101,7 +102,7 @@ export function TelegramCard() {
         </>
       ) : (
         <>
-          <Text className="mt-2 text-[12.5px] leading-5 text-ink-dim">
+          <Text className="font-text mt-2 text-caption leading-5 text-ink-2">
             Connect Telegram to receive portfolio alerts and strategy
             suggestions.
           </Text>

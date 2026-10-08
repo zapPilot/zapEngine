@@ -42,3 +42,9 @@ describe('docs layout', () => {
     expect(screen.getByText('Docs content')).toBeInTheDocument();
   });
 });
+
+vi.mock('fumadocs-ui/provider/next', () => ({
+  RootProvider: ({ children }: { children?: ReactNode }) => (
+    <div data-testid="docs-provider">{children}</div>
+  ),
+}));

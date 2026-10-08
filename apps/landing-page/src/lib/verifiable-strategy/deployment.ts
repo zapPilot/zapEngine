@@ -8,7 +8,7 @@ import {
   type Hex,
 } from 'viem';
 import { STRATEGY_CHAIN } from '@/config/verifiable-strategy';
-import artifact from '@/data/strategy-deployment.json';
+import { strategyDeployment as artifact } from '@zapengine/zap-pilot-story/facts';
 import { calculatorClient } from './onchain';
 import type { Deployment } from './types';
 

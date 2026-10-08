@@ -1,75 +1,70 @@
+import { format } from 'prettier';
 import { isCurrentScript, writeGeneratedFile } from './paths.js';
-import { type DesignTokens, loadTokens } from './tokens.js';
-
+import { MODES, type DesignTokens, loadTokens } from './tokens.js';
 const header =
   '/* Generated from packages/design-tokens/tokens.json. Do not edit by hand. */';
-
-type CssTree = { [key: string]: string | number | CssTree };
-function declarations(values: CssTree, prefix = '', unit = ''): string[] {
-  return Object.entries(values).flatMap(([key, value]) => {
-    const name = prefix ? `${prefix}-${key}` : key;
-    return typeof value === 'object'
-      ? declarations(value, name, unit)
-      : [`  --${name}: ${value}${unit};`];
-  });
-}
-
-export function renderCssVariables(tokens: DesignTokens): string {
-  const { pillar, ...colors } = tokens.color;
-  const lines = [
-    ...declarations({ ...colors, ...pillar }),
-    ...declarations(tokens.radius, 'radius', 'px'),
-    ...declarations(tokens.type, 'type', 'px'),
-    ...declarations(
-      Object.fromEntries(
-        Object.entries(tokens.shadow).map(([name, value]) => [name, value.css]),
-      ),
-      'shadow',
-    ),
-    ...declarations(tokens.easing, 'easing'),
-    ...declarations(tokens.duration, 'duration', 'ms'),
-  ];
-  const aliases = {
-    background: 'bg',
-    foreground: 'ink',
-    'color-fd-background': 'bg',
-    'color-fd-foreground': 'ink',
-    'color-fd-muted': 'surface',
-    'color-fd-muted-foreground': 'ink-dim',
-    'color-fd-popover': 'surface-elevated',
-    'color-fd-popover-foreground': 'ink',
-    'color-fd-card': 'surface',
-    'color-fd-card-foreground': 'ink',
-    'color-fd-border': 'line',
-    'color-fd-primary': 'accent',
-    'color-fd-primary-foreground': 'ink-inverse',
-    'color-fd-secondary': 'surface-elevated',
-    'color-fd-secondary-foreground': 'ink',
-    'color-fd-accent': 'accent-soft',
-    'color-fd-accent-foreground': 'ink',
-    'color-fd-ring': 'accent',
-    'color-fd-info': 'accent',
-    'color-fd-warning': 'warning',
-    'color-fd-error': 'danger',
-    'color-fd-success': 'success',
-  };
-  lines.push(
-    ...Object.entries(aliases).map(
-      ([name, target]) => `  --${name}: var(--${target});`,
-    ),
+function declarations(
+  values: Record<string, string | number>,
+  prefix = '',
+  unit = '',
+): string[] {
+  return Object.entries(values).map(
+    ([key, value]) => `  --${prefix}${key}: ${value}${unit};`,
   );
-  return `${header}\n:root {\n${lines.join('\n')}\n}\n`;
 }
-
-export function writeCssVariables(): void {
+export async function renderCssVariables(
+  tokens: DesignTokens,
+): Promise<string> {
+  const lines = [
+    ...declarations(tokens.radius, 'radius-', 'px'),
+    ...declarations(tokens.line, 'line-', 'px'),
+    ...tokens.space.map((value, i) => `  --space-${i + 1}: ${value}px;`),
+    ...declarations(tokens.duration, 'duration-', 'ms'),
+    ...Object.entries(tokens.easing).map(
+      ([name, points]) =>
+        `  --easing-${name}: cubic-bezier(${points.join(', ')});`,
+    ),
+    ...(['display', 'text', 'mono'] as const).map(
+      (role) =>
+        `  --font-${role}: "${tokens.font[role].web}", ${tokens.font[role].fallback};`,
+    ),
+    ...Object.entries(tokens.type).flatMap(([name, type]) => [
+      `  --type-${name}-size: ${type.size}px;`,
+      `  --type-${name}-line: ${type.line}px;`,
+      `  --type-${name}-tracking: ${type.tracking}em;`,
+      `  --type-${name}-weight: ${type.weight};`,
+      `  --type-${name}-width: ${type.width}%;`,
+      `  --type-${name}-family: var(--font-${type.family});`,
+      `  --type-${name}-case: ${type.case};`,
+      `  --type-${name}-numeric: ${type.numeric};`,
+    ]),
+  ];
+  const modes = MODES.map((mode) => {
+    const selector =
+      mode === 'paper'
+        ? ':root, [data-theme="paper"]'
+        : '[data-theme="night"], .dark';
+    return `${selector} {\n${[
+      ...declarations(tokens.mode[mode]),
+      ...declarations(tokens.sleeve[mode], 'sleeve-'),
+      ...declarations(tokens.material[mode], 'material-'),
+      `  --shadow-overlay: ${tokens.shadow.overlay[mode].css};`,
+    ].join('\n')}\n}`;
+  });
+  return format(
+    `${header}\n:root {\n${lines.join('\n')}\n}\n${modes.join('\n')}\n`,
+    { parser: 'css', singleQuote: true },
+  );
+}
+export async function writeCssVariables(): Promise<void> {
   writeGeneratedFile(
     'dist/css/variables.css',
-    renderCssVariables(loadTokens()),
+    await renderCssVariables(loadTokens()),
   );
 }
-export function runCssVariablesCli(metaUrl: string): void {
+export async function runCssVariablesCli(metaUrl: string): Promise<void> {
   if (isCurrentScript(metaUrl)) {
-    writeCssVariables();
+    await writeCssVariables();
   }
 }
-runCssVariablesCli(import.meta.url);
+await runCssVariablesCli(import.meta.url);

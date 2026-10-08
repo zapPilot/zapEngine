@@ -1,3 +1,5 @@
+import { cn } from '@/lib/cn';
+import { Icon } from '@/components/ui/Icon';
 import { useUserWallets } from '@zapengine/app-core/hooks/queries/wallet/useUserWallets';
 import { Platform, Text, View } from 'react-native';
 import { HomeWalletSearch } from '@/components/home/HomeWalletSearch';
@@ -6,7 +8,6 @@ import {
   type EtlJobPollingState,
   useEtlJobPolling,
 } from '@zapengine/app-core/hooks/wallet/useEtlJobPolling';
-import { tokens } from '@zapengine/design-tokens/tokens';
 import { useRouter } from 'expo-router';
 import { ArrowRight, RefreshCw, Wallet } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
@@ -201,14 +202,10 @@ export function HomeScreen() {
               className="flex-row items-center gap-1 py-1"
               onPress={() => router.push('/portfolio')}
             >
-              <Text className="font-sans-semibold text-[10.5px] text-accent">
+              <Text className="font-text-semibold text-label text-ink">
                 {t('home.viewPortfolio')}
               </Text>
-              <ArrowRight
-                size={12}
-                strokeWidth={2}
-                color={tokens.color.accent}
-              />
+              <Icon icon={ArrowRight} size="xs" tone="default" />
             </Tap>
           </View>
 
@@ -243,18 +240,19 @@ export function HomeScreen() {
               />
               <View className="mt-[9px] flex-row items-center gap-2">
                 <Text
-                  className={`rounded-full px-[9px] py-[3px] font-sans-semibold text-[12.5px] ${
+                  className={cn(
+                    'rounded-round px-[9px] py-[3px] font-text-semibold text-caption',
                     typeof home.rangeChangePct === 'number' &&
-                    home.rangeChangePct < 0
-                      ? 'bg-danger-soft text-danger'
-                      : 'bg-success-soft text-success'
-                  }`}
+                      home.rangeChangePct < 0
+                      ? 'bg-alert-wash text-alert'
+                      : 'bg-well text-ink',
+                  )}
                 >
                   {typeof home.rangeChangePct === 'number'
                     ? formatSignedPct(home.rangeChangePct)
                     : '-'}
                 </Text>
-                <Text className="text-[13px] text-ink-dim">
+                <Text className="font-text text-body-sm text-ink-2">
                   {typeof home.rangeChangeUsd === 'number'
                     ? `${formatSignedUsd(home.rangeChangeUsd)} · ${range}`
                     : range}
@@ -281,7 +279,7 @@ export function HomeScreen() {
           </View>
           <View className="mt-3 h-[88px] justify-center">
             {showPortfolioImportState ? null : trend.isLoading ? (
-              <SkeletonBlock className="h-[70px] w-full rounded-2xl" />
+              <SkeletonBlock className="h-[70px] w-full rounded-panel" />
             ) : (
               <PortfolioTrendChart
                 trendPoints={home.trendPoints}
@@ -308,6 +306,7 @@ export function HomeScreen() {
 
       {account.isOwnBundle || account.viewingUserId ? (
         <HomeActionRow
+          isDemo={isDemo}
           isStrategyActionRequired={isStrategyActionRequired}
           disabled={account.viewingUserId !== null && !account.isOwnBundle}
         />
@@ -330,11 +329,12 @@ export function HomeScreen() {
           <View className="mb-2 flex-row items-center justify-between">
             <SectionHeader title={t('home.walletAssets')} />
             <Text
-              className={`font-mono text-[9.5px] uppercase tracking-[0.76px] ${
+              className={cn(
+                'font-mono text-data uppercase tracking-[0.76px]',
                 !isDemo && walletAssets.failedChains.length > 0
-                  ? 'text-[#ef9292]'
-                  : 'text-ink-faint'
-              }`}
+                  ? 'text-alert'
+                  : 'text-ink-3',
+              )}
             >
               {isDemo
                 ? t('home.demo')
@@ -351,7 +351,7 @@ export function HomeScreen() {
               ) : !isDemo && (walletAssets.isError || bundleWallets.isError) ? (
                 <EmptyState
                   icon={RefreshCw}
-                  tone="danger"
+                  tone="alert"
                   title={t('home.assetsErrorTitle')}
                   body={t('home.assetsErrorBody')}
                   action={{
@@ -364,7 +364,7 @@ export function HomeScreen() {
                 <>
                   {!isDemo && walletAssets.failedChains.length > 0 ? (
                     <Callout
-                      tone="warning"
+                      tone="caution"
                       className="mb-2"
                       body={t('home.assetsPartialBody')}
                       action={{
@@ -391,11 +391,11 @@ export function HomeScreen() {
                   )}
                 </>
               )}
-              <View className="mt-2 flex-row items-center justify-between border-t border-line px-1 pt-3">
-                <Text className="font-mono text-[9.5px] text-ink-faint">
+              <View className="mt-2 flex-row items-center justify-between border-t border-rule px-1 pt-3">
+                <Text className="font-mono text-data text-ink-3">
                   {t('home.assetsIdleAcross', { count: walletCount })}
                 </Text>
-                <Text className="font-mono-semibold text-[12.5px] text-ink-dim">
+                <Text className="font-mono-semibold text-data text-ink-2">
                   {typeof walletAssetsTotal === 'number'
                     ? formatUsd(walletAssetsTotal)
                     : '-'}

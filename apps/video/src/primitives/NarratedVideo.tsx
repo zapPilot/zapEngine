@@ -53,8 +53,8 @@ const EstimateWarning: FC<{ readonly lines: readonly string[] }> = ({
         style={{
           padding: '8px 16px',
           borderRadius: 8,
-          background: color.danger,
-          color: color.bg,
+          background: color['alert'],
+          color: color['ground'],
           fontFamily: font.mono,
           fontSize: 20,
         }}

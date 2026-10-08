@@ -3,13 +3,13 @@ import { type StyleProp, type ViewStyle } from 'react-native';
 import { PressableSurface } from './PressableSurface';
 import { cn } from '@/lib/cn';
 const variants = {
-  surface: 'border border-line bg-surface',
-  elevated: 'border border-line-hi bg-surface-elevated',
-  outline: 'border border-line bg-transparent',
-  accent: 'border border-accent-line bg-accent-soft',
+  surface: 'border border-rule bg-sheet',
+  outline: 'border border-rule bg-transparent',
+  sign: 'border border-sign-ink bg-sign-wash',
+  pending: 'border border-dashed border-rule-2 bg-transparent',
 } as const;
 const paddings = { none: '', sm: 'p-3', md: 'p-5', lg: 'p-6' } as const;
-const radii = { card: 'rounded-card', sheet: 'rounded-sheet' } as const;
+const radii = { panel: 'rounded-panel', sheet: 'rounded-sheet' } as const;
 interface CardProps {
   children: ReactNode;
   className?: string;
@@ -26,7 +26,7 @@ export function Card({
   style,
   variant = 'surface',
   padding = 'none',
-  radius = 'card',
+  radius = 'panel',
   onPress,
   accessibilityLabel,
 }: CardProps): ReactElement {

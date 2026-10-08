@@ -1,5 +1,5 @@
 import { tokens } from '@zapengine/design-tokens/tokens';
-import type { LucideIcon } from 'lucide-react-native';
+import type { LucideIcon, LucideProps } from 'lucide-react-native';
 import type { ReactElement } from 'react';
 import { Platform } from 'react-native';
 
@@ -10,33 +10,35 @@ export interface IconProps {
     | 'default'
     | 'secondary'
     | 'muted'
-    | 'disabled'
     | 'inverse'
-    | 'accent'
-    | 'danger'
-    | 'warning'
-    | 'success';
+    | 'sign'
+    | 'alert'
+    | 'up'
+    | 'down';
   accessibilityLabel?: string;
+  style?: LucideProps['style'];
+  className?: string;
 }
 export function Icon({
   icon: Glyph,
   size = 'md',
   tone = 'default',
   accessibilityLabel,
+  ...props
 }: IconProps): ReactElement {
   const colors = {
-    default: tokens.color.ink,
-    secondary: tokens.color['ink-dim'],
-    muted: tokens.color['ink-muted'],
-    disabled: tokens.color['ink-faint'],
-    inverse: tokens.color['ink-inverse'],
-    accent: tokens.color.accent,
-    danger: tokens.color.danger,
-    warning: tokens.color.warning,
-    success: tokens.color.success,
+    default: tokens.mode.night.ink,
+    secondary: tokens.mode.night['ink-2'],
+    muted: tokens.mode.night['ink-3'],
+    inverse: tokens.mode.night['on-sign'],
+    sign: tokens.mode.night['sign-ink'],
+    alert: tokens.mode.night.alert,
+    up: tokens.mode.night.up,
+    down: tokens.mode.night.down,
   };
   return (
     <Glyph
+      {...props}
       size={tokens.size.icon[size]}
       color={colors[tone]}
       strokeWidth={size === 'xs' || size === 'sm' ? 2 : 1.75}

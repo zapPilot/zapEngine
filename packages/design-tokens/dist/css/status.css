@@ -1,0 +1,42 @@
+/* Generated from tokens.status. Do not edit by hand. */
+.status-glyph {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  box-sizing: border-box;
+  flex: none;
+}
+.status-rail {
+  border-top-width: var(--line-rail);
+  border-top-color: currentColor;
+}
+.status-glyph[data-status='live'] {
+  background: currentColor;
+  border-style: solid;
+}
+.status-rail[data-status='live'] {
+  border-top-style: solid;
+}
+.status-glyph[data-status='in-development'] {
+  background: linear-gradient(90deg, currentColor 50%, transparent 50%);
+  border-style: solid;
+}
+.status-rail[data-status='in-development'] {
+  border-top-style: dashed;
+}
+.status-glyph[data-status='research'] {
+  background: radial-gradient(circle, currentColor 0 1.6px, transparent 2.1px);
+  border-style: solid;
+}
+.status-rail[data-status='research'] {
+  border-top-style: dashed;
+}
+.status-glyph[data-status='planned'] {
+  background: transparent;
+  border-style: dashed;
+}
+.status-rail[data-status='planned'] {
+  border-top-style: dashed;
+}

@@ -130,7 +130,7 @@ export function AppProviderShell(
                 <ToastProvider>
                   {props.renderAccountSessionBridge?.()}
                   <View
-                    className="flex-1 bg-bg"
+                    className="flex-1 bg-ground"
                     nativeID={runtimeConfig.runtime}
                   >
                     <StatusBar style="light" />
@@ -153,7 +153,7 @@ export function AppProviderShell(
       return (
         <ProviderChrome>
           <ToastProvider>
-            <View className="flex-1 bg-bg" nativeID={runtimeConfig.runtime}>
+            <View className="flex-1 bg-ground" nativeID={runtimeConfig.runtime}>
               <StatusBar style="light" />
               <ConfigNoticeScreen target={props.missingConfigTarget} />
             </View>

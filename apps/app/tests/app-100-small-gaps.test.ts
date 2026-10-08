@@ -1,3 +1,4 @@
+import { createRequire } from 'node:module';
 // @vitest-environment jsdom
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import fs from 'node:fs';
@@ -231,23 +232,25 @@ beforeEach(() => {
 // fonts.ts — ESM asset map loads in both Metro and Vitest.
 // ---------------------------------------------------------------------------
 describe('fonts require map (static)', () => {
-  it('declares nine runtime font families with existing asset files', async () => {
+  it('declares ten runtime font families with existing asset files', async () => {
     const srcPath = path.resolve(__dirname, '../src/lib/fonts.ts');
     const src = fs.readFileSync(srcPath, 'utf8');
     const imports = [...src.matchAll(/from\s+'([^']+\.ttf)'/g)].map(
       (m) => m[1]!,
     );
-    expect(imports).toHaveLength(9);
+    expect(imports).toHaveLength(10);
     expect(src).toContain('APP_FONTS');
     for (const rel of imports) {
-      const abs = path.resolve(path.dirname(srcPath), rel);
+      const abs = rel.startsWith('@zapengine/')
+        ? createRequire(srcPath).resolve(rel)
+        : path.resolve(path.dirname(srcPath), rel);
       expect(fs.existsSync(abs), `missing font asset ${rel}`).toBe(true);
     }
     const { APP_FONTS } = await import('../src/lib/fonts');
-    expect(Object.keys(APP_FONTS)).toHaveLength(9);
-    expect(APP_FONTS.InstrumentSerif).toBeTruthy();
-    expect(APP_FONTS.Geist).toBeTruthy();
-    expect(APP_FONTS['JetBrainsMono-Bold']).toBeTruthy();
+    expect(Object.keys(APP_FONTS)).toHaveLength(10);
+    expect(APP_FONTS['Archivo DisplayXL']).toBeTruthy();
+    expect(APP_FONTS['Archivo Text']).toBeTruthy();
+    expect(APP_FONTS['MartianMono Data']).toBeTruthy();
   });
 });
 

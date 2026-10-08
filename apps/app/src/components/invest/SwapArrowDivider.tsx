@@ -1,3 +1,5 @@
+import { cn } from '@/lib/cn';
+import { Icon } from '@/components/ui/Icon';
 import { ArrowDown, ArrowDownUp } from 'lucide-react-native';
 import { View } from 'react-native';
 
@@ -10,7 +12,7 @@ interface SwapArrowDividerProps {
 }
 
 const CIRCLE_CLASS =
-  'h-10 w-10 items-center justify-center rounded-full border-4 border-bg bg-[#171719]';
+  'h-10 w-10 items-center justify-center rounded-round border-4 border-ground bg-well';
 
 export function SwapArrowDivider({
   onPress,
@@ -21,7 +23,7 @@ export function SwapArrowDivider({
     return (
       <View accessible={false} className="z-10 -my-2.5 self-center">
         <View className={CIRCLE_CLASS}>
-          <ArrowDown size={16} color="#a1a1aa" />
+          <Icon icon={ArrowDown} size="sm" tone="secondary" />
         </View>
       </View>
     );
@@ -33,12 +35,12 @@ export function SwapArrowDivider({
         accessibilityRole="button"
         accessibilityLabel={accessibilityLabel}
         accessibilityState={{ disabled }}
-        className={`${CIRCLE_CLASS} ${disabled ? 'opacity-40' : ''}`}
+        className={cn(CIRCLE_CLASS, disabled ? 'opacity-40' : '')}
         disabled={disabled}
         hitSlop={8}
         onPress={onPress}
       >
-        <ArrowDownUp size={16} color="#a1a1aa" />
+        <Icon icon={ArrowDownUp} size="sm" tone="secondary" />
       </Tap>
     </View>
   );

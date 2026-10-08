@@ -33,7 +33,7 @@ export const HexResolve: React.FC<{
       }}
     >
       <span>{text.slice(0, settled)}</span>
-      <span style={{ color: color.inkMuted }}>{text.slice(settled)}</span>
+      <span style={{ color: color['ink-3'] }}>{text.slice(settled)}</span>
     </span>
   );
 };

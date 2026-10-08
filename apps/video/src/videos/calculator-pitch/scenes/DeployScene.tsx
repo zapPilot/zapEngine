@@ -42,7 +42,7 @@ const Plus: React.FC<{ readonly from: number }> = ({ from }) => {
       style={{
         fontFamily: font.mono,
         fontSize: 40,
-        color: color.inkMuted,
+        color: color['ink-3'],
         ...enter(frame, from),
       }}
     >
@@ -122,7 +122,7 @@ export const DeployScene: React.FC<{ readonly scene: SceneOf<'deploy'> }> = ({
           style={{
             width: 2,
             height: 56 * rise(frame, resultAt - 10, 12),
-            background: color.accentLine,
+            background: color['rule-2'],
           }}
         />
         <div style={{ ...enter(frame, resultAt - 4, { distance: 14 }) }}>
@@ -130,14 +130,14 @@ export const DeployScene: React.FC<{ readonly scene: SceneOf<'deploy'> }> = ({
             value={facts.address}
             from={resultAt}
             duration={34}
-            style={{ fontSize: 52, color: color.accent }}
+            style={{ fontSize: 52, color: color['ink'] }}
           />
         </div>
         <span
           style={{
             fontFamily: font.mono,
             fontSize: 24,
-            color: color.inkDim,
+            color: color['ink-2'],
             ...enter(frame, resultAt + 30),
           }}
         >

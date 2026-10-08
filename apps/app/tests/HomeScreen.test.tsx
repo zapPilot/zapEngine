@@ -731,3 +731,8 @@ vi.mock('@zapengine/app-core/hooks/queries/wallet/useUserWallets', () => ({
     refetch: vi.fn(),
   }),
 }));
+
+vi.mock(
+  'react-native-svg',
+  async () => (await import('./support/svgStub')).svgStub,
+);

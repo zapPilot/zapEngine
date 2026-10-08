@@ -10,10 +10,10 @@ export function LanguageSettingsCard() {
 
   return (
     <Card className="mt-4 p-5">
-      <Text className="font-sans-semibold text-[15px] text-ink">
+      <Text className="font-text-semibold text-body text-ink">
         {t('language.title')}
       </Text>
-      <Text className="mt-1 text-[12.5px] leading-5 text-ink-dim">
+      <Text className="font-text mt-1 text-caption leading-5 text-ink-2">
         {t('language.description')}
       </Text>
       <View className="mt-3">

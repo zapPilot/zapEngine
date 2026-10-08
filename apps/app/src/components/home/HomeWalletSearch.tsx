@@ -61,7 +61,7 @@ export function HomeWalletSearch() {
             ) : (
               <IconButton
                 icon={ArrowRight}
-                tone="accent"
+                tone="default"
                 variant="ghost"
                 accessibilityLabel={t('home.searchSubmit')}
                 onPress={submit}

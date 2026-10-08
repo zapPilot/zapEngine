@@ -19,7 +19,7 @@ export function ChainIconStack({ chains, size = 14 }: ChainIconStackProps) {
           key={chain}
           source={CHAIN_ICON_SRC[chain]}
           accessibilityIgnoresInvertColors
-          className="rounded-full border-[1.5px] border-[#0a0a0a] bg-[#0a0a0a]"
+          className="rounded-round border-[1.5px] border-ground bg-ground"
           style={{
             width: size,
             height: size,

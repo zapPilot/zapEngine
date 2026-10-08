@@ -2,7 +2,11 @@ import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { PITCH_RUNTIME } from '@/config/pitch';
-import { CAPABILITIES, STATUS_LABEL, capabilityIds } from '@/config/runtime';
+import {
+  CAPABILITIES,
+  STATUS_LABEL,
+  capabilityIds,
+} from '@zapengine/zap-pilot-story/facts';
 import { PitchRuntimeSlide } from '../PitchRuntimeSlide';
 
 describe('PitchRuntimeSlide', () => {

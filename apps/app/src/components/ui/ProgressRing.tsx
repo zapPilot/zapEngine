@@ -55,7 +55,7 @@ export function ProgressRing({
             cx={center}
             cy={center}
             r={radius}
-            stroke={tokens.color['line-hi']}
+            stroke={tokens.mode.night['rule-2']}
             strokeWidth={strokeWidth}
           />
           <Circle
@@ -64,7 +64,7 @@ export function ProgressRing({
             cx={center}
             cy={center}
             r={radius}
-            stroke={tokens.color.accent}
+            stroke={tokens.mode.night['ink']}
             strokeWidth={strokeWidth}
             strokeDasharray={circumference}
             strokeDashoffset={circumference * (1 - percent / 100)}

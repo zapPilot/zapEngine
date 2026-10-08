@@ -1,4 +1,5 @@
 import { tokens } from '@zapengine/design-tokens/tokens';
+import { Icon } from '@/components/ui/Icon';
 import { ArrowRight, Check, TriangleAlert, Zap } from 'lucide-react-native';
 import { Text, View } from 'react-native';
 
@@ -44,11 +45,11 @@ export function StrategyStatusCard({
       ? t('home.strategyBlocked')
       : t('home.portfolioOnTarget');
   const icon = isActionRequired ? (
-    <Zap size={16} strokeWidth={2} color={tokens.color.accent} />
+    <Icon icon={Zap} size="sm" tone="default" />
   ) : isBlocked ? (
-    <TriangleAlert size={16} strokeWidth={2} color={tokens.color.danger} />
+    <Icon icon={TriangleAlert} size="sm" tone="alert" />
   ) : (
-    <Check size={16} strokeWidth={2} color={tokens.color.success} />
+    <Icon icon={Check} size="sm" tone="default" />
   );
 
   return (
@@ -59,29 +60,32 @@ export function StrategyStatusCard({
         onPress={onPress}
         className="mt-3"
       >
-        <Card className="p-4" style={{ borderColor: 'rgba(212,197,163,.2)' }}>
+        <Card
+          className="p-4"
+          style={{
+            borderColor: isActionRequired
+              ? tokens.mode.night['sign-ink']
+              : tokens.mode.night.rule,
+          }}
+        >
           <View className="flex-row items-center gap-2">
             {icon}
-            <Text className="flex-1 font-sans-semibold text-[15px] text-ink">
+            <Text className="flex-1 font-text-semibold text-body text-ink">
               {title}
             </Text>
-            {onPress ? (
-              <ArrowRight
-                size={16}
-                strokeWidth={1.8}
-                color={tokens.color['ink-faint']}
-              />
-            ) : null}
+            {onPress ? <Icon icon={ArrowRight} size="sm" tone="muted" /> : null}
           </View>
 
           <View className="mt-3 flex-row items-center gap-2">
-            <Text className="font-mono text-[10px] uppercase tracking-[0.7px] text-ink-faint">
+            <Text className="font-mono text-data uppercase tracking-[0.7px] text-ink-3">
               {status.regimeLabel}
             </Text>
             {typeof status.fearGreed === 'number' ? (
               <>
-                <Text className="text-[10px] text-ink-faint">·</Text>
-                <Text className="font-mono text-[10px] text-ink-dim">
+                <Text className="font-mono-medium text-label text-ink-3">
+                  ·
+                </Text>
+                <Text className="font-mono text-data text-ink-2">
                   FGI {Math.round(status.fearGreed)}
                 </Text>
               </>
@@ -90,7 +94,7 @@ export function StrategyStatusCard({
 
           {status.primaryAction ? (
             <View className="mt-2.5">
-              <Text className="text-[12.5px] leading-[18px] text-ink-dim">
+              <Text className="font-text text-caption leading-[18px] text-ink-2">
                 {status.primaryAction.description}
                 {' · '}
                 <Text className="font-mono-semibold text-ink">
@@ -98,7 +102,7 @@ export function StrategyStatusCard({
                 </Text>
               </Text>
               {status.additionalActionCount > 0 ? (
-                <Text className="mt-1 text-[10.5px] text-ink-faint">
+                <Text className="font-mono-medium mt-1 text-label text-ink-3">
                   {t('home.moreStrategyActions', {
                     count: status.additionalActionCount,
                   })}
@@ -106,13 +110,13 @@ export function StrategyStatusCard({
               ) : null}
             </View>
           ) : status.reason ? (
-            <Text className="mt-2.5 text-[12px] leading-[18px] text-ink-dim">
+            <Text className="font-text mt-2.5 text-caption leading-[18px] text-ink-2">
               {status.reason}
             </Text>
           ) : null}
 
           {onPress ? (
-            <Text className="mt-3 font-sans-semibold text-[11px] text-accent">
+            <Text className="mt-3 font-text-semibold text-label text-sign-ink">
               {isActionRequired
                 ? t('home.viewRecommendation')
                 : t('home.viewStrategy')}

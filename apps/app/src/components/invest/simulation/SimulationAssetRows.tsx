@@ -1,8 +1,9 @@
 import type { PrivySimulationAssetChange } from '@zapengine/types/api';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
 
 import {
   SimulationAssetAmountRow,
+  SimulationAssetSubtitle,
   SimulationAssetFlowSections,
 } from '@/components/invest/simulation/SimulationFlowPrimitives';
 
@@ -16,9 +17,7 @@ function renderAssetRow(change: PrivySimulationAssetChange, index: number) {
       key={`${change.direction}-${change.callIndex}-${change.token.address ?? change.token.symbol}-${index}`}
       token={change.token}
       subtitle={
-        <Text className="mt-0.5 text-[11px] text-ink-faint" numberOfLines={1}>
-          {change.token.name}
-        </Text>
+        <SimulationAssetSubtitle>{change.token.name}</SimulationAssetSubtitle>
       }
       direction={change.direction}
       rawAmount={change.rawAmount}
@@ -34,7 +33,7 @@ export function SimulationAssetRows({
   incoming: readonly PrivySimulationAssetChange[];
 }) {
   return (
-    <View className="overflow-hidden rounded-2xl border border-line bg-surface">
+    <View className="overflow-hidden rounded-panel border border-rule bg-sheet">
       <SimulationAssetFlowSections
         outgoing={outgoing}
         incoming={incoming}

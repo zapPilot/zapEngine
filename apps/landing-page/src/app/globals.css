@@ -1,122 +1,39 @@
 @import 'tailwindcss';
 @import 'fumadocs-ui/css/preset.css';
 @import '@zapengine/design-tokens/css/variables.css';
-
+@import '@zapengine/design-tokens/css/status.css';
 @source '../../node_modules/fumadocs-ui/dist/**/*.js';
-
-/*
- * site brand palette comes from @zapengine/design-tokens.
- * The generated import defines --bg/--ink/--accent and the Fumadocs aliases.
- */
-:root {
-  --background: var(--bg);
-  --foreground: var(--ink);
-}
-
-/*
- * Override Fumadocs's neutral preset with site tokens.
- * Replaces `@import 'fumadocs-ui/css/neutral.css'`. Both light and dark are
- * mapped to the same dark palette because the site design has no light variant
- * (the marketing site is tokenized dark in landing.css). Keeping both prevents
- * a flash if next-themes flips the .dark class.
- */
 @theme {
-  --color-fd-background: var(--bg);
+  --color-fd-background: var(--ground);
   --color-fd-foreground: var(--ink);
-  --color-fd-muted: var(--surface);
-  --color-fd-muted-foreground: var(--ink-dim);
-  --color-fd-popover: var(--surface);
-  --color-fd-popover-foreground: var(--ink);
-  --color-fd-card: var(--surface);
+  --color-fd-card: var(--sheet);
   --color-fd-card-foreground: var(--ink);
-  --color-fd-border: var(--line);
-  --color-fd-primary: var(--accent);
-  --color-fd-primary-foreground: var(--bg);
-  --color-fd-secondary: var(--surface-elevated);
-  --color-fd-secondary-foreground: var(--ink);
-  --color-fd-accent: var(--accent-soft);
-  --color-fd-accent-foreground: var(--ink);
-  --color-fd-ring: var(--accent);
-}
-
-.dark {
-  --color-fd-background: var(--bg);
-  --color-fd-foreground: var(--ink);
-  --color-fd-muted: var(--surface);
-  --color-fd-muted-foreground: var(--ink-dim);
-  --color-fd-popover: var(--surface);
+  --color-fd-popover: var(--sheet);
   --color-fd-popover-foreground: var(--ink);
-  --color-fd-card: var(--surface);
-  --color-fd-card-foreground: var(--ink);
-  --color-fd-border: var(--line);
-  --color-fd-primary: var(--accent);
-  --color-fd-primary-foreground: var(--bg);
-  --color-fd-secondary: var(--surface-elevated);
+  --color-fd-muted: var(--well);
+  --color-fd-muted-foreground: var(--ink-2);
+  --color-fd-border: var(--rule);
+  --color-fd-primary: var(--ink);
+  --color-fd-primary-foreground: var(--ground);
+  --color-fd-secondary: var(--well);
   --color-fd-secondary-foreground: var(--ink);
-  --color-fd-accent: var(--accent-soft);
+  --color-fd-accent: var(--well);
   --color-fd-accent-foreground: var(--ink);
-  --color-fd-ring: var(--accent);
+  --color-fd-ring: var(--sign-ink);
+  --color-fd-error: var(--alert);
 }
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-html {
-  scroll-behavior: smooth;
-}
-
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-geist-sans), Inter, system-ui, sans-serif;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--font-text);
+  font-synthesis: none;
 }
-
-/* GPU acceleration for animations */
-.gpu-accelerate {
-  transform: translateZ(0);
-  will-change: transform;
+body {
+  --font-display: var(--font-archivo);
+  --font-text: var(--font-archivo);
+  --font-mono: var(--font-martian);
 }
-
-/* Smooth scroll with offset for fixed header */
-section {
-  scroll-margin-top: 80px;
-}
-
-/*
- * Global focus states.
- * Uses the site accent token so marketing and docs focus visuals stay aligned.
- */
-*:focus {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-*:focus:not(:focus-visible) {
-  outline: none;
-}
-
-*:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-  border-radius: 4px;
-}
-
-/* Button and Interactive Elements Focus */
-button:focus-visible,
-a:focus-visible,
-[role='button']:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 25%, transparent);
-}
-
-/* SVG Interactive Elements Focus */
-svg [role='button']:focus-visible,
-svg [tabindex]:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+:focus-visible {
+  outline: 2px solid var(--sign-ink);
+  outline-offset: 3px;
 }

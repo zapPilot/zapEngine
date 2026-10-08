@@ -72,7 +72,7 @@ export default function SignalsPage() {
 
       <div className="signals-charts">
         <MarketSeriesChart
-          color="var(--event-btc)"
+          color="var(--sleeve-btc)"
           formatValue={dollars}
           kicker="Crypto trend"
           points={seriesWithDma(signals, 'btc')}
@@ -80,7 +80,7 @@ export default function SignalsPage() {
           tokenSymbol="BTC"
         />
         <MarketSeriesChart
-          color="var(--event-eth)"
+          color="var(--sleeve-eth)"
           formatValue={dollars}
           kicker="Crypto trend"
           points={seriesWithDma(signals, 'eth')}
@@ -89,7 +89,7 @@ export default function SignalsPage() {
         />
         <MarketSeriesChart
           caption="SPY prices are forward-filled across non-trading days."
-          color="var(--event-spy)"
+          color="var(--sleeve-spy)"
           formatValue={dollars}
           kicker="Macro trend"
           points={seriesWithDma(signals, 'spy')}
@@ -98,7 +98,7 @@ export default function SignalsPage() {
         />
         <MarketSeriesChart
           caption="ETH price divided by BTC price; higher values indicate relative ETH strength."
-          color="var(--event-eth)"
+          color="var(--sleeve-eth)"
           formatValue={(value) => value.toFixed(4)}
           kicker="Relative strength"
           points={seriesWithDma(signals, 'eth_btc')}

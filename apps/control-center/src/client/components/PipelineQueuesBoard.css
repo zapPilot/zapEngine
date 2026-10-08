@@ -11,16 +11,16 @@
 
 .queue-board-loading,
 .queue-inline-error {
-  border: 1px solid var(--line);
-  border-radius: var(--radius-tile);
-  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-panel);
+  background: var(--sheet);
   padding: 18px;
 }
 
 .queue-inline-error {
-  color: var(--danger);
-  background: color-mix(in srgb, var(--danger) 6%, transparent);
-  border-color: color-mix(in srgb, var(--danger) 40%, var(--line));
+  color: var(--alert);
+  background: color-mix(in srgb, var(--alert) 6%, transparent);
+  border-color: color-mix(in srgb, var(--alert) 40%, var(--rule));
 }
 
 .queue-board-head {
@@ -38,13 +38,13 @@
 .queue-board-head p,
 .queue-column header span {
   margin: 4px 0 0;
-  color: var(--ink-dim);
+  color: var(--ink-2);
   font-size: 13px;
 }
 
 .queue-abandoned-note {
   margin: 0;
-  color: var(--ink-faint);
+  color: var(--ink-3);
   font-size: 12px;
 }
 
@@ -53,8 +53,8 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  border: 1px solid var(--line);
-  background: var(--surface);
+  border: 1px solid var(--rule);
+  background: var(--sheet);
   border-radius: var(--radius-control);
   padding: 8px 10px;
 }
@@ -78,8 +78,8 @@
   display: flex;
   align-items: baseline;
   gap: 6px;
-  background: var(--surface);
-  border: 1px solid var(--line);
+  background: var(--sheet);
+  border: 1px solid var(--rule);
   border-radius: var(--radius-control);
   padding: 7px 10px;
 }
@@ -89,7 +89,7 @@
 }
 
 .queue-metric span {
-  color: var(--ink-dim);
+  color: var(--ink-2);
   font-size: 12px;
 }
 
@@ -106,15 +106,15 @@
    spill under the next column. */
 .queue-column {
   min-width: 0;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-tile);
-  background: var(--bg);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-panel);
+  background: var(--ground);
   padding: 12px;
 }
 
 .queue-column > header {
   padding: 2px 2px 12px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--rule);
 }
 
 .queue-section {
@@ -127,7 +127,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  color: var(--ink-faint);
+  color: var(--ink-3);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -138,21 +138,21 @@
   place-items: center;
   min-width: 20px;
   height: 20px;
-  border-radius: var(--radius-pill);
-  background: var(--surface-elevated);
-  color: var(--ink-dim);
+  border-radius: var(--radius-round);
+  background: var(--well);
+  color: var(--ink-2);
   letter-spacing: 0;
 }
 
 .queue-empty {
-  color: var(--ink-faint);
+  color: var(--ink-3);
   font-size: 12px;
   padding: 8px 2px;
 }
 
 .queue-abandoned {
   margin-top: 12px;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--rule);
   padding-top: 12px;
   display: grid;
   gap: 8px;
@@ -160,7 +160,7 @@
 
 .queue-abandoned summary {
   cursor: pointer;
-  color: var(--ink-faint);
+  color: var(--ink-3);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -182,17 +182,17 @@
 
 .queue-card-button:focus-visible .queue-card,
 .queue-card-button:hover .queue-card {
-  border-color: var(--line-hi);
+  border-color: var(--rule-2);
   box-shadow: 0 4px 14px rgb(28 39 55 / 7%);
 }
 
 .queue-card {
   display: grid;
   gap: 8px;
-  border: 1px solid var(--line);
-  border-left: 3px solid var(--line);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--rule);
   border-radius: var(--radius-control);
-  background: var(--surface);
+  background: var(--sheet);
   padding: 11px;
   transition:
     border-color 120ms ease,
@@ -202,29 +202,29 @@
 /* The rail is what makes a wall of cards scannable: state before text. */
 .queue-card-failed,
 .queue-card-blocked {
-  border-left-color: var(--danger);
+  border-left-color: var(--alert);
 }
 
 .queue-card-retrying,
 .queue-card-partial {
-  border-left-color: var(--warning);
+  border-left-color: var(--ink-2);
 }
 
 .queue-card-processing,
 .queue-card-publishing {
-  border-left-color: var(--accent);
+  border-left-color: var(--ink);
 }
 
 .queue-card-published {
-  border-left-color: var(--success);
+  border-left-color: var(--ink);
 }
 
 .queue-thumb {
   width: 100%;
   aspect-ratio: 16 / 7;
   object-fit: cover;
-  border-radius: var(--radius-subtle);
-  background: var(--surface-elevated);
+  border-radius: var(--radius-tag);
+  background: var(--well);
 }
 
 /* Same grid-item floor as the card itself: every row has to be allowed to
@@ -250,7 +250,7 @@
 }
 
 .queue-card-title-row > span:not(.queue-state) {
-  color: var(--ink-dim);
+  color: var(--ink-2);
   font-size: 11px;
   flex: none;
 }
@@ -258,7 +258,7 @@
 .queue-card code {
   display: block;
   overflow: hidden;
-  color: var(--ink-faint);
+  color: var(--ink-3);
   font-family: var(--font-mono);
   font-size: 10px;
   text-overflow: ellipsis;
@@ -278,7 +278,7 @@
 }
 
 .queue-card-error {
-  color: var(--danger);
+  color: var(--alert);
   font-size: 11px;
   line-height: 1.4;
   overflow-wrap: anywhere;
@@ -288,10 +288,10 @@
 .social-status {
   display: inline-flex;
   align-items: center;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-round);
   padding: 3px 7px;
-  background: var(--surface-elevated);
-  color: var(--ink-dim);
+  background: var(--well);
+  color: var(--ink-2);
   font-size: 10px;
   font-weight: 700;
   text-transform: capitalize;
@@ -301,33 +301,33 @@
 .queue-state-processing,
 .queue-state-publishing,
 .social-status-publishing {
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--well);
+  color: var(--ink);
 }
 
 .queue-state-retrying,
 .queue-state-partial,
 .social-status-queued,
 .social-status-scheduled {
-  background: color-mix(in srgb, var(--warning) 14%, transparent);
-  color: var(--warning);
+  background: color-mix(in srgb, var(--ink-2) 14%, transparent);
+  color: var(--ink-2);
 }
 
 .queue-state-failed,
 .queue-state-blocked,
 .social-status-failed {
-  background: color-mix(in srgb, var(--danger) 12%, transparent);
-  color: var(--danger);
+  background: color-mix(in srgb, var(--alert) 12%, transparent);
+  color: var(--alert);
 }
 
 .social-status-published {
-  background: color-mix(in srgb, var(--success) 14%, transparent);
-  color: var(--success);
+  background: color-mix(in srgb, var(--ink) 14%, transparent);
+  color: var(--ink);
 }
 
 .social-status-skipped {
-  background: var(--surface-elevated);
-  color: var(--ink-faint);
+  background: var(--well);
+  color: var(--ink-3);
 }
 
 .queue-progress-row {
@@ -340,19 +340,19 @@
   flex: 1;
   height: 5px;
   overflow: hidden;
-  border-radius: var(--radius-pill);
-  background: var(--surface-elevated);
+  border-radius: var(--radius-round);
+  background: var(--well);
 }
 
 .queue-progress span {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: var(--accent);
+  background: var(--ink);
 }
 
 .queue-progress-row small {
-  color: var(--ink-faint);
+  color: var(--ink-3);
   font-family: var(--font-mono);
   font-size: 10px;
 }
@@ -361,7 +361,7 @@
   display: flex;
   gap: 7px 10px;
   flex-wrap: wrap;
-  color: var(--ink-faint);
+  color: var(--ink-3);
   font-size: 10px;
   min-width: 0;
 }
@@ -372,7 +372,7 @@
 }
 
 .social-schedule {
-  color: var(--ink-dim);
+  color: var(--ink-2);
   font-size: 11px;
 }
 
@@ -389,10 +389,10 @@
   display: inline-flex;
   align-items: baseline;
   gap: 4px;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-round);
   padding: 3px 8px;
-  background: var(--surface-elevated);
-  color: var(--ink-dim);
+  background: var(--well);
+  color: var(--ink-2);
   font-size: 10px;
   font-weight: 650;
 }

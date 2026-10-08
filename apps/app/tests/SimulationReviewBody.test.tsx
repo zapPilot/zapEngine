@@ -15,6 +15,7 @@ import { SimulationReviewBody } from '@/components/invest/simulation/SimulationR
 import type { RouteProtocolContext } from '@/integration/simulationPreviewModel';
 
 vi.mock('react-native', () => ({
+  Platform: { OS: 'web' },
   Text: ({ children, ...rest }: { children?: ReactNode }) => (
     <span {...rest}>{children}</span>
   ),
@@ -26,6 +27,12 @@ vi.mock('react-native', () => ({
 }));
 
 vi.mock('react-native-svg', () => ({
+  Defs: ({ children }: { children?: ReactNode }) => <defs>{children}</defs>,
+  ClipPath: ({ children }: { children?: ReactNode }) => (
+    <clipPath>{children}</clipPath>
+  ),
+  Rect: () => <rect />,
+
   default: ({ children }: { children?: ReactNode }) => <svg>{children}</svg>,
   Path: () => <path />,
 }));

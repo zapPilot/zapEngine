@@ -56,7 +56,7 @@ export function AssetCrossTrack({
   return (
     <div
       className="calc-chart"
-      style={{ color: `var(--event-${asset.toLowerCase()})` }}
+      style={{ color: `var(--sleeve-${asset.toLowerCase()})` }}
     >
       {points ? (
         <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label={label}>

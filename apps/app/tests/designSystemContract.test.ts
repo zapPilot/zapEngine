@@ -5,7 +5,9 @@ import { textVariants } from '@/components/ui/textVariants';
 
 it('loads exactly the runtime font families declared by the shared theme', () => {
   expect(Object.keys(APP_FONTS).sort()).toEqual(
-    Object.values(tokens.font).sort(),
+    Object.values(tokens.font.native)
+      .map((font) => font.family)
+      .sort(),
   );
 });
 it('defines a literal class map for every shared typography role', () => {

@@ -1,3 +1,4 @@
+import { palette } from '@/lib/palette';
 import Svg, { Path } from 'react-native-svg';
 
 interface TenderlyLogoProps {
@@ -8,7 +9,7 @@ interface TenderlyLogoProps {
 /** A compact hexagon-and-checkmark mark for the bundled Tenderly verification row. */
 export function TenderlyLogo({
   size = 16,
-  color = '#d4c5a3',
+  color = palette.ink,
 }: TenderlyLogoProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">

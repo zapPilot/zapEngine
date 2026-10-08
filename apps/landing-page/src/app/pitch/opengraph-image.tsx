@@ -1,7 +1,7 @@
 import { ImageResponse } from 'next/og';
 import { MESSAGES } from '@/config/messages';
 import { PITCH_OG } from '@/config/pitch';
-import { CAPABILITIES, STATUS_LABEL } from '@/config/runtime';
+import { CAPABILITIES, STATUS_LABEL } from '@zapengine/zap-pilot-story/facts';
 
 /**
  * Static OG card for /pitch.

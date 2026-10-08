@@ -14,7 +14,7 @@ export function createMainWindow(url?: string): BrowserWindow {
     minWidth: 390,
     minHeight: 640,
     title: 'Zap Pilot',
-    backgroundColor: tokens.color.bg,
+    backgroundColor: tokens.mode.night.ground,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,

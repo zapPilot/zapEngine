@@ -49,7 +49,7 @@ export function TokenIcon({
   return (
     <View className="shrink-0" style={{ width: size, height: size }}>
       <View
-        className="h-full w-full items-center justify-center overflow-hidden rounded-full"
+        className="h-full w-full items-center justify-center overflow-hidden rounded-round"
         style={{
           // A mark carries its own color, so it sits on a neutral carrier;
           // only the glyph fallback uses the brand fill.
@@ -77,7 +77,7 @@ export function TokenIcon({
           />
         ) : (
           <Text
-            className="font-sans-bold text-ink"
+            className="font-text-semibold text-ink"
             style={{ fontSize: size * 0.45 }}
           >
             {brand?.glyph ?? symbol.slice(0, 1).toUpperCase()}
@@ -92,7 +92,7 @@ export function TokenIcon({
           source={CHAIN_ICON_SRC[chainKey]}
           accessible={false}
           accessibilityIgnoresInvertColors
-          className="absolute bottom-0 right-0 rounded-full border-[1.5px] border-[#0a0a0a] bg-[#0a0a0a]"
+          className="absolute bottom-0 right-0 rounded-round border-[1.5px] border-ground bg-ground"
           style={{ width: badgeSize, height: badgeSize }}
         />
       ) : null}

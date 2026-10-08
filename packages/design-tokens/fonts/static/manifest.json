@@ -1,0 +1,85 @@
+{
+  "sourceCommit": "95f4904fc8bcf26d3420fe315560c96417c6dec7",
+  "fonts": {
+    "display-xl": {
+      "family": "Archivo DisplayXL",
+      "source": "Archivo",
+      "weight": 660,
+      "width": 112,
+      "file": "Archivo-DisplayXL.ttf",
+      "sha256": "ad71f134b88ae5f6d406210e4141a5aaa2ec4cef9d4eebd1f8f6b6e8b18058fc"
+    },
+    "display": {
+      "family": "Archivo Display",
+      "source": "Archivo",
+      "weight": 640,
+      "width": 108,
+      "file": "Archivo-Display.ttf",
+      "sha256": "54d51ddeea80f436665f88d8f5900a4ee04ee11310c8ea6179da9061125d44fd"
+    },
+    "heading": {
+      "family": "Archivo Heading",
+      "source": "Archivo",
+      "weight": 640,
+      "width": 106,
+      "file": "Archivo-Heading.ttf",
+      "sha256": "3cf8c620e6f4ecbdee3b92993f3f67de09d7087453a6ffb04b028e73838b643a"
+    },
+    "text": {
+      "family": "Archivo Text",
+      "source": "Archivo",
+      "weight": 400,
+      "width": 100,
+      "file": "Archivo-Text.ttf",
+      "sha256": "32ef79e88b169e13a048c29e0f4e7876693ba850bd49aba617fa477651b0aec0"
+    },
+    "text-medium": {
+      "family": "Archivo TextMedium",
+      "source": "Archivo",
+      "weight": 500,
+      "width": 100,
+      "file": "Archivo-TextMedium.ttf",
+      "sha256": "ab47696465cdd1958b1b50bb5b36ab2cf00393db3b899f08d7473bce7f7ef031"
+    },
+    "text-semibold": {
+      "family": "Archivo TextSemiBold",
+      "source": "Archivo",
+      "weight": 600,
+      "width": 100,
+      "file": "Archivo-TextSemiBold.ttf",
+      "sha256": "aab97c06840b0f0b846c532f2d3c5d000be2fb09131b0a5a0df6bd206a1b1821"
+    },
+    "mono": {
+      "family": "MartianMono Text",
+      "source": "MartianMono",
+      "weight": 400,
+      "width": 100,
+      "file": "MartianMono-Text.ttf",
+      "sha256": "48b01573367bf4a3f6dbc3fd7080bc1b7241b4aa0c722b5b5f169610e4a00b53"
+    },
+    "mono-medium": {
+      "family": "MartianMono Medium",
+      "source": "MartianMono",
+      "weight": 500,
+      "width": 100,
+      "file": "MartianMono-Medium.ttf",
+      "sha256": "aacaeb5d6191605c6e40d69ed37c4b03a7bf61bd90bc91714da2d3ebd5f4027c"
+    },
+    "mono-semibold": {
+      "family": "MartianMono SemiBold",
+      "source": "MartianMono",
+      "weight": 600,
+      "width": 100,
+      "file": "MartianMono-SemiBold.ttf",
+      "sha256": "c0efd1766c406274e24d245d259680c170a27f92da31be51087f9a289cf575c8"
+    },
+    "data": {
+      "family": "MartianMono Data",
+      "source": "MartianMono",
+      "weight": 500,
+      "width": 87.5,
+      "file": "MartianMono-Data.ttf",
+      "sha256": "b9640635ae6c2507b695352f3a012c6220dd7a32fd36e1f4e1113098e1e775be"
+    }
+  }
+}

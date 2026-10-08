@@ -1,9 +1,22 @@
+import { tokens } from '@zapengine/design-tokens/tokens';
+
 import type { VerticalVideoManifest } from './manifest.js';
 import { characterUnits, lineUnits } from './text-units.js';
 
 export { characterUnits } from './text-units.js';
 
 export const MAX_LINE_UNITS = 26;
+
+export function assColor(hex: string): string {
+  if (!/^#[0-9a-f]{6}$/i.test(hex))
+    throw new Error('ASS color requires an RGB hex token');
+  return (
+    '&H00' +
+    hex.slice(5, 7).toUpperCase() +
+    hex.slice(3, 5).toUpperCase() +
+    hex.slice(1, 3).toUpperCase()
+  );
+}
 
 export interface SubtitleLayout {
   playResX: number;
@@ -132,7 +145,7 @@ export function createAssSubtitles(
     '',
     '[V4+ Styles]',
     'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding',
-    `Style: Subtitle,Noto Sans CJK TC,${layout.fontSize},&H00F4F4F5,&H00F4F4F5,&H00101010,&H780A0A0A,0,0,0,0,100,100,0,0,1,3.2,0,2,${layout.marginX},${layout.marginX},${layout.marginV},1`,
+    `Style: Subtitle,Noto Sans CJK TC,${layout.fontSize},${assColor(tokens.mode.night.ink)},${assColor(tokens.mode.night.ink)},${assColor(tokens.mode.night.ground)},${assColor(tokens.mode.night.ground).replace('&H00', '&H78')},0,0,0,0,100,100,0,0,1,3.2,0,2,${layout.marginX},${layout.marginX},${layout.marginV},1`,
     '',
     '[Events]',
     'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',

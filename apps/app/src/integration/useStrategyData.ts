@@ -46,8 +46,8 @@ function unavailableBacktestMetrics(): StrategyMetric[] {
   return [
     { label: 'ROI', value: '—', tone: 'positive' },
     { label: 'Max drawdown', value: '—', tone: 'negative' },
-    { label: 'Sharpe', value: '—', tone: 'accent' },
-    { label: 'Calmar', value: '—', tone: 'accent' },
+    { label: 'Sharpe', value: '—', tone: 'neutral' },
+    { label: 'Calmar', value: '—', tone: 'neutral' },
     { label: 'Volatility', value: '—', tone: 'neutral' },
     { label: 'Win rate', value: '—', tone: 'neutral' },
     { label: 'Trades', value: '—', tone: 'neutral' },

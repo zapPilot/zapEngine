@@ -14,7 +14,6 @@
     {
       "id": "strategy",
       "label": "Strategy",
-      "color": "#d4c5a3",
       "values": [
         {
           "date": "2025-05-25",
@@ -2013,7 +2012,6 @@
     {
       "id": "dca",
       "label": "DCA Classic",
-      "color": "#52525b",
       "values": [
         {
           "date": "2025-05-25",

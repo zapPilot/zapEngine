@@ -35,7 +35,7 @@ export function ScreenScrollView({
   return (
     <ScrollView
       ref={scrollRef}
-      className="flex-1 bg-bg"
+      className="flex-1 bg-ground"
       contentContainerStyle={{
         alignItems: 'center',
         paddingTop: Math.max(insets.top, 12),

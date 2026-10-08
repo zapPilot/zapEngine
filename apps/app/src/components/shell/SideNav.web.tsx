@@ -22,7 +22,7 @@ export function SideNav() {
     <View
       role="navigation"
       accessibilityLabel={t('common.primaryNavigation')}
-      className="w-sidenav shrink-0 border-r border-line bg-surface px-4 py-8"
+      className="w-sidenav shrink-0 border-r border-rule bg-sheet px-4 py-8"
     >
       <BrandLockup />
       <View className="mt-8 gap-2">
@@ -31,11 +31,11 @@ export function SideNav() {
             <>
               <Icon
                 icon={tab.icon}
-                tone={active === tab.name ? 'accent' : 'muted'}
+                tone={active === tab.name ? 'default' : 'muted'}
               />
               <Text
                 variant="label"
-                tone={active === tab.name ? 'accent' : 'secondary'}
+                tone={active === tab.name ? 'default' : 'secondary'}
                 className="flex-1"
               >
                 {tab.label}
@@ -47,7 +47,7 @@ export function SideNav() {
           );
           const classes = cn(
             'min-h-hit flex-row items-center gap-3 rounded-control px-3 py-3',
-            active === tab.name && 'bg-accent-soft',
+            active === tab.name && 'bg-well',
           );
           return tab.accessible ? (
             <Link key={tab.name} href={tab.href} asChild>
@@ -100,7 +100,7 @@ export function SideNav() {
             accessibilityLabel={t('common.signIn')}
             onPress={() => requestAccountConnection(access)}
             feedback="highlight"
-            className="min-h-hit justify-center rounded-control border border-line-hi px-3"
+            className="min-h-hit justify-center rounded-control border border-rule-2 px-3"
           >
             <Text variant="label">{t('common.signIn')}</Text>
           </Tap>

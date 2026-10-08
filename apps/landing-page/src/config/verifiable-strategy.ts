@@ -1,5 +1,5 @@
 import { arbitrumSepolia } from 'viem/chains';
-import raw from '@/data/verifiable-strategy.json';
+import { verifiableStrategy as raw } from '@zapengine/zap-pilot-story/facts';
 import type { Dataset } from '@/lib/verifiable-strategy/types';
 
 export const strategyData = raw as unknown as Dataset;

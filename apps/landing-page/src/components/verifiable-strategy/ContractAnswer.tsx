@@ -1,6 +1,6 @@
 import { MarkerGlyph } from '@/components/track-record/chartMarkers';
+import { ASSETS } from '@zapengine/zap-pilot-story/facts';
 import {
-  ASSETS,
   decimalToWad,
   foldAllocation,
   wadToPercent,
@@ -148,7 +148,7 @@ export function ContractAnswer({
               return (
                 <li
                   key={asset}
-                  style={{ color: `var(--event-${asset.toLowerCase()})` }}
+                  style={{ color: `var(--sleeve-${asset.toLowerCase()})` }}
                 >
                   <b>
                     {asset}

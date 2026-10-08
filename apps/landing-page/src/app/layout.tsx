@@ -1,29 +1,24 @@
 import type { Metadata } from 'next';
-import { Geist, Instrument_Serif, JetBrains_Mono } from 'next/font/google';
+import localFont from 'next/font/local';
 import { GoogleAnalytics } from '@next/third-parties/google';
-import { RootProvider } from 'fumadocs-ui/provider/next';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { MESSAGES } from '@/config/messages';
 import './globals.css';
-import './landing.css';
-import './landing-v2.css';
+import '@zapengine/zap-pilot-story/styles.css';
 
-const geistSans = Geist({
-  variable: '--font-geist-sans',
-  subsets: ['latin'],
+const archivo = localFont({
+  src: '../../node_modules/@fontsource-variable/archivo/files/archivo-latin-standard-normal.woff2',
+  variable: '--font-archivo',
+  weight: '100 900',
+  display: 'swap',
+  declarations: [{ prop: 'font-stretch', value: '62% 125%' }],
 });
-
-const instrumentSerif = Instrument_Serif({
-  variable: '--font-serif',
-  subsets: ['latin'],
-  weight: '400',
-  style: ['normal', 'italic'],
-});
-
-const jetBrainsMono = JetBrains_Mono({
-  variable: '--font-mono',
-  subsets: ['latin'],
-  weight: ['400', '500', '600'],
+const martian = localFont({
+  src: '../../node_modules/@fontsource-variable/martian-mono/files/martian-mono-latin-standard-normal.woff2',
+  variable: '--font-martian',
+  weight: '100 800',
+  display: 'swap',
+  declarations: [{ prop: 'font-stretch', value: '75% 112.5%' }],
 });
 
 const { meta } = MESSAGES;
@@ -71,21 +66,9 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${instrumentSerif.variable} ${jetBrainsMono.variable} antialiased flex flex-col min-h-screen`}
+        className={`${archivo.variable} ${martian.variable} antialiased flex flex-col min-h-screen`}
       >
-        <RootProvider
-          search={{
-            options: {
-              // Static search: read prebuilt index from /api/search/static.json
-              // (generated at build time by app/api/search/static.json/route.ts).
-              // Compatible with `output: 'export'` — no runtime API call is made.
-              type: 'static',
-              api: '/api/search/static.json',
-            },
-          }}
-        >
-          <ErrorBoundary>{children}</ErrorBoundary>
-        </RootProvider>
+        <ErrorBoundary>{children}</ErrorBoundary>
         {process.env['NEXT_PUBLIC_GA_ID'] && (
           <GoogleAnalytics gaId={process.env['NEXT_PUBLIC_GA_ID']} />
         )}

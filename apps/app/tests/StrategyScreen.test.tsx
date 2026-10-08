@@ -88,7 +88,8 @@ vi.mock('@/components/ui/Tap', () => ({
   ),
 }));
 
-const CHART_SKELETON = '[data-skeleton][class="h-[138px] w-full rounded-2xl"]';
+const CHART_SKELETON =
+  '[data-skeleton][class="h-[138px] w-full rounded-panel"]';
 const UNAVAILABLE = 'Backtest unavailable right now.';
 const DISCLAIMER =
   "Hypothetical backtest. It assumes a yield on stablecoin and crypto balances and includes an S&P 500 sleeve that can't be executed yet. Past performance does not guarantee future results.";
@@ -210,3 +211,18 @@ describe('StrategyScreen', () => {
     expect(container.textContent).toContain(DISCLAIMER);
   });
 });
+
+vi.mock('react-native-svg', () => ({
+  default: ({ children }: { children?: React.ReactNode }) => (
+    <svg>{children}</svg>
+  ),
+  Circle: () => <circle />,
+  Path: () => <path />,
+  Rect: () => <rect />,
+  Defs: ({ children }: { children?: React.ReactNode }) => (
+    <defs>{children}</defs>
+  ),
+  ClipPath: ({ children }: { children?: React.ReactNode }) => (
+    <clipPath>{children}</clipPath>
+  ),
+}));

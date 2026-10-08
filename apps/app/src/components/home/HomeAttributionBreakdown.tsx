@@ -1,3 +1,5 @@
+import { cn } from '@/lib/cn';
+import { Icon } from '@/components/ui/Icon';
 import { tokens } from '@zapengine/design-tokens/tokens';
 import {
   ArrowDownRight,
@@ -44,15 +46,19 @@ function BreakdownRow({
       <Icon
         size={ICON_SIZE}
         strokeWidth={2}
-        color={tokens.color['ink-faint']}
+        color={tokens.mode.night['ink-3']}
       />
-      <Text numberOfLines={1} className="flex-1 text-[11px] text-ink-dim">
+      <Text
+        numberOfLines={1}
+        className="font-mono-medium flex-1 text-label text-ink-2"
+      >
         {label}
       </Text>
       <Text
-        className={`font-mono text-[11px] ${
-          valueUsd < 0 ? 'text-danger' : 'text-ink'
-        }`}
+        className={cn(
+          'font-mono text-data',
+          valueUsd < 0 ? 'text-down' : 'text-up',
+        )}
       >
         {amount}
       </Text>
@@ -100,13 +106,9 @@ export const HomeAttributionBreakdown = memo(function HomeAttributionBreakdown({
           accessibilityLabel={`${gains} ${t('home.attribution.gains')}`}
           className="flex-row items-center gap-1"
         >
-          <ArrowUpRight
-            size={ICON_SIZE}
-            strokeWidth={2}
-            color={tokens.color.success}
-          />
-          <Text className="font-mono text-[11px] text-success">{gains}</Text>
-          <Text className="text-[11px] text-ink-dim">
+          <Icon icon={ArrowUpRight} size="xs" tone="up" />
+          <Text className="font-mono text-data text-up">{gains}</Text>
+          <Text className="font-mono-medium text-label text-ink-2">
             {t('home.attribution.gains')}
           </Text>
         </View>
@@ -115,13 +117,9 @@ export const HomeAttributionBreakdown = memo(function HomeAttributionBreakdown({
           accessibilityLabel={`${losses} ${t('home.attribution.losses')}`}
           className="flex-row items-center gap-1"
         >
-          <ArrowDownRight
-            size={ICON_SIZE}
-            strokeWidth={2}
-            color={tokens.color.danger}
-          />
-          <Text className="font-mono text-[11px] text-danger">{losses}</Text>
-          <Text className="text-[11px] text-ink-dim">
+          <Icon icon={ArrowDownRight} size="xs" tone="down" />
+          <Text className="font-mono text-data text-down">{losses}</Text>
+          <Text className="font-mono-medium text-label text-ink-2">
             {t('home.attribution.losses')}
           </Text>
         </View>
@@ -136,7 +134,7 @@ export const HomeAttributionBreakdown = memo(function HomeAttributionBreakdown({
         />
       ))}
 
-      <Text className="text-[9.5px] leading-[13px] text-ink-faint">
+      <Text className="font-mono-medium text-label leading-[13px] text-ink-3">
         {t('home.attribution.basis')}
       </Text>
     </View>

@@ -17,7 +17,7 @@ export interface HoverKey {
   readonly shiftKey: boolean;
 }
 
-/** Half the tooltip's max-width plus a little air, in px. Track landing.css. */
+/** Half the tooltip's max-width plus a little air, in px. Track track-record/track-record.css. */
 const TOOLTIP_EDGE_GUARD = 122;
 
 /**

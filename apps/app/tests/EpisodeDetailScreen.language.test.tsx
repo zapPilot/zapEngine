@@ -46,6 +46,12 @@ vi.mock(
   async () => (await import('./support/lucideStub')).lucideStub,
 );
 vi.mock('react-native-svg', () => ({
+  Defs: ({ children }: { children?: ReactNode }) => <defs>{children}</defs>,
+  ClipPath: ({ children }: { children?: ReactNode }) => (
+    <clipPath>{children}</clipPath>
+  ),
+  Rect: () => <rect />,
+
   default: ({ children }: { children?: ReactNode }) => <svg>{children}</svg>,
   Circle: () => <circle />,
 }));

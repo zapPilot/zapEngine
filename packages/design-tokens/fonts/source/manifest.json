@@ -1,0 +1,15 @@
+{
+  "commit": "95f4904fc8bcf26d3420fe315560c96417c6dec7",
+  "fonts": {
+    "archivo": {
+      "file": "Archivo[wdth,wght].ttf",
+      "url": "https://raw.githubusercontent.com/google/fonts/95f4904fc8bcf26d3420fe315560c96417c6dec7/ofl/archivo/Archivo%5Bwdth%2Cwght%5D.ttf",
+      "sha256": "0e094a7d3c7c4c25cf1310c4b30014f1dae9332220b1c2c88f4fa996f0b05053"
+    },
+    "martianmono": {
+      "file": "MartianMono[wdth,wght].ttf",
+      "url": "https://raw.githubusercontent.com/google/fonts/95f4904fc8bcf26d3420fe315560c96417c6dec7/ofl/martianmono/MartianMono%5Bwdth%2Cwght%5D.ttf",
+      "sha256": "c3467843ec1c2574b05fbcfd7147c7bfbcf63ddca8fc2bcb9d117f1bfb1b22e7"
+    }
+  }
+}

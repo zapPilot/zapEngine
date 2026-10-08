@@ -1,3 +1,4 @@
+import { Icon } from '@/components/ui/Icon';
 import { Pause, Play } from 'lucide-react-native';
 import { Text, View } from 'react-native';
 
@@ -96,12 +97,12 @@ export function PlayUnheardCard({
   const body = (
     <>
       <Text
-        className="mt-2 font-sans-bold text-[19px] leading-[26px] text-ink"
+        className="mt-2 font-text-semibold text-heading leading-[26px] text-ink"
         numberOfLines={2}
       >
         {copy.title}
       </Text>
-      <Text className="mt-1 text-[12.5px] leading-[19px] text-ink-dim">
+      <Text className="font-text mt-1 text-caption leading-[19px] text-ink-2">
         {copy.subtitle}
       </Text>
     </>
@@ -111,7 +112,7 @@ export function PlayUnheardCard({
     <View className="pt-3">
       <Card className="p-4">
         <View className="flex-row items-center justify-between gap-3">
-          <Text className="font-mono text-[10px] uppercase tracking-[1.1px] text-accent">
+          <Text className="font-mono text-data uppercase tracking-[1.1px] text-ink">
             {copy.eyebrow}
           </Text>
           <SegmentedControl
@@ -144,9 +145,9 @@ export function PlayUnheardCard({
         <View className="mt-3">
           <Button accessibilityLabel={copy.buttonLabel} onPress={onPlay}>
             {isPlaying ? (
-              <Pause size={16} strokeWidth={2.2} color="#0a0a0a" />
+              <Icon icon={Pause} size="sm" tone="default" />
             ) : (
-              <Play size={16} strokeWidth={2.2} color="#0a0a0a" />
+              <Icon icon={Play} size="sm" tone="default" />
             )}
             {copy.buttonLabel}
           </Button>

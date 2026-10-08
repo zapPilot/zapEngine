@@ -1,3 +1,4 @@
+import { tokens } from '@zapengine/design-tokens/tokens';
 import type { DepositReviewGroup } from '@zapengine/types/api';
 import { useState } from 'react';
 import { View } from 'react-native';
@@ -18,12 +19,15 @@ function evidenceStatus(review: DepositReviewGroup): {
   color: string;
 } {
   if (review.status === 'failed') {
-    return { label: 'Simulation failed', color: '#ff6f61' };
+    return { label: 'Simulation failed', color: tokens.mode.night['alert'] };
   }
   if (review.status === 'unavailable') {
-    return { label: 'Simulation unavailable', color: '#a1a1aa' };
+    return {
+      label: 'Simulation unavailable',
+      color: tokens.mode.night['ink-3'],
+    };
   }
-  return { label: 'Verified by Tenderly', color: '#7ad88f' };
+  return { label: 'Verified by Tenderly', color: tokens.mode.night['ink'] };
 }
 
 /**
@@ -41,7 +45,7 @@ export function SimulationTenderlyEvidence({
   const status = evidenceStatus(review);
 
   return (
-    <View className="overflow-hidden rounded-2xl border border-line bg-surface">
+    <View className="overflow-hidden rounded-panel border border-rule bg-sheet">
       <SimulationCollapseToggle
         expanded={expanded}
         onToggle={() => setExpanded((value) => !value)}
@@ -52,7 +56,7 @@ export function SimulationTenderlyEvidence({
         subtitle={`${simulationChainLabel(review.chainId)} · ${review.calls.length} ${review.calls.length === 1 ? 'call' : 'calls'}`}
       />
       {expanded ? (
-        <View className="border-t border-line">
+        <View className="border-t border-rule">
           {review.calls.map((call) => (
             <SimulationCallRow
               key={call.index}
@@ -64,12 +68,12 @@ export function SimulationTenderlyEvidence({
           <SimulationEvidenceStats
             blockNumber={review.blockNumber}
             callGas={review.callGas}
-            className="flex-row gap-4 border-t border-line px-4 py-4"
+            className="flex-row gap-4 border-t border-rule px-4 py-4"
           />
           <SimulationShareLinks
             shareUrls={review.shareUrls}
             label={(index) => `Result ${index + 1} · Tenderly`}
-            className="gap-2 border-t border-line px-4 py-4"
+            className="gap-2 border-t border-rule px-4 py-4"
           />
         </View>
       ) : null}

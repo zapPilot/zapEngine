@@ -20,7 +20,7 @@ interface ButtonLook {
   label: string;
   hint?: string;
   icon: LucideIcon;
-  tone: 'accent' | 'success' | 'danger';
+  tone: 'default' | 'alert';
 }
 
 // The ring is drawn over the button's own 1px border, so it replaces it. It
@@ -38,32 +38,32 @@ function buttonLook(
       return {
         label: t('podcast.downloadNoVideo'),
         icon: Download,
-        tone: 'accent',
+        tone: 'default',
       };
     case 'idle':
       return {
         label: t('podcast.downloadVideo'),
         hint: t('podcast.downloadHint'),
         icon: Download,
-        tone: 'accent',
+        tone: 'default',
       };
     case 'downloading':
       return {
         label: t('podcast.downloadCancel', { percent: view.percent }),
         icon: X,
-        tone: 'accent',
+        tone: 'default',
       };
     case 'downloaded':
       return {
         label: t('podcast.downloadRemove'),
         icon: Check,
-        tone: 'success',
+        tone: 'default',
       };
     case 'failed':
       return {
         label: t('podcast.downloadRetry'),
         icon: RefreshCw,
-        tone: 'danger',
+        tone: 'alert',
       };
   }
 }

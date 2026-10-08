@@ -1,0 +1,68 @@
+{
+  "name": "@zapengine/zap-pilot-story",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./facts": {
+      "types": "./dist/facts/index.d.ts",
+      "import": "./dist/facts/index.js"
+    },
+    "./scenes": {
+      "types": "./dist/scenes/index.d.ts",
+      "import": "./dist/scenes/index.js"
+    },
+    "./copy": {
+      "types": "./dist/copy/index.d.ts",
+      "import": "./dist/copy/index.js"
+    },
+    "./styles.css": "./src/styles.css"
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "clean": "rm -rf dist coverage",
+    "deadcode": "knip --directory ../.. --workspace packages/zap-pilot-story --config packages/zap-pilot-story/knip.ts --treat-config-hints-as-errors",
+    "deadcode:fix": "knip --directory ../.. --workspace packages/zap-pilot-story --config packages/zap-pilot-story/knip.ts --fix",
+    "dup:check": "node ../../scripts/lint/run-jscpd.mjs src",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ci": "vitest run --coverage",
+    "test:coverage": "vitest run --coverage",
+    "type-check": "tsc --noEmit -p tsconfig.json",
+    "pin:replay": "node scripts/pin-replay.ts"
+  },
+  "devDependencies": {
+    "@zapengine/eslint-config": "workspace:*",
+    "@zapengine/knip-config": "workspace:*",
+    "@zapengine/tsconfig": "workspace:*",
+    "eslint": "catalog:",
+    "knip": "catalog:",
+    "prettier": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "@types/node": "catalog:",
+    "react": "catalog:",
+    "@types/react": "catalog:",
+    "react-dom": "catalog:",
+    "@types/react-dom": "catalog:",
+    "jsdom": "catalog:",
+    "@testing-library/react": "catalog:"
+  },
+  "engines": {
+    "node": "24.x"
+  },
+  "dependencies": {
+    "@zapengine/story-kit": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": "^19"
+  },
+  "sideEffects": [
+    "**/*.css"
+  ]
+}

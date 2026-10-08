@@ -115,3 +115,20 @@ it('counts the HyperCore leg into the total and never implies it was simulated',
     'straight from the USDC already on Hyperliquid',
   );
 });
+
+vi.mock('react-native', () => ({ Platform: { OS: 'web' } }));
+
+vi.mock('react-native-svg', () => ({
+  default: ({ children }: { children?: React.ReactNode }) => (
+    <svg>{children}</svg>
+  ),
+  Circle: () => <circle />,
+  Path: () => <path />,
+  Rect: () => <rect />,
+  Defs: ({ children }: { children?: React.ReactNode }) => (
+    <defs>{children}</defs>
+  ),
+  ClipPath: ({ children }: { children?: React.ReactNode }) => (
+    <clipPath>{children}</clipPath>
+  ),
+}));

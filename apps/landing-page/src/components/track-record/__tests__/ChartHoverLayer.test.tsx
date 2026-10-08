@@ -39,14 +39,14 @@ function bar(
         label: 'SPY',
         percent: spy,
         display: `${spy}%`,
-        color: 'var(--event-spy)',
+        color: 'var(--sleeve-spy)',
       },
       {
         id: 'stable',
         label: 'Cash',
         percent: stable,
         display: `${stable}%`,
-        color: 'var(--event-stable)',
+        color: 'var(--sleeve-stable)',
       },
     ],
   };
@@ -66,7 +66,7 @@ function renderLayer(
           id: 'strategy',
           label: 'Strategy',
           value: VALUES[index]!.toFixed(2),
-          color: 'var(--accent)',
+          color: 'var(--ink)',
         },
       ]}
       focusYForIndex={() => 100}

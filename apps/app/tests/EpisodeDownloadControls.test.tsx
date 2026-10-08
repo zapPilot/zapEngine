@@ -160,7 +160,7 @@ describe('EpisodeDownloadButton', () => {
     await render(<EpisodeDownloadButton episode={downloadableEpisode} />);
     expect(button().getAttribute('aria-label')).toBe('podcast.downloadVideo');
     expect(button().dataset['hint']).toBe('podcast.downloadHint');
-    expect(button().dataset['tone']).toBe('accent');
+    expect(button().dataset['tone']).toBe('default');
     expect(button().disabled).toBe(false);
     expect(icon()).toBe('Download');
     expect(container.querySelector('[data-ring]')).toBeNull();
@@ -191,7 +191,7 @@ describe('EpisodeDownloadButton', () => {
     });
     await render(<EpisodeDownloadButton episode={downloadableEpisode} />);
     expect(button().getAttribute('aria-label')).toBe('podcast.downloadRemove');
-    expect(button().dataset['tone']).toBe('success');
+    expect(button().dataset['tone']).toBe('default');
     expect(icon()).toBe('Check');
     expect(container.querySelector('[data-ring]')).toBeNull();
     expect(container.querySelector('[role="dialog"]')).toBeNull();
@@ -236,7 +236,7 @@ describe('EpisodeDownloadButton', () => {
     setDownloads(withState({ status: 'failed', message: 'No space' }));
     await render(<EpisodeDownloadButton episode={downloadableEpisode} />);
     expect(button().getAttribute('aria-label')).toBe('podcast.downloadRetry');
-    expect(button().dataset['tone']).toBe('danger');
+    expect(button().dataset['tone']).toBe('alert');
     expect(icon()).toBe('RefreshCw');
     expect(container.querySelector('[data-ring]')).toBeNull();
     await click(button());
@@ -340,3 +340,18 @@ describe('EpisodeDownloadStatus', () => {
     expect(icon()).toBe('Info');
   });
 });
+
+vi.mock('react-native-svg', () => ({
+  default: ({ children }: { children?: React.ReactNode }) => (
+    <svg>{children}</svg>
+  ),
+  Circle: () => <circle />,
+  Path: () => <path />,
+  Rect: () => <rect />,
+  Defs: ({ children }: { children?: React.ReactNode }) => (
+    <defs>{children}</defs>
+  ),
+  ClipPath: ({ children }: { children?: React.ReactNode }) => (
+    <clipPath>{children}</clipPath>
+  ),
+}));

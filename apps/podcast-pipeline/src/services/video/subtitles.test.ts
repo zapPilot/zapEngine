@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  assColor,
   createAssSubtitles,
   PORTRAIT_SUBTITLE_LAYOUT,
   portraitSubtitleLayoutFor,
@@ -109,4 +110,13 @@ describe('createAssSubtitles', () => {
       wrapSubtitle('好'.repeat(35), PORTRAIT_SUBTITLE_LAYOUT.maxLineUnits),
     ).toThrow('cannot fit within two lines');
   });
+});
+
+it('converts canonical RGB role values to opaque ASS BGR', () => {
+  expect(assColor('#0e0f11')).toBe('&H00110F0E');
+  expect(assColor('#eeeeea')).toBe('&H00EAEEEE');
+});
+
+it('rejects non-RGB tokens before emitting invalid ASS', () => {
+  expect(() => assColor('rgba(0,0,0,.4)')).toThrow('RGB hex token');
 });

@@ -1,7 +1,6 @@
 import { useState } from 'react';
+import { ASSETS, ALLOCATION_ASSETS } from '@zapengine/zap-pilot-story/facts';
 import {
-  ALLOCATION_ASSETS,
-  ASSETS,
   dateFromDay,
   dayFromDate,
   displayDecimal,
@@ -165,7 +164,7 @@ export function CalculatorForm({
                 >
                   <strong
                     className="calc-asset-name"
-                    style={{ color: `var(--event-${asset.toLowerCase()})` }}
+                    style={{ color: `var(--sleeve-${asset.toLowerCase()})` }}
                   >
                     {asset}
                   </strong>

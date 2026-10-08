@@ -1,3 +1,4 @@
+import { Icon } from '@/components/ui/Icon';
 import type {
   PrivySimulationApproval,
   PrivySimulationAssetChange,
@@ -8,6 +9,7 @@ import { Text, View } from 'react-native';
 
 import {
   SimulationAssetAmountRow,
+  SimulationAssetSubtitle,
   SimulationAssetFlowSections,
   SimulationFlowSectionHeader,
   SimulationTokenMark,
@@ -29,31 +31,31 @@ function ApproveRow({
   const spenderLabel = resolveAddressTarget(approval.spender, contracts);
 
   return (
-    <View className="flex-row items-center gap-3 border-t border-line px-4 py-3 first:border-t-0">
+    <View className="flex-row items-center gap-3 border-t border-rule px-4 py-3 first:border-t-0">
       <SimulationTokenMark token={approval.token} />
       <View className="min-w-0 flex-1">
         <View className="flex-row items-center gap-1.5">
           <Text
-            className="font-sans-semibold text-[13px] text-ink"
+            className="font-text-semibold text-body-sm text-ink"
             numberOfLines={1}
           >
             {approval.token.symbol}
           </Text>
           {risky ? (
-            <View className="rounded-full border border-danger-line bg-danger-soft px-1.5 py-0.5">
-              <Text className="font-mono-semibold text-[7px] uppercase tracking-[.5px] text-danger">
+            <View className="rounded-round border border-alert bg-alert-wash px-1.5 py-0.5">
+              <Text className="font-mono-semibold text-data uppercase tracking-[.5px] text-alert">
                 {approval.unlimited ? 'Unlimited' : 'Exceeds spend'}
               </Text>
             </View>
           ) : null}
         </View>
-        <Text className="mt-0.5 text-[10px] text-ink-faint" numberOfLines={1}>
+        <SimulationAssetSubtitle>
           Call {approval.callIndex + 1} · to {spenderLabel}
-        </Text>
+        </SimulationAssetSubtitle>
       </View>
       <View className="max-w-[40%] items-end">
         <Text
-          className="font-mono-semibold text-[13px] text-accent"
+          className="font-mono-semibold text-data text-ink"
           numberOfLines={1}
         >
           {approval.unlimited
@@ -61,7 +63,7 @@ function ApproveRow({
             : compactTokenAmount(approval.rawAmount, approval.token.decimals)}
         </Text>
         <Text
-          className="mt-0.5 font-mono text-[9px] text-ink-faint"
+          className="mt-0.5 font-mono text-data text-ink-3"
           numberOfLines={1}
         >
           Spend{' '}
@@ -91,10 +93,10 @@ function renderAssetRow(
       key={`${change.direction}-${change.callIndex}-${change.token.address ?? change.token.symbol}-${index}`}
       token={change.token}
       subtitle={
-        <Text className="mt-0.5 text-[10px] text-ink-faint" numberOfLines={1}>
+        <SimulationAssetSubtitle>
           Call {change.callIndex + 1} · {outgoing ? 'to' : 'from'}{' '}
           {resolveAssetCounterparty(change, contracts)}
-        </Text>
+        </SimulationAssetSubtitle>
       }
       direction={change.direction}
       rawAmount={change.rawAmount}
@@ -113,7 +115,7 @@ function ApproveSection({
   return (
     <View>
       <SimulationFlowSectionHeader label="You approve">
-        <ShieldCheck size={14} color="#d4c5a3" />
+        <Icon icon={ShieldCheck} size="xs" tone="sign" />
       </SimulationFlowSectionHeader>
       {approvals.map((approval, index) => (
         <ApproveRow
@@ -144,11 +146,11 @@ export function SimulationFlowRows({
   contracts: readonly PrivySimulationContract[];
 }) {
   return (
-    <View className="overflow-hidden rounded-2xl border border-line bg-surface">
+    <View className="overflow-hidden rounded-panel border border-rule bg-sheet">
       {approvals.length > 0 ? (
         <>
           <ApproveSection approvals={approvals} contracts={contracts} />
-          <View className="mx-4 h-px bg-line" />
+          <View className="mx-4 h-px bg-rule" />
         </>
       ) : null}
       <SimulationAssetFlowSections

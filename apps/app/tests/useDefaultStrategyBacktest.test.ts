@@ -155,8 +155,8 @@ describe('default strategy backtest mapping', () => {
     expect(view?.metrics).toEqual([
       { label: 'ROI', value: '+12.3%', tone: 'positive' },
       { label: 'Max drawdown', value: '8.9%', tone: 'negative' },
-      { label: 'Sharpe', value: '1.23', tone: 'accent' },
-      { label: 'Calmar', value: '—', tone: 'accent' },
+      { label: 'Sharpe', value: '1.23', tone: 'neutral' },
+      { label: 'Calmar', value: '—', tone: 'neutral' },
       { label: 'Volatility', value: '18.8%', tone: 'neutral' },
       { label: 'Win rate', value: '—', tone: 'neutral' },
       { label: 'Trades', value: '42', tone: 'neutral' },

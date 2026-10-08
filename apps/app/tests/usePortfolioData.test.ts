@@ -283,12 +283,12 @@ describe('usePortfolioData', () => {
     });
     expect(result.data?.metrics).toEqual([
       { label: 'Value change', value: '+25.0%', tone: 'positive' },
-      { label: 'Current APY', value: '12.3%', tone: 'accent' },
+      { label: 'Current APY', value: '12.3%', tone: 'neutral' },
       { label: '7D value change', value: '+13.6%', tone: 'positive' },
       { label: '30D value change', value: '+25.0%', tone: 'positive' },
       { label: 'Max drawdown', value: '−8.3%', tone: 'negative' },
       { label: 'Volatility', value: '13.5%', tone: 'neutral' },
-      { label: 'Sharpe', value: '1.23', tone: 'accent' },
+      { label: 'Sharpe', value: '1.23', tone: 'neutral' },
     ]);
     expect(result.data?.metrics.map((metric) => metric.label)).not.toContain(
       'Fees paid',

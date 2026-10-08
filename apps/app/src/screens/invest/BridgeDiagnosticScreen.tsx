@@ -19,10 +19,10 @@ export function BridgeDiagnosticScreen() {
     <ScreenScrollView width="narrow">
       <InvestStepHeader title="Invest" step="Bridge test" />
       <View className="pt-5">
-        <Text className="font-serif text-[28px] leading-[32px] text-ink">
+        <Text className="font-display text-title leading-[32px] text-ink">
           Bridge USDC
         </Text>
-        <Text className="mt-2 text-[12.5px] leading-[19px] text-ink-dim">
+        <Text className="font-text mt-2 text-caption leading-[19px] text-ink-2">
           Test canonical USDC transfers through LI.FI without entering a
           strategy.
         </Text>

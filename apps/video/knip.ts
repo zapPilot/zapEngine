@@ -1,6 +1,6 @@
 import { defineKnipConfig } from '@zapengine/knip-config/base';
 
-export default defineKnipConfig(
+const config = defineKnipConfig(
   {
     // Only the root knip cannot derive: the Remotion CLI receives the entry
     // as an argument (`remotion studio src/index.ts`). The scripts/ CLIs are
@@ -24,3 +24,17 @@ export default defineKnipConfig(
   // This workspace does not depend on @zapengine/types.
   { omitDefaultIgnoreDependencies: ['@zapengine/types'] },
 );
+
+// Run from the monorepo root so workspace symlinks remain dependencies in the graph.
+const { entry, project, eslint, vitest, ...global } = config;
+const workspaceConfig = {
+  ...global,
+  // Excluded workspaces must not execute their ESLint plugins. The selected
+  // workspace keeps its original plugin setting below.
+  eslint: false,
+  workspaces: {
+    'apps/video': { entry, project, eslint, vitest },
+  },
+};
+
+export default workspaceConfig;

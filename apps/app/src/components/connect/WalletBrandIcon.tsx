@@ -1,3 +1,4 @@
+import { Icon } from '@/components/ui/Icon';
 import { Wallet } from 'lucide-react-native';
 import { Image, View } from 'react-native';
 
@@ -22,10 +23,8 @@ export function WalletBrandIcon({
   return (
     <View
       className={cn(
-        'items-center justify-center overflow-hidden rounded-xl border',
-        muted
-          ? 'border-line bg-[rgba(255,255,255,.03)]'
-          : 'border-line bg-[rgba(255,255,255,.04)]',
+        'items-center justify-center overflow-hidden rounded-panel border',
+        muted ? 'border-rule bg-well' : 'border-rule bg-well',
       )}
       style={{ width: size, height: size }}
     >
@@ -36,7 +35,7 @@ export function WalletBrandIcon({
           accessibilityIgnoresInvertColors
         />
       ) : (
-        <Wallet size={size * 0.5} strokeWidth={1.75} color="#d4c5a3" />
+        <Icon icon={Wallet} size="md" tone="sign" />
       )}
     </View>
   );

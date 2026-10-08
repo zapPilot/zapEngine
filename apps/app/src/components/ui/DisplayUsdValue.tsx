@@ -5,8 +5,8 @@ import { splitUsd } from '@/lib/format';
 const sizes = {
   lg: { value: 'display', fraction: 'title', skeleton: 'h-control-lg w-56' },
   md: {
-    value: 'display-sm',
-    fraction: 'title-sm',
+    value: 'display',
+    fraction: 'title',
     skeleton: 'h-control-md w-48',
   },
 } as const;

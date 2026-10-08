@@ -37,7 +37,7 @@ export const ScenarioScene: React.FC<{
       />
       <AbsoluteFill
         style={{
-          background: color.bg,
+          background: color['ground'],
           opacity: 0.72 * rise(frame, holdAt - 10, 12),
         }}
       />

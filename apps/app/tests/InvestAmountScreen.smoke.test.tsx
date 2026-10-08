@@ -154,3 +154,20 @@ it('presents the default mix as a starting point and resets edits to it', async 
   await clickUi(container, 'Reset to the default mix');
   expect(current!.sectorWeights).toEqual(DEFAULT_SECTOR_WEIGHTS);
 });
+
+vi.mock('react-native', () => ({ Platform: { OS: 'web' } }));
+
+vi.mock('react-native-svg', () => ({
+  default: ({ children }: { children?: React.ReactNode }) => (
+    <svg>{children}</svg>
+  ),
+  Circle: () => <circle />,
+  Path: () => <path />,
+  Rect: () => <rect />,
+  Defs: ({ children }: { children?: React.ReactNode }) => (
+    <defs>{children}</defs>
+  ),
+  ClipPath: ({ children }: { children?: React.ReactNode }) => (
+    <clipPath>{children}</clipPath>
+  ),
+}));

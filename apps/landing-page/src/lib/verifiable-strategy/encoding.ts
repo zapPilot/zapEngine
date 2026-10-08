@@ -2,14 +2,6 @@ import { formatUnits, parseUnits } from 'viem';
 import type { CalculatorInput, Example } from './types';
 
 export const WAD = 10n ** 18n;
-export const ASSETS = ['SPY', 'BTC', 'ETH'] as const;
-export const ALLOCATION_ASSETS = [
-  'BTC',
-  'ETH',
-  'SPY',
-  'Stable',
-  'Alt',
-] as const;
 
 function exactUnits(value: string, decimals: number): bigint {
   if (!new RegExp(`^\\d+(?:\\.\\d{1,${decimals}})?$`).test(value))

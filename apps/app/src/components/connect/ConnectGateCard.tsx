@@ -1,3 +1,5 @@
+import { cn } from '@/lib/cn';
+import { Icon } from '@/components/ui/Icon';
 import { Wallet } from 'lucide-react-native';
 import { Platform, Text, View } from 'react-native';
 
@@ -42,25 +44,26 @@ export function ConnectGateCard({
   return (
     <Card className={isPage ? 'p-5' : 'items-center p-6'}>
       {isPage ? null : (
-        <View className="h-11 w-11 items-center justify-center rounded-full border border-[rgba(212,197,163,.3)] bg-[rgba(212,197,163,.12)]">
-          <Wallet size={19} strokeWidth={1.8} color="#d4c5a3" />
+        <View className="h-11 w-11 items-center justify-center rounded-round border border-sign-ink bg-sign-wash">
+          <Icon icon={Wallet} size="md" tone="sign" />
         </View>
       )}
       <Text
         className={
           isPage
-            ? 'font-serif text-[27px] leading-[32px] text-ink'
-            : 'mt-3 text-center font-sans-semibold text-[15px] text-ink'
+            ? 'font-display text-title leading-[32px] text-ink'
+            : 'mt-3 text-center font-text-semibold text-body text-ink'
         }
       >
         {title}
       </Text>
       <Text
-        className={
+        className={cn(
+          'font-text text-body',
           isPage
-            ? 'mt-3 text-[13px] leading-5 text-ink-dim'
-            : 'mt-1 text-center text-[12.5px] leading-5 text-ink-dim'
-        }
+            ? 'mt-3 text-body-sm leading-5 text-ink-2'
+            : 'mt-1 text-center text-caption leading-5 text-ink-2',
+        )}
       >
         {body}
       </Text>
@@ -77,7 +80,7 @@ export function ConnectGateCard({
       </Button>
       {!isConnecting && error ? (
         <Callout
-          tone="danger"
+          tone="alert"
           className="mt-4"
           title={
             isWeb

@@ -1,12 +1,15 @@
 import { LINKS } from './links';
 import { MESSAGES } from './messages';
-import type { CapabilityRef, CapabilityStatus } from './runtime';
+import type {
+  CapabilityRef,
+  CapabilityStatus,
+} from '@zapengine/zap-pilot-story/facts';
 
 /*
  * /pitch copy. Like MESSAGES, it never states liveness in prose: anything
  * that claims a capability references a `CAPABILITIES` id, and the slide
  * renders that capability's status badge. Typed status parameters make a
- * status change in ./runtime fail type-check here until the copy is revised.
+ * status change in the story facts fail type-check here until the copy is revised.
  */
 
 interface StatusPart<S extends CapabilityStatus = CapabilityStatus> {

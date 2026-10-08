@@ -29,7 +29,7 @@ export function ChainMark({
       accessible={labelled}
       accessibilityLabel={labelled ? CHAIN_BRAND[chainKey].label : undefined}
       accessibilityIgnoresInvertColors
-      className="shrink-0 rounded-full"
+      className="shrink-0 rounded-round"
       style={{ width: size, height: size }}
     />
   );

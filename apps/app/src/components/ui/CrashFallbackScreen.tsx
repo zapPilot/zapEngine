@@ -22,11 +22,11 @@ export function IconNoticeScreen({
   children?: ReactNode;
 }): ReactElement {
   return (
-    <View className="flex-1 items-center justify-center bg-bg px-6">
-      <View className="mb-5 h-14 w-14 items-center justify-center rounded-control border border-line bg-surface">
+    <View className="flex-1 items-center justify-center bg-ground px-6">
+      <View className="mb-5 h-14 w-14 items-center justify-center rounded-control border border-rule bg-sheet">
         <ZapLogo size={24} />
       </View>
-      <Text variant="title-sm" heading={1} className="text-center">
+      <Text variant="title" heading={1} className="text-center">
         {title}
       </Text>
       <Text variant="body-sm" tone="secondary" className="mt-3 text-center">

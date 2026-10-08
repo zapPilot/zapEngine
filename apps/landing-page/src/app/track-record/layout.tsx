@@ -1,4 +1,5 @@
 'use client';
+import './track-record.css';
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -23,9 +24,9 @@ export default function TrackRecordLayout({
     state.source === 'live' && hasLiveTrackRecordData(state.meta);
 
   return (
-    // `.shell-root` activates the landing CSS scoped under it (landing.css
-    // defines every track-record rule as `.shell-root .track-record-*`).
-    <div className="shell-root">
+    // `.track-record-root` activates the landing CSS scoped under it (track-record/track-record.css
+    // defines every track-record rule as `.track-record-root .track-record-*`).
+    <div className="track-record-root" data-theme="paper">
       <div className="track-record-shell">
         <header className="track-record-header">
           <Link className="brand" href="/" aria-label="Zap Pilot home">

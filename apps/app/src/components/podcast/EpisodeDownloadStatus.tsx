@@ -19,7 +19,7 @@ type Translate = ReturnType<typeof useContentLanguage>['t'];
 interface StatusLook {
   text: string;
   icon: LucideIcon;
-  tone: 'neutral' | 'accent' | 'success' | 'danger';
+  tone: 'default' | 'alert';
 }
 
 // Only the outcomes are announced; a percentage ticking by would be noise.
@@ -38,13 +38,13 @@ function statusLook(
       return {
         text: t('podcast.downloadNoVideo'),
         icon: Info,
-        tone: 'neutral',
+        tone: 'default',
       };
     case 'downloading':
       return {
         text: t('podcast.downloadStatusDownloading', { percent: view.percent }),
         icon: Download,
-        tone: 'accent',
+        tone: 'default',
       };
     case 'downloaded':
       return {
@@ -52,13 +52,13 @@ function statusLook(
           size: formatDownloadSize(view.byteSize ?? 0),
         }),
         icon: Check,
-        tone: 'success',
+        tone: 'default',
       };
     case 'failed':
       return {
         text: t('podcast.downloadStatusFailed'),
         icon: TriangleAlert,
-        tone: 'danger',
+        tone: 'alert',
       };
   }
 }
@@ -84,12 +84,12 @@ export function EpisodeDownloadStatus({
         <Icon
           icon={look.icon}
           size="xs"
-          tone={look.tone === 'neutral' ? 'muted' : look.tone}
+          tone={look.tone === 'default' ? 'muted' : look.tone}
         />
         {look.text}
       </Badge>
       {view.message !== null ? (
-        <Text variant="caption" tone="danger" className="mt-2">
+        <Text variant="caption" tone="alert" className="mt-2">
           {view.message}
         </Text>
       ) : null}

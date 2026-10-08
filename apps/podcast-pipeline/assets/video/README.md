@@ -7,4 +7,5 @@ versioned manifest and stored in immutable object storage.
 - `brand/zap-pilot-logo.svg`: Zap Pilot project artwork.
 - `fonts/NotoSansCJKtc-Regular.otf` and `fonts/NotoSansCJKtc-Bold.otf`: Noto
   Sans CJK Traditional Chinese, SIL Open Font License 1.1.
-- `fonts/JetBrainsMono-SemiBold.ttf`: JetBrains Mono, SIL Open Font License 1.1.
+- Archivo Text (400/600) and MartianMono SemiBold (600) resolve from
+  `@zapengine/design-tokens/fonts/static/*`, with bundled OFL licenses.

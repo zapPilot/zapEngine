@@ -1,3 +1,4 @@
+import { Icon } from '@/components/ui/Icon';
 import { AppVersionCard } from '@/components/account/AppVersionCard';
 import { useRouter } from 'expo-router';
 import { ChevronRight } from 'lucide-react-native';
@@ -36,14 +37,14 @@ export function AccountScreen() {
           <Card className="p-5">
             <View className="flex-row items-start justify-between gap-3">
               <View className="min-w-0 flex-1">
-                <Text className="font-sans-semibold text-[15px] text-ink">
+                <Text className="font-text-semibold text-body text-ink">
                   {account.address || DEMO.account.label}
                 </Text>
-                <Text className="mt-2 font-mono text-[13px] text-accent">
+                <Text className="mt-2 font-mono text-data text-ink">
                   {truncateAddress(address)}
                 </Text>
               </View>
-              <ChevronRight size={18} strokeWidth={1.8} color="#71717a" />
+              <Icon icon={ChevronRight} size="md" tone="default" />
             </View>
           </Card>
         </Tap>
@@ -52,7 +53,7 @@ export function AccountScreen() {
         <TelegramCard />
         <View className="mt-4">
           <Callout
-            tone="info"
+            tone="neutral"
             title={t('account.approveEveryTransaction')}
             body={t('account.nonCustodialBody')}
           />

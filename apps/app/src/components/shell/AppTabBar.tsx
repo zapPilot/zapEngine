@@ -6,7 +6,7 @@ export function AppTabBar(props: BottomTabBarProps) {
   const { hasSideNav } = useBreakpoint();
   if (hasSideNav) return null;
   return (
-    <View className="shrink-0 bg-bg">
+    <View className="shrink-0 bg-ground">
       <NowPlayingBarHost />
       <BottomTabBar {...props} />
     </View>

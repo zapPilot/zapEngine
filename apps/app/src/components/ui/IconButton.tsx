@@ -17,13 +17,12 @@ interface IconButtonProps extends Omit<
   accessibilityLabel: string;
   icon: LucideIcon;
   size?: keyof typeof sizes;
-  tone?: 'default' | 'secondary' | 'muted' | 'accent' | 'danger';
-  variant?: 'ghost' | 'secondary' | 'tonal';
+  tone?: 'default' | 'secondary' | 'muted' | 'sign' | 'alert';
+  variant?: 'ghost' | 'secondary';
 }
 const variants = {
   ghost: 'bg-transparent',
-  secondary: 'border border-line bg-surface',
-  tonal: 'border border-accent-line bg-accent-soft',
+  secondary: 'border border-rule bg-sheet',
 } as const;
 export function IconButton({
   icon,
@@ -45,7 +44,7 @@ export function IconButton({
     >
       <View
         className={cn(
-          'items-center justify-center rounded-pill',
+          'items-center justify-center rounded-round',
           sizes[size],
           variants[variant],
         )}

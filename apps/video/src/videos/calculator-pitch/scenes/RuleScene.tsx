@@ -54,7 +54,7 @@ export const RuleScene: React.FC<{ readonly scene: SceneOf<'rule'> }> = ({
               fontFamily: font.mono,
               fontSize: 22,
               letterSpacing: '0.14em',
-              color: color.inkMuted,
+              color: color['ink-3'],
               ...enter(frame, first),
             }}
           >
@@ -76,7 +76,7 @@ export const RuleScene: React.FC<{ readonly scene: SceneOf<'rule'> }> = ({
           <span style={{ fontSize: 38, color: color.ink }}>
             {facts.contractFile}
           </span>
-          <span style={{ fontSize: 26, color: color.inkDim }}>
+          <span style={{ fontSize: 26, color: color['ink-2'] }}>
             {facts.network} · {shortHex(facts.address)}
           </span>
           <div style={{ display: 'flex', gap: 12, marginTop: 6 }}>
@@ -91,14 +91,14 @@ export const RuleScene: React.FC<{ readonly scene: SceneOf<'rule'> }> = ({
               fontFamily: font.mono,
               fontSize: 22,
               letterSpacing: '0.14em',
-              color: color.inkMuted,
+              color: color['ink-3'],
             }}
           >
             OUTPUT
           </span>
           <span
             style={{
-              fontFamily: font.serif,
+              fontFamily: font.display,
               fontSize: 64,
               lineHeight: 1,
               color: color.ink,
@@ -107,7 +107,11 @@ export const RuleScene: React.FC<{ readonly scene: SceneOf<'rule'> }> = ({
             {output}
           </span>
           <span
-            style={{ fontFamily: font.sans, fontSize: 26, color: color.inkDim }}
+            style={{
+              fontFamily: font.text,
+              fontSize: 26,
+              color: color['ink-2'],
+            }}
           >
             Target allocation
           </span>

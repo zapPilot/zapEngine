@@ -19,12 +19,12 @@ export function Chip({
       accessibilityRole={props.accessibilityRole ?? 'button'}
       accessibilityState={{ ...props.accessibilityState, selected }}
       className={cn(
-        'min-h-hit items-center justify-center rounded-pill px-3',
-        selected ? 'bg-accent-soft' : 'bg-transparent',
+        'min-h-hit items-center justify-center rounded-round px-3',
+        selected ? 'bg-well' : 'bg-transparent',
         className,
       )}
     >
-      <Text variant="label" tone={selected ? 'accent' : 'muted'}>
+      <Text variant="label" tone={selected ? 'default' : 'muted'}>
         {label}
       </Text>
     </Tap>

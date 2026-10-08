@@ -6,7 +6,7 @@
  * tokens deliberately do not carry: elevation, a tone scale for status-coloured
  * chips, and per-provider identity colours.
  *
- * `--accent` stays the app's single brand signal. Card chrome reads from the
+ * `--ink` stays the app's single brand signal. Card chrome reads from the
  * tone scale instead, so a page can be colourful without a second brand colour.
  *
  * Scoped to Control Center on purpose: `packages/design-tokens` is consumed by
@@ -22,7 +22,7 @@
   --cc-shadow-pop:
     0 2px 6px rgb(17 24 39 / 6%), 0 12px 28px rgb(17 24 39 / 10%);
 
-  /* Radii. `--radius-tile` (8px) stays as-is: `.nav-item` and `.queue-column`
+  /* Radii. `--radius-panel` (8px) stays as-is: `.nav-item` and `.queue-column`
      depend on it, and pushing those to 16px turns nav items into pills. */
   --cc-radius-card: 16px;
   --cc-radius-inner: 12px;
@@ -38,18 +38,18 @@
   --cc-space-8: 32px;
 
   /* Tone scale. `-soft` is the icon-chip and pill fill; the base is the text,
-     icon and rule colour. Every pair is checked against `--surface`. */
-  --cc-tone-accent: var(--accent);
+     icon and rule colour. Every pair is checked against `--sheet`. */
+  --cc-tone-accent: var(--ink);
   --cc-tone-accent-soft: rgb(118 93 47 / 10%);
-  --cc-tone-success: var(--success);
+  --cc-tone-success: var(--ink);
   --cc-tone-success-soft: rgb(25 122 81 / 10%);
-  --cc-tone-warning: var(--warning);
+  --cc-tone-warning: var(--ink-2);
   --cc-tone-warning-soft: rgb(154 99 0 / 11%);
-  --cc-tone-danger: var(--danger);
+  --cc-tone-danger: var(--alert);
   --cc-tone-danger-soft: rgb(196 61 50 / 10%);
   --cc-tone-info: #2f5d8a;
   --cc-tone-info-soft: rgb(47 93 138 / 10%);
-  --cc-tone-neutral: var(--ink-dim);
+  --cc-tone-neutral: var(--ink-2);
   --cc-tone-neutral-soft: rgb(24 26 31 / 6%);
 
   /* Provider identity. Used as chip fills and dots, never as body text, so

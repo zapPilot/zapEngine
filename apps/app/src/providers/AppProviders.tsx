@@ -1,3 +1,4 @@
+import { palette } from '@/lib/palette';
 import { AccountSessionBridge } from '@/providers/AccountSessionBridge';
 import type { PrivyProviderProps } from '@privy-io/expo';
 import { PrivyElements } from '@privy-io/expo/ui';
@@ -31,7 +32,7 @@ export const AppProviders = createAppProviders({
         config={{
           appearance: {
             colorScheme: 'dark',
-            accentColor: '#d4c5a3',
+            accentColor: palette.sign,
           },
         }}
       />

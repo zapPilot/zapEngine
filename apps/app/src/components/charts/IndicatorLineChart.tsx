@@ -1,3 +1,4 @@
+import { palette } from '@/lib/palette';
 import { useId, useState } from 'react';
 import { View, type LayoutChangeEvent } from 'react-native';
 import Svg, { Defs, LinearGradient, Path, Stop } from 'react-native-svg';
@@ -61,19 +62,19 @@ export function IndicatorLineChart({
           <Path
             key={`guide-${guide}`}
             d={`M0,${yFor(guide)} L${width},${yFor(guide)}`}
-            stroke="rgba(255,255,255,.12)"
+            stroke={palette.rule}
             strokeWidth={1}
             strokeDasharray="2 4"
           />
         ))}
         <Path d={area} fill={`url(#${id})`} />
-        <Path d={line} fill="none" stroke="#d4c5a3" strokeWidth={2} />
+        <Path d={line} fill="none" stroke={palette.ink} strokeWidth={2} />
         {overlayPaths.map((path) => (
           <Path
             key={path}
             d={path}
             fill="none"
-            stroke="#9a8f78"
+            stroke={palette['ink-2']}
             strokeWidth={1.5}
             strokeDasharray="5 4"
           />
@@ -91,8 +92,8 @@ function IndicatorGradient({ id }: { id: string }) {
   return (
     <Defs>
       <LinearGradient id={id} x1="0" y1="0" x2="0" y2="1">
-        <Stop offset="0" stopColor="#d4c5a3" stopOpacity={0.3} />
-        <Stop offset="1" stopColor="#d4c5a3" stopOpacity={0} />
+        <Stop offset="0" stopColor={palette.ink} stopOpacity={0.3} />
+        <Stop offset="1" stopColor={palette.ink} stopOpacity={0} />
       </LinearGradient>
     </Defs>
   );

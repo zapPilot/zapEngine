@@ -30,6 +30,7 @@ const codeProps = new Set([
   'className',
   'variant',
   'tone',
+  'status',
   'size',
   'feedback',
   'width',

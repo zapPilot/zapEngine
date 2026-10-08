@@ -6,5 +6,6 @@ See @../AGENTS.md for shared package guidelines.
 - Generated outputs (`dist/`, `src/generated/tokens.ts`) are checked in. After editing `tokens.json`, run the Turbo build and keep the regenerated files with the source change.
 - Consumers: `apps/app` uses the static `@zapengine/design-tokens/tokens` module and JSON theme; `apps/landing-page` and `apps/control-center` use generated CSS variables; `apps/podcast-pipeline` uses static colors for video templates. Landing does not consume a Tailwind preset.
 - Font tokens are runtime Expo family names, not display names. Keep them aligned with `apps/app/src/lib/fonts.ts` and the typography roles.
-- Emit CSS only for colors, radii, typography, shadows, easing, durations, and Fumadocs aliases. Keep font/motion/breakpoint/container/gutter/size tokens in TypeScript/JSON to avoid Tailwind variable collisions.
+- CSS emits mode/sleeve/material roles, radii, lines, spaces, typography, font families, overlay shadows, easing and durations. Host Fumadocs aliases belong in landing globals. Do not emit Tailwind namespaces (`--color-*`, `--text-*`, `--ease-*`, `--spacing*`, container/breakpoint); `--font-mono` is the intentional exception.
+- Fonts and brand assets are generated from pinned sources and tokens. Keep all host copies together; no legacy aliases. Static family names must match font name tables.
 - Token renames migrate all consumers in the same change. Do not reintroduce `bg-2`, `error`, `.v2-root`, duplicate pillar aliases, or Flutter output.

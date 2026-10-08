@@ -1,3 +1,4 @@
+import { Icon } from '@/components/ui/Icon';
 import { Wallet } from 'lucide-react-native';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
@@ -80,7 +81,7 @@ export function FundingPlanDisclosure({
             )
           }
         >
-          <Text className="mt-2 text-[10px] text-accent">
+          <Text className="font-mono-medium mt-2 text-label text-ink">
             {row.excluded ? 'Use this balance' : "Don't use"}
           </Text>
         </Tap>
@@ -93,24 +94,26 @@ export function FundingPlanDisclosure({
         accessibilityLabel={`Change source for ${row.chainLabel}`}
         onPress={() => setPicker(row.chainId)}
       >
-        <Text className="mt-2 text-[10px] text-accent">Change source</Text>
+        <Text className="font-mono-medium mt-2 text-label text-ink">
+          Change source
+        </Text>
       </Tap>
     );
   };
   return (
-    <View className="mt-4 rounded-[18px] border border-line px-4">
+    <View className="mt-4 rounded-panel border border-rule px-4">
       <Disclosure
         expanded={expanded}
         onToggle={() => setExpanded((v) => !v)}
         accessibilityLabel="How we'll fund this"
         header={
           <>
-            <Wallet size={17} color="#a1a1aa" />
+            <Icon icon={Wallet} size="md" tone="secondary" />
             <View className="flex-1">
-              <Text className="text-[12px] text-ink">
+              <Text className="font-text text-caption text-ink">
                 How we&apos;ll fund this
               </Text>
-              <Text className="mt-1 text-[10px] text-ink-dim">
+              <Text className="font-mono-medium mt-1 text-label text-ink-2">
                 {fundingPlanSummary({
                   sourceCount: sources.usedSourceCount,
                   hasPreferences,
@@ -121,7 +124,9 @@ export function FundingPlanDisclosure({
           </>
         }
       >
-        <Text className="text-[9px] uppercase text-ink-faint">Sources</Text>
+        <Text className="font-mono-medium text-label uppercase text-ink-3">
+          Sources
+        </Text>
         {visible.map((row) => (
           <InvestLineItem
             key={row.key}
@@ -145,7 +150,7 @@ export function FundingPlanDisclosure({
             trailing={sourceControl(row)}
           />
         ))}
-        <Text className="my-2 text-[10px] text-ink-dim">
+        <Text className="font-mono-medium my-2 text-label text-ink-2">
           We keep about $5 of ETH on each chain for gas.
         </Text>
         {plan.warnings
@@ -153,21 +158,23 @@ export function FundingPlanDisclosure({
           .map((w, index) => (
             <Text
               key={`${w.kind}:${index}`}
-              className="my-1 text-[10px] text-ink-dim"
+              className="font-mono-medium my-1 text-label text-ink-2"
             >
               {fundingWarningMessage(w)}
             </Text>
           ))}
         {hyperCoreNote ? (
-          <Text className="my-1 text-[10px] text-ink-dim">{hyperCoreNote}</Text>
+          <Text className="font-mono-medium my-1 text-label text-ink-2">
+            {hyperCoreNote}
+          </Text>
         ) : null}
-        <Text className="my-2 text-[10px] text-ink-dim">
+        <Text className="font-mono-medium my-2 text-label text-ink-2">
           {sources.usedChainCount} wallet batches — one signature per source
           chain.
         </Text>
         {hasPreferences ? (
           <Tap accessibilityRole="button" onPress={onUseRecommended}>
-            <Text className="py-2 text-[11px] text-accent">
+            <Text className="font-mono-medium py-2 text-label text-ink">
               Use recommended
             </Text>
           </Tap>

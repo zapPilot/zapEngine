@@ -1,3 +1,4 @@
+import { Icon } from '@/components/ui/Icon';
 import { Callout } from '@/components/ui/Callout';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowRight } from 'lucide-react-native';
@@ -106,7 +107,7 @@ export function StrategyScreen() {
       />
 
       <View className="mt-6 flex-row items-center justify-between">
-        <Text className="font-sans-semibold text-[14px] text-ink">
+        <Text className="font-text-semibold text-body text-ink">
           {t('strategy.backtest')}
         </Text>
         <SegmentedControl
@@ -124,29 +125,29 @@ export function StrategyScreen() {
       <Card className="mt-3 p-[15px]">
         <View className="flex-row items-end justify-between">
           <View>
-            <Text className="font-mono text-[9px] uppercase tracking-[0.9px] text-[#9a8f78]">
+            <Text className="font-mono text-data uppercase tracking-[0.9px] text-ink-3">
               {t('strategy.backtestLabel')}
             </Text>
             {loading ? (
-              <SkeletonBlock className="mt-1 h-8 w-24 rounded-lg" />
+              <SkeletonBlock className="mt-1 h-8 w-24 rounded-panel" />
             ) : (
-              <Text className="mt-0.5 font-serif text-[30px] leading-[33px] text-success">
+              <Text className="mt-0.5 font-display text-title leading-[33px] text-ink">
                 {strategy.backtest.returnLabel}
               </Text>
             )}
           </View>
           <View className="items-end">
-            <Text className="font-mono text-[9px] leading-[15px] text-ink-faint">
+            <Text className="font-mono text-data leading-[15px] text-ink-3">
               {strategy.backtest.vsBtcLabel}
             </Text>
-            <Text className="font-mono text-[9px] leading-[15px] text-ink-faint">
+            <Text className="font-mono text-data leading-[15px] text-ink-3">
               {strategy.backtest.vsEthLabel}
             </Text>
           </View>
         </View>
         <View className="mt-4 h-[150px] justify-center">
           {loading ? (
-            <SkeletonBlock className="h-[138px] w-full rounded-2xl" />
+            <SkeletonBlock className="h-[138px] w-full rounded-panel" />
           ) : chartData.length > 1 ? (
             <Sparkline
               data={chartData}
@@ -172,10 +173,10 @@ export function StrategyScreen() {
 
       <Card className="mt-6 p-4">
         <View className="flex-row items-center justify-between">
-          <Text className="font-sans-semibold text-[15px] text-ink">
+          <Text className="font-text-semibold text-body text-ink">
             {t('strategy.currentPositioning')}
           </Text>
-          <Badge className="border border-line bg-[rgba(255,255,255,.05)]">
+          <Badge className="border border-rule bg-well">
             {strategy.backtest.currentModeLabel}
           </Badge>
         </View>
@@ -195,14 +196,14 @@ export function StrategyScreen() {
             >
               <View className="flex-row items-center gap-2">
                 <View
-                  className="h-[9px] w-[9px] rounded-full"
+                  className="h-[9px] w-[9px] rounded-round"
                   style={{ backgroundColor: item.color }}
                 />
-                <Text className="text-[13px] text-ink-dim">{item.label}</Text>
+                <Text className="font-text text-body-sm text-ink-2">
+                  {item.label}
+                </Text>
               </View>
-              <Text className="font-mono text-[12.5px] text-ink">
-                {item.pct}%
-              </Text>
+              <Text className="font-mono text-data text-ink">{item.pct}%</Text>
             </View>
           ))}
         </View>
@@ -210,7 +211,7 @@ export function StrategyScreen() {
 
       {!strategy.hasTargetAllocation ? (
         <Callout
-          tone="danger"
+          tone="alert"
           body={t('strategy.allocationUnavailable')}
           className="mt-4"
         />
@@ -218,10 +219,10 @@ export function StrategyScreen() {
 
       <View className="mt-5">
         <Button onPress={startStrategy}>
-          <Text className="font-sans-semibold text-[15.5px] text-[#0a0a0a]">
+          <Text className="font-text-semibold text-body text-on-sign">
             {t('strategy.start')}
           </Text>
-          <ArrowRight size={16} strokeWidth={1.8} color="#0a0a0a" />
+          <Icon icon={ArrowRight} size="sm" tone="default" />
         </Button>
       </View>
     </ScreenScrollView>

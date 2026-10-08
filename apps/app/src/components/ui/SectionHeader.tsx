@@ -4,12 +4,12 @@ import { Text } from './Text';
 import { cn } from '@/lib/cn';
 export function SectionHeader({
   title,
-  variant = 'overline',
+  variant = 'label',
   action,
   className,
 }: {
   title: ReactNode;
-  variant?: 'overline' | 'title';
+  variant?: 'label' | 'title';
   action?: ReactNode;
   className?: string;
 }): ReactElement {
@@ -19,8 +19,8 @@ export function SectionHeader({
     >
       <Text
         heading={2}
-        variant={variant === 'overline' ? 'overline' : 'heading'}
-        tone={variant === 'overline' ? 'muted' : 'default'}
+        variant={variant === 'label' ? 'label' : 'heading'}
+        tone={variant === 'label' ? 'muted' : 'default'}
         className="min-w-0 flex-1"
       >
         {title}

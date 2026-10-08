@@ -2,30 +2,13 @@
  * landing-v2.css — styles for the redesigned landing page ("Zap Pilot Landing" mockup).
  *
  * Every rule is scoped under `.zp-root` so nothing here can clash with the
- * legacy `.shell-root` styles in landing.css, which are still used by /pitch.
+ * legacy `.track-record-root` styles in track-record/track-record.css, which are still used by /pitch.
  */
 
 .zp-root {
-  --zp-bg: #0a0a0a;
-  --zp-bg-alt: #0e0e10;
-  --zp-text: #f4f4f5;
-  --zp-muted: #a1a1aa;
-  --zp-faint: #52525b;
-  --zp-accent: #d4c5a3;
-  --zp-accent-bright: #e8dcc0;
-  --zp-green: #7ad88f;
-  --zp-red: #ff6f61;
-  --zp-hairline: rgba(255, 255, 255, 0.06);
-  --zp-border: rgba(255, 255, 255, 0.08);
-  --zp-serif: var(--font-serif), 'Instrument Serif', Georgia, serif;
-  --zp-mono:
-    var(--font-mono), 'JetBrains Mono', ui-monospace, 'SFMono-Regular',
-    monospace;
-  --zp-sans: var(--font-geist-sans), 'Geist', system-ui, sans-serif;
-
-  background: var(--zp-bg);
-  color: var(--zp-text);
-  font-family: var(--zp-sans);
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--font-text);
   -webkit-font-smoothing: antialiased;
   /* Clip instead of creating a scroll container so the sticky nav keeps
      working. */
@@ -48,11 +31,11 @@
 /* ---------- Shared primitives ---------- */
 
 .zp-section {
-  border-top: 1px solid var(--zp-hairline);
+  border-top: 1px solid var(--rule);
 }
 
 .zp-section-alt {
-  background: var(--zp-bg-alt);
+  background: var(--sheet);
 }
 
 .zp-container {
@@ -62,16 +45,16 @@
 }
 
 .zp-kicker {
-  font-family: var(--zp-mono);
+  font-family: var(--font-mono);
   font-size: 10px;
   letter-spacing: 2px;
   text-transform: uppercase;
-  color: var(--zp-accent);
+  color: var(--ink);
   margin: 0 0 16px;
 }
 
 .zp-h2 {
-  font-family: var(--zp-serif);
+  font-family: var(--font-display);
   font-weight: 400;
   font-size: clamp(34px, 4.5vw, 52px);
   line-height: 1.05;
@@ -80,7 +63,7 @@
 }
 
 .zp-lede {
-  color: var(--zp-muted);
+  color: var(--ink-2);
   font-size: 16.5px;
   line-height: 1.65;
   margin: 0 0 46px;
@@ -100,7 +83,7 @@
   padding: 18px 48px;
   background: rgba(10, 10, 10, 0.82);
   backdrop-filter: blur(14px);
-  border-bottom: 1px solid var(--zp-hairline);
+  border-bottom: 1px solid var(--rule);
 }
 
 .zp-nav-brand {
@@ -116,33 +99,33 @@
 }
 
 .zp-nav-tagline {
-  font-family: var(--zp-serif);
+  font-family: var(--font-display);
   font-style: italic;
   font-size: 14px;
-  color: var(--zp-faint);
+  color: var(--ink-3);
 }
 
 .zp-nav-links {
   display: flex;
   gap: 34px;
-  font-family: var(--zp-mono);
+  font-family: var(--font-mono);
   font-size: 10.5px;
   letter-spacing: 1.6px;
   text-transform: uppercase;
 }
 
 .zp-nav-links a {
-  color: var(--zp-muted);
+  color: var(--ink-2);
   transition: color 0.15s ease;
 }
 
 .zp-nav-links a:hover {
-  color: var(--zp-text);
+  color: var(--ink);
 }
 
 .zp-nav-cta {
-  background: var(--zp-text);
-  color: var(--zp-bg);
+  background: var(--ink);
+  color: var(--ground);
   font-size: 13px;
   font-weight: 600;
   padding: 9px 20px;
@@ -152,11 +135,11 @@
 }
 
 .zp-root .zp-nav-cta {
-  color: var(--zp-bg);
+  color: var(--ground);
 }
 
 .zp-nav-cta:hover {
-  background: var(--zp-accent);
+  background: var(--ink);
 }
 
 /* ---------- Hero ---------- */
@@ -178,15 +161,15 @@
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 999px;
   padding: 7px 16px;
-  font-family: var(--zp-mono);
+  font-family: var(--font-mono);
   font-size: 10px;
   letter-spacing: 1.8px;
   text-transform: uppercase;
-  color: var(--zp-muted);
+  color: var(--ink-2);
 }
 
 .zp-hero-title {
-  font-family: var(--zp-serif);
+  font-family: var(--font-display);
   font-weight: 400;
   font-size: clamp(44px, 6.5vw, 76px);
   line-height: 1.02;
@@ -197,7 +180,7 @@
 .zp-hero-sub {
   font-size: 17.5px;
   line-height: 1.65;
-  color: var(--zp-muted);
+  color: var(--ink-2);
   max-width: 52ch;
   margin: 0 0 26px;
 }
@@ -216,9 +199,9 @@
   align-items: center;
   gap: 9px;
   font-size: 13px;
-  color: var(--zp-text);
+  color: var(--ink);
   background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--zp-border);
+  border: 1px solid var(--rule);
   border-radius: 999px;
   padding: 5px 14px 5px 6px;
 }
@@ -242,7 +225,7 @@
 }
 
 .zp-btn-primary {
-  background: var(--zp-accent);
+  background: var(--ink);
   color: #141310;
   font-weight: 600;
   padding: 15px 30px;
@@ -253,12 +236,12 @@
 }
 
 .zp-btn-primary:hover {
-  background: var(--zp-accent-bright);
+  background: var(--ink);
 }
 
 .zp-btn-ghost {
   border: 1px solid rgba(255, 255, 255, 0.16);
-  color: var(--zp-text);
+  color: var(--ink);
   font-weight: 500;
   padding: 15px 28px;
 }
@@ -289,24 +272,24 @@
 .zp-trace-title,
 .zp-trace-replay,
 .zp-trace-stage {
-  font-family: var(--zp-mono);
+  font-family: var(--font-mono);
   font-size: 10px;
   letter-spacing: 1.6px;
   text-transform: uppercase;
 }
 
 .zp-trace-title {
-  color: var(--zp-accent);
+  color: var(--ink);
 }
 
 .zp-trace-replay,
 .zp-trace-stage {
-  color: var(--zp-faint);
+  color: var(--ink-3);
 }
 
 .zp-trace-strategy {
   margin: 12px 0 18px;
-  font-family: var(--zp-serif);
+  font-family: var(--font-display);
   font-size: 22px;
   line-height: 1.2;
 }
@@ -329,7 +312,7 @@
   grid-template-columns: 92px minmax(0, 1fr) auto;
   gap: 12px;
   align-items: baseline;
-  background: var(--zp-bg-alt);
+  background: var(--sheet);
   padding: 12px 14px;
 }
 
@@ -339,11 +322,11 @@
   gap: 6px;
   font-size: 13.5px;
   line-height: 1.45;
-  color: var(--zp-text);
+  color: var(--ink);
 }
 
 .zp-trace-text a {
-  color: var(--zp-accent);
+  color: var(--ink);
 }
 
 .zp-trace-note {
@@ -352,14 +335,14 @@
   flex-wrap: wrap;
   gap: 8px;
   font-size: 12px;
-  color: var(--zp-muted);
+  color: var(--ink-2);
 }
 
 .zp-trace-footnote {
   margin: 14px 0 0;
   font-size: 12px;
   line-height: 1.55;
-  color: var(--zp-faint);
+  color: var(--ink-3);
 }
 
 /* ---------- Cards: ownership & strategies ---------- */
@@ -371,26 +354,26 @@
 }
 
 .zp-card {
-  border: 1px solid var(--zp-border);
+  border: 1px solid var(--rule);
   border-radius: 12px;
   padding: 30px 32px;
-  background: var(--zp-bg);
+  background: var(--ground);
   display: flex;
   flex-direction: column;
 }
 
 .zp-card-kicker {
-  font-family: var(--zp-mono);
+  font-family: var(--font-mono);
   font-size: 10px;
   letter-spacing: 1.8px;
   text-transform: uppercase;
-  color: var(--zp-faint);
+  color: var(--ink-3);
   margin: 0 0 12px;
 }
 
 .zp-own-promise {
   margin: 0 0 24px;
-  color: var(--zp-accent);
+  color: var(--ink);
   font-size: 15px;
   line-height: 1.5;
 }
@@ -406,7 +389,7 @@
 
 .zp-own-list,
 .zp-own-next {
-  color: var(--zp-muted);
+  color: var(--ink-2);
   font-size: 14px;
   line-height: 1.55;
 }
@@ -424,15 +407,15 @@
 
 .zp-strategy-meta {
   margin: 14px 0 0;
-  font-family: var(--zp-mono);
+  font-family: var(--font-mono);
   font-size: 11px;
   letter-spacing: 0.6px;
-  color: var(--zp-accent);
+  color: var(--ink);
 }
 
 .zp-strategy-note {
   margin: 14px 0 0;
-  color: var(--zp-muted);
+  color: var(--ink-2);
   font-size: 13.5px;
   line-height: 1.5;
 }
@@ -440,11 +423,11 @@
 .zp-root .zp-strategy-link {
   margin-top: auto;
   padding-top: 22px;
-  font-family: var(--zp-mono);
+  font-family: var(--font-mono);
   font-size: 11px;
   letter-spacing: 1.2px;
   text-transform: uppercase;
-  color: var(--zp-accent);
+  color: var(--ink);
 }
 
 /* ---------- Runtime steps ---------- */
@@ -459,10 +442,10 @@
 }
 
 .zp-step {
-  border: 1px solid var(--zp-border);
+  border: 1px solid var(--rule);
   border-radius: 12px;
   padding: 30px 32px;
-  background: var(--zp-bg-alt);
+  background: var(--sheet);
 }
 
 .zp-step-head {
@@ -474,20 +457,20 @@
 }
 
 .zp-step-num {
-  font-family: var(--zp-mono);
+  font-family: var(--font-mono);
   font-size: 11px;
-  color: var(--zp-faint);
+  color: var(--ink-3);
 }
 
 .zp-step-title {
-  font-family: var(--zp-serif);
+  font-family: var(--font-display);
   font-weight: 400;
   font-size: 28px;
   margin: 0 0 12px;
 }
 
 .zp-step-body {
-  color: var(--zp-muted);
+  color: var(--ink-2);
   font-size: 14.5px;
   line-height: 1.6;
   margin: 0;
@@ -497,25 +480,25 @@
   margin: 16px 0 0;
   padding: 14px 0 0;
   list-style: none;
-  border-top: 1px solid var(--zp-hairline);
+  border-top: 1px solid var(--rule);
   display: flex;
   flex-direction: column;
   gap: 10px;
-  color: var(--zp-muted);
+  color: var(--ink-2);
   font-size: 13px;
   line-height: 1.5;
 }
 
 .zp-runtime-footnote {
   margin-top: 30px;
-  color: var(--zp-muted);
+  color: var(--ink-2);
   font-size: 14px;
   line-height: 1.6;
 }
 
 .zp-runtime-footnote p {
   margin: 0 0 12px;
-  color: var(--zp-text);
+  color: var(--ink);
 }
 
 .zp-runtime-footnote ul {
@@ -533,44 +516,44 @@
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: 2px;
-  border: 1px solid var(--zp-border);
+  border: 1px solid var(--rule);
   border-radius: 12px;
   overflow: hidden;
-  background: var(--zp-border);
+  background: var(--rule);
   margin-bottom: 26px;
 }
 
 .zp-metric {
-  background: var(--zp-bg);
+  background: var(--ground);
   padding: 26px 24px;
 }
 
 .zp-metric-label {
-  font-family: var(--zp-mono);
+  font-family: var(--font-mono);
   font-size: 9.5px;
   letter-spacing: 1.6px;
   text-transform: uppercase;
-  color: var(--zp-faint);
+  color: var(--ink-3);
   margin: 0 0 10px;
 }
 
 .zp-metric-value {
-  font-family: var(--zp-serif);
+  font-family: var(--font-display);
   font-size: 36px;
   margin: 0;
 }
 
 .zp-metric-value-accent {
-  color: var(--zp-accent);
+  color: var(--ink);
 }
 
 .zp-metric-value-good {
-  color: var(--zp-green);
+  color: var(--up);
 }
 
 .zp-metric-sub {
   font-size: 12px;
-  color: var(--zp-faint);
+  color: var(--ink-3);
   margin: 8px 0 0;
 }
 
@@ -578,10 +561,10 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  border: 1px solid var(--zp-border);
+  border: 1px solid var(--rule);
   border-radius: 12px;
   overflow: hidden;
-  background: var(--zp-border);
+  background: var(--rule);
   margin-bottom: 22px;
 }
 
@@ -589,7 +572,7 @@
 .zp-table-row {
   display: grid;
   grid-template-columns: 1.4fr 1fr 1fr 1fr;
-  background: var(--zp-bg);
+  background: var(--ground);
   padding: 16px 24px;
   gap: 10px;
   align-items: baseline;
@@ -597,11 +580,11 @@
 
 .zp-table-head {
   padding: 13px 24px;
-  font-family: var(--zp-mono);
+  font-family: var(--font-mono);
   font-size: 9.5px;
   letter-spacing: 1.6px;
   text-transform: uppercase;
-  color: var(--zp-faint);
+  color: var(--ink-3);
 }
 
 .zp-table-row {
@@ -609,28 +592,28 @@
 }
 
 .zp-table-row-muted {
-  color: var(--zp-muted);
+  color: var(--ink-2);
 }
 
 .zp-table-strategy {
-  color: var(--zp-accent);
+  color: var(--ink);
   font-weight: 600;
 }
 
 .zp-table-num {
-  font-family: var(--zp-mono);
+  font-family: var(--font-mono);
 }
 
 .zp-footnote {
   font-size: 12px;
-  color: var(--zp-faint);
+  color: var(--ink-3);
   line-height: 1.6;
   margin: 0;
 }
 
 .zp-proof-note {
   margin: 0 0 14px;
-  color: var(--zp-muted);
+  color: var(--ink-2);
   font-size: 13.5px;
 }
 
@@ -645,7 +628,7 @@
 }
 
 .zp-proof-links a {
-  color: var(--zp-accent);
+  color: var(--ink);
 }
 
 .zp-proof-links li {
@@ -653,7 +636,7 @@
   align-items: baseline;
   flex-wrap: wrap;
   gap: 10px;
-  color: var(--zp-muted);
+  color: var(--ink-2);
 }
 
 /* ---------- Adapters ---------- */
@@ -670,10 +653,10 @@
 }
 
 .zp-venue {
-  border: 1px solid var(--zp-border);
+  border: 1px solid var(--rule);
   border-radius: 12px;
   padding: 22px;
-  background: var(--zp-bg-alt);
+  background: var(--sheet);
   display: flex;
   flex-direction: column;
   gap: 11px;
@@ -703,11 +686,11 @@
 }
 
 .zp-venue-tag {
-  font-family: var(--zp-mono);
+  font-family: var(--font-mono);
   font-size: 9px;
   letter-spacing: 1.4px;
   text-transform: uppercase;
-  color: var(--zp-faint);
+  color: var(--ink-3);
 }
 
 .zp-adapters-note {
@@ -717,7 +700,7 @@
 
 .zp-venue-body {
   margin: 0;
-  color: var(--zp-muted);
+  color: var(--ink-2);
   font-size: 12.5px;
   line-height: 1.55;
 }
@@ -740,7 +723,7 @@
   gap: 16px;
   font-size: 15px;
   line-height: 1.55;
-  color: var(--zp-text);
+  color: var(--ink);
 }
 
 .zp-trust-list li {
@@ -750,17 +733,17 @@
 }
 
 .zp-trust-list span span {
-  color: var(--zp-muted);
+  color: var(--ink-2);
 }
 
 .zp-trust-list strong {
-  color: var(--zp-text);
+  color: var(--ink);
 }
 
 .zp-bundle {
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 14px;
-  background: var(--zp-bg);
+  background: var(--ground);
   padding: 28px;
   display: flex;
   flex-direction: column;
@@ -775,20 +758,20 @@
 }
 
 .zp-bundle-kicker {
-  font-family: var(--zp-mono);
+  font-family: var(--font-mono);
   font-size: 9.5px;
   letter-spacing: 1.8px;
   text-transform: uppercase;
-  color: var(--zp-faint);
+  color: var(--ink-3);
   margin: 0;
 }
 
 .zp-bundle-tag {
-  font-family: var(--zp-mono);
+  font-family: var(--font-mono);
   font-size: 9.5px;
   letter-spacing: 1.4px;
   text-transform: uppercase;
-  color: var(--zp-muted);
+  color: var(--ink-2);
   border: 1px dashed rgba(255, 255, 255, 0.2);
   border-radius: 999px;
   padding: 3px 10px;
@@ -810,27 +793,27 @@
   justify-content: space-between;
   align-items: baseline;
   gap: 16px;
-  background: var(--zp-bg-alt);
+  background: var(--sheet);
   padding: 14px 18px;
 }
 
 .zp-bundle-row dt {
-  font-family: var(--zp-mono);
+  font-family: var(--font-mono);
   font-size: 10px;
   letter-spacing: 1.2px;
   text-transform: uppercase;
-  color: var(--zp-faint);
+  color: var(--ink-3);
 }
 
 .zp-bundle-row dd {
   margin: 0;
   font-size: 13.5px;
   text-align: right;
-  color: var(--zp-text);
+  color: var(--ink);
 }
 
 .zp-bundle-sign {
-  background: var(--zp-accent);
+  background: var(--ink);
   color: #141310;
   border-radius: 999px;
   text-align: center;
@@ -843,11 +826,11 @@
 .zp-bundle-footnote {
   margin: 14px 0 0;
   text-align: center;
-  font-family: var(--zp-mono);
+  font-family: var(--font-mono);
   font-size: 9.5px;
   letter-spacing: 1.4px;
   text-transform: uppercase;
-  color: var(--zp-faint);
+  color: var(--ink-3);
 }
 
 /* ---------- Closing CTA ---------- */
@@ -860,7 +843,7 @@
 }
 
 .zp-closing-quote {
-  font-family: var(--zp-serif);
+  font-family: var(--font-display);
   font-style: italic;
   font-size: clamp(30px, 4vw, 44px);
   line-height: 1.2;
@@ -875,7 +858,7 @@
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  color: var(--zp-muted);
+  color: var(--ink-2);
   font-size: 16px;
   line-height: 1.6;
   max-width: 60ch;
@@ -895,8 +878,8 @@
 /* ---------- Footer ---------- */
 
 .zp-footer {
-  border-top: 1px solid var(--zp-hairline);
-  background: var(--zp-bg-alt);
+  border-top: 1px solid var(--rule);
+  background: var(--sheet);
 }
 
 .zp-footer-inner {
@@ -916,30 +899,30 @@
   margin: 0;
   padding: 0;
   list-style: none;
-  font-family: var(--zp-mono);
+  font-family: var(--font-mono);
   font-size: 10px;
   letter-spacing: 1.6px;
   text-transform: uppercase;
-  color: var(--zp-muted);
+  color: var(--ink-2);
   flex-wrap: wrap;
   align-items: center;
 }
 
 .zp-footer-items a {
-  color: var(--zp-muted);
+  color: var(--ink-2);
   transition: color 0.15s ease;
 }
 
 .zp-footer-items a:hover {
-  color: var(--zp-text);
+  color: var(--ink);
 }
 
 .zp-footer-brand {
-  font-family: var(--zp-mono);
+  font-family: var(--font-mono);
   font-size: 10px;
   letter-spacing: 1.6px;
   text-transform: uppercase;
-  color: var(--zp-faint);
+  color: var(--ink-3);
 }
 
 /* ---------- Responsive ---------- */

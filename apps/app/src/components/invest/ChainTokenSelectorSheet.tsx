@@ -27,24 +27,24 @@ export function ChainTokenSelectorSheet({
       <View className="flex-1 justify-end bg-scrim">
         <View
           accessibilityViewIsModal
-          className="rounded-t-[28px] border-t border-line bg-[#111113] p-5 pb-10"
+          className="rounded-t-[28px] border-t border-rule bg-well p-5 pb-10"
         >
-          <Text className="font-serif text-[24px] text-ink">{title}</Text>
-          <Text className="my-2 text-[11px] text-ink-dim">{subtitle}</Text>
+          <Text className="font-display text-title text-ink">{title}</Text>
+          <Text className="font-mono-medium my-2 text-label text-ink-2">
+            {subtitle}
+          </Text>
           <Tap
             accessibilityRole="button"
             accessibilityLabel="Automatic"
             accessibilityState={{ selected: rows.every((r) => !r.preferred) }}
-            className="flex-row items-center gap-3 border-t border-line py-4"
+            className="flex-row items-center gap-3 border-t border-rule py-4"
             onPress={() => {
               onClearPreference();
               onClose();
             }}
           >
-            <Text className="flex-1 text-ink">Automatic</Text>
-            <Text className="font-mono text-[11px] text-ink-dim">
-              Recommended
-            </Text>
+            <Text className="font-text flex-1 text-ink">Automatic</Text>
+            <Text className="font-mono text-data text-ink-2">Recommended</Text>
           </Tap>
           {rows
             .filter(
@@ -57,7 +57,7 @@ export function ChainTokenSelectorSheet({
                 accessibilityRole="button"
                 accessibilityLabel={row.label}
                 accessibilityState={{ selected: row.preferred }}
-                className="flex-row items-center gap-3 border-t border-line py-4"
+                className="flex-row items-center gap-3 border-t border-rule py-4"
                 onPress={() => {
                   onSelect(row.symbol);
                   onClose();
@@ -69,8 +69,8 @@ export function ChainTokenSelectorSheet({
                   size={32}
                   alt=""
                 />
-                <Text className="flex-1 text-ink">{row.label}</Text>
-                <Text className="font-mono text-[11px] text-ink-dim">
+                <Text className="font-text flex-1 text-ink">{row.label}</Text>
+                <Text className="font-mono text-data text-ink-2">
                   Available {formatUsd6(row.spendableUsd6 ?? 0n)}
                 </Text>
               </Tap>
@@ -80,7 +80,7 @@ export function ChainTokenSelectorSheet({
             accessibilityLabel="Close source selector"
             onPress={onClose}
           >
-            <Text className="py-3 text-center text-accent">Close</Text>
+            <Text className="font-text py-3 text-center text-ink">Close</Text>
           </Tap>
         </View>
       </View>

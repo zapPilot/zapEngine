@@ -71,10 +71,10 @@ export function SendScreen() {
                 alt={selectedAsset.symbol}
               />
               <View className="flex-1">
-                <Text className="font-sans-semibold text-[15px] text-ink">
+                <Text className="font-text-semibold text-body text-ink">
                   {selectedAsset.symbol}
                 </Text>
-                <Text className="mt-1 text-[12px] text-ink-dim">
+                <Text className="font-text mt-1 text-caption text-ink-2">
                   {typeof selectedAsset.usdValue === 'number'
                     ? formatUsd(selectedAsset.usdValue)
                     : 'Live balance pending'}
@@ -88,14 +88,14 @@ export function SendScreen() {
                 symbol={SEND_FALLBACK_TOKEN_SYMBOL}
                 alt={SEND_FALLBACK_TOKEN_SYMBOL}
               />
-              <Text className="font-sans-semibold text-[15px] text-ink">
+              <Text className="font-text-semibold text-body text-ink">
                 No tokens found
               </Text>
             </View>
           )}
           <View className="mt-4 gap-3">
             <TextInput
-              className="rounded-2xl border border-line bg-[rgba(255,255,255,.035)] px-4 py-3 font-mono text-[16px] text-ink"
+              className="rounded-panel border border-rule bg-well px-4 py-3 font-mono text-data-md text-ink"
               keyboardType="decimal-pad"
               placeholder="0.00"
               placeholderTextColor="#52525b"
@@ -103,7 +103,7 @@ export function SendScreen() {
               onChangeText={setAmount}
             />
             <TextInput
-              className="rounded-2xl border border-line bg-[rgba(255,255,255,.035)] px-4 py-3 font-mono text-[13px] text-ink"
+              className="rounded-panel border border-rule bg-well px-4 py-3 font-mono text-data text-ink"
               autoCapitalize="none"
               autoCorrect={false}
               placeholder="0x recipient"
@@ -116,9 +116,9 @@ export function SendScreen() {
             {SEND_CHAIN_OPTIONS.map((chain) => (
               <Tap
                 key={chain.key}
-                className="rounded-full border border-line px-3 py-2"
+                className="rounded-round border border-rule px-3 py-2"
               >
-                <Text className="font-mono text-[10px] text-ink-dim">
+                <Text className="font-mono text-data text-ink-2">
                   {chain.label}
                 </Text>
               </Tap>

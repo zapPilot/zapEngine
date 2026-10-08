@@ -645,7 +645,7 @@ describe('portfolio allocation gaps', () => {
       {
         label: 'Stablecoins',
         pct: 10,
-        color: tokens.color.pillar.usd,
+        color: tokens.sleeve.night.stable,
       },
     ]);
     expect(

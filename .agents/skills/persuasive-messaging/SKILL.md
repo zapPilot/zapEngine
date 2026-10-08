@@ -8,7 +8,7 @@ description: Use for ZapEngine marketing copy, positioning, /pitch decks, promo 
 ## Where the copy already lives
 
 - Landing: `apps/landing-page/src/config/messages.ts` (`MESSAGES`) holds every home-page string.
-- Capability claims: `apps/landing-page/src/config/runtime.ts` (`CAPABILITIES`) records each capability as Live, Research, In development or Planned. Copy references a capability id and pages render its status badge; liveness is never written in prose.
+- Capability claims: `packages/zap-pilot-story/src/facts/capabilities.ts` (`CAPABILITIES`) records each capability as Live, Research, In development or Planned. Copy references a capability id and pages render its status badge; liveness is never written in prose.
 - `apps/landing-page/src/config/__tests__/positioning.test.tsx` fences landing, pitch and docs claims, retired terms and docs links; when it fails, change the copy.
 - Pitch: `apps/landing-page/src/config/pitch.ts` and `apps/landing-page/src/app/pitch/`; the cover reuses `MESSAGES.hero`.
 - Promo video: `apps/video/src/videos/<id>/storyboard.ts`; numbers come only from `facts.ts`.
@@ -17,6 +17,7 @@ description: Use for ZapEngine marketing copy, positioning, /pitch decks, promo 
 - Budget compression: `apps/podcast-pipeline/prompts/title-compression-system-prompt.txt`, generated and persisted in ingest.
 - Budget policy: `apps/podcast-pipeline/src/social/policy.ts`; deterministic fitting: `apps/podcast-pipeline/src/services/title-variants.ts`.
 - Podcast cover and first content scene use the publisher's `og:image`, subject to the existing decorative rejection and fallback rules. Preserve that invariant.
+- Shared facts: `packages/zap-pilot-story/src/facts/` owns the recorded contract exports and pinned replay. Rolling landing backtests remain in the host; never use them to silently refresh the film.
 - Evidence: `docs/operations/rednote-distribution-diagnosis.md` and Control Center's `ops_growth.packaging` read model.
 
 ## Core principle

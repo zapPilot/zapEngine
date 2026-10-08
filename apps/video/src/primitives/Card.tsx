@@ -26,11 +26,11 @@ export const Card: React.FC<{
         gap: 18,
         padding: '34px 38px',
         borderRadius: 24,
-        background: color.surface,
-        border: glow > 0 ? `1px solid ${color.accentLine}` : hairline,
+        background: color['sheet'],
+        border: glow > 0 ? `1px solid ${color['rule-2']}` : hairline,
         boxShadow:
           glow > 0
-            ? `0 0 0 ${6 * glow}px ${color.accentSubtle}, 0 30px 80px rgba(0, 0, 0, 0.45)`
+            ? `0 0 0 ${6 * glow}px ${color['well']}, 0 30px 80px rgba(0, 0, 0, 0.45)`
             : '0 30px 80px rgba(0, 0, 0, 0.45)',
         ...enter(frame, from, { distance: 22 }),
         ...style,
@@ -51,7 +51,7 @@ export const Overline: React.FC<{ readonly children: ReactNode }> = ({
       fontSize: 22,
       letterSpacing: '0.14em',
       textTransform: 'uppercase',
-      color: color.inkMuted,
+      color: color['ink-3'],
     }}
   >
     {children}

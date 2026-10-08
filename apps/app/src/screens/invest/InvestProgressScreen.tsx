@@ -444,10 +444,10 @@ export function InvestProgressScreen() {
       <ScreenScrollView width="narrow">
         <InvestStepHeader title="Invest" step="Done" />
         <View className="pt-6">
-          <Text className="font-serif text-[28px] leading-[32px] text-ink">
+          <Text className="font-display text-title leading-[32px] text-ink">
             Investment complete
           </Text>
-          <Text className="mt-2 text-[12px] leading-[18px] text-ink-dim">
+          <Text className="font-text mt-2 text-caption leading-[18px] text-ink-2">
             Every reviewed wallet batch was submitted once. No batch was sent
             twice, and the HLP vault action was signed by your approved
             Hyperliquid agent.
@@ -458,7 +458,7 @@ export function InvestProgressScreen() {
               className="mt-4 self-start"
               onPress={() => void Linking.openURL(accountUrl)}
             >
-              <Text className="text-[12px] text-accent underline">
+              <Text className="font-text text-caption text-ink underline">
                 View your Hyperliquid account
               </Text>
             </Tap>
@@ -490,16 +490,16 @@ export function InvestProgressScreen() {
         }
       />
       <View className="pt-6">
-        <Text className="font-serif text-[28px] leading-[32px] text-ink">
+        <Text className="font-display text-title leading-[32px] text-ink">
           One checkpoint at a time
         </Text>
-        <Text className="mt-2 text-[12px] leading-[18px] text-ink-dim">
+        <Text className="font-text mt-2 text-caption leading-[18px] text-ink-2">
           Confirmed batches stay locked. Each later batch is re-reviewed against
           the chain it executes on. If a live quote changes, you review that
           updated batch once before it is sent.
         </Text>
 
-        <View className="mt-5 rounded-[18px] border border-line bg-[rgba(255,255,255,.02)] px-4 pt-4">
+        <View className="mt-5 rounded-panel border border-rule bg-well px-4 pt-4">
           {reviewedQueue.map((entry, index) => {
             const batch = batches[index];
             return (
@@ -527,7 +527,7 @@ export function InvestProgressScreen() {
                 isLast={index === lastBatchIndex && rows.length === 0}
               >
                 {index === currentIndex && reviewedProgress.transactionHash ? (
-                  <Text className="mt-1 font-mono text-[9px] text-accent">
+                  <Text className="mt-1 font-mono text-data text-ink">
                     {reviewedProgress.transactionHash.slice(0, 12)}… submitted
                   </Text>
                 ) : null}
@@ -557,7 +557,7 @@ export function InvestProgressScreen() {
 
         {reviewedProgress.phase === 'checkpoint' && nextEntry ? (
           <View className="mt-5">
-            <Text className="mb-2 font-sans-semibold text-[13px] text-ink">
+            <Text className="mb-2 font-text-semibold text-body-sm text-ink">
               Next reviewed batch
             </Text>
             {nextBatch ? (
@@ -573,12 +573,12 @@ export function InvestProgressScreen() {
               <>
                 <Text
                   accessibilityRole="alert"
-                  className="mt-3 text-[10.5px] leading-4 text-danger"
+                  className="font-mono-medium mt-3 text-label leading-4 text-alert"
                 >
                   {checkpointError}
                 </Text>
                 {checkpointNeedsConfirmation ? (
-                  <Text className="mt-2 text-[10.5px] leading-4 text-ink-dim">
+                  <Text className="font-mono-medium mt-2 text-label leading-4 text-ink-2">
                     The card above is the refreshed review. Confirming sends
                     exactly this batch without generating another quote.
                   </Text>
@@ -598,7 +598,7 @@ export function InvestProgressScreen() {
                 </Button>
               </>
             ) : (
-              <Text className="mt-3 text-[10.5px] leading-4 text-ink-dim">
+              <Text className="font-mono-medium mt-3 text-label leading-4 text-ink-2">
                 {checkpointPending
                   ? 'Sending the next batch to your wallet…'
                   : 'Re-reviewing the next batch against its chain…'}
@@ -610,7 +610,7 @@ export function InvestProgressScreen() {
         {reviewedProgress.phase === 'failed' ? (
           <View className="mt-5">
             <Callout
-              tone="danger"
+              tone="alert"
               title="Reviewed batch needs attention"
               body={
                 reviewedProgress.statusNote ??
@@ -630,7 +630,7 @@ export function InvestProgressScreen() {
         {visibleError ? (
           <View className="mt-5">
             <Callout
-              tone="danger"
+              tone="alert"
               title="HLP settlement needs attention"
               body={visibleError}
               action={

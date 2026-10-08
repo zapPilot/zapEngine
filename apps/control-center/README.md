@@ -395,3 +395,7 @@ The Product view reads product health from the existing public-schema account da
 Content packaging uses the shared `/api/growth` and `ops_growth` read model with a 15-minute cache. Rednote distributed 24-hour observations determine episode packaging ranks; other lanes confirm after independent rolling normalization. Title features describe associations only. Suppressed notes are excluded and the distribution gate is reported separately. These insights never choose topics or platform-specific slots/hooks, and never enter reliability priorities.
 
 See [Waitlist acquisition contract](docs/waitlist-acquisition.md) for persisted lead metrics, attribution and rollout order.
+
+## Interface theme
+
+The client inherits the shared v3 paper palette and Archivo/Martian variable fonts. Product role values are never overridden in host CSS. Operational health uses the two explicit local exceptions `--cc-tone-healthy` and `--cc-tone-degraded`; labels and status glyphs accompany these colors. Critical states use the shared `alert` role. Cards and tooltips use hairline boundaries rather than glow shadows.

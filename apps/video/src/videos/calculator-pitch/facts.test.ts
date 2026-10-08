@@ -1,8 +1,10 @@
+import {
+  strategyDeployment as artifact,
+  verifiableStrategy as dataset,
+} from '@zapengine/zap-pilot-story/facts';
 import { getContractAddress, keccak256, toHex } from 'viem';
 import { describe, expect, it } from 'vitest';
 
-import artifact from '../../../../landing-page/src/data/strategy-deployment.json';
-import dataset from '../../../../landing-page/src/data/verifiable-strategy.json';
 import { facts, shortHex } from './facts';
 
 // The calculator's committed dataset is the single source of truth. A

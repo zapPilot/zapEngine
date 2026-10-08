@@ -36,13 +36,13 @@ export function ExpandableSection({
         className="min-h-hit flex-row items-center gap-2 py-3"
       >
         <Icon icon={expanded ? ChevronDown : ChevronRight} tone="muted" />
-        <Text variant="subheading">{title}</Text>
+        <Text variant="heading">{title}</Text>
         {count !== undefined ? (
           <Text variant="caption" tone="muted" numeric>
             ({count})
           </Text>
         ) : null}
-        <View className="ml-2 h-px flex-1 bg-line" />
+        <View className="ml-2 h-px flex-1 bg-rule" />
         {trailing === undefined ? null : (
           <View className="ml-2">{trailing}</View>
         )}

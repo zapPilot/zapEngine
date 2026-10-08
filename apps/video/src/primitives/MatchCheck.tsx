@@ -30,17 +30,21 @@ export const MatchBanner: React.FC<{
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         <span
           style={{
-            fontFamily: font.sans,
+            fontFamily: font.text,
             fontWeight: 500,
             fontSize: 40,
-            color: color.accent,
+            color: color['ink'],
           }}
         >
           {text}
         </span>
         {detail === undefined ? null : (
           <span
-            style={{ fontFamily: font.mono, fontSize: 24, color: color.inkDim }}
+            style={{
+              fontFamily: font.mono,
+              fontSize: 24,
+              color: color['ink-2'],
+            }}
           >
             {detail}
           </span>
@@ -72,7 +76,7 @@ export const MatchCheck: React.FC<{
   const valueStyle: CSSProperties = {
     fontSize: 34,
     letterSpacing: '0.01em',
-    color: matched > 0 ? color.accent : color.ink,
+    color: matched > 0 ? color['ink'] : color.ink,
   };
   const row = (label: string, start: number, value: React.ReactNode) => (
     <div
@@ -85,9 +89,9 @@ export const MatchCheck: React.FC<{
     >
       <span
         style={{
-          fontFamily: font.sans,
+          fontFamily: font.text,
           fontSize: 26,
-          color: color.inkDim,
+          color: color['ink-2'],
           letterSpacing: '0.02em',
         }}
       >
@@ -106,7 +110,7 @@ export const MatchCheck: React.FC<{
         padding: '52px 60px',
         borderRadius: 28,
         border: hairline,
-        background: color.surface,
+        background: color['sheet'],
         ...enter(frame, from, { distance: 20 }),
       }}
     >
@@ -117,7 +121,7 @@ export const MatchCheck: React.FC<{
           top: 52,
           width: 3,
           height: `${matched * 170}px`,
-          background: color.accent,
+          background: color['ink'],
         }}
       />
       {row(
@@ -137,7 +141,7 @@ export const MatchCheck: React.FC<{
           style={valueStyle}
         />,
       )}
-      <div style={{ height: 1, background: color.line }} />
+      <div style={{ height: 1, background: color['rule'] }} />
       <MatchBanner text={verdict} detail={detail} from={matchAt} />
     </div>
   );

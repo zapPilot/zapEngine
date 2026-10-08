@@ -31,14 +31,14 @@ export function NowPlayingBar({
   return (
     <View
       className={cn(
-        'border border-line bg-surface p-3',
-        layout === 'card' ? 'rounded-card' : 'border-x-0',
+        'border border-rule bg-sheet p-3',
+        layout === 'card' ? 'rounded-panel' : 'border-x-0',
       )}
     >
       <View className="flex-row items-center gap-2">
         <IconButton
           icon={player.isPlaying ? Pause : Play}
-          tone="accent"
+          tone="default"
           onPress={() => player.toggle(episode)}
           accessibilityLabel={
             player.isPlaying ? t('common.pause') : t('common.play')
@@ -59,7 +59,7 @@ export function NowPlayingBar({
             </Text>
           </Tap>
           {player.currentSection === 'classroom' ? (
-            <Badge tone="accent">
+            <Badge tone="default">
               {player.currentSectionLanguage === null
                 ? t('podcast.classroom')
                 : `${t('podcast.classroom')} · ${classroomLanguageLabel(player.currentSectionLanguage, t)}`}
@@ -68,7 +68,7 @@ export function NowPlayingBar({
         </View>
       </View>
       <View className="mt-1 flex-row items-center gap-2">
-        <Text variant="numeric-sm" tone="muted">
+        <Text variant="data" tone="muted">
           {formatPodcastClock(player.currentTime)}
         </Text>
         <Slider
@@ -77,13 +77,13 @@ export function NowPlayingBar({
           minimumValue={0}
           maximumValue={duration > 0 ? duration : 1}
           value={currentTime}
-          minimumTrackTintColor={tokens.color.accent}
-          maximumTrackTintColor={tokens.color.line}
-          thumbTintColor={tokens.color.accent}
+          minimumTrackTintColor={tokens.mode.night['ink']}
+          maximumTrackTintColor={tokens.mode.night['rule']}
+          thumbTintColor={tokens.mode.night['ink']}
           onSlidingComplete={player.seek}
           style={{ flex: 1, height: tokens.size.hit }}
         />
-        <Text variant="numeric-sm" tone="muted">
+        <Text variant="data" tone="muted">
           {formatPodcastClock(player.duration)}
         </Text>
       </View>

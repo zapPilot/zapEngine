@@ -1,3 +1,4 @@
+import { Icon } from '@/components/ui/Icon';
 import { formatTokenBaseUnits } from '@zapengine/app-core/utils/formatting/tokenAmount';
 import type {
   PrivySimulationApproval,
@@ -53,22 +54,22 @@ export function SimulationApprovalCard({
   };
 
   return (
-    <View className="rounded-2xl border border-accent/25 bg-accent-soft p-4">
+    <View className="rounded-panel border border-sign/25 bg-sign-wash p-4">
       <View className="flex-row items-start justify-between gap-3">
         <View className="min-w-0 flex-1">
           <View className="flex-row flex-wrap items-center gap-2">
-            <Text className="font-sans-semibold text-[13px] text-accent">
+            <Text className="font-text-semibold text-body-sm text-sign-ink">
               Approve {amountLabel} {approval.token.symbol}
             </Text>
             {approval.unlimited ? (
-              <View className="rounded-full border border-danger-line bg-danger-soft px-2 py-0.5">
-                <Text className="font-mono-semibold text-[8px] uppercase tracking-[.5px] text-danger">
+              <View className="rounded-round border border-alert bg-alert-wash px-2 py-0.5">
+                <Text className="font-mono-semibold text-data uppercase tracking-[.5px] text-alert">
                   Unlimited
                 </Text>
               </View>
             ) : null}
           </View>
-          <Text className="mt-1 text-[10px] text-ink-faint">
+          <Text className="font-mono-medium mt-1 text-label text-ink-3">
             Call {approval.callIndex + 1}
           </Text>
         </View>
@@ -76,15 +77,15 @@ export function SimulationApprovalCard({
           <Tap
             accessibilityLabel={`Edit ${approval.token.symbol} approval amount`}
             accessibilityRole="button"
-            className="flex-row items-center gap-1.5 rounded-lg px-2 py-1.5"
+            className="flex-row items-center gap-1.5 rounded-panel px-2 py-1.5"
             disabled={isBusy}
             onPress={() => {
               setAmount(approval.amount);
               setEditing(true);
             }}
           >
-            <Pencil size={13} color="#d4c5a3" />
-            <Text className="font-sans-semibold text-[11px] text-accent">
+            <Icon icon={Pencil} size="xs" tone="sign" />
+            <Text className="font-text-semibold text-label text-sign-ink">
               Edit amount
             </Text>
           </Tap>
@@ -92,27 +93,27 @@ export function SimulationApprovalCard({
           <Tap
             accessibilityLabel="Cancel approval edit"
             accessibilityRole="button"
-            className="h-8 w-8 items-center justify-center rounded-full"
+            className="h-8 w-8 items-center justify-center rounded-round"
             disabled={isBusy}
             onPress={() => {
               setAmount(approval.amount);
               setEditing(false);
             }}
           >
-            <X size={15} color="#a1a1aa" />
+            <Icon icon={X} size="sm" tone="secondary" />
           </Tap>
         )}
       </View>
 
       {editing ? (
         <View className="mt-3 gap-2">
-          <Text className="font-mono-semibold text-[9px] uppercase tracking-[.6px] text-ink-faint">
+          <Text className="font-mono-semibold text-data uppercase tracking-[.6px] text-ink-3">
             Approval amount
           </Text>
           <View className="flex-row items-center gap-2">
             <TextInput
               accessibilityLabel="Approval amount"
-              className="h-11 min-w-0 flex-1 rounded-xl border border-line-hi bg-bg px-3 font-mono text-[13px] text-ink"
+              className="h-11 min-w-0 flex-1 rounded-panel border border-rule-2 bg-ground px-3 font-mono text-data text-ink"
               editable={!isBusy}
               inputMode="decimal"
               value={amount}
@@ -122,11 +123,11 @@ export function SimulationApprovalCard({
             <Tap
               accessibilityLabel="Apply approval amount and simulate again"
               accessibilityRole="button"
-              className="h-11 items-center justify-center rounded-xl bg-accent px-3"
+              className="h-11 items-center justify-center rounded-panel bg-sign px-3"
               disabled={isBusy || amount.trim() === ''}
               onPress={() => void apply()}
             >
-              <Text className="font-sans-semibold text-[11px] text-[#221c0f]">
+              <Text className="font-text-semibold text-label text-ink-3">
                 {isBusy ? 'Simulating…' : 'Apply & simulate'}
               </Text>
             </Tap>
@@ -134,31 +135,28 @@ export function SimulationApprovalCard({
         </View>
       ) : null}
 
-      <View className="mt-3 flex-row gap-4 border-t border-accent/15 pt-3">
+      <View className="mt-3 flex-row gap-4 border-t border-sign/15 pt-3">
         <View className="min-w-0 flex-1">
-          <Text className="font-mono-semibold text-[8px] uppercase tracking-[.6px] text-ink-faint">
+          <Text className="font-mono-semibold text-data uppercase tracking-[.6px] text-ink-3">
             Spender
           </Text>
           <Text
-            className="mt-1 font-sans-medium text-[11px] text-ink"
+            className="mt-1 font-text-medium text-label text-ink"
             numberOfLines={1}
           >
             {spenderLabel}
           </Text>
           {hasVerifiedName ? (
-            <Text className="mt-0.5 font-mono text-[9px] text-ink-faint">
+            <Text className="mt-0.5 font-mono text-data text-ink-3">
               {spenderAddress}
             </Text>
           ) : null}
         </View>
         <View className="min-w-0 flex-1">
-          <Text className="font-mono-semibold text-[8px] uppercase tracking-[.6px] text-ink-faint">
+          <Text className="font-mono-semibold text-data uppercase tracking-[.6px] text-ink-3">
             Simulated spend
           </Text>
-          <Text
-            className="mt-1 font-mono text-[11px] text-ink"
-            numberOfLines={1}
-          >
+          <Text className="mt-1 font-mono text-data text-ink" numberOfLines={1}>
             {formatTokenBaseUnits(
               approval.simulatedSpendRaw,
               approval.token.decimals,
@@ -169,9 +167,9 @@ export function SimulationApprovalCard({
       </View>
 
       {approval.exceedsSimulatedSpend ? (
-        <View className="mt-3 flex-row items-start gap-2 rounded-xl border border-danger-line bg-danger-soft p-3">
-          <AlertTriangle size={14} color="#ff6f61" />
-          <Text className="min-w-0 flex-1 text-[10.5px] leading-4 text-danger">
+        <View className="mt-3 flex-row items-start gap-2 rounded-panel border border-alert bg-alert-wash p-3">
+          <Icon icon={AlertTriangle} size="xs" tone="alert" />
+          <Text className="font-mono-medium min-w-0 flex-1 text-label leading-4 text-alert">
             Approval exceeds the amount spent in this simulation.
           </Text>
         </View>

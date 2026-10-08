@@ -1,7 +1,7 @@
-import { tokens } from '@zapengine/design-tokens/tokens';
+import { sleeve } from './palette';
 
 export function assetColor(
   asset: 'btc' | 'eth' | 'spy' | 'stable' | 'alt',
 ): string {
-  return tokens.color.pillar[asset === 'stable' ? 'usd' : asset];
+  return sleeve[asset];
 }

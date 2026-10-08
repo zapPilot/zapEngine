@@ -60,13 +60,13 @@ export function ChainBatchReviewCard({
   return (
     <Card className={className}>
       <View className="mb-3 flex-row items-center justify-between gap-3">
-        <Text className="min-w-0 flex-1 font-sans-semibold text-[12.5px] text-ink">
+        <Text className="min-w-0 flex-1 font-text-semibold text-caption text-ink">
           {stepLabel ? `${stepLabel} · ` : ''}
           {chainBatchLabel(batch.draft).split(' · ')[0]}
           {'\n'}
           {chainBatchActionSummary(batch.draft)}
         </Text>
-        <Text className="font-mono-semibold text-[11px] text-accent">
+        <Text className="font-mono-semibold text-data text-ink">
           {formatUsd6(totalUsd6)}
         </Text>
       </View>
@@ -80,9 +80,14 @@ export function ChainBatchReviewCard({
       />
       {batch.review.status === 'warning' ? (
         <View>
-          <Text className="text-[10px] text-ink-dim">Heads up</Text>
+          <Text className="font-mono-medium text-label text-ink-2">
+            Heads up
+          </Text>
           {batch.review.warnings.map((warning, index) => (
-            <Text key={index} className="text-[11px] text-ink-dim">
+            <Text
+              key={index}
+              className="font-mono-medium text-label text-ink-2"
+            >
               {warning.message}
             </Text>
           ))}
@@ -93,7 +98,7 @@ export function ChainBatchReviewCard({
         onToggle={() => setExpanded((value) => !value)}
         accessibilityLabel={`Destinations (${batch.draft.positions.length})`}
         header={
-          <Text className="flex-1 text-[11px] text-ink-dim">
+          <Text className="font-mono-medium flex-1 text-label text-ink-2">
             Destinations ({batch.draft.positions.length})
           </Text>
         }
@@ -101,13 +106,13 @@ export function ChainBatchReviewCard({
         {batch.draft.positions.map((draft) => (
           <View
             key={draft.positionId}
-            className="mt-3 border-t border-line pt-2"
+            className="mt-3 border-t border-rule pt-2"
           >
             <View className="mb-1 flex-row items-center justify-between gap-3">
-              <Text className="min-w-0 flex-1 font-sans-medium text-[11px] text-ink-dim">
+              <Text className="min-w-0 flex-1 font-text-medium text-label text-ink-2">
                 {stageLabel(draft)}
               </Text>
-              <Text className="font-mono-semibold text-[10px] text-ink-faint">
+              <Text className="font-mono-semibold text-data text-ink-3">
                 {draft.weightBps / 100}%
               </Text>
             </View>
@@ -117,7 +122,7 @@ export function ChainBatchReviewCard({
           </View>
         ))}
       </Disclosure>
-      <View className="mt-3 border-t border-line pt-1">
+      <View className="mt-3 border-t border-rule pt-1">
         <SummaryRows rows={batchSummaryRows(batch.plan)} />
       </View>
     </Card>

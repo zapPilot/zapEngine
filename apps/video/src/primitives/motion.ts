@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react';
 import { Easing, interpolate } from 'remotion';
 
-import { easeOut } from '../brand/tokens';
+const easeOut = Easing.bezier(0.2, 0.65, 0.3, 0.99);
 
 const CLAMP = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' } as const;
 

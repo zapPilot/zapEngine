@@ -128,3 +128,20 @@ it('keeps offering a retry for every other review failure', async () => {
   expect(mocks.retry).toHaveBeenCalledOnce();
   expect(mocks.back).not.toHaveBeenCalled();
 });
+
+vi.mock('react-native', () => ({ Platform: { OS: 'web' } }));
+
+vi.mock('react-native-svg', () => ({
+  default: ({ children }: { children?: React.ReactNode }) => (
+    <svg>{children}</svg>
+  ),
+  Circle: () => <circle />,
+  Path: () => <path />,
+  Rect: () => <rect />,
+  Defs: ({ children }: { children?: React.ReactNode }) => (
+    <defs>{children}</defs>
+  ),
+  ClipPath: ({ children }: { children?: React.ReactNode }) => (
+    <clipPath>{children}</clipPath>
+  ),
+}));

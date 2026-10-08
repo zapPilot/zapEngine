@@ -1,3 +1,4 @@
+import { palette } from '@/lib/palette';
 import type { RuleTraceEntry } from '@zapengine/app-core/services/suggestion';
 import { tokens } from '@zapengine/design-tokens/tokens';
 import { humanizeSlug } from '@zapengine/types/shared';
@@ -43,8 +44,8 @@ export function DecisionPacketCard({
   if (loading && !packet) {
     return (
       <Card className="mt-4 p-4">
-        <SkeletonBlock className="h-5 w-40 rounded-lg" />
-        <SkeletonBlock className="mt-4 h-24 w-full rounded-xl" />
+        <SkeletonBlock className="h-5 w-40 rounded-panel" />
+        <SkeletonBlock className="mt-4 h-24 w-full rounded-panel" />
       </Card>
     );
   }
@@ -60,16 +61,12 @@ export function DecisionPacketCard({
   return (
     <Card className="mt-4 p-4">
       <View className="flex-row items-center justify-between">
-        <Text className="font-sans-semibold text-[15px] text-ink">
+        <Text className="font-text-semibold text-body text-ink">
           {t('strategy.todaysDecision')}
         </Text>
-        <Badge className="border border-line bg-[rgba(255,255,255,.05)]">
-          {statusLabel}
-        </Badge>
+        <Badge className="border border-rule bg-well">{statusLabel}</Badge>
       </View>
-      <Text className="mt-1 font-mono text-[9px] text-ink-faint">
-        {packet.asOf}
-      </Text>
+      <Text className="mt-1 font-mono text-data text-ink-3">{packet.asOf}</Text>
 
       {packet.actions.length > 0 ? (
         <Section title={t('strategy.action').toUpperCase()}>
@@ -82,7 +79,7 @@ export function DecisionPacketCard({
           ))}
         </Section>
       ) : (
-        <Text className="mt-3 text-[12px] leading-[18px] text-ink-dim">
+        <Text className="font-text mt-3 text-caption leading-[18px] text-ink-2">
           {packet.statusPanel.bodyDescription}
         </Text>
       )}
@@ -101,7 +98,7 @@ export function DecisionPacketCard({
       ) : null}
 
       <Section title={t('strategy.trigger').toUpperCase()}>
-        <Text className="text-[12px] text-ink-dim">
+        <Text className="font-text text-caption text-ink-2">
           {packet.trigger.ruleName
             ? ruleLabel(t, packet.trigger.ruleName)
             : packet.trigger.ruleLabel}
@@ -153,8 +150,8 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <View className="mt-4 border-t border-line pt-3">
-      <Text className="mb-2 font-mono text-[9px] tracking-[0.9px] text-[#9a8f78]">
+    <View className="mt-4 border-t border-rule pt-3">
+      <Text className="mb-2 font-mono text-data tracking-[0.9px] text-ink-3">
         {title}
       </Text>
       {children}
@@ -162,11 +159,11 @@ function Section({
   );
 }
 const RULE_STATUS_COLORS: Readonly<Record<RuleTraceEntry['status'], string>> = {
-  fired: tokens.color.accent,
-  cooldown: tokens.color['ink-dim'],
-  shadowed: tokens.color['ink-dim'],
-  inactive: tokens.color['ink-faint'],
-  not_matched: tokens.color['ink-faint'],
+  fired: tokens.mode.night['ink'],
+  cooldown: tokens.mode.night['ink-2'],
+  shadowed: tokens.mode.night['ink-2'],
+  inactive: tokens.mode.night['ink-3'],
+  not_matched: tokens.mode.night['ink-3'],
 };
 
 function RuleTraceRow({ entry }: { entry: RuleTraceEntry }) {
@@ -175,7 +172,7 @@ function RuleTraceRow({ entry }: { entry: RuleTraceEntry }) {
   return (
     <View className="mt-1.5 flex-row items-center gap-2">
       <View
-        className="h-[7px] w-[7px] rounded-full"
+        className="h-[7px] w-[7px] rounded-round"
         style={{
           backgroundColor: fired ? RULE_STATUS_COLORS.fired : 'transparent',
           borderColor: RULE_STATUS_COLORS[entry.status],
@@ -184,14 +181,14 @@ function RuleTraceRow({ entry }: { entry: RuleTraceEntry }) {
       />
       <Text
         className={cn(
-          'flex-1 text-[12px]',
-          fired ? 'font-sans-semibold text-ink' : 'text-ink-dim',
+          'flex-1 text-caption',
+          fired ? 'font-text-semibold text-ink' : 'text-ink-2',
         )}
       >
         {ruleLabel(t, entry.ruleName)}
       </Text>
       <Text
-        className="font-mono text-[10.5px]"
+        className="font-mono text-data"
         style={{ color: RULE_STATUS_COLORS[entry.status] }}
       >
         {ruleStatusLabel(t, entry)}
@@ -224,8 +221,8 @@ function ruleStatusLabel(t: Translate, entry: RuleTraceEntry): string {
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <View className="mt-1 flex-row items-start justify-between gap-3">
-      <Text className="flex-1 text-[12px] text-ink-dim">{label}</Text>
-      <Text className="font-mono text-[11px] text-ink">{value}</Text>
+      <Text className="font-text flex-1 text-caption text-ink-2">{label}</Text>
+      <Text className="font-mono text-data text-ink">{value}</Text>
     </View>
   );
 }
@@ -259,7 +256,7 @@ function AllocationRows({
           className="mt-2"
           height={6}
           segments={rows.map((row) => ({
-            color: colors[row.label] ?? '#9a8f78',
+            color: colors[row.label] ?? palette['ink-2'],
             value: row.value,
           }))}
         />

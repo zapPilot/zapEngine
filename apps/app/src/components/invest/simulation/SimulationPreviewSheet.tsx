@@ -1,3 +1,6 @@
+import { palette } from '@/lib/palette';
+import { cn } from '@/lib/cn';
+import { Icon } from '@/components/ui/Icon';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import type { SimulationPreviewRenderProps } from '@zapengine/app-core/hooks/wallet/useAtomicBatchExecution';
 import {
@@ -58,9 +61,10 @@ export {
 } from '@/components/invest/simulation/SimulationReviewBody';
 
 function VerdictIcon({ tone }: { tone: SimulationVerdictTone }) {
-  if (tone === 'success') return <ShieldCheck size={14} color="#7ad88f" />;
-  if (tone === 'error') return <XCircle size={14} color="#ff6f61" />;
-  return <CloudOff size={14} color="#a1a1aa" />;
+  if (tone === 'success')
+    return <Icon icon={ShieldCheck} size="xs" tone="default" />;
+  if (tone === 'error') return <Icon icon={XCircle} size="xs" tone="alert" />;
+  return <Icon icon={CloudOff} size="xs" tone="secondary" />;
 }
 
 function TenderlyEvidence({
@@ -69,16 +73,16 @@ function TenderlyEvidence({
   preview: SimulationPreviewRenderProps['previewData'];
 }) {
   return (
-    <View className="overflow-hidden rounded-2xl border border-line bg-surface">
-      <View className="flex-row items-start gap-3 border-b border-line px-4 py-4">
-        <View className="h-9 w-9 items-center justify-center rounded-xl bg-success/10">
-          <ShieldCheck size={17} color="#7ad88f" />
+    <View className="overflow-hidden rounded-panel border border-rule bg-sheet">
+      <View className="flex-row items-start gap-3 border-b border-rule px-4 py-4">
+        <View className="h-9 w-9 items-center justify-center rounded-panel bg-ink/10">
+          <Icon icon={ShieldCheck} size="md" tone="default" />
         </View>
         <View className="min-w-0 flex-1">
-          <Text className="font-sans-semibold text-[12px] text-ink">
+          <Text className="font-text-semibold text-caption text-ink">
             Independently simulated by Tenderly
           </Text>
-          <Text className="mt-0.5 text-[10.5px] leading-4 text-ink-dim">
+          <Text className="font-mono-medium mt-0.5 text-label leading-4 text-ink-2">
             {preview.calls.length}{' '}
             {preview.calls.length === 1 ? 'call' : 'calls'} executed in order as
             one stateful bundle.
@@ -124,9 +128,9 @@ function RetryButton({
       onPress={() => void onRetry()}
     >
       {retrying ? (
-        <ActivityIndicator color="#d4c5a3" size="small" />
+        <ActivityIndicator color={palette['sign-ink']} size="small" />
       ) : (
-        <RefreshCw size={15} color="#d4c5a3" />
+        <Icon icon={RefreshCw} size="sm" tone="sign" />
       )}
       {retrying ? 'Retrying…' : longLabel ? 'Retry simulation' : 'Retry'}
     </Button>
@@ -195,7 +199,7 @@ export function SimulationPreviewSheet({
       transparent
       visible={isOpen}
     >
-      <View className="flex-1 justify-end bg-[rgba(0,0,0,.68)]">
+      <View className="flex-1 justify-end bg-well">
         <Pressable
           accessibilityLabel="Close transaction review"
           accessibilityRole="button"
@@ -211,19 +215,19 @@ export function SimulationPreviewSheet({
           accessibilityLabel="Transaction review"
           accessibilityViewIsModal
           role="dialog"
-          className="w-full max-w-[640px] self-center overflow-hidden rounded-t-[28px] border border-b-0 border-line bg-bg shadow-lg"
+          className="w-full max-w-[640px] self-center overflow-hidden rounded-t-[28px] border border-b-0 border-rule bg-ground shadow-lg"
           style={{ height: '94%', maxHeight: 880 }}
         >
-          <View className="flex-row items-center justify-between gap-4 border-b border-line bg-surface px-5 py-4">
+          <View className="flex-row items-center justify-between gap-4 border-b border-rule bg-sheet px-5 py-4">
             <View className="min-w-0 flex-1 flex-row items-center gap-3">
-              <View className="h-10 w-10 items-center justify-center rounded-2xl border border-accent/30 bg-accent-soft">
-                <Wallet size={18} color="#d4c5a3" />
+              <View className="h-10 w-10 items-center justify-center rounded-panel border border-sign/30 bg-sign-wash">
+                <Icon icon={Wallet} size="md" tone="sign" />
               </View>
               <View className="min-w-0 flex-1">
-                <Text className="font-sans-semibold text-[14px] text-ink">
+                <Text className="font-text-semibold text-body text-ink">
                   Transaction review
                 </Text>
-                <Text className="mt-0.5 font-mono text-[10px] text-ink-dim">
+                <Text className="mt-0.5 font-mono text-data text-ink-2">
                   {formatAddressOrUnknown(previewData.walletAddress)}
                 </Text>
               </View>
@@ -231,11 +235,11 @@ export function SimulationPreviewSheet({
             <Tap
               accessibilityLabel="Close transaction review"
               accessibilityRole="button"
-              className="h-11 w-11 items-center justify-center rounded-full bg-[rgba(255,255,255,.04)]"
+              className="h-11 w-11 items-center justify-center rounded-round bg-well"
               disabled={busy}
               onPress={onClose}
             >
-              <X size={17} color="#a1a1aa" />
+              <Icon icon={X} size="md" tone="secondary" />
             </Tap>
           </View>
 
@@ -248,11 +252,17 @@ export function SimulationPreviewSheet({
             <View className="gap-5 px-5 pt-5">
               <View className="flex-row flex-wrap items-center justify-between gap-3">
                 <View
-                  className={`flex-row items-center gap-2 rounded-full border px-3 py-1.5 ${VERDICT_CLASSES[verdict.tone]}`}
+                  className={cn(
+                    'flex-row items-center gap-2 rounded-round border px-3 py-1.5',
+                    VERDICT_CLASSES[verdict.tone],
+                  )}
                 >
                   <VerdictIcon tone={verdict.tone} />
                   <Text
-                    className={`font-sans-semibold text-[11px] ${VERDICT_TEXT_CLASSES[verdict.tone]}`}
+                    className={cn(
+                      'font-text-semibold text-label',
+                      VERDICT_TEXT_CLASSES[verdict.tone],
+                    )}
                   >
                     {verdict.label}
                   </Text>
@@ -260,17 +270,17 @@ export function SimulationPreviewSheet({
                 <View className="flex-row items-center gap-3">
                   {signable ? (
                     <View className="flex-row items-center gap-1.5">
-                      <Clock3 size={13} color="#a1a1aa" />
-                      <Text className="font-mono text-[9.5px] text-ink-dim">
+                      <Icon icon={Clock3} size="xs" tone="secondary" />
+                      <Text className="font-mono text-data text-ink-2">
                         {formatCountdown(previewData.expiresAt, nowMs)}
                       </Text>
                     </View>
                   ) : null}
-                  <View className="flex-row items-center gap-2 rounded-full border border-line px-3 py-1.5">
-                    <Text className="font-sans-medium text-[10.5px] text-ink">
+                  <View className="flex-row items-center gap-2 rounded-round border border-rule px-3 py-1.5">
+                    <Text className="font-text-medium text-label text-ink">
                       {simulationChainLabel(previewData.chainId)}
                     </Text>
-                    <View className="h-2 w-2 rounded-full bg-pillar-usd" />
+                    <View className="h-2 w-2 rounded-round bg-sleeve-stable" />
                   </View>
                 </View>
               </View>
@@ -285,14 +295,14 @@ export function SimulationPreviewSheet({
               {riskReview.changed ? (
                 <View
                   accessibilityRole="alert"
-                  className="flex-row items-start gap-3 rounded-2xl border border-accent/30 bg-accent-soft p-4"
+                  className="flex-row items-start gap-3 rounded-panel border border-sign/30 bg-sign-wash p-4"
                 >
-                  <Activity size={17} color="#d4c5a3" />
+                  <Icon icon={Activity} size="md" tone="sign" />
                   <View className="min-w-0 flex-1">
-                    <Text className="font-sans-semibold text-[12px] text-accent">
+                    <Text className="font-text-semibold text-caption text-sign-ink">
                       Simulation changed — review again
                     </Text>
-                    <Text className="mt-1 text-[10.5px] leading-4 text-ink-dim">
+                    <Text className="font-mono-medium mt-1 text-label leading-4 text-ink-2">
                       Calls, approvals, or risk evidence changed after the last
                       review.
                     </Text>
@@ -325,12 +335,12 @@ export function SimulationPreviewSheet({
               {retryError ? (
                 <View
                   accessibilityRole="alert"
-                  className="rounded-2xl border border-danger-line bg-danger-soft p-3"
+                  className="rounded-panel border border-alert bg-alert-wash p-3"
                 >
-                  <Text className="font-sans-semibold text-[11px] text-danger">
+                  <Text className="font-text-semibold text-label text-alert">
                     Simulation retry failed
                   </Text>
-                  <Text className="mt-1 text-[10.5px] leading-4 text-danger">
+                  <Text className="font-mono-medium mt-1 text-label leading-4 text-alert">
                     {retryError}
                   </Text>
                 </View>
@@ -353,9 +363,9 @@ export function SimulationPreviewSheet({
               {gate.expired ? (
                 <View
                   accessibilityRole="alert"
-                  className="rounded-2xl border border-danger-line bg-danger-soft p-3"
+                  className="rounded-panel border border-alert bg-alert-wash p-3"
                 >
-                  <Text className="text-center font-sans-semibold text-[11px] text-danger">
+                  <Text className="text-center font-text-semibold text-label text-alert">
                     This preview has expired. Retry simulation before signing.
                   </Text>
                 </View>
@@ -364,7 +374,7 @@ export function SimulationPreviewSheet({
           </ScrollView>
 
           <View
-            className="border-t border-line bg-surface px-5 pt-4"
+            className="border-t border-rule bg-sheet px-5 pt-4"
             style={{ paddingBottom: Math.max(insets.bottom, 20) }}
           >
             {gate.expired ? (
@@ -409,11 +419,11 @@ export function SimulationPreviewSheet({
                       {isSigningAndSending ? (
                         <ActivityIndicator color="#221c0f" size="small" />
                       ) : (
-                        <Check size={15} color="#221c0f" />
+                        <Icon icon={Check} size="sm" tone="default" />
                       )}
                       {signingActionLabel(batchExecutionPhase)}
                     </Button>
-                    <Text className="mt-2 text-center text-[9.5px] leading-4 text-ink-faint">
+                    <Text className="font-mono-medium mt-2 text-center text-label leading-4 text-ink-3">
                       Sign &amp; Send starts wallet signing immediately, then
                       submits this batch.
                     </Text>

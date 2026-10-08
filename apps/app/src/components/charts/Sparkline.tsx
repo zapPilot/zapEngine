@@ -1,3 +1,4 @@
+import { palette } from '@/lib/palette';
 import { memo, useId, useMemo, useState } from 'react';
 import { View, type LayoutChangeEvent } from 'react-native';
 import Svg, { Defs, LinearGradient, Path, Stop } from 'react-native-svg';
@@ -54,15 +55,15 @@ export const Sparkline = memo(function Sparkline({
         <Svg width={width} height={height}>
           <Defs>
             <LinearGradient id={id} x1="0" y1="0" x2="0" y2="1">
-              <Stop offset="0" stopColor="#d4c5a3" stopOpacity={0.38} />
-              <Stop offset="1" stopColor="#d4c5a3" stopOpacity={0} />
+              <Stop offset="0" stopColor={palette.ink} stopOpacity={0.38} />
+              <Stop offset="1" stopColor={palette.ink} stopOpacity={0} />
             </LinearGradient>
           </Defs>
           <Path d={area} fill={`url(#${id})`} />
           <Path
             d={line}
             fill="none"
-            stroke="#d4c5a3"
+            stroke={palette.ink}
             strokeWidth={2}
             strokeLinecap="round"
             strokeLinejoin="round"

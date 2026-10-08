@@ -23,7 +23,7 @@ export function ErrorState({
 }): ReactElement {
   return (
     <Callout
-      tone="danger"
+      tone="alert"
       title={title}
       body={body}
       action={{

@@ -19,6 +19,7 @@ vi.mock('lucide-react-native', () => ({
 }));
 
 vi.mock('react-native', () => ({
+  Platform: { OS: 'web' },
   View: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   Text: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
   Image: ({ source }: { source?: { uri?: string } }) => (
@@ -280,3 +281,18 @@ describe('SimulationFlowRows', () => {
     expect(container.textContent ?? '').toContain('No assets detected');
   });
 });
+
+vi.mock('react-native-svg', () => ({
+  default: ({ children }: { children?: React.ReactNode }) => (
+    <svg>{children}</svg>
+  ),
+  Circle: () => <circle />,
+  Path: () => <path />,
+  Rect: () => <rect />,
+  Defs: ({ children }: { children?: React.ReactNode }) => (
+    <defs>{children}</defs>
+  ),
+  ClipPath: ({ children }: { children?: React.ReactNode }) => (
+    <clipPath>{children}</clipPath>
+  ),
+}));

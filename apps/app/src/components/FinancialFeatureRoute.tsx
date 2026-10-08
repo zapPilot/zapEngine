@@ -1,3 +1,4 @@
+import { Icon } from '@/components/ui/Icon';
 import { LockKeyhole } from 'lucide-react-native';
 import type { ReactElement, ReactNode } from 'react';
 import { Platform, Text, View } from 'react-native';
@@ -25,13 +26,13 @@ export function FinancialFeatureRoute({
       <PageHeader title={title} />
       <View className="pt-8">
         <Card className="items-center p-6">
-          <View className="h-12 w-12 items-center justify-center rounded-full border border-line bg-[rgba(212,197,163,.08)]">
-            <LockKeyhole size={20} strokeWidth={1.8} color="#d4c5a3" />
+          <View className="h-12 w-12 items-center justify-center rounded-round border border-rule bg-well">
+            <Icon icon={LockKeyhole} size="md" tone="sign" />
           </View>
-          <Text className="mt-4 text-center font-sans-semibold text-[17px] text-ink">
+          <Text className="mt-4 text-center font-text-semibold text-body-lg text-ink">
             {t('financialFeature.readOnlyTitle')}
           </Text>
-          <Text className="mt-2 text-center text-[12.5px] leading-5 text-ink-dim">
+          <Text className="font-text mt-2 text-center text-caption leading-5 text-ink-2">
             {t('financialFeature.readOnlyBody')}
           </Text>
         </Card>

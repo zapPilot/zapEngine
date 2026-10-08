@@ -8,8 +8,8 @@
     "capture": "tsx scripts/capture.ts",
     "check": "tsx scripts/check-narration.ts",
     "clean": "rm -rf build out coverage",
-    "deadcode": "knip",
-    "deadcode:fix": "knip --fix",
+    "deadcode": "knip --directory ../.. --workspace apps/video --config apps/video/knip.ts",
+    "deadcode:fix": "knip --directory ../.. --workspace apps/video --config apps/video/knip.ts --fix",
     "dev": "tsx scripts/studio.ts",
     "dup:check": "node ../../scripts/lint/run-jscpd.mjs src",
     "format": "prettier --write .",
@@ -38,7 +38,10 @@
     "react-dom": "catalog:",
     "remotion": "4.0.532",
     "zod": "4.5.4",
-    "@zapengine/kokode-story": "workspace:*"
+    "@zapengine/kokode-story": "workspace:*",
+    "@zapengine/zap-pilot-story": "workspace:*",
+    "@fontsource-variable/archivo": "catalog:",
+    "@fontsource-variable/martian-mono": "catalog:"
   },
   "devDependencies": {
     "@remotion/bundler": "4.0.532",

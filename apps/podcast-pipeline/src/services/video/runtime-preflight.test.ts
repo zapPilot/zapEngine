@@ -88,7 +88,7 @@ describe('assertVideoRenderRuntime', () => {
       dependencies: deps,
     });
 
-    expect(deps.accessFile).toHaveBeenCalledTimes(2);
+    expect(deps.accessFile).toHaveBeenCalledTimes(5);
     expect(deps.processRunner).toHaveBeenCalledTimes(3);
     expect(deps.makeTemporaryDirectory).not.toHaveBeenCalled();
     expect(report).toMatchObject({

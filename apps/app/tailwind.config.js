@@ -3,7 +3,6 @@ const px = (values) =>
   Object.fromEntries(
     Object.entries(values).map(([name, value]) => [name, `${value}px`]),
   );
-
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   darkMode: 'class',
@@ -11,56 +10,60 @@ module.exports = {
   presets: [require('nativewind/preset')],
   theme: {
     colors: {
-      ...tokens.color,
+      ...tokens.mode.night,
+      sleeve: tokens.sleeve.night,
       transparent: 'transparent',
       current: 'currentColor',
     },
-    fontFamily: tokens.font,
+    fontFamily: Object.fromEntries(
+      Object.entries(tokens.font.native).map(([key, font]) => [
+        key,
+        font.family,
+      ]),
+    ),
+    borderRadius: px(tokens.radius),
     screens: {
       md: `${tokens.breakpoint.medium}px`,
       lg: `${tokens.breakpoint.expanded}px`,
     },
     extend: {
       fontSize: Object.fromEntries(
-        Object.entries(tokens.type).map(([name, value]) => [
-          name,
+        Object.entries(tokens.type).map(([key, role]) => [
+          key,
           [
-            `${value.size}px`,
+            `${role.size}px`,
             {
-              lineHeight: `${value.line}px`,
-              letterSpacing: `${value.tracking}px`,
+              lineHeight: `${role.line}px`,
+              letterSpacing: `${role.tracking * role.size}px`,
             },
           ],
         ]),
       ),
-      borderRadius: px(tokens.radius),
-      boxShadow: Object.fromEntries(
-        Object.entries(tokens.shadow).map(([name, value]) => [name, value.css]),
-      ),
-      elevation: Object.fromEntries(
-        Object.entries(tokens.shadow).map(([name, value]) => [
-          name,
-          value.elevation,
-        ]),
-      ),
+      boxShadow: { overlay: tokens.shadow.overlay.night.css },
+      elevation: { overlay: tokens.shadow.overlay.night.elevation },
       spacing: {
         hit: `${tokens.size.hit}px`,
         sidenav: `${tokens.size.sidenav}px`,
         ...Object.fromEntries(
-          Object.entries(tokens.size.control).map(([name, value]) => [
-            `control-${name}`,
+          Object.entries(tokens.size.control).map(([key, value]) => [
+            `control-${key}`,
             `${value}px`,
           ]),
         ),
       },
       maxWidth: px(tokens.container),
       transitionDuration: Object.fromEntries(
-        Object.entries(tokens.duration).map(([name, value]) => [
-          name,
+        Object.entries(tokens.duration).map(([key, value]) => [
+          key,
           `${value}ms`,
         ]),
       ),
-      transitionTimingFunction: tokens.easing,
+      transitionTimingFunction: Object.fromEntries(
+        Object.entries(tokens.easing).map(([key, value]) => [
+          key,
+          `cubic-bezier(${value.join(', ')})`,
+        ]),
+      ),
       scale: { press: String(tokens.motion['press-scale']) },
     },
   },

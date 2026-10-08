@@ -1,3 +1,5 @@
+import { palette } from '@/lib/palette';
+import { Icon } from '@/components/ui/Icon';
 import { Button } from '@/components/ui/Button';
 import { Text as KitText } from '@/components/ui/Text';
 import { ProgressBar } from '@/components/ui/ProgressBar';
@@ -73,14 +75,14 @@ function EpisodeListSkeleton() {
           key={item}
           className={cn(
             'flex-row gap-3 py-[13px]',
-            item !== 0 && 'border-t border-line',
+            item !== 0 && 'border-t border-rule',
           )}
         >
-          <SkeletonBlock className="h-10 w-10 rounded-xl" />
+          <SkeletonBlock className="h-10 w-10 rounded-panel" />
           <View className="min-w-0 flex-1">
             <View className="flex-row items-center justify-between gap-2">
               <SkeletonBlock className="h-4 w-44" />
-              <SkeletonBlock className="h-8 w-8 rounded-full" />
+              <SkeletonBlock className="h-8 w-8 rounded-round" />
             </View>
             <SkeletonBlock className="mt-[9px] h-3 w-16" />
           </View>
@@ -100,8 +102,8 @@ function SearchMatchSummary({
 
   return (
     <View className="mt-2">
-      <View className="self-start rounded-full bg-[rgba(212,197,163,.12)] px-2 py-1">
-        <Text className="font-mono text-[9px] uppercase tracking-[0.8px] text-accent">
+      <View className="self-start rounded-round bg-well px-2 py-1">
+        <Text className="font-mono text-data uppercase tracking-[0.8px] text-ink">
           {result.matchSource === 'title'
             ? t('podcast.matchTitle')
             : t('podcast.matchTranscript')}
@@ -109,7 +111,7 @@ function SearchMatchSummary({
       </View>
       {snippet !== undefined && snippet !== '' ? (
         <Text
-          className="mt-[7px] text-[12px] leading-[17px] text-ink-dim"
+          className="font-text mt-[7px] text-caption leading-[17px] text-ink-2"
           numberOfLines={3}
         >
           {snippet}
@@ -134,8 +136,8 @@ function PodcastSearchBar({
 
   return (
     <View className="flex-row items-center gap-3 pt-3">
-      <View className="h-11 min-w-0 flex-1 flex-row items-center gap-3 rounded-[18px] border border-line bg-[rgba(255,255,255,.045)] px-3">
-        <Search size={18} strokeWidth={2} color="#a1a1aa" />
+      <View className="h-11 min-w-0 flex-1 flex-row items-center gap-3 rounded-panel border border-rule bg-well px-3">
+        <Icon icon={Search} size="md" tone="secondary" />
         <TextInput
           accessibilityLabel={t('podcast.searchEpisodes')}
           autoFocus
@@ -146,16 +148,16 @@ function PodcastSearchBar({
           returnKeyType="search"
           autoCapitalize="none"
           autoCorrect={false}
-          className="h-full min-w-0 flex-1 font-sans text-[14px] text-ink"
+          className="h-full min-w-0 flex-1 font-text text-body text-ink"
         />
         {query.trim() !== '' ? (
           <Tap
             accessibilityRole="button"
             accessibilityLabel={t('podcast.clearSearch')}
             onPress={onClear}
-            className="h-7 w-7 items-center justify-center rounded-full bg-[rgba(255,255,255,.06)]"
+            className="h-7 w-7 items-center justify-center rounded-round bg-well"
           >
-            <X size={14} strokeWidth={2} color="#a1a1aa" />
+            <Icon icon={X} size="xs" tone="secondary" />
           </Tap>
         ) : null}
       </View>
@@ -165,7 +167,7 @@ function PodcastSearchBar({
         onPress={onCancel}
         className="h-11 items-center justify-center px-1"
       >
-        <Text className="font-sans-medium text-[13px] text-accent">
+        <Text className="font-text-medium text-body-sm text-ink">
           {t('common.cancel')}
         </Text>
       </Tap>
@@ -183,8 +185,8 @@ function EmptyStateCard({
   return (
     <View className="pt-[18px]">
       <Card className="p-5">
-        <Text className="font-sans-semibold text-[15px] text-ink">{title}</Text>
-        <Text className="mt-2 text-[12.5px] leading-[19px] text-ink-dim">
+        <Text className="font-text-semibold text-body text-ink">{title}</Text>
+        <Text className="font-text mt-2 text-caption leading-[19px] text-ink-2">
           {message}
         </Text>
       </Card>
@@ -490,7 +492,7 @@ export function PodcastScreen() {
   };
 
   return (
-    <View className="flex-1 bg-bg">
+    <View className="flex-1 bg-ground">
       <ScreenScrollView
         width="reading"
         refreshControl={
@@ -499,8 +501,8 @@ export function PodcastScreen() {
             onRefresh={() => {
               void refreshPodcastData();
             }}
-            tintColor="#d4c5a3"
-            colors={['#d4c5a3']}
+            tintColor={palette.ink}
+            colors={[palette.ink]}
             progressBackgroundColor="#18181b"
           />
         }
@@ -520,17 +522,13 @@ export function PodcastScreen() {
                 accessibilityState={{ expanded: searchExpanded }}
                 onPress={() => setSearchExpanded(true)}
                 className={cn(
-                  'h-11 w-11 items-center justify-center rounded-full border',
+                  'h-11 w-11 items-center justify-center rounded-round border',
                   searchExpanded
-                    ? 'border-[rgba(212,197,163,.42)] bg-[rgba(212,197,163,.16)]'
-                    : 'border-line bg-[rgba(255,255,255,.045)]',
+                    ? 'border-rule-2 bg-well'
+                    : 'border-rule bg-well',
                 )}
               >
-                <Search
-                  size={19}
-                  strokeWidth={2}
-                  color={searchExpanded ? '#d4c5a3' : '#a1a1aa'}
-                />
+                <Icon icon={Search} size="md" tone="secondary" />
               </Tap>
             </View>
           }

@@ -1,3 +1,5 @@
+import { tokens } from '@zapengine/design-tokens/tokens';
+import { Icon } from '@/components/ui/Icon';
 import { CHAIN_BRAND } from '@zapengine/brand-assets/chains';
 import { Lock } from 'lucide-react-native';
 import { useState } from 'react';
@@ -41,7 +43,7 @@ export function SectorCard({
         : positions.reduce((n, p) => n + (p.usd6 ?? 0n), 0n);
   return (
     <View
-      className="rounded-[18px] border border-line bg-[#111113] p-4"
+      className="rounded-panel border border-rule bg-well p-4"
       accessibilityState={{ disabled: !sector.executable }}
       aria-disabled={!sector.executable}
       accessibilityLabel={
@@ -55,11 +57,11 @@ export function SectorCard({
           style={{
             width: 9,
             height: 9,
-            borderRadius: 5,
+            borderRadius: tokens.radius.control,
             backgroundColor: sectorColor(sector),
           }}
         />
-        <Text className="flex-1 font-sans-semibold text-[15px] text-ink">
+        <Text className="flex-1 font-text-semibold text-body text-ink">
           {sector.label}
         </Text>
         {sector.executable ? (
@@ -67,27 +69,27 @@ export function SectorCard({
             <TextInput
               accessibilityLabel={`${sector.label} allocation percentage`}
               accessibilityHint="Other sectors adjust automatically so the total stays at 100%"
-              className="w-16 text-right font-mono text-[18px] text-ink"
+              className="w-16 text-right font-mono text-data-md text-ink"
               keyboardType="decimal-pad"
               value={percentInput}
               onChangeText={onChangePercent}
               onBlur={onBlurPercent}
             />
-            <Text className="text-ink-dim">%</Text>
+            <Text className="font-text text-ink-2">%</Text>
           </>
         ) : (
           <>
-            <Lock size={13} color="#71717a" />
-            <Text className="font-mono text-ink-faint">0%</Text>
+            <Icon icon={Lock} size="xs" tone="default" />
+            <Text className="font-mono text-ink-3">0%</Text>
           </>
         )}
       </View>
-      <Text className="mt-2 text-[11px] text-ink-dim">
+      <Text className="font-mono-medium mt-2 text-label text-ink-2">
         {sector.description}
       </Text>
       {sector.executable ? (
         <>
-          <Text className="mt-3 font-mono text-[12px] text-ink">
+          <Text className="mt-3 font-mono text-data text-ink">
             {total === null ? '—' : formatUsd6(total)}
           </Text>
           <Disclosure
@@ -95,7 +97,9 @@ export function SectorCard({
             onToggle={() => setExpanded((v) => !v)}
             accessibilityLabel={`${sector.label} details`}
             header={
-              <Text className="flex-1 text-[11px] text-ink-dim">Details</Text>
+              <Text className="font-mono-medium flex-1 text-label text-ink-2">
+                Details
+              </Text>
             }
           >
             {positions.map((p) => {
@@ -116,7 +120,7 @@ export function SectorCard({
           </Disclosure>
         </>
       ) : (
-        <Text className="mt-3 text-[11px] leading-4 text-ink-faint">
+        <Text className="font-mono-medium mt-3 text-label leading-4 text-ink-3">
           {sector.lockedReason}
         </Text>
       )}

@@ -27,15 +27,12 @@ function BlockingBanner({ review }: { review: DepositReviewGroup }) {
 
 function ProtocolChip({ protocol }: { protocol: RouteProtocolContext }) {
   return (
-    <View className="flex-row items-center gap-1.5 rounded-full border border-line py-1 pl-1 pr-3">
+    <View className="flex-row items-center gap-1.5 rounded-round border border-rule py-1 pl-1 pr-3">
       <ProtocolIcon protocol={protocol.protocol} size={20} />
-      <Text
-        className="font-sans-medium text-[10.5px] text-ink"
-        numberOfLines={1}
-      >
+      <Text className="font-text-medium text-label text-ink" numberOfLines={1}>
         {protocol.label}
       </Text>
-      <Text className="font-mono-semibold text-[8px] uppercase tracking-[.5px] text-ink-faint">
+      <Text className="font-mono-semibold text-data uppercase tracking-[.5px] text-ink-3">
         {protocol.badge}
       </Text>
     </View>
@@ -63,9 +60,9 @@ export function SimulationReviewBody({
   return (
     <View className="gap-5">
       <View className="flex-row flex-wrap items-center gap-2">
-        <View className="flex-row items-center gap-2 rounded-full border border-line py-1 pl-1.5 pr-3">
+        <View className="flex-row items-center gap-2 rounded-round border border-rule py-1 pl-1.5 pr-3">
           {chainKey ? <ChainMark chainKey={chainKey} size={17} /> : null}
-          <Text className="font-sans-medium text-[10.5px] text-ink">
+          <Text className="font-text-medium text-label text-ink">
             {simulationChainLabel(review.chainId)}
           </Text>
         </View>

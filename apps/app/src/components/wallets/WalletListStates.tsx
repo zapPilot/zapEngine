@@ -9,9 +9,9 @@ export function WalletListSkeleton() {
         <View key={item} className="flex-row items-center gap-3 px-1 py-3">
           <View className="flex-1">
             <SkeletonBlock className="h-4 w-28" />
-            <SkeletonBlock className="mt-2 h-3 w-36 rounded-full" />
+            <SkeletonBlock className="mt-2 h-3 w-36 rounded-round" />
           </View>
-          <SkeletonBlock className="h-8 w-24 rounded-full" />
+          <SkeletonBlock className="h-8 w-24 rounded-round" />
         </View>
       ))}
     </View>

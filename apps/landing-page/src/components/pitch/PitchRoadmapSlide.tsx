@@ -4,7 +4,7 @@ import {
   capabilitiesByStatus,
   type CapabilityId,
   type CapabilityRef,
-} from '@/config/runtime';
+} from '@zapengine/zap-pilot-story/facts';
 import { PITCH_ROADMAP } from '@/config/pitch';
 import { PitchSlide } from './PitchSlide';
 

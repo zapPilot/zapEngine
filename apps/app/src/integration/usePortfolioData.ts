@@ -91,7 +91,7 @@ function pctMetric(label: string, pct: number | null): Metric {
 }
 
 function positivePctMetric(label: string, pct: number | null): Metric {
-  return numberMetric(label, pct, formatPct, 'accent');
+  return numberMetric(label, pct, formatPct, 'neutral');
 }
 
 function unavailablePortfolioData(): PortfolioViewData {
@@ -104,12 +104,12 @@ function unavailablePortfolioData(): PortfolioViewData {
     trendPoints: [],
     metrics: [
       unavailableMetric('Value change'),
-      unavailableMetric('Current APY', 'accent'),
+      unavailableMetric('Current APY', 'neutral'),
       unavailableMetric('7D value change'),
       unavailableMetric('30D value change'),
       unavailableMetric('Max drawdown', 'negative'),
       unavailableMetric('Volatility'),
-      unavailableMetric('Sharpe', 'accent'),
+      unavailableMetric('Sharpe', 'neutral'),
     ],
     allocation: [],
   };
@@ -216,7 +216,7 @@ export function usePortfolioData(
     'Sharpe',
     lastSharpe,
     (value) => value.toFixed(2),
-    'accent',
+    'neutral',
   );
 
   const valueChange7d = calculateWindowValueChangePct(trendPoints, 7);
@@ -248,7 +248,7 @@ export function usePortfolioData(
         {
           label: 'Stablecoins',
           pct: Math.round(calculatedAllocation.stable),
-          color: tokens.color.pillar.usd,
+          color: tokens.sleeve.night.stable,
         },
       ].filter((row) => row.pct > 0)
     : [];

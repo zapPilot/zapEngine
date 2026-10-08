@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { keccak256, type EIP1193Provider } from 'viem';
-import artifact from '@/data/strategy-deployment.json';
+import { strategyDeployment as artifact } from '@zapengine/zap-pilot-story/facts';
 import {
   DEPLOYMENT_ADDRESS,
   FACTORY,
@@ -139,7 +139,8 @@ describe('Rabby deterministic deployment', () => {
     expect(notify).toHaveBeenCalledWith(hash);
   });
   it('sends only the pinned factory calldata and verifies runtime before activation', async () => {
-    const original = await import('@/data/strategy-deployment.json');
+    const original = (await import('@zapengine/zap-pilot-story/facts'))
+      .strategyDeployment;
     // The compiler fixture provides the runtime that matches the pinned artifact.
     const runtime =
       await import('../../../../../analytics-engine/tests/fixtures/pinned_strategy/dma_cross_down_slice.json');

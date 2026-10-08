@@ -1,5 +1,8 @@
 import { LINKS } from './links';
-import type { CapabilityRef, CapabilityStatus } from './runtime';
+import type {
+  CapabilityRef,
+  CapabilityStatus,
+} from '@zapengine/zap-pilot-story/facts';
 import {
   backtestDisclaimer,
   backtestHeadline,
@@ -10,12 +13,12 @@ import {
   type BacktestComparisonRow,
   type BacktestStat,
 } from '@/data/backtest-stats';
-import { getRuntimeTrace } from '@/data/runtime-trace';
+import { engineDecision } from '@zapengine/zap-pilot-story/facts';
 
 /*
  * Home-page, waitlist and shared pitch copy. Copy never states whether
  * something runs today: an item that makes a capability claim references a
- * `CAPABILITIES` id from ./runtime and the page renders its status badge.
+ * `CAPABILITIES` id from the story facts and the page renders its status badge.
  * `src/config/__tests__/positioning.test.tsx` fences every string here.
  */
 
@@ -242,7 +245,7 @@ const BRAND_LINE_PARTS = [
   'Your wallet.',
 ] as const;
 const BRAND_LINE = BRAND_LINE_PARTS.join(' ');
-const TRACE = getRuntimeTrace();
+const TRACE = engineDecision();
 const CALCULATOR_HREF = `/track-record/calculator/?date=${TRACE.date}`;
 const REFERENCE_SPEC_HREF = '/docs/track-record/dma-fgi-portfolio-rules-v1';
 

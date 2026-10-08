@@ -46,11 +46,11 @@ const REGIME_KEYS: Readonly<Record<SignalRegime, TranslationKey>> = {
 };
 
 const REGIME_COLORS: Readonly<Record<SignalRegime, string>> = {
-  extreme_fear: tokens.color.danger,
-  fear: tokens.color.danger,
-  neutral: tokens.color['ink-dim'],
-  greed: tokens.color.success,
-  extreme_greed: tokens.color.success,
+  extreme_fear: tokens.mode.night['alert'],
+  fear: tokens.mode.night['alert'],
+  neutral: tokens.mode.night['ink-2'],
+  greed: tokens.mode.night['ink'],
+  extreme_greed: tokens.mode.night['ink'],
 };
 
 const GAUGE_DOMAIN = [0, 100] as const;
@@ -74,23 +74,23 @@ export function MarketSignalsCard({
   if (loading && !signals) {
     return (
       <Card className="mt-4 p-4">
-        <SkeletonBlock className="h-5 w-24 rounded-lg" />
-        <SkeletonBlock className="mt-4 h-40 w-full rounded-xl" />
+        <SkeletonBlock className="h-5 w-24 rounded-panel" />
+        <SkeletonBlock className="mt-4 h-40 w-full rounded-panel" />
       </Card>
     );
   }
 
   return (
     <Card className="mt-4 p-4">
-      <Text className="font-sans-semibold text-[15px] text-ink">
+      <Text className="font-text-semibold text-body text-ink">
         {t('strategy.signals.title')}
       </Text>
-      <Text className="mt-1 text-[11.5px] text-ink-faint">
+      <Text className="font-mono-medium mt-1 text-label text-ink-3">
         {t('strategy.signals.subtitle')}
       </Text>
       {signals ? (
         <>
-          <Text className="mt-1 font-mono text-[9px] text-ink-faint">
+          <Text className="mt-1 font-mono text-data text-ink-3">
             {t('strategy.signals.asOf', { date: signals.asOf })}
           </Text>
           <SectionHeader
@@ -118,12 +118,12 @@ export function MarketSignalsCard({
               onRangeChange={setRange}
             />
           ))}
-          <Text className="mt-2 text-[11px] leading-[16px] text-ink-faint">
+          <Text className="font-mono-medium mt-2 text-label leading-[16px] text-ink-3">
             {t('strategy.signals.sentimentNote')}
           </Text>
         </>
       ) : (
-        <Text className="mt-3 text-[12px] leading-[18px] text-ink-dim">
+        <Text className="font-text mt-3 text-caption leading-[18px] text-ink-2">
           {t('strategy.signals.unavailable')}
         </Text>
       )}
@@ -149,8 +149,8 @@ function TrendSignalRow({
       defaultExpanded={highlighted}
       tag={
         highlighted ? (
-          <Badge className="bg-accent-soft px-2 py-0.5">
-            <Text className="font-mono text-[9px] text-accent">
+          <Badge className="bg-well px-2 py-0.5">
+            <Text className="font-mono text-data text-ink">
               {t('strategy.signals.triggered')}
             </Text>
           </Badge>
@@ -160,12 +160,12 @@ function TrendSignalRow({
       badge={
         signal.distance === null ? null : (
           <Text
-            className="font-mono text-[11px]"
+            className="font-mono text-data"
             style={{
               color:
                 signal.distance >= 0
-                  ? tokens.color.success
-                  : tokens.color.danger,
+                  ? tokens.mode.night['ink']
+                  : tokens.mode.night['alert'],
             }}
           >
             {formatSignedPct(signal.distance * 100)}
@@ -199,7 +199,7 @@ function SentimentSignalRow({
       badge={
         signal.regime ? (
           <Text
-            className="font-mono text-[11px]"
+            className="font-mono text-data"
             style={{ color: REGIME_COLORS[signal.regime] }}
           >
             {t(REGIME_KEYS[signal.regime])}
@@ -243,7 +243,7 @@ function SignalRow({
   const [toggled, setToggled] = useState<boolean | null>(null);
   const expanded = toggled ?? defaultExpanded;
   return (
-    <View className="border-t border-line">
+    <View className="border-t border-rule">
       <Disclosure
         expanded={expanded}
         onToggle={() => setToggled(!expanded)}
@@ -254,19 +254,17 @@ function SignalRow({
           <View className="min-w-0 flex-1">
             <View className="flex-row items-center justify-between gap-2">
               <View className="min-w-0 shrink flex-row items-center gap-2">
-                <Text className="font-sans-semibold text-[13px] text-ink">
+                <Text className="font-text-semibold text-body-sm text-ink">
                   {name}
                 </Text>
                 {tag}
               </View>
               <View className="flex-row items-center gap-2">
-                <Text className="font-mono text-[12.5px] text-ink">
-                  {value}
-                </Text>
+                <Text className="font-mono text-data text-ink">{value}</Text>
                 {badge}
               </View>
             </View>
-            <Text className="mt-0.5 font-mono text-[10px] text-ink-faint">
+            <Text className="mt-0.5 font-mono text-data text-ink-3">
               {subtitle}
             </Text>
           </View>
@@ -316,12 +314,8 @@ function SignalChart({
         {...(gauge ? { domain: GAUGE_DOMAIN, guides: GAUGE_GUIDES } : {})}
       />
       <View className="mt-1 flex-row justify-between">
-        <Text className="font-mono text-[9px] text-ink-faint">
-          {dates[start]}
-        </Text>
-        <Text className="font-mono text-[9px] text-ink-faint">
-          {dates.at(-1)}
-        </Text>
+        <Text className="font-mono text-data text-ink-3">{dates[start]}</Text>
+        <Text className="font-mono text-data text-ink-3">{dates.at(-1)}</Text>
       </View>
     </View>
   );

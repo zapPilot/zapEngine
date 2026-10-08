@@ -3,7 +3,7 @@ import {
   STATUS_LABEL,
   capabilityIds,
   type CapabilityRef,
-} from '@/config/runtime';
+} from '@zapengine/zap-pilot-story/facts';
 
 import styles from './StatusBadge.module.css';
 

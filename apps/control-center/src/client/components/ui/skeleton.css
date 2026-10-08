@@ -5,9 +5,9 @@
   border-radius: 999px;
   background: linear-gradient(
     90deg,
-    var(--surface-elevated) 20%,
-    var(--surface) 45%,
-    var(--surface-elevated) 70%
+    var(--well) 20%,
+    var(--sheet) 45%,
+    var(--well) 70%
   );
   background-size: 220% 100%;
   animation: cc-skeleton-shimmer 1.35s ease-in-out infinite;
@@ -31,7 +31,7 @@
   padding: var(--cc-space-5);
   border: 1px solid var(--cc-hairline);
   border-radius: var(--cc-radius-card);
-  background: var(--surface);
+  background: var(--sheet);
   box-shadow: var(--cc-shadow-sm);
 }
 

@@ -4,6 +4,7 @@ import { X } from 'lucide-react-native';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   Animated,
+  Easing,
   Modal,
   PanResponder,
   ScrollView,
@@ -46,8 +47,9 @@ export function Sheet({
   useEffect(() => {
     offset.setValue(visible && !reducedMotion ? tokens.size.hit : 0);
     if (!visible || reducedMotion) return;
-    const animation = Animated.spring(offset, {
-      ...tokens.motion['enter-spring'],
+    const animation = Animated.timing(offset, {
+      duration: tokens.duration.slow,
+      easing: Easing.bezier(...tokens.easing.enter),
       toValue: 0,
       useNativeDriver: true,
     });
@@ -64,8 +66,9 @@ export function Sheet({
         },
         onPanResponderRelease: (_, gesture) => {
           if (gesture.dy > tokens.size.hit * 2) onClose();
-          Animated.spring(offset, {
-            ...tokens.motion['enter-spring'],
+          Animated.timing(offset, {
+            duration: tokens.duration.slow,
+            easing: Easing.bezier(...tokens.easing.enter),
             toValue: 0,
             useNativeDriver: true,
           }).start();
@@ -100,7 +103,7 @@ export function Sheet({
           accessibilityViewIsModal
           accessibilityLabel={title}
           className={cn(
-            'w-full max-w-reading overflow-hidden border border-line bg-surface-overlay shadow-overlay',
+            'w-full max-w-reading overflow-hidden border border-rule bg-sheet shadow-overlay',
             centered ? 'rounded-sheet' : 'rounded-t-sheet',
           )}
           style={{ transform: [{ translateY: offset }], maxHeight: '90%' }}
@@ -111,11 +114,11 @@ export function Sheet({
               accessible={false}
               className="items-center py-3"
             >
-              <View className="h-1 w-9 rounded-pill bg-line-hi" />
+              <View className="h-1 w-9 rounded-round bg-rule-2" />
             </View>
           ) : null}
           <View className="flex-row items-center gap-3 px-5 py-3">
-            <Text variant="title-sm" heading={2} className="flex-1">
+            <Text variant="title" heading={2} className="flex-1">
               {title}
             </Text>
             <IconButton

@@ -7,7 +7,7 @@ import {
   waitFor,
 } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-let CtaExperiment: typeof import('../landing-v2/CtaExperiment').CtaExperiment;
+let CtaExperiment: typeof import('../site/CtaExperiment').CtaExperiment;
 let AppCtaLink: typeof import('../landing-v2/AppCtaLink').AppCtaLink;
 import {
   resolveCtaVariant,
@@ -41,7 +41,7 @@ beforeEach(async () => {
   vi.resetModules();
   vi.clearAllMocks();
   vi.stubEnv('NEXT_PUBLIC_POSTHOG_KEY', 'test');
-  ({ CtaExperiment } = await import('../landing-v2/CtaExperiment'));
+  ({ CtaExperiment } = await import('../site/CtaExperiment'));
   ({ AppCtaLink } = await import('../landing-v2/AppCtaLink'));
   sdk.callback = null;
   sdk.has_opted_out_capturing.mockReturnValue(false);
@@ -230,7 +230,7 @@ describe('CTA experiment exposure and signup', () => {
   it('does not start an experiment or observe visibility when browser tracking is unavailable', async () => {
     vi.stubEnv('NEXT_PUBLIC_POSTHOG_KEY', '');
     vi.resetModules();
-    ({ CtaExperiment } = await import('../landing-v2/CtaExperiment'));
+    ({ CtaExperiment } = await import('../site/CtaExperiment'));
     ({ AppCtaLink } = await import('../landing-v2/AppCtaLink'));
     vi.stubGlobal('IntersectionObserver', undefined);
     renderCta();

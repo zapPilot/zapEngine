@@ -8,7 +8,7 @@ import {
   STATUS_DEFINITION,
   STATUS_LABEL,
   type CapabilityId,
-} from '@/config/runtime';
+} from '@zapengine/zap-pilot-story/facts';
 
 describe('CapabilityStatusTable', () => {
   it('lists every capability once with its recorded status', () => {

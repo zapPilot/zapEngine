@@ -34,7 +34,7 @@ export const HookScene: React.FC<{ readonly scene: SceneOf<'hook'> }> = ({
           text={claim}
           from={8}
           style={{
-            fontFamily: font.serif,
+            fontFamily: font.display,
             fontSize: 150,
             lineHeight: 1.02,
             color: color.ink,
@@ -45,11 +45,11 @@ export const HookScene: React.FC<{ readonly scene: SceneOf<'hook'> }> = ({
           from={punchAt}
           stagger={5}
           style={{
-            fontFamily: font.serif,
+            fontFamily: font.display,
             fontStyle: 'italic',
             fontSize: 184,
             lineHeight: 1.1,
-            color: color.accent,
+            color: color['ink'],
           }}
         />
         <div
@@ -57,7 +57,7 @@ export const HookScene: React.FC<{ readonly scene: SceneOf<'hook'> }> = ({
             marginTop: 40,
             height: 2,
             width: 620 * rise(frame, punchAt + 10, 26),
-            background: color.accentLine,
+            background: color['rule-2'],
           }}
         />
       </AbsoluteFill>

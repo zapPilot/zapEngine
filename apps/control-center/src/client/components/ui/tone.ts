@@ -65,5 +65,5 @@ const PLATFORM_VAR: Record<string, string> = {
 
 export function platformColorVar(platform: string): string {
   const name = PLATFORM_VAR[platform];
-  return name ? `var(${name})` : 'var(--ink-faint)';
+  return name ? `var(${name})` : 'var(--ink-3)';
 }

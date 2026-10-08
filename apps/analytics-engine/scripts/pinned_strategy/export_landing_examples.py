@@ -24,7 +24,10 @@ from src.services.backtesting.signals.flat_minimum import (
 )
 
 LANDING = ROOT.parent / "landing-page"
-OUTPUT = LANDING / "src/data/verifiable-strategy.json"
+OUTPUT = (
+    ROOT.parent.parent
+    / "packages/zap-pilot-story/src/facts/data/verifiable-strategy.json"
+)
 TRACK_RECORD = LANDING / "src/data/equity-curve.json"
 
 

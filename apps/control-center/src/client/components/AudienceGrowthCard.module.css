@@ -7,7 +7,7 @@
   min-width: 0;
 }
 .platform p {
-  color: var(--ink-muted);
+  color: var(--ink-3);
   font-size: 12px;
 }
 .platform svg {
@@ -21,7 +21,7 @@
   stroke-width: 2;
 }
 .zero {
-  stroke: var(--line);
+  stroke: var(--rule);
   stroke-dasharray: 3 3;
 }
 @media (max-width: 900px) {

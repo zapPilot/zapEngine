@@ -1,5 +1,7 @@
+import { tokens } from '@zapengine/design-tokens/tokens';
+import { palette } from '@/lib/palette';
+import { Icon, type IconProps } from '@/components/ui/Icon';
 import { Copy, Pencil, Trash2 } from 'lucide-react-native';
-import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { Text, TextInput, View } from 'react-native';
 
@@ -28,23 +30,25 @@ function IconAction({
   label,
   onPress,
   disabled,
-  children,
+  icon,
+  tone = 'secondary',
 }: {
   label: string;
   onPress: () => void;
   disabled?: boolean;
-  children: ReactNode;
+  icon: IconProps['icon'];
+  tone?: IconProps['tone'];
 }) {
   return (
     <Tap
       accessibilityRole="button"
       accessibilityLabel={label}
       hitSlop={6}
-      className="h-8 w-8 items-center justify-center rounded-full border border-line bg-[rgba(255,255,255,.04)]"
+      className="h-8 w-8 items-center justify-center rounded-round border border-rule bg-well"
       disabled={disabled}
       onPress={onPress}
     >
-      {children}
+      <Icon icon={icon} size="xs" tone={tone} />
     </Tap>
   );
 }
@@ -56,7 +60,7 @@ function InlineActionButton({
   onPress,
 }: {
   label: string;
-  tone?: 'default' | 'danger';
+  tone?: 'default' | 'alert';
   disabled?: boolean;
   onPress: () => void;
 }) {
@@ -64,20 +68,21 @@ function InlineActionButton({
     <Tap
       accessibilityRole="button"
       accessibilityLabel={label}
-      className="rounded-full border px-3 py-1.5"
+      className="rounded-round border px-3 py-1.5"
       style={{
-        borderColor:
-          tone === 'danger' ? 'rgba(239,116,116,.32)' : 'rgba(212,197,163,.22)',
+        borderColor: tone === 'alert' ? palette.alert : palette['sign-ink'],
         backgroundColor:
-          tone === 'danger' ? 'rgba(239,116,116,.08)' : 'rgba(212,197,163,.07)',
+          tone === 'alert' ? palette['alert-wash'] : palette['sign-wash'],
         opacity: disabled ? 0.5 : 1,
       }}
       disabled={disabled}
       onPress={onPress}
     >
       <Text
-        className="font-sans-semibold text-[11px]"
-        style={{ color: tone === 'danger' ? '#ef9292' : '#d4c5a3' }}
+        className="font-text-semibold text-label"
+        style={{
+          color: tone === 'alert' ? palette.alert : palette['sign-ink'],
+        }}
       >
         {label}
       </Text>
@@ -109,7 +114,10 @@ export function WalletRow({
       className="px-1 py-3"
       style={
         divider
-          ? { borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,.05)' }
+          ? {
+              borderBottomWidth: 1,
+              borderBottomColor: tokens.mode.night['rule-2'],
+            }
           : null
       }
     >
@@ -118,7 +126,7 @@ export function WalletRow({
           <View className="flex-row items-center gap-2">
             {mode === 'edit' ? (
               <TextInput
-                className="min-w-0 flex-1 rounded-xl border border-line bg-[rgba(255,255,255,.035)] px-3 py-2 font-sans-semibold text-[13px] text-ink"
+                className="min-w-0 flex-1 rounded-panel border border-rule bg-well px-3 py-2 font-text-semibold text-body-sm text-ink"
                 autoFocus
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -130,21 +138,21 @@ export function WalletRow({
             ) : (
               <>
                 <Text
-                  className="font-sans-semibold text-[14px] text-ink"
+                  className="font-text-semibold text-body text-ink"
                   numberOfLines={1}
                 >
                   {row.label}
                 </Text>
                 {row.isActive ? (
-                  <Badge className="bg-[rgba(122,216,143,.12)]">
-                    <Text className="font-mono text-[9.5px] uppercase tracking-[0.5px] text-success">
+                  <Badge className="bg-well">
+                    <Text className="font-mono text-data uppercase tracking-[0.5px] text-ink">
                       Active
                     </Text>
                   </Badge>
                 ) : null}
                 {!row.isVerified ? (
-                  <Badge className="bg-[rgba(212,197,163,.10)]">
-                    <Text className="font-mono text-[9.5px] uppercase tracking-[0.5px] text-accent">
+                  <Badge className="bg-sign-wash">
+                    <Text className="font-mono text-data uppercase tracking-[0.5px] text-ink">
                       Unverified
                     </Text>
                   </Badge>
@@ -152,7 +160,7 @@ export function WalletRow({
               </>
             )}
           </View>
-          <Text className="mt-1 font-mono text-[12px] text-accent">
+          <Text className="mt-1 font-mono text-data text-ink">
             {truncateAddress(row.address)}
           </Text>
         </View>
@@ -169,24 +177,22 @@ export function WalletRow({
             <IconAction
               label={`Copy ${row.label} address`}
               onPress={() => onCopy(row.address)}
-            >
-              <Copy size={13} strokeWidth={1.8} color="#a1a1aa" />
-            </IconAction>
+              icon={Copy}
+            />
             <IconAction
               label={`Edit ${row.label} label`}
               onPress={() => {
                 setLabelDraft(row.label);
                 setMode('edit');
               }}
-            >
-              <Pencil size={13} strokeWidth={1.8} color="#a1a1aa" />
-            </IconAction>
+              icon={Pencil}
+            />
             <IconAction
               label={`Remove ${row.label} from bundle`}
               onPress={() => setMode('confirm-remove')}
-            >
-              <Trash2 size={13} strokeWidth={1.8} color="#ef9292" />
-            </IconAction>
+              icon={Trash2}
+              tone="alert"
+            />
           </View>
         ) : null}
 
@@ -208,8 +214,8 @@ export function WalletRow({
       </View>
 
       {mode === 'confirm-remove' ? (
-        <View className="mt-2 flex-row items-center gap-2 rounded-xl bg-[rgba(239,146,146,.07)] px-3 py-2.5">
-          <Text className="min-w-0 flex-1 text-[11px] leading-[16px] text-[#ef9292]">
+        <View className="mt-2 flex-row items-center gap-2 rounded-panel bg-well px-3 py-2.5">
+          <Text className="font-mono-medium min-w-0 flex-1 text-label leading-[16px] text-alert">
             {row.isActive
               ? 'This is your active signing wallet. Remove it from the bundle?'
               : 'Remove this wallet from the bundle?'}
@@ -221,7 +227,7 @@ export function WalletRow({
           />
           <InlineActionButton
             label={isRemoving ? 'Removing…' : 'Remove'}
-            tone="danger"
+            tone="alert"
             disabled={isRemoving}
             onPress={() => onDelete(row.id)}
           />
@@ -229,7 +235,7 @@ export function WalletRow({
       ) : null}
 
       {inlineError ? (
-        <Text className="mt-1.5 text-[11px] leading-[16px] text-[#ef9292]">
+        <Text className="font-mono-medium mt-1.5 text-label leading-[16px] text-alert">
           {inlineError}
         </Text>
       ) : null}

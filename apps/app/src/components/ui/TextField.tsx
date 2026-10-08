@@ -27,8 +27,8 @@ export function TextField({
       <Text variant="label">{label}</Text>
       <View
         className={cn(
-          'min-h-hit flex-row items-center gap-2 rounded-control border bg-surface-high px-3',
-          error ? 'border-danger-line' : 'border-line-hi',
+          'min-h-hit flex-row items-center gap-2 rounded-control border bg-well px-3',
+          error ? 'border-alert' : 'border-rule-2',
         )}
       >
         {prefix}
@@ -40,10 +40,10 @@ export function TextField({
           keyboardType={
             props.keyboardType ?? (numeric ? 'decimal-pad' : 'default')
           }
-          placeholderTextColor={tokens.color['ink-muted']}
+          placeholderTextColor={tokens.mode.night['ink-3']}
           className={cn(
             'min-h-hit min-w-0 flex-1 text-body text-ink',
-            numeric ? 'font-mono' : 'font-sans',
+            numeric ? 'font-mono' : 'font-text',
           )}
         />
         {suffix}
@@ -52,7 +52,7 @@ export function TextField({
         <Text
           nativeID={id}
           variant="caption"
-          tone="danger"
+          tone="alert"
           accessibilityRole="alert"
         >
           {error}

@@ -249,7 +249,7 @@ function PublishingCadence() {
                 <strong
                   key={slot}
                   style={{
-                    border: '1px solid var(--line)',
+                    border: '1px solid var(--rule)',
                     borderRadius: 'var(--radius-control)',
                     padding: '8px 6px',
                     textAlign: 'center',
@@ -372,7 +372,7 @@ function WaitlistCard(props: { growth: SocialGrowthResponse | null }) {
   );
   if (waitlist.directOrUnknown7d > 0) {
     slices.push({
-      color: 'var(--ink-faint)',
+      color: 'var(--ink-3)',
       id: 'direct',
       label: 'Direct / unknown',
       value: waitlist.directOrUnknown7d,

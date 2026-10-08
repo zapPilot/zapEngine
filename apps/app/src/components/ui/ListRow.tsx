@@ -39,7 +39,7 @@ export function ListRow({
       <View className="min-h-12 flex-row items-center gap-3 py-3">
         {leading}
         <View className="min-w-0 flex-1">
-          <Text variant="body-sm" tone={destructive ? 'danger' : 'secondary'}>
+          <Text variant="body-sm" tone={destructive ? 'alert' : 'secondary'}>
             {title}
           </Text>
           {subtitle ? (
@@ -50,7 +50,7 @@ export function ListRow({
         </View>
         {value != null || detail ? (
           <View className="max-w-reading items-end">
-            <Text variant="numeric-sm" numeric>
+            <Text variant="data" numeric>
               {value}
             </Text>
             {detail ? (

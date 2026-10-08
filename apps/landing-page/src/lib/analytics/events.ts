@@ -45,7 +45,7 @@ function fireEvent(
   }
 }
 
-export type CtaLocation = 'hero' | 'navbar' | 'closing';
+export type CtaLocation = 'hero' | 'navbar' | 'join' | 'closing';
 
 export function trackPitchView() {
   fireEvent('pitch_view', { source: 'pitch_page' });

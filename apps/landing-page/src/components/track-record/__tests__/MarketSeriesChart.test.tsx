@@ -10,7 +10,7 @@ const POINTS = [
 function chart(points = POINTS) {
   return (
     <MarketSeriesChart
-      color="var(--event-btc)"
+      color="var(--sleeve-btc)"
       formatValue={(value) => `$${value.toFixed(0)}`}
       kicker="Trend"
       points={points}
@@ -52,3 +52,31 @@ describe('MarketSeriesChart', () => {
     ).toBeInTheDocument();
   });
 });
+
+it.each([0, 100])(
+  'renders a flat %s series with missing DMA without claiming a comparison',
+  (value) => {
+    const { container } = render(
+      <MarketSeriesChart
+        kicker="Trend"
+        title="Flat"
+        points={[{ date: '2026-08-20', value, dma: null }]}
+        color="var(--ink)"
+        formatValue={String}
+        className="custom-signal"
+        caption="DMA unavailable"
+        dmaLabel="Reference"
+      />,
+    );
+    expect(container.querySelector('.signal-chip')).toBeNull();
+    expect(
+      container.querySelector('.chart-series.market')?.getAttribute('d'),
+    ).not.toContain('NaN');
+    expect(container.querySelector('.chart-series.market-dma')).toHaveAttribute(
+      'd',
+      '',
+    );
+    expect(container.querySelector('figure')).toHaveClass('custom-signal');
+    expect(screen.getByText('DMA unavailable').tagName).toBe('FIGCAPTION');
+  },
+);

@@ -5,7 +5,7 @@ import {
   STATUS_DEFINITION,
   STATUS_LABEL,
   capabilitiesByStatus,
-} from '@/config/runtime';
+} from '@zapengine/zap-pilot-story/facts';
 
 const cell = { padding: '10px 12px', verticalAlign: 'top' } as const;
 

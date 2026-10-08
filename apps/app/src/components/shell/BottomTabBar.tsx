@@ -25,8 +25,8 @@ export function BottomTabBar({ state, navigation }: BottomTabBarProps) {
   const { t } = useContentLanguage();
   return (
     <View
-      className="shrink-0 border-t border-line bg-bg px-2 pt-2"
-      style={{ paddingBottom: Math.max(insets.bottom, tokens.radius.tile) }}
+      className="shrink-0 border-t border-rule bg-ground px-2 pt-2"
+      style={{ paddingBottom: Math.max(insets.bottom, tokens.radius.panel) }}
     >
       <View
         accessibilityRole="tablist"
@@ -62,12 +62,12 @@ export function BottomTabBar({ state, navigation }: BottomTabBarProps) {
               }}
             >
               <View className="flex-row items-center gap-1">
-                <Icon icon={tab.icon} tone={active ? 'accent' : 'muted'} />
+                <Icon icon={tab.icon} tone={active ? 'default' : 'muted'} />
                 {!tab.accessible ? (
                   <Icon icon={LockKeyhole} size="xs" tone="muted" />
                 ) : null}
               </View>
-              <Text variant="overline" tone={active ? 'accent' : 'muted'}>
+              <Text variant="label" tone={active ? 'default' : 'muted'}>
                 {tab.label}
               </Text>
             </Tap>

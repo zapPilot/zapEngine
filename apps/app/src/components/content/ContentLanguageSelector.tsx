@@ -1,3 +1,4 @@
+import { Icon } from '@/components/ui/Icon';
 import { Check, ChevronDown } from 'lucide-react-native';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
@@ -68,40 +69,36 @@ export function ContentLanguageOptionRows({
             className={cn(
               'flex-row items-center justify-between py-[11px]',
               index < CONTENT_LANGUAGE_OPTIONS.length - 1 &&
-                'border-b border-line',
+                'border-b border-rule',
             )}
           >
             <View className="flex-row items-center">
               <View
                 className={cn(
-                  'h-8 w-8 items-center justify-center rounded-lg border',
-                  selected
-                    ? 'border-[rgba(212,197,163,.3)] bg-[rgba(212,197,163,.12)]'
-                    : 'border-line bg-[rgba(255,255,255,.045)]',
+                  'h-8 w-8 items-center justify-center rounded-panel border',
+                  selected ? 'border-rule-2 bg-well' : 'border-rule bg-well',
                 )}
               >
                 <Text
                   className={cn(
-                    'font-mono text-[11px]',
-                    selected ? 'text-accent' : 'text-ink',
+                    'font-mono text-data',
+                    selected ? 'text-ink' : 'text-ink',
                   )}
                 >
                   {option.badge}
                 </Text>
               </View>
-              <Text className="ml-3 text-[13px] text-ink">
+              <Text className="font-text ml-3 text-body-sm text-ink">
                 {option.nativeName}
               </Text>
             </View>
             <View className="flex-row items-center gap-3">
               {completionText !== null ? (
-                <Text className="font-mono text-[10px] text-ink-dim">
+                <Text className="font-mono text-data text-ink-2">
                   {completionText}
                 </Text>
               ) : null}
-              {selected ? (
-                <Check size={16} strokeWidth={2} color="#d4c5a3" />
-              ) : null}
+              {selected ? <Icon icon={Check} size="sm" tone="sign" /> : null}
             </View>
           </Tap>
         );
@@ -149,11 +146,9 @@ export function PodcastLanguageDropdown({
         accessibilityState={{ expanded: open }}
         onPress={() => setOpen((value) => !value)}
         className={cn(
-          'items-center justify-center rounded-full border',
+          'items-center justify-center rounded-round border',
           showsCompletion ? 'h-11 min-w-[76px] px-3' : 'h-11 w-11',
-          open
-            ? 'border-[rgba(212,197,163,.42)] bg-[rgba(212,197,163,.16)]'
-            : 'border-[rgba(212,197,163,.24)] bg-[rgba(255,255,255,.045)]',
+          open ? 'border-rule-2 bg-well' : 'border-rule-2 bg-well',
         )}
       >
         <View
@@ -163,22 +158,18 @@ export function PodcastLanguageDropdown({
               : 'items-center',
           )}
         >
-          <Text className="font-mono text-[12px] font-sans-bold text-accent">
+          <Text className="font-mono text-data font-text-semibold text-ink">
             {contentLanguageBadge(languageCode)}
           </Text>
           {showsCompletion ? (
             <>
-              <Text className="font-mono text-[10px] text-ink-faint">·</Text>
-              <Text className="font-mono text-[11px] text-ink-dim">
+              <Text className="font-mono text-data text-ink-3">·</Text>
+              <Text className="font-mono text-data text-ink-2">
                 {triggerCompletionText}
               </Text>
             </>
           ) : null}
-          <ChevronDown
-            size={showsCompletion ? 11 : 10}
-            strokeWidth={2}
-            color="#d4c5a3"
-          />
+          <Icon icon={ChevronDown} size="md" tone="sign" />
         </View>
       </Tap>
       <ActionSheet

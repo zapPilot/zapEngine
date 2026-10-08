@@ -120,17 +120,17 @@ export function ProductView(props: {
                   {
                     label: `${integer(fresh24h)} fresh <24h`,
                     share: safeRatio(fresh24h, observed),
-                    color: 'var(--success)',
+                    color: 'var(--ink)',
                   },
                   {
                     label: `${integer(mid)} <7d`,
                     share: safeRatio(mid, observed),
-                    color: 'var(--accent-muted)',
+                    color: 'var(--ink-3)',
                   },
                   {
                     label: `${integer(older)} older`,
                     share: safeRatio(older, observed),
-                    color: 'var(--danger)',
+                    color: 'var(--alert)',
                   },
                 ]}
               />
@@ -149,17 +149,17 @@ export function ProductView(props: {
                   {
                     label: `Top wallet ${percent(top1)}`,
                     share: top1 ?? 0,
-                    color: 'var(--accent)',
+                    color: 'var(--ink)',
                   },
                   {
                     label: `Next two ${percent(next2)}`,
                     share: next2 ?? 0,
-                    color: 'var(--accent-muted)',
+                    color: 'var(--ink-3)',
                   },
                   {
                     label: `Rest ${percent(rest)}`,
                     share: rest ?? 0,
-                    color: 'var(--line-hi)',
+                    color: 'var(--rule-2)',
                   },
                 ]}
               />

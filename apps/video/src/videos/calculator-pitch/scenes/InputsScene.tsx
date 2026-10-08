@@ -29,7 +29,7 @@ const Step: React.FC<{
       }}
     >
       <span
-        style={{ fontFamily: font.sans, fontSize: 22, color: color.inkMuted }}
+        style={{ fontFamily: font.text, fontSize: 22, color: color['ink-3'] }}
       >
         {label}
       </span>
@@ -71,7 +71,7 @@ export const InputsScene: React.FC<{ readonly scene: SceneOf<'inputs'> }> = ({
               style={{
                 fontFamily: font.mono,
                 fontSize: 36,
-                color: color.inkDim,
+                color: color['ink-2'],
               }}
             >
               {btc.display}
@@ -89,7 +89,7 @@ export const InputsScene: React.FC<{ readonly scene: SceneOf<'inputs'> }> = ({
               value={btc.priceWad}
               from={encodeAt + 26}
               duration={28}
-              style={{ fontSize: 40, color: color.accent }}
+              style={{ fontSize: 40, color: color['ink'] }}
             />
           </Step>
         </Card>

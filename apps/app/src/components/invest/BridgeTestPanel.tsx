@@ -1,3 +1,6 @@
+import { cn } from '@/lib/cn';
+import { tokens } from '@zapengine/design-tokens/tokens';
+import { Icon } from '@/components/ui/Icon';
 import { useQuery } from '@tanstack/react-query';
 import { useBridgeTest } from '@zapengine/app-core/hooks/useBridgeTest';
 import { chainBrandKeyForChainId } from '@zapengine/brand-assets/chains';
@@ -67,20 +70,26 @@ function ChainPill({
       accessibilityRole="radio"
       accessibilityLabel={label}
       accessibilityState={{ checked: selected }}
-      className="min-h-11 flex-1 flex-row items-center justify-center gap-1.5 rounded-xl border px-2"
+      className="min-h-11 flex-1 flex-row items-center justify-center gap-1.5 rounded-panel border px-2"
       style={
         selected
           ? {
-              backgroundColor: 'rgba(212,197,163,.14)',
-              borderColor: 'rgba(212,197,163,.35)',
+              backgroundColor: tokens.mode.night['well'],
+              borderColor: tokens.mode.night['rule-2'],
             }
-          : { backgroundColor: '#171719', borderColor: '#2b2b2f' }
+          : {
+              backgroundColor: tokens.mode.night['well'],
+              borderColor: tokens.mode.night['rule-2'],
+            }
       }
       onPress={onPress}
     >
       {chainKey ? <ChainMark chainKey={chainKey} size={15} /> : null}
       <Text
-        className={`text-center font-sans-semibold text-[11px] ${selected ? 'text-accent' : 'text-ink-dim'}`}
+        className={cn(
+          'text-center font-text-semibold text-label',
+          selected ? 'text-ink' : 'text-ink-2',
+        )}
         numberOfLines={1}
       >
         {label}
@@ -135,8 +144,8 @@ function ChainPillRow({
 function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
     <View className="flex-row justify-between">
-      <Text className="text-[11px] text-ink-dim">{label}</Text>
-      <Text className="font-mono text-[11px] text-ink">{value}</Text>
+      <Text className="font-mono-medium text-label text-ink-2">{label}</Text>
+      <Text className="font-mono text-data text-ink">{value}</Text>
     </View>
   );
 }
@@ -309,8 +318,8 @@ export function BridgeTestPanel() {
 
   return (
     <View className="mt-4">
-      <View className="rounded-[22px] border border-line bg-[#111113] p-4">
-        <Text className="text-[11px] text-ink-dim">From</Text>
+      <View className="rounded-panel border border-rule bg-well p-4">
+        <Text className="font-mono-medium text-label text-ink-2">From</Text>
         <ChainPillRow
           options={BRIDGE_SOURCE_CHAINS}
           selectedChainId={sourceChainId}
@@ -321,11 +330,11 @@ export function BridgeTestPanel() {
         <View className="mt-4 flex-row items-center justify-between gap-3">
           <TextInput
             accessibilityLabel="USDC bridge amount"
-            className="min-w-0 flex-1 font-sans-semibold text-[34px] leading-[40px] text-ink"
+            className="min-w-0 flex-1 font-text-semibold text-title leading-[40px] text-ink"
             keyboardType="decimal-pad"
             placeholder="0"
-            placeholderTextColor="#52525b"
-            selectionColor="#d4c5a3"
+            placeholderTextColor={tokens.mode.night['ink-3']}
+            selectionColor={tokens.mode.night['sign-ink']}
             value={amountInput}
             onChangeText={(value) => setAmountInput(normalizeUsdcInput(value))}
           />
@@ -336,10 +345,10 @@ export function BridgeTestPanel() {
           />
         </View>
         <View className="mt-2 flex-row items-center justify-between">
-          <Text className="font-mono text-[10px] text-ink-dim">
+          <Text className="font-mono text-data text-ink-2">
             ≈ {formatUsd(numberFrom(amountInput) ?? 0)}
           </Text>
-          <Text className="font-mono text-[10px] text-ink-dim">
+          <Text className="font-mono text-data text-ink-2">
             Balance:{' '}
             {sourceUsdcBalance.isLoading
               ? 'Loading…'
@@ -361,15 +370,15 @@ export function BridgeTestPanel() {
         />
 
         {exceedsBalance ? (
-          <Text className="mt-2 text-[11px] text-danger">
+          <Text className="font-mono-medium mt-2 text-label text-alert">
             This amount exceeds your {source.label} USDC balance.
           </Text>
         ) : sourceUsdcBalance.isError ? (
-          <Text className="mt-2 text-[11px] text-danger">
+          <Text className="font-mono-medium mt-2 text-label text-alert">
             Unable to load {source.label} USDC balance.
           </Text>
         ) : !hasGas && account.isConnected && !sourceEthBalance.isLoading ? (
-          <Text className="mt-2 text-[11px] text-danger">
+          <Text className="font-mono-medium mt-2 text-label text-alert">
             Add ETH on {source.label} to pay network gas.
           </Text>
         ) : null}
@@ -381,8 +390,8 @@ export function BridgeTestPanel() {
         accessibilityLabel="Swap source and destination chains"
       />
 
-      <View className="rounded-[22px] border border-line bg-[#111113] p-4">
-        <Text className="text-[11px] text-ink-dim">To</Text>
+      <View className="rounded-panel border border-rule bg-well p-4">
+        <Text className="font-mono-medium text-label text-ink-2">To</Text>
         <ChainPillRow
           wrap
           options={destinations}
@@ -393,9 +402,10 @@ export function BridgeTestPanel() {
 
         <View className="mt-4 flex-row items-center justify-between gap-3">
           <Text
-            className={`min-w-0 flex-1 font-sans-semibold text-[34px] leading-[40px] ${
-              bridge.quote ? 'text-ink' : 'text-ink-faint'
-            }`}
+            className={cn(
+              'min-w-0 flex-1 font-text-semibold text-title leading-[40px]',
+              bridge.quote ? 'text-ink' : 'text-ink-3',
+            )}
             numberOfLines={1}
             adjustsFontSizeToFit
           >
@@ -411,10 +421,10 @@ export function BridgeTestPanel() {
         </View>
       </View>
 
-      <View className="mt-3 rounded-[18px] border border-line bg-[#111113] px-4 py-3">
+      <View className="mt-3 rounded-panel border border-rule bg-well px-4 py-3">
         <View className="flex-row items-center justify-between">
-          <Text className="text-[11px] text-ink-dim">Route</Text>
-          <Text className="font-mono text-[10px] uppercase text-ink-dim">
+          <Text className="font-mono-medium text-label text-ink-2">Route</Text>
+          <Text className="font-mono text-data uppercase text-ink-2">
             {bridge.quote?.estimate.tool ?? 'LI.FI'}
           </Text>
         </View>
@@ -447,13 +457,13 @@ export function BridgeTestPanel() {
             />
           </View>
         ) : (
-          <Text className="mt-2 text-[11px] leading-[17px] text-ink-dim">
+          <Text className="font-mono-medium mt-2 text-label leading-[17px] text-ink-2">
             {bridge.error ?? STATUS_LABELS[bridge.status]}
           </Text>
         )}
 
         {bridge.error && bridge.quote ? (
-          <Text className="mt-2 text-[11px] leading-[17px] text-danger">
+          <Text className="font-mono-medium mt-2 text-label leading-[17px] text-alert">
             {bridge.error}
           </Text>
         ) : null}
@@ -464,8 +474,8 @@ export function BridgeTestPanel() {
             className="mt-3 min-h-11 flex-row items-center gap-2"
             onPress={() => void Linking.openURL(bridge.lifiScanUrl!)}
           >
-            <ExternalLink size={14} color="#d4c5a3" />
-            <Text className="text-[11px] text-accent underline">
+            <Icon icon={ExternalLink} size="xs" tone="sign" />
+            <Text className="font-mono-medium text-label text-ink underline">
               Track on LI.FI Scan
             </Text>
           </Tap>
@@ -482,7 +492,7 @@ export function BridgeTestPanel() {
       >
         {primaryLabel}
       </Button>
-      <Text className="mt-3 px-2 text-center text-[10px] leading-[15px] text-ink-faint">
+      <Text className="font-mono-medium mt-3 px-2 text-center text-label leading-[15px] text-ink-3">
         Test-only flow. It bridges canonical USDC and does not deposit into a
         strategy or HLP vault.
       </Text>

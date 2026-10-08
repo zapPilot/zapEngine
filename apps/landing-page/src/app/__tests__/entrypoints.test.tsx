@@ -20,10 +20,8 @@ vi.mock('next/error', () => ({
   ),
 }));
 vi.mock('next/og', () => ({ ImageResponse: imageResponse }));
-vi.mock('next/font/google', () => ({
-  Geist: () => ({ variable: 'geist' }),
-  Instrument_Serif: () => ({ variable: 'serif' }),
-  JetBrains_Mono: () => ({ variable: 'mono' }),
+vi.mock('next/font/local', () => ({
+  default: () => ({ variable: 'font-local', className: 'font-local' }),
 }));
 vi.mock('@next/third-parties/google', () => ({
   GoogleAnalytics: ({ gaId }: { gaId: string }) => (
@@ -71,7 +69,7 @@ describe('app entrypoints', () => {
     expect(rootMetadata.openGraph?.title).toBe(MESSAGES.meta.title);
     expect(rootMetadata.twitter?.title).toBe(MESSAGES.meta.title);
     expect(rootMetadata.description).toBe(MESSAGES.meta.description);
-    expect(screen.getByTestId('provider')).toHaveTextContent('content');
+    expect(screen.getByText('content')).toHaveTextContent('content');
     expect(screen.queryByTestId('ga')).toBeNull();
     // Font classes land on <html>/<body>, which React does not render inside
     // the test container div (only the provider subtree appears in innerHTML),

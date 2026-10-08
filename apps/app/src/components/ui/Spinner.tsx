@@ -4,11 +4,11 @@ import { ActivityIndicator } from 'react-native';
 
 export function Spinner({
   size = 'sm',
-  tone = 'accent',
+  tone = 'default',
   accessibilityLabel,
 }: {
   size?: 'sm' | 'lg';
-  tone?: 'accent' | 'inverse' | 'default';
+  tone?: 'sign' | 'inverse' | 'default';
   accessibilityLabel?: string;
 }): ReactElement {
   return (
@@ -16,10 +16,10 @@ export function Spinner({
       size={size === 'sm' ? 'small' : 'large'}
       color={
         tone === 'inverse'
-          ? tokens.color['ink-inverse']
+          ? tokens.mode.night['on-sign']
           : tone === 'default'
-            ? tokens.color.ink
-            : tokens.color.accent
+            ? tokens.mode.night.ink
+            : tokens.mode.night['sign-ink']
       }
       accessibilityLabel={accessibilityLabel}
     />

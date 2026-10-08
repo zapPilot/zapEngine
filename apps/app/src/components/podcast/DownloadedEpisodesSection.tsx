@@ -41,7 +41,7 @@ function Thumbnail({
   dimmed?: boolean;
 }): ReactElement {
   return (
-    <View className="aspect-video w-24 overflow-hidden rounded-tile bg-surface-elevated">
+    <View className="aspect-video w-24 overflow-hidden rounded-panel bg-well">
       {uri === undefined ? null : (
         <Image
           accessible={false}
@@ -53,8 +53,8 @@ function Thumbnail({
           )}
         />
       )}
-      <View className="absolute bottom-1 right-1 rounded-subtle bg-scrim px-1.5 py-0.5">
-        <Text variant="overline">{formatPodcastClock(durationSeconds)}</Text>
+      <View className="absolute bottom-1 right-1 rounded-tag bg-scrim px-1.5 py-0.5">
+        <Text variant="label">{formatPodcastClock(durationSeconds)}</Text>
       </View>
     </View>
   );
@@ -87,7 +87,7 @@ function DownloadedRow({
     <View
       className={cn(
         'flex-row items-center gap-1 pl-3',
-        !first && 'border-t border-line',
+        !first && 'border-t border-rule',
       )}
     >
       <Tap
@@ -101,7 +101,7 @@ function DownloadedRow({
           durationSeconds={record.durationSeconds}
         />
         <View className="min-w-0 flex-1">
-          <Text variant="subheading" numberOfLines={3}>
+          <Text variant="heading" numberOfLines={3}>
             {record.title}
           </Text>
           <Text variant="caption" tone="muted" className="mt-1">
@@ -109,8 +109,8 @@ function DownloadedRow({
           </Text>
           {listened ? (
             <View className="mt-1 flex-row items-center gap-1">
-              <Icon icon={Check} size="xs" tone="success" />
-              <Text variant="caption" tone="success">
+              <Icon icon={Check} size="xs" tone="default" />
+              <Text variant="caption" tone="default">
                 {t('podcast.completedEpisode')}
               </Text>
             </View>
@@ -149,7 +149,7 @@ function PendingRow({
     <View
       className={cn(
         'flex-row items-center gap-1 pl-3',
-        !first && 'border-t border-line',
+        !first && 'border-t border-rule',
       )}
     >
       <View className="min-w-0 flex-1 flex-row items-center gap-3 py-3">
@@ -159,7 +159,7 @@ function PendingRow({
           dimmed
         />
         <View className="min-w-0 flex-1">
-          <Text variant="subheading" numberOfLines={3}>
+          <Text variant="heading" numberOfLines={3}>
             {download.title}
           </Text>
           <ProgressBar
@@ -168,7 +168,7 @@ function PendingRow({
             className="mt-2"
             accessibilityLabel={status}
           />
-          <Text variant="caption" tone="accent" className="mt-1.5">
+          <Text variant="caption" tone="default" className="mt-1.5">
             {status}
           </Text>
         </View>

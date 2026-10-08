@@ -1,3 +1,4 @@
+import { Icon } from '@/components/ui/Icon';
 import type { ChainBrandKey } from '@zapengine/brand-assets/chains';
 import { ChevronDown } from 'lucide-react-native';
 import { Text, View } from 'react-native';
@@ -14,7 +15,7 @@ interface TokenSelectorPillProps {
 }
 
 const PILL_CLASS =
-  'min-h-11 flex-row items-center gap-2 rounded-full border border-line bg-[#242427] py-2 pl-2 pr-3';
+  'min-h-11 flex-row items-center gap-2 rounded-round border border-rule bg-well py-2 pl-2 pr-3';
 
 export function TokenSelectorPill({
   symbol,
@@ -30,7 +31,7 @@ export function TokenSelectorPill({
         alt=""
         {...(chainKey && { chainKey })}
       />
-      <Text className="font-sans-semibold text-[13px] text-ink">{symbol}</Text>
+      <Text className="font-text-semibold text-body-sm text-ink">{symbol}</Text>
     </>
   );
 
@@ -50,7 +51,7 @@ export function TokenSelectorPill({
       onPress={onPress}
     >
       {content}
-      <ChevronDown size={15} color="#a1a1aa" />
+      <Icon icon={ChevronDown} size="sm" tone="secondary" />
     </Tap>
   );
 }

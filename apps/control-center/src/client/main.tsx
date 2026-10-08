@@ -1,7 +1,10 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
+import '@fontsource-variable/archivo/standard.css';
+import '@fontsource-variable/martian-mono/standard.css';
 import '@zapengine/design-tokens/css/variables.css';
+import '@zapengine/design-tokens/css/status.css';
 
 // Load order is the cascade here: nothing is scoped, so a later file wins.
 // `App` is imported first because it side-imports the component-level CSS the

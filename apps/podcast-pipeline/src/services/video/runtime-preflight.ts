@@ -62,6 +62,9 @@ export async function assertVideoRenderRuntime(
   await Promise.all([
     dependencies.accessFile(videoAssetPaths.notoSansCjkTcRegular),
     dependencies.accessFile(videoAssetPaths.notoSansCjkTcBold),
+    dependencies.accessFile(videoAssetPaths.archivoText),
+    dependencies.accessFile(videoAssetPaths.archivoTextSemibold),
+    dependencies.accessFile(videoAssetPaths.martianMonoSemibold),
   ]);
   await assertVideoFfmpegCapabilities(ffmpegPath, dependencies.processRunner);
 

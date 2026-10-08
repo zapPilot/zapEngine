@@ -11,37 +11,37 @@
   align-items: center;
   gap: 2px;
   padding: 3px;
-  border: 1px solid rgba(212, 197, 163, 0.22);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-control);
+  background: var(--well);
 }
 
 .option {
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-control);
   padding: 6px 10px;
   background: transparent;
-  color: rgba(255, 255, 255, 0.54);
+  color: var(--ink-3);
   font: inherit;
   font-size: 10px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   cursor: pointer;
   transition:
-    background 140ms ease,
-    color 140ms ease;
+    background var(--duration-normal) var(--easing-enter),
+    color var(--duration-normal) var(--easing-enter);
 }
 
 .option:hover {
-  color: rgba(255, 255, 255, 0.82);
+  color: var(--ink);
 }
 
 .option[data-active='true'] {
-  background: rgba(212, 197, 163, 0.15);
-  color: #d4c5a3;
+  background: var(--ink);
+  color: var(--ground);
 }
 
 .option:focus-visible {
-  outline: 2px solid #d4c5a3;
+  outline: 2px solid var(--sign-ink);
   outline-offset: 2px;
 }

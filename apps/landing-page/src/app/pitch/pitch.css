@@ -1,7 +1,7 @@
 /*
- * /pitch route styles. Layered on top of landing.css under the same .shell-root scope.
+ * /pitch route styles. Layered on top of track-record/track-record.css under the same .track-record-root scope.
  *
- * The page composes both classes: `.shell-root .pitch-root`. landing.css provides
+ * The page composes both classes: `.track-record-root .pitch-root`. track-record/track-record.css provides
  * brand tokens, section primitives, and reused components (Backtest/TrustStrip).
  * This file adds the deck-only chrome: slide layout, fixed navbar, progress
  * bar, dot nav, and print-to-PDF behavior. The home page's `.zp-*` cards are
@@ -19,17 +19,17 @@ html:has(.pitch-root) {
   }
 }
 
-.shell-root.pitch-root {
+.track-record-root.pitch-root {
   min-height: 100vh;
-  --zp-bg: var(--bg);
-  --zp-bg-alt: var(--surface);
+  --zp-bg: var(--ground);
+  --zp-bg-alt: var(--sheet);
   --zp-text: var(--ink);
-  --zp-muted: var(--ink-dim);
-  --zp-faint: var(--ink-faint);
-  --zp-accent: var(--accent);
-  --zp-hairline: var(--line);
-  --zp-border: var(--line);
-  --zp-serif: var(--font-serif), 'Instrument Serif', Georgia, serif;
+  --zp-muted: var(--ink-2);
+  --zp-faint: var(--ink-3);
+  --zp-accent: var(--ink);
+  --zp-hairline: var(--rule);
+  --zp-border: var(--rule);
+  --zp-serif: var(--font-display), 'Instrument Serif', Georgia, serif;
   --zp-mono:
     var(--font-mono), 'JetBrains Mono', ui-monospace, 'SFMono-Regular',
     monospace;
@@ -68,12 +68,12 @@ html:has(.pitch-root) {
   font-size: 11px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--accent);
+  color: var(--ink);
 }
 
 .pitch-root .pitch-slide-title {
   margin: 0 0 24px;
-  font-family: var(--font-serif), Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: clamp(2.4rem, 5vw, 4.5rem);
   font-weight: 400;
   line-height: 1.04;
@@ -84,7 +84,7 @@ html:has(.pitch-root) {
 .pitch-root .pitch-slide-subtitle {
   max-width: 760px;
   margin: 0 0 36px;
-  color: var(--ink-dim);
+  color: var(--ink-2);
   font-size: 18px;
   line-height: 1.6;
 }
@@ -105,15 +105,15 @@ html:has(.pitch-root) {
   font-size: 11px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--accent);
-  border: 1px solid color-mix(in srgb, var(--accent) 38%, transparent);
+  color: var(--ink);
+  border: 1px solid color-mix(in srgb, var(--ink) 38%, transparent);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
 }
 
 .pitch-root .pitch-cover-headline {
   margin: 0;
-  font-family: var(--font-serif), Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: clamp(3rem, 7vw, 6.4rem);
   line-height: 1.02;
   letter-spacing: -0.01em;
@@ -124,7 +124,7 @@ html:has(.pitch-root) {
 .pitch-root .pitch-cover-subtitle {
   margin: 0;
   max-width: 720px;
-  color: var(--ink-dim);
+  color: var(--ink-2);
   font-size: clamp(1.05rem, 1.5vw, 1.25rem);
   line-height: 1.6;
 }
@@ -136,7 +136,7 @@ html:has(.pitch-root) {
   margin: 0;
   padding: 0;
   list-style: none;
-  color: var(--ink-dim);
+  color: var(--ink-2);
   font-size: 15px;
 }
 
@@ -149,7 +149,7 @@ html:has(.pitch-root) {
   font-size: 11px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--ink-dim);
+  color: var(--ink-2);
 }
 
 .pitch-root .pitch-cover-hint {
@@ -162,7 +162,7 @@ html:has(.pitch-root) {
   font-size: 11px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: var(--ink-dim);
+  color: var(--ink-2);
   opacity: 0.7;
   animation: pitch-bounce 2.4s ease-in-out infinite;
 }
@@ -196,7 +196,7 @@ html:has(.pitch-root) {
   flex-direction: column;
   gap: 20px;
   font-size: 18px;
-  color: var(--ink-dim);
+  color: var(--ink-2);
   line-height: 1.6;
 }
 
@@ -212,21 +212,21 @@ html:has(.pitch-root) {
   top: 14px;
   width: 16px;
   height: 1px;
-  background: var(--accent);
+  background: var(--ink);
 }
 
 .pitch-root .pitch-problem-quote {
   margin: 0;
   padding: 28px 28px;
-  border-left: 2px solid var(--accent);
-  font-family: var(--font-serif), Georgia, serif;
+  border-left: 2px solid var(--ink);
+  font-family: var(--font-display), Georgia, serif;
   font-style: italic;
   font-size: clamp(1.8rem, 2.6vw, 2.4rem);
   line-height: 1.18;
   color: var(--ink);
   background: linear-gradient(
     90deg,
-    color-mix(in srgb, var(--accent) 6%, transparent),
+    color-mix(in srgb, var(--ink) 6%, transparent),
     transparent
   );
 }
@@ -240,10 +240,10 @@ html:has(.pitch-root) {
   margin: 8px 0 0;
   padding: 0;
   list-style: none;
-  border: 1px solid var(--line);
+  border: 1px solid var(--rule);
   border-radius: 8px;
   overflow: hidden;
-  background: var(--line);
+  background: var(--rule);
 }
 
 .pitch-root .pitch-runtime-stage {
@@ -252,7 +252,7 @@ html:has(.pitch-root) {
   gap: 16px;
   align-items: baseline;
   padding: 14px 20px;
-  background: var(--bg);
+  background: var(--ground);
 }
 
 .pitch-root .pitch-runtime-index,
@@ -264,11 +264,11 @@ html:has(.pitch-root) {
 }
 
 .pitch-root .pitch-runtime-index {
-  color: var(--ink-faint);
+  color: var(--ink-3);
 }
 
 .pitch-root .pitch-runtime-label {
-  color: var(--accent);
+  color: var(--ink);
 }
 
 .pitch-root .pitch-runtime-parts {
@@ -283,7 +283,7 @@ html:has(.pitch-root) {
 .pitch-root .pitch-strategy-sleeves,
 .pitch-root .proof-sleeve-note {
   margin: 24px 0 0;
-  color: var(--ink-dim);
+  color: var(--ink-2);
   font-size: 15px;
   line-height: 1.6;
 }
@@ -295,13 +295,13 @@ html:has(.pitch-root) {
   margin-top: 16px;
   border-collapse: collapse;
   font-size: 15px;
-  border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ink) 18%, transparent);
   border-radius: 8px;
   overflow: hidden;
 }
 
 .pitch-root .pitch-strategy-table thead {
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  background: color-mix(in srgb, var(--ink) 12%, transparent);
 }
 
 .pitch-root .pitch-strategy-table th {
@@ -312,19 +312,19 @@ html:has(.pitch-root) {
   letter-spacing: 0.12em;
   text-transform: uppercase;
   font-weight: 500;
-  color: var(--accent);
+  color: var(--ink);
 }
 
 .pitch-root .pitch-strategy-table td {
   padding: 16px 18px;
-  border-top: 1px solid color-mix(in srgb, var(--accent) 12%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--ink) 12%, transparent);
   color: var(--ink);
 }
 
 .pitch-root .pitch-strategy-table td:first-child {
   font-family: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 13px;
-  color: var(--accent);
+  color: var(--ink);
 }
 
 .pitch-root .pitch-strategy-footer-link {
@@ -336,7 +336,7 @@ html:has(.pitch-root) {
   font-size: 12px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--accent);
+  color: var(--ink);
 }
 
 .pitch-root .pitch-strategy-footer-link:hover {
@@ -360,7 +360,7 @@ html:has(.pitch-root) {
   flex-direction: column;
   gap: 14px;
   font-size: 16px;
-  color: var(--ink-dim);
+  color: var(--ink-2);
   line-height: 1.55;
 }
 
@@ -389,7 +389,7 @@ html:has(.pitch-root) {
   font-size: 11px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--accent);
+  color: var(--ink);
 }
 
 .pitch-root .pitch-execution-flow {
@@ -404,7 +404,7 @@ html:has(.pitch-root) {
 .pitch-root .pitch-execution-step {
   position: relative;
   padding: 8px 14px;
-  border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ink) 22%, transparent);
   border-radius: 8px;
   font-family: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 13px;
@@ -413,9 +413,9 @@ html:has(.pitch-root) {
 }
 
 .pitch-root .pitch-execution-step--highlight {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
-  color: var(--accent);
+  border-color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 10%, transparent);
+  color: var(--ink);
   font-weight: 500;
 }
 
@@ -425,7 +425,7 @@ html:has(.pitch-root) {
   top: 100%;
   left: 28px;
   height: 8px;
-  border-left: 1px dashed color-mix(in srgb, var(--accent) 40%, transparent);
+  border-left: 1px dashed color-mix(in srgb, var(--ink) 40%, transparent);
 }
 
 .pitch-root .pitch-execution-step:last-child::after {
@@ -442,14 +442,14 @@ html:has(.pitch-root) {
 
 .pitch-root .pitch-roadmap-column {
   padding: 24px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--rule);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.014);
 }
 
 .pitch-root .pitch-roadmap-column h3 {
   margin: 0 0 16px;
-  font-family: var(--font-serif), Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: 28px;
   font-weight: 400;
   color: var(--ink);
@@ -462,7 +462,7 @@ html:has(.pitch-root) {
   margin: 0;
   padding: 0;
   list-style: none;
-  color: var(--ink-dim);
+  color: var(--ink-2);
   font-size: 14px;
   line-height: 1.5;
 }
@@ -473,7 +473,7 @@ html:has(.pitch-root) {
   font-size: 11px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--ink-dim);
+  color: var(--ink-2);
 }
 
 /* ---------- Slide 9: Why Now ---------- */
@@ -486,7 +486,7 @@ html:has(.pitch-root) {
 
 .pitch-root .pitch-whynow-card {
   padding: 28px 28px 24px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--rule);
   border-radius: 8px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent),
@@ -499,12 +499,12 @@ html:has(.pitch-root) {
   font-size: 11px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--accent);
+  color: var(--ink);
 }
 
 .pitch-root .pitch-whynow-label {
   margin: 14px 0 12px;
-  font-family: var(--font-serif), Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: 28px;
   font-weight: 400;
   color: var(--ink);
@@ -512,7 +512,7 @@ html:has(.pitch-root) {
 
 .pitch-root .pitch-whynow-body {
   margin: 0 0 14px;
-  color: var(--ink-dim);
+  color: var(--ink-2);
   font-size: 15px;
   line-height: 1.6;
 }
@@ -529,14 +529,14 @@ html:has(.pitch-root) {
 .pitch-root .pitch-ask-headline {
   margin: 0;
   max-width: 980px;
-  font-family: var(--font-serif), Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: clamp(2.4rem, 4.6vw, 4rem);
   line-height: 1.08;
   font-weight: 400;
   background: linear-gradient(
     180deg,
     var(--ink),
-    color-mix(in srgb, var(--accent) 70%, var(--ink))
+    color-mix(in srgb, var(--ink) 70%, var(--ink))
   );
   background-clip: text;
   -webkit-background-clip: text;
@@ -561,7 +561,7 @@ html:has(.pitch-root) {
   font-size: 12px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  border: 1px solid var(--line-hi, var(--line));
+  border: 1px solid var(--rule-2, var(--rule));
   color: var(--ink);
   transition:
     background-color 0.2s,
@@ -570,18 +570,18 @@ html:has(.pitch-root) {
 }
 
 .pitch-root .pitch-ask-cta--primary {
-  background: var(--accent);
-  color: var(--bg);
-  border-color: var(--accent);
+  background: var(--ink);
+  color: var(--ground);
+  border-color: var(--ink);
 }
 
 .pitch-root .pitch-ask-cta:hover {
   transform: translateY(-1px);
-  border-color: var(--accent);
+  border-color: var(--ink);
 }
 
 .pitch-root .pitch-ask-cta--primary:hover {
-  background: color-mix(in srgb, var(--accent) 90%, white);
+  background: color-mix(in srgb, var(--ink) 90%, white);
 }
 
 /* ---------- Pitch navbar ---------- */
@@ -608,11 +608,11 @@ html:has(.pitch-root) {
   font-family: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px;
   letter-spacing: 0.12em;
-  color: var(--ink-dim);
+  color: var(--ink-2);
 }
 
 .pitch-root .pitch-nav-counter [data-pitch-counter-current] {
-  color: var(--accent);
+  color: var(--ink);
 }
 
 .pitch-root .pitch-nav-actions {
@@ -638,22 +638,22 @@ html:has(.pitch-root) {
 }
 
 .pitch-root .pitch-nav-back {
-  color: var(--ink-dim);
-  border: 1px solid var(--line);
+  color: var(--ink-2);
+  border: 1px solid var(--rule);
 }
 
 .pitch-root .pitch-nav-back:hover {
   color: var(--ink);
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+  border-color: color-mix(in srgb, var(--ink) 55%, var(--rule));
 }
 
 .pitch-root .pitch-nav-cta {
-  color: var(--bg);
+  color: var(--ground);
   background: var(--ink);
 }
 
 .pitch-root .pitch-nav-cta:hover {
-  background: var(--accent);
+  background: var(--ink);
 }
 
 /* ---------- Progress bar ---------- */
@@ -667,8 +667,8 @@ html:has(.pitch-root) {
   pointer-events: none;
   background: linear-gradient(
     90deg,
-    var(--accent),
-    color-mix(in srgb, var(--accent) 40%, transparent)
+    var(--ink),
+    color-mix(in srgb, var(--ink) 40%, transparent)
   );
   transform: scaleX(0);
   transform-origin: left;
@@ -691,7 +691,7 @@ html:has(.pitch-root) {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ink) 50%, transparent);
   background: transparent;
   padding: 0;
   cursor: pointer;
@@ -701,16 +701,16 @@ html:has(.pitch-root) {
 }
 
 .pitch-root .pitch-dot-nav-button[data-active='true'] {
-  background: var(--accent);
+  background: var(--ink);
   transform: scale(1.3);
 }
 
 .pitch-root .pitch-dot-nav-button:hover {
-  background: color-mix(in srgb, var(--accent) 40%, transparent);
+  background: color-mix(in srgb, var(--ink) 40%, transparent);
 }
 
 .pitch-root .pitch-dot-nav-button:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--ink);
   outline-offset: 2px;
 }
 

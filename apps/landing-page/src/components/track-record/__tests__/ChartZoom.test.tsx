@@ -121,8 +121,8 @@ describe('ChartZoom', () => {
 
     fireEvent.click(trigger());
 
-    // Every chart rule in landing.css is scoped under .shell-root, and the
+    // Every chart rule in track-record/track-record.css is scoped under .track-record-root, and the
     // overlay is portalled outside it.
-    expect(dialog().parentElement).toHaveClass('shell-root');
+    expect(dialog().parentElement).toHaveClass('track-record-root');
   });
 });

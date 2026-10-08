@@ -16,4 +16,5 @@ See @README.md for project overview.
 - `/discord/` is a client hop in the static export. Do not replace it with a Vercel 30x rule: that would bypass analytics.
 - `first_touch_utm_*` and the waitlist POST share the same localStorage first-touch record, captured during client instrumentation.
 
+- Capability and recorded contract facts live in `@zapengine/zap-pilot-story/facts`; do not restore host-owned copies.
 - `MESSAGES` and `/pitch` follow [persuasive-messaging](../../.agents/skills/persuasive-messaging/SKILL.md); `content/docs/` MDX is outside its scope.

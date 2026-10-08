@@ -1,3 +1,4 @@
+import { tokens } from '@zapengine/design-tokens/tokens';
 import type { WalletConnectorOption } from '@zapengine/app-core/types';
 import { ChevronRight } from 'lucide-react-native';
 import { Text, View } from 'react-native';
@@ -38,7 +39,7 @@ export function WalletOptionRow({
       onPress={onPress}
       className={cn(
         'min-h-[48px] flex-row items-center gap-3 py-3',
-        showBorder && 'border-b border-line',
+        showBorder && 'border-b border-rule',
         disabled && !isConnecting && 'opacity-45',
       )}
     >
@@ -49,10 +50,10 @@ export function WalletOptionRow({
       />
 
       <View className="flex-1">
-        <Text className="font-sans-semibold text-[13.5px] text-ink">
+        <Text className="font-text-semibold text-body-sm text-ink">
           {option.name}
         </Text>
-        <Text className="mt-0.5 font-mono text-[10px] text-ink-faint">
+        <Text className="mt-0.5 font-mono text-data text-ink-3">
           {isConnecting
             ? CONNECT_SHEET_COPY.connectingSubtitle
             : CONNECT_SHEET_COPY.browserExtensionSubtitle}
@@ -61,10 +62,10 @@ export function WalletOptionRow({
 
       {option.recommended ? (
         <Badge
-          className="border bg-accent-soft"
-          style={{ borderColor: 'rgba(212,197,163,.28)' }}
+          className="border bg-sign-wash"
+          style={{ borderColor: tokens.mode.night['sign-ink'] }}
         >
-          <Text className="font-mono text-[9px] uppercase tracking-[1px] text-accent">
+          <Text className="font-mono text-data uppercase tracking-[1px] text-sign-ink">
             {CONNECT_SHEET_COPY.recommendedLabel}
           </Text>
         </Badge>

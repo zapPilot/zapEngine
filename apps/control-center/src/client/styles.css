@@ -5,45 +5,23 @@
  */
 
 :root {
-  --bg: #f7f8fa;
-  --bg-2: #ffffff;
-  --surface: #ffffff;
-  --surface-elevated: #f0f2f5;
-  --ink: #181a1f;
-  --ink-dim: #5b6470;
-  --ink-faint: #69727e;
-  --line: rgb(24 26 31 / 10%);
-  --line-hi: rgb(24 26 31 / 20%);
-  --accent: #765d2f;
-  --accent-soft: rgb(118 93 47 / 12%);
-  --accent-muted: #9a8255;
-  --error: #c43d32;
-  --warning: #9a6300;
-  --success: #197a51;
-  --spy: #64748b;
-  --pillar-spy: #64748b;
+  --cc-tone-healthy: #197a51;
+  --cc-tone-degraded: #9a6300;
 
-  --font-display: 'Instrument Serif', Georgia, 'Times New Roman', serif;
-  --font-ui:
-    'Geist', 'Geist Sans', ui-sans-serif, -apple-system, BlinkMacSystemFont,
-    'Segoe UI', sans-serif;
-  --font-mono:
-    'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-
-  --status-healthy: var(--success);
-  --status-degraded: var(--warning);
-  --status-critical: var(--danger);
-  --status-unknown: var(--ink-faint);
+  --status-healthy: var(--cc-tone-healthy);
+  --status-degraded: var(--cc-tone-degraded);
+  --status-critical: var(--alert);
+  --status-unknown: var(--ink-3);
   /* Overridden per element by a status modifier; the fallback keeps an
      unstyled state neutral rather than falsely green. */
-  --status: var(--ink-faint);
+  --status: var(--ink-3);
 
   --gap: 14px;
   --pad: 20px;
 
   color: var(--ink);
-  background: var(--bg);
-  font-family: var(--font-ui);
+  background: var(--ground);
+  font-family: var(--font-text);
   font-synthesis: none;
   -webkit-font-smoothing: antialiased;
   color-scheme: light;
@@ -56,7 +34,7 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background: var(--bg);
+  background: var(--ground);
 }
 button,
 input,
@@ -91,8 +69,8 @@ p {
   display: flex;
   flex-direction: column;
   padding: 28px 16px 20px;
-  border-right: 1px solid var(--line);
-  background: var(--bg);
+  border-right: 1px solid var(--rule);
+  background: var(--ground);
 }
 .brand {
   display: flex;
@@ -104,7 +82,7 @@ p {
   width: 30px;
   height: 30px;
   flex: 0 0 auto;
-  color: var(--accent);
+  color: var(--ink);
 }
 .brand-text {
   display: grid;
@@ -124,7 +102,7 @@ p {
   font-weight: 500;
   letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: var(--ink-faint);
+  color: var(--ink-3);
 }
 .primary-nav {
   display: grid;
@@ -137,13 +115,13 @@ p {
   width: 100%;
   padding: 11px 12px;
   border: 0;
-  border-radius: var(--radius-tile);
+  border-radius: var(--radius-panel);
   background: transparent;
-  color: var(--ink-dim);
+  color: var(--ink-2);
   font-size: 14px;
   text-align: left;
   cursor: pointer;
-  transition: background 160ms var(--easing-primary);
+  transition: background var(--duration-normal) var(--easing-enter);
 }
 .nav-item svg {
   width: 17px;
@@ -155,20 +133,20 @@ p {
   min-width: 0;
 }
 .nav-item:hover {
-  background: var(--surface-elevated);
+  background: var(--well);
   color: var(--ink);
 }
 .nav-item.active {
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--well);
+  color: var(--ink);
 }
 .nav-badge {
   flex: 0 0 auto;
   min-width: 20px;
   padding: 2px 6px;
-  border-radius: var(--radius-pill);
-  background: var(--danger);
-  color: var(--bg);
+  border-radius: var(--radius-round);
+  background: var(--alert);
+  color: var(--ground);
   font-family: var(--font-mono);
   font-size: 10px;
   font-style: normal;
@@ -181,8 +159,8 @@ p {
   gap: 8px;
   margin-top: auto;
   padding: 16px 12px 0;
-  border-top: 1px solid var(--line);
-  color: var(--ink-faint);
+  border-top: 1px solid var(--rule);
+  color: var(--ink-3);
   font-family: var(--font-mono);
   font-size: 10px;
   letter-spacing: 0.06em;
@@ -191,8 +169,8 @@ p {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--success);
-  box-shadow: 0 0 0 3px rgb(122 216 143 / 12%);
+  background: var(--ink);
+  border: var(--line-hair) solid var(--rule);
 }
 
 .main-canvas {
@@ -218,7 +196,7 @@ p {
 }
 .page-title p {
   margin: 0;
-  color: var(--ink-dim);
+  color: var(--ink-2);
   font-size: 13.5px;
 }
 .header-actions {
@@ -227,7 +205,7 @@ p {
   gap: 16px;
 }
 .updated-at {
-  color: var(--ink-faint);
+  color: var(--ink-3);
   font-family: var(--font-mono);
   font-size: 11px;
   white-space: nowrap;
@@ -238,18 +216,18 @@ p {
   align-items: center;
   gap: 9px;
   padding: 0 15px;
-  border: 1px solid var(--line-hi);
-  border-radius: var(--radius-pill);
-  background: var(--surface-elevated);
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-round);
+  background: var(--well);
   color: var(--ink);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: border-color 160ms var(--easing-primary);
+  transition: border-color var(--duration-normal) var(--easing-enter);
 }
 .refresh-button:hover:not(:disabled) {
-  border-color: var(--accent);
-  color: var(--accent);
+  border-color: var(--ink);
+  color: var(--ink);
 }
 .refresh-button:disabled {
   opacity: 0.5;
@@ -276,7 +254,7 @@ p {
 button:focus-visible,
 a:focus-visible,
 select:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--ink);
   outline-offset: 2px;
 }
 
@@ -289,9 +267,9 @@ select:focus-visible {
 
 .panel {
   min-width: 0;
-  border: 1px solid var(--line);
+  border: 1px solid var(--rule);
   border-radius: var(--radius-control);
-  background: var(--surface);
+  background: var(--sheet);
 }
 .panel-head,
 .section-head {
@@ -302,7 +280,7 @@ select:focus-visible {
   padding: 16px var(--pad);
 }
 .panel-head {
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--rule);
 }
 .section-head {
   padding-inline: 2px;
@@ -320,20 +298,20 @@ select:focus-visible {
 }
 .panel-note {
   min-width: 0;
-  color: var(--ink-faint);
+  color: var(--ink-3);
   font-size: 11.5px;
   line-height: 1.45;
   text-align: right;
 }
 .panel-foot {
   padding: 12px var(--pad);
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--rule);
 }
 .panel-link {
   padding: 0;
   border: 0;
   background: none;
-  color: var(--accent);
+  color: var(--ink);
   font-family: var(--font-mono);
   font-size: 11px;
   letter-spacing: 0.06em;
@@ -348,7 +326,7 @@ select:focus-visible {
 }
 .empty-inline {
   padding: 22px var(--pad);
-  color: var(--ink-faint);
+  color: var(--ink-3);
   font-size: 12.5px;
   line-height: 1.5;
 }
@@ -373,10 +351,10 @@ select:focus-visible {
   align-items: baseline;
   gap: 18px;
   padding: 20px 24px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--rule);
   border-left: 3px solid var(--status);
   border-radius: var(--radius-control);
-  background: var(--surface);
+  background: var(--sheet);
 }
 .status-word {
   font-family: var(--font-display);
@@ -387,14 +365,14 @@ select:focus-visible {
 }
 .status-note {
   min-width: 0;
-  color: var(--ink-dim);
+  color: var(--ink-2);
   font-size: 13px;
 }
 .status-pill {
   display: inline-block;
   padding: 4px 11px;
   border: 1px solid var(--status);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-round);
   color: var(--status);
   font-family: var(--font-mono);
   font-size: 10px;
@@ -425,13 +403,13 @@ select:focus-visible {
   font-family: var(--font-mono);
   font-size: 10.5px;
   font-variant-numeric: tabular-nums;
-  color: var(--ink-dim);
+  color: var(--ink-2);
 }
 .delta-chip.good {
-  color: var(--success);
+  color: var(--ink);
 }
 .delta-chip.bad {
-  color: var(--danger);
+  color: var(--alert);
 }
 
 /* Action queue -------------------------------------------------------------*/
@@ -446,7 +424,7 @@ select:focus-visible {
   grid-template-columns: 56px minmax(0, 1fr);
   gap: 16px;
   padding: 16px var(--pad);
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--rule);
 }
 .queue-row:first-child {
   border-top: 0;
@@ -470,7 +448,7 @@ select:focus-visible {
   font-size: 9px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--ink-faint);
+  color: var(--ink-3);
 }
 .queue-body {
   min-width: 0;
@@ -485,15 +463,15 @@ select:focus-visible {
   overflow-wrap: anywhere;
 }
 .queue-title a {
-  border-bottom: 1px solid var(--line-hi);
+  border-bottom: 1px solid var(--rule-2);
 }
 .queue-title a:hover {
-  color: var(--accent);
-  border-bottom-color: var(--accent);
+  color: var(--ink);
+  border-bottom-color: var(--ink);
 }
 .queue-detail {
   margin: 0;
-  color: var(--ink-dim);
+  color: var(--ink-2);
   font-size: 12.5px;
   line-height: 1.5;
   overflow-wrap: anywhere;
@@ -504,7 +482,7 @@ select:focus-visible {
   font-size: 10px;
   letter-spacing: 0.07em;
   text-transform: uppercase;
-  color: var(--ink-faint);
+  color: var(--ink-3);
 }
 .queue-reasons {
   display: flex;
@@ -514,10 +492,10 @@ select:focus-visible {
 }
 .reason-chip {
   padding: 3px 9px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-pill);
-  background: var(--surface-elevated);
-  color: var(--ink-dim);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-round);
+  background: var(--well);
+  color: var(--ink-2);
   font-family: var(--font-mono);
   font-size: 10px;
 }
@@ -530,9 +508,9 @@ select:focus-visible {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 1px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--rule);
   border-radius: var(--radius-control);
-  background: var(--line);
+  background: var(--rule);
   overflow: hidden;
 }
 .kpi-band-three {
@@ -544,7 +522,7 @@ select:focus-visible {
   gap: 9px;
   align-content: start;
   padding: 18px var(--pad) 20px;
-  background: var(--surface);
+  background: var(--sheet);
 }
 .kpi-label {
   font-family: var(--font-mono);
@@ -552,7 +530,7 @@ select:focus-visible {
   font-weight: 500;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--ink-faint);
+  color: var(--ink-3);
 }
 /* No ellipsis anywhere near a number: a truncated amount of money is worse
    than a smaller one, so these shrink and wrap instead. */
@@ -564,10 +542,10 @@ select:focus-visible {
   overflow-wrap: anywhere;
 }
 .kpi-value.accent {
-  color: var(--accent);
+  color: var(--ink);
 }
 .kpi-value.warning {
-  color: var(--warning);
+  color: var(--ink-2);
 }
 .kpi-value.long,
 .headline-metric strong.long {
@@ -575,7 +553,7 @@ select:focus-visible {
   line-height: 1.25;
 }
 .kpi-caption {
-  color: var(--ink-dim);
+  color: var(--ink-2);
   font-size: 12.5px;
   line-height: 1.4;
 }
@@ -586,7 +564,7 @@ select:focus-visible {
   margin-top: 2px;
   font-family: var(--font-mono);
   font-size: 11px;
-  color: var(--ink-dim);
+  color: var(--ink-2);
   font-variant-numeric: tabular-nums;
 }
 
@@ -596,9 +574,9 @@ select:focus-visible {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 1px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--rule);
   border-radius: var(--radius-control);
-  background: var(--line);
+  background: var(--rule);
   overflow: hidden;
 }
 .headline-metric {
@@ -607,13 +585,13 @@ select:focus-visible {
   gap: 8px;
   align-content: start;
   padding: 16px var(--pad) 18px;
-  background: var(--surface);
+  background: var(--sheet);
 }
 .headline-metric span {
   /* Two lines of room for every label so the figures below them stay on one
      baseline across the strip. */
   min-height: 2.6em;
-  color: var(--ink-faint);
+  color: var(--ink-3);
   font-family: var(--font-mono);
   font-size: 10px;
   letter-spacing: 0.08em;
@@ -628,10 +606,10 @@ select:focus-visible {
   overflow-wrap: anywhere;
 }
 .headline-metric strong.accent {
-  color: var(--accent);
+  color: var(--ink);
 }
 .headline-metric strong.warning {
-  color: var(--warning);
+  color: var(--ink-2);
 }
 
 /* Info rows ----------------------------------------------------------------*/
@@ -643,13 +621,13 @@ select:focus-visible {
   display: grid;
   gap: 4px;
   padding: 14px var(--pad);
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--rule);
 }
 .info-row:first-child {
   border-top: 0;
 }
 .info-label {
-  color: var(--ink-faint);
+  color: var(--ink-3);
   font-family: var(--font-mono);
   font-size: 10px;
   letter-spacing: 0.08em;
@@ -662,12 +640,12 @@ select:focus-visible {
   overflow-wrap: anywhere;
 }
 .info-note {
-  color: var(--ink-dim);
+  color: var(--ink-2);
   font-size: 11.5px;
   line-height: 1.45;
 }
 .error-text {
-  color: var(--danger);
+  color: var(--alert);
 }
 
 /* Domain strip -------------------------------------------------------------*/
@@ -676,20 +654,20 @@ select:focus-visible {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
   gap: 1px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--rule);
   border-radius: var(--radius-control);
-  background: var(--line);
+  background: var(--rule);
   overflow: hidden;
 }
 .domain-chip {
   display: grid;
   gap: 4px;
   padding: 13px 15px 14px;
-  background: var(--surface);
+  background: var(--sheet);
   border-top: 2px solid var(--status);
 }
 .domain-chip > .domain-chip-heading > span {
-  color: var(--ink-faint);
+  color: var(--ink-3);
   font-family: var(--font-mono);
   font-size: 9px;
   letter-spacing: 0.12em;
@@ -701,7 +679,7 @@ select:focus-visible {
   font-weight: 500;
 }
 .domain-chip > small {
-  color: var(--ink-faint);
+  color: var(--ink-3);
   font-family: var(--font-mono);
   font-size: 10px;
 }
@@ -726,10 +704,10 @@ select:focus-visible {
   display: inline-grid;
   flex: 0 0 auto;
   place-items: center;
-  border: 1px solid var(--line-hi);
-  border-radius: 7px;
-  background: var(--surface-elevated);
-  color: var(--ink-dim);
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-panel);
+  background: var(--well);
+  color: var(--ink-2);
 }
 .source-icon svg {
   width: 13px;
@@ -743,7 +721,7 @@ select:focus-visible {
   color: #5e35b1;
 }
 .source-posthog {
-  color: var(--warning);
+  color: var(--ink-2);
 }
 .signal-source {
   min-width: 118px;
@@ -762,7 +740,7 @@ select:focus-visible {
   font-weight: 500;
 }
 .signal-source small {
-  color: var(--ink-faint);
+  color: var(--ink-3);
   font-family: var(--font-mono);
   font-size: 9px;
   text-transform: capitalize;
@@ -787,8 +765,8 @@ select:focus-visible {
 }
 .data-table th {
   padding: 12px 16px;
-  border-bottom: 1px solid var(--line);
-  color: var(--ink-faint);
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink-3);
   font-family: var(--font-mono);
   font-size: 9.5px;
   font-weight: 500;
@@ -799,8 +777,8 @@ select:focus-visible {
 }
 .data-table td {
   padding: 13px 16px;
-  border-top: 1px solid var(--line);
-  color: var(--ink-dim);
+  border-top: 1px solid var(--rule);
+  color: var(--ink-2);
   vertical-align: top;
 }
 .data-table tbody tr:first-child td {
@@ -812,12 +790,12 @@ select:focus-visible {
   font-weight: 500;
 }
 .cell-title a:hover {
-  color: var(--accent);
+  color: var(--ink);
 }
 .cell-fingerprint {
   display: block;
   margin-top: 3px;
-  color: var(--ink-faint);
+  color: var(--ink-3);
   font-family: var(--font-mono);
   font-size: 10px;
   overflow-wrap: anywhere;
@@ -843,13 +821,13 @@ select:focus-visible {
   overflow-wrap: anywhere;
 }
 .unknown-cell {
-  color: var(--ink-faint);
+  color: var(--ink-3);
 }
 .table-footnote {
   display: block;
   padding: 12px var(--pad) 16px;
-  border-top: 1px solid var(--line);
-  color: var(--ink-faint);
+  border-top: 1px solid var(--rule);
+  color: var(--ink-3);
   font-size: 10.5px;
   line-height: 1.5;
 }
@@ -857,31 +835,31 @@ select:focus-visible {
 /* Provider ledger ----------------------------------------------------------*/
 
 .basis-actual {
-  color: var(--accent);
+  color: var(--ink);
 }
 .basis-estimated {
-  color: var(--warning);
+  color: var(--ink-2);
 }
 .basis-fixed,
 .basis-list-price-equivalent {
-  color: var(--ink-faint);
+  color: var(--ink-3);
 }
 .projected-text {
-  color: var(--warning);
+  color: var(--ink-2);
 }
 .status-ok {
-  color: var(--success);
+  color: var(--ink);
 }
 .status-error,
 .status-unconfigured {
-  color: var(--danger);
+  color: var(--alert);
 }
 .usage-signals {
   padding: 4px var(--pad) 14px;
 }
 .usage-provider {
   padding: 14px 0;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--rule);
 }
 .usage-provider:first-child {
   border-top: 0;
@@ -893,7 +871,7 @@ select:focus-visible {
   font-weight: 500;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--ink-faint);
+  color: var(--ink-3);
 }
 .usage-row {
   display: grid;
@@ -901,7 +879,7 @@ select:focus-visible {
   align-items: baseline;
   gap: 6px 16px;
   padding: 5px 0;
-  color: var(--ink-dim);
+  color: var(--ink-2);
   font-size: 11.5px;
 }
 .usage-row strong {
@@ -918,17 +896,17 @@ select:focus-visible {
   appearance: none;
 }
 .usage-row progress::-webkit-progress-bar {
-  background: var(--surface-elevated);
+  background: var(--well);
 }
 .usage-row progress::-webkit-progress-value {
-  background: var(--accent-muted);
+  background: var(--ink-3);
 }
 .usage-row progress::-moz-progress-bar {
-  background: var(--accent-muted);
+  background: var(--ink-3);
 }
 .usage-qualifier {
   margin-left: 6px;
-  color: var(--ink-faint);
+  color: var(--ink-3);
   font-size: 10px;
 }
 
@@ -943,7 +921,7 @@ select:focus-visible {
   align-items: start;
   gap: 12px;
   padding: 11px 0;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--rule);
   font-size: 12px;
 }
 .definition-row:first-child {
@@ -954,7 +932,7 @@ select:focus-visible {
 }
 .definition-row p {
   margin: 0;
-  color: var(--ink-dim);
+  color: var(--ink-2);
   line-height: 1.5;
 }
 .definition-dot {
@@ -962,24 +940,24 @@ select:focus-visible {
   height: 7px;
   margin-top: 5px;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--ink);
 }
 .definition-dot.estimated {
-  background: var(--warning);
+  background: var(--ink-2);
 }
 .definition-dot.fixed,
 .definition-dot.cash-spend {
-  background: var(--ink-faint);
+  background: var(--ink-3);
 }
 .definition-dot.list-price-equivalent {
-  background: var(--accent-muted);
+  background: var(--ink-3);
 }
 
 .provider-note {
   display: block;
   max-width: 32ch;
   margin-top: 3px;
-  color: var(--ink-faint);
+  color: var(--ink-3);
   font-size: 10.5px;
   line-height: 1.45;
   white-space: normal;
@@ -997,7 +975,7 @@ select:focus-visible {
   align-items: center;
   gap: 16px;
   padding: 10px 0;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--rule);
 }
 .cost-driver-row:first-child {
   border-top: 0;
@@ -1016,7 +994,7 @@ select:focus-visible {
   font-weight: 500;
 }
 .cost-driver-row small {
-  color: var(--ink-faint);
+  color: var(--ink-3);
   font-size: 9.5px;
   white-space: nowrap;
 }
@@ -1024,14 +1002,14 @@ select:focus-visible {
   display: block;
   height: 5px;
   overflow: hidden;
-  border-radius: var(--radius-pill);
-  background: var(--surface-elevated);
+  border-radius: var(--radius-round);
+  background: var(--well);
 }
 .cost-driver-track i {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: var(--accent-muted);
+  background: var(--ink-3);
 }
 .cost-driver-row > strong {
   color: var(--ink);
@@ -1052,7 +1030,7 @@ select:focus-visible {
   display: flex;
   align-items: center;
   gap: 18px;
-  color: var(--ink-faint);
+  color: var(--ink-3);
   font-family: var(--font-mono);
   font-size: 10px;
 }
@@ -1065,10 +1043,10 @@ select:focus-visible {
 .chart-legend i {
   display: block;
   width: 18px;
-  border-top: 2px solid var(--accent);
+  border-top: 2px solid var(--ink);
 }
 .chart-legend .legend-projected {
-  border-color: var(--warning);
+  border-color: var(--ink-2);
   border-top-style: dashed;
 }
 /* The tooltip is positioned against this frame rather than the svg: the
@@ -1094,8 +1072,8 @@ select:focus-visible {
   outline: none;
 }
 .runway-hit:focus-visible {
-  fill: var(--accent-soft);
-  stroke: var(--line-hi);
+  fill: var(--well);
+  stroke: var(--rule-2);
   stroke-dasharray: 3 4;
 }
 /* Never a pointer target: moving onto the tooltip would leave the band it
@@ -1106,10 +1084,10 @@ select:focus-visible {
   min-width: 190px;
   max-width: 280px;
   padding: 9px 11px 10px;
-  border: 1px solid var(--line-hi);
-  border-radius: 8px;
-  background: var(--surface);
-  box-shadow: 0 10px 24px var(--line-hi);
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-panel);
+  background: var(--sheet);
+  box-shadow: none;
   color: var(--ink);
   font-size: 11.5px;
   pointer-events: none;
@@ -1120,8 +1098,8 @@ select:focus-visible {
   justify-content: space-between;
   gap: 12px;
   padding-bottom: 6px;
-  border-bottom: 1px solid var(--line);
-  color: var(--ink-dim);
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink-2);
   font-family: var(--font-mono);
   font-size: 10px;
   letter-spacing: 0.06em;
@@ -1140,7 +1118,7 @@ select:focus-visible {
   align-items: baseline;
   gap: 1px 14px;
   padding-top: 6px;
-  color: var(--ink-dim);
+  color: var(--ink-2);
 }
 .runway-tooltip-row strong {
   color: var(--ink);
@@ -1148,22 +1126,22 @@ select:focus-visible {
 }
 .runway-tooltip-row small {
   grid-column: 1 / -1;
-  color: var(--ink-faint);
+  color: var(--ink-3);
   font-size: 10px;
 }
 .runway-tooltip-excluded {
   margin-top: 8px;
   padding-top: 6px;
-  border-top: 1px solid var(--line);
-  color: var(--ink-faint);
+  border-top: 1px solid var(--rule);
+  color: var(--ink-3);
   font-size: 10.5px;
 }
 .chart-grid {
-  stroke: var(--line);
+  stroke: var(--rule);
   stroke-dasharray: 4 5;
 }
 .chart-axis {
-  fill: var(--ink-faint);
+  fill: var(--ink-3);
   font: 11px var(--font-mono);
 }
 .actual-line,
@@ -1172,20 +1150,20 @@ select:focus-visible {
   stroke-width: 2.5;
 }
 .actual-line {
-  stroke: var(--accent);
+  stroke: var(--ink);
 }
 .projected-line {
-  stroke: var(--warning);
+  stroke: var(--ink-2);
   stroke-dasharray: 7 6;
 }
 .actual-point {
-  fill: var(--bg);
-  stroke: var(--accent);
+  fill: var(--ground);
+  stroke: var(--ink);
   stroke-width: 2.5;
 }
 .projected-point {
-  fill: var(--bg);
-  stroke: var(--warning);
+  fill: var(--ground);
+  stroke: var(--ink-2);
   stroke-width: 2.5;
 }
 .chart-empty {
@@ -1193,7 +1171,7 @@ select:focus-visible {
   display: grid;
   place-items: center;
   padding: 0 var(--pad);
-  color: var(--ink-faint);
+  color: var(--ink-3);
   font-size: 12.5px;
   text-align: center;
 }
@@ -1203,45 +1181,45 @@ select:focus-visible {
 .tier-pill {
   display: inline-block;
   padding: 2px 9px;
-  border: 1px solid var(--line-hi);
-  border-radius: var(--radius-pill);
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-round);
   font-family: var(--font-mono);
   font-size: 9.5px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 .tier-pill.priority {
-  border-color: var(--accent);
-  color: var(--accent);
+  border-color: var(--ink);
+  color: var(--ink);
 }
 .tier-pill.paused {
-  border-color: var(--danger);
-  color: var(--danger);
+  border-color: var(--alert);
+  color: var(--alert);
 }
 .customer-row {
   cursor: pointer;
 }
 .customer-row:hover td,
 .customer-row.open td {
-  background: var(--surface-elevated);
+  background: var(--well);
 }
 .customer-detail-row td {
   padding: 0;
-  background: var(--bg);
+  background: var(--ground);
 }
 .customer-detail {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 1px;
-  background: var(--line);
+  background: var(--rule);
 }
 .detail-block {
   padding: 16px 18px;
-  background: var(--bg);
+  background: var(--ground);
 }
 .detail-block h3 {
   margin: 0 0 10px;
-  color: var(--ink-faint);
+  color: var(--ink-3);
   font-family: var(--font-mono);
   font-size: 9.5px;
   font-weight: 500;
@@ -1259,12 +1237,12 @@ select:focus-visible {
    instead turned "Revenue" into "Reven…" beside its own explanation. */
 .detail-line span {
   flex: 0 0 auto;
-  color: var(--ink-faint);
+  color: var(--ink-3);
 }
 .detail-line strong {
   flex: 1 1 auto;
   min-width: 0;
-  color: var(--ink-dim);
+  color: var(--ink-2);
   font-weight: 500;
   overflow-wrap: anywhere;
   text-align: right;
@@ -1274,28 +1252,28 @@ select:focus-visible {
   gap: 8px;
   margin-top: 12px;
   padding-top: 12px;
-  border-top: 1px dashed var(--line-hi);
+  border-top: 1px dashed var(--rule-2);
 }
 .service-controls select,
 .service-controls button {
   padding: 6px 9px;
-  border: 1px solid var(--line-hi);
-  border-radius: var(--radius-subtle);
-  background: var(--surface-elevated);
-  color: var(--ink-dim);
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-tag);
+  background: var(--well);
+  color: var(--ink-2);
   font-size: 11px;
   opacity: 0.55;
 }
 .service-controls small {
-  color: var(--ink-faint);
+  color: var(--ink-3);
   font-size: 10px;
 }
 .wip-badge {
   justify-self: start;
   padding: 2px 8px;
-  border: 1px solid var(--warning);
-  border-radius: var(--radius-pill);
-  color: var(--warning);
+  border: 1px solid var(--ink-2);
+  border-radius: var(--radius-round);
+  color: var(--ink-2);
   font-family: var(--font-mono);
   font-size: 9px;
   letter-spacing: 0.1em;
@@ -1315,9 +1293,9 @@ select:focus-visible {
 .publishing-brief {
   display: grid;
   grid-template-columns: minmax(250px, 0.85fr) minmax(300px, 1.4fr);
-  border: 1px solid var(--line-hi);
+  border: 1px solid var(--rule-2);
   border-radius: var(--radius-control);
-  background: var(--surface);
+  background: var(--sheet);
   overflow: hidden;
 }
 .latest-episode-rows {
@@ -1331,7 +1309,7 @@ select:focus-visible {
   align-items: center;
   gap: 12px;
   padding: 7px 0;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--rule);
   font-size: 12.5px;
 }
 .latest-episode-row:first-child {
@@ -1346,25 +1324,25 @@ select:focus-visible {
 .latest-episode-track {
   display: block;
   height: 6px;
-  border-radius: var(--radius-pill);
-  background: var(--surface-elevated);
+  border-radius: var(--radius-round);
+  background: var(--well);
 }
 .latest-episode-track i {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: var(--accent-muted);
+  background: var(--ink-3);
 }
 .latest-episode-signal {
-  color: var(--ink-dim);
+  color: var(--ink-2);
   font-family: var(--font-mono);
   font-size: 10px;
 }
 .brief-kicker {
   grid-column: 1 / -1;
   padding: 12px 18px;
-  border-bottom: 1px solid var(--line);
-  color: var(--accent);
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink);
   font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 500;
@@ -1380,22 +1358,22 @@ select:focus-visible {
   padding: 22px 20px 24px;
 }
 .brief-primary {
-  border-right: 1px solid var(--line);
-  background: var(--accent-soft);
+  border-right: 1px solid var(--rule);
+  background: var(--well);
 }
 .brief-primary > span,
 .brief-direction > span,
 .playbook-language > span,
 .playbook-title > span,
 .playbook-evidence > span {
-  color: var(--ink-faint);
+  color: var(--ink-3);
   font-family: var(--font-mono);
   font-size: 9.5px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 .brief-primary > strong {
-  color: var(--accent);
+  color: var(--ink);
   font-family: var(--font-display);
   font-size: clamp(34px, 4vw, 52px);
   font-weight: 400;
@@ -1403,7 +1381,7 @@ select:focus-visible {
 }
 .brief-primary > small,
 .playbook-language > small {
-  color: var(--ink-dim);
+  color: var(--ink-2);
   font-size: 10.5px;
   line-height: 1.45;
 }
@@ -1417,16 +1395,16 @@ select:focus-visible {
 .brief-direction p {
   max-width: 62ch;
   margin: 0;
-  color: var(--ink-dim);
+  color: var(--ink-2);
   font-size: 12.5px;
   line-height: 1.55;
 }
 .platform-playbook {
   display: grid;
   gap: 1px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--rule);
   border-radius: var(--radius-control);
-  background: var(--line);
+  background: var(--rule);
   overflow: hidden;
 }
 .playbook-card {
@@ -1436,7 +1414,7 @@ select:focus-visible {
   align-items: center;
   gap: 18px;
   padding: 18px;
-  background: var(--surface);
+  background: var(--sheet);
 }
 .playbook-card > header {
   min-width: 0;
@@ -1473,14 +1451,14 @@ select:focus-visible {
 .playbook-evidence {
   grid-column: 2 / -1;
   padding-top: 12px;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--rule);
 }
 .playbook-evidence > strong {
   font-size: 12.5px;
   font-weight: 550;
 }
 .playbook-evidence > small {
-  color: var(--ink-dim);
+  color: var(--ink-2);
   font-size: 10.5px;
   line-height: 1.45;
 }
@@ -1492,9 +1470,9 @@ select:focus-visible {
 }
 .playbook-tags span {
   padding: 3px 8px;
-  border: 1px solid var(--line-hi);
-  border-radius: var(--radius-pill);
-  color: var(--ink-dim);
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-round);
+  color: var(--ink-2);
   font-size: 10px;
 }
 .section-heading {
@@ -1509,7 +1487,7 @@ select:focus-visible {
   font-weight: 550;
 }
 .decision-note {
-  color: var(--ink-faint);
+  color: var(--ink-3);
   font-size: 11.5px;
 }
 .growth-summary-section {
@@ -1526,9 +1504,9 @@ select:focus-visible {
   justify-content: space-between;
   gap: 16px;
   padding: 16px 18px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--rule);
   border-radius: var(--radius-control);
-  background: var(--surface);
+  background: var(--sheet);
 }
 .audience-card > div:first-child {
   min-width: 0;
@@ -1540,11 +1518,11 @@ select:focus-visible {
   font-weight: 550;
 }
 .audience-card > div:first-child > span {
-  color: var(--ink-dim);
+  color: var(--ink-2);
   font-size: 11.5px;
 }
 .audience-card > div:first-child > small {
-  color: var(--ink-faint);
+  color: var(--ink-3);
   font-family: var(--font-mono);
   font-size: 9px;
 }
@@ -1558,7 +1536,7 @@ select:focus-visible {
   text-align: right;
 }
 .audience-deltas small {
-  color: var(--ink-faint);
+  color: var(--ink-3);
   font-family: var(--font-mono);
   font-size: 8.5px;
   text-transform: uppercase;
@@ -1572,17 +1550,17 @@ select:focus-visible {
   display: grid;
   gap: 5px;
   padding-bottom: 16px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--rule);
 }
 .collection-total strong {
-  color: var(--accent);
+  color: var(--ink);
   font-family: var(--font-display);
   font-size: 35px;
   font-weight: 400;
   line-height: 1;
 }
 .collection-total span {
-  color: var(--ink-dim);
+  color: var(--ink-2);
   font-size: 11px;
 }
 
@@ -1601,16 +1579,16 @@ select:focus-visible {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 1px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--rule);
   border-radius: var(--radius-control);
-  background: var(--line);
+  background: var(--rule);
   overflow: hidden;
 }
 .window-tabs button {
   min-height: 42px;
   border: 0;
-  background: var(--surface);
-  color: var(--ink-dim);
+  background: var(--sheet);
+  color: var(--ink-2);
   font-family: var(--font-mono);
   font-size: 11px;
   letter-spacing: 0.08em;
@@ -1618,12 +1596,12 @@ select:focus-visible {
   cursor: pointer;
 }
 .window-tabs button:hover {
-  background: var(--surface-elevated);
+  background: var(--well);
   color: var(--ink);
 }
 .window-tabs button.active {
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--well);
+  color: var(--ink);
 }
 .decision-section {
   display: grid;
@@ -1645,17 +1623,17 @@ select:focus-visible {
 }
 .growth-status {
   padding: 3px 7px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--rule);
 }
 .growth-status.eligible {
-  color: var(--success);
+  color: var(--ink);
 }
 .growth-status.provisional {
-  color: var(--warning);
+  color: var(--ink-2);
 }
 .growth-status.collecting,
 .growth-status.paired-cohort {
-  color: var(--ink-faint);
+  color: var(--ink-3);
 }
 .experiment-arm,
 .attribution-shares {
@@ -1665,7 +1643,7 @@ select:focus-visible {
 }
 .experiment-arm small,
 .attribution-shares {
-  color: var(--ink-faint);
+  color: var(--ink-3);
 }
 .attribution-shares {
   padding: 12px 2px;
@@ -1674,9 +1652,9 @@ select:focus-visible {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--rule);
   border-radius: var(--radius-control);
-  background: var(--line);
+  background: var(--rule);
   overflow: hidden;
 }
 .social-metrics > div {
@@ -1684,11 +1662,11 @@ select:focus-visible {
   gap: 8px;
   justify-items: center;
   padding: 22px 16px;
-  background: var(--surface);
+  background: var(--sheet);
   text-align: center;
 }
 .social-metrics strong {
-  color: var(--accent);
+  color: var(--ink);
   font-family: var(--font-display);
   font-size: clamp(30px, 3.4vw, 46px);
   font-weight: 400;
@@ -1696,7 +1674,7 @@ select:focus-visible {
   overflow-wrap: anywhere;
 }
 .social-metrics span {
-  color: var(--ink-dim);
+  color: var(--ink-2);
   font-size: 12px;
 }
 .performance-section {
@@ -1712,9 +1690,9 @@ select:focus-visible {
   text-transform: uppercase;
 }
 .episode-ledger {
-  border: 1px solid var(--line);
+  border: 1px solid var(--rule);
   border-radius: var(--radius-control);
-  background: var(--surface);
+  background: var(--sheet);
 }
 .episode-heading {
   display: flex;
@@ -1722,7 +1700,7 @@ select:focus-visible {
   justify-content: space-between;
   gap: 16px;
   padding: 15px 18px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--rule);
 }
 .episode-heading > div {
   display: grid;
@@ -1735,13 +1713,13 @@ select:focus-visible {
   line-height: 1.35;
 }
 .episode-heading small {
-  color: var(--ink-faint);
+  color: var(--ink-3);
   font-family: var(--font-mono);
   font-size: 9.5px;
   overflow-wrap: anywhere;
 }
 .episode-heading > span {
-  color: var(--ink-dim);
+  color: var(--ink-2);
   font-family: var(--font-mono);
   font-size: 11px;
   white-space: nowrap;
@@ -1758,9 +1736,9 @@ select:focus-visible {
   place-content: center;
   gap: 8px;
   padding: 24px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--rule);
   border-radius: var(--radius-control);
-  background: var(--surface);
+  background: var(--sheet);
   text-align: center;
 }
 .social-empty strong {
@@ -1768,13 +1746,13 @@ select:focus-visible {
   font-weight: 500;
 }
 .social-empty span {
-  color: var(--ink-dim);
+  color: var(--ink-2);
   font-size: 12px;
 }
 .followers-rail {
   align-self: start;
   padding-left: 24px;
-  border-left: 1px solid var(--line);
+  border-left: 1px solid var(--rule);
 }
 .followers-rail h2 {
   margin: 0 0 16px;
@@ -1788,14 +1766,14 @@ select:focus-visible {
   display: grid;
   gap: 6px;
   padding: 16px 0;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--rule);
 }
 .follower-entry > span {
-  color: var(--ink-dim);
+  color: var(--ink-2);
   font-size: 12px;
 }
 .follower-entry strong {
-  color: var(--accent);
+  color: var(--ink);
   font-family: var(--font-display);
   font-size: 26px;
   font-weight: 400;
@@ -1803,7 +1781,7 @@ select:focus-visible {
 }
 .follower-entry small,
 .followers-rail > p {
-  color: var(--ink-faint);
+  color: var(--ink-3);
   font-size: 10.5px;
   line-height: 1.55;
 }
@@ -1815,14 +1793,14 @@ select:focus-visible {
 
 .open-panel {
   min-width: 0;
-  border: 1px solid var(--line);
+  border: 1px solid var(--rule);
   border-radius: var(--radius-control);
-  background: var(--surface);
+  background: var(--sheet);
   overflow: hidden;
 }
 .unit-cost-panel > .section-heading {
   padding: 18px var(--pad);
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--rule);
 }
 .unit-cost-panel > .section-heading > div {
   display: grid;
@@ -1832,27 +1810,27 @@ select:focus-visible {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1px;
-  background: var(--line);
+  background: var(--rule);
 }
 .unit-cost-hero > div {
   display: grid;
   gap: 7px;
   padding: 22px var(--pad);
-  background: var(--accent-soft);
+  background: var(--well);
 }
 .unit-cost-hero span {
-  color: var(--ink-dim);
+  color: var(--ink-2);
   font-size: 11.5px;
 }
 .unit-cost-hero strong {
-  color: var(--accent);
+  color: var(--ink);
   font-family: var(--font-display);
   font-size: clamp(32px, 4vw, 46px);
   font-weight: 400;
   line-height: 1;
 }
 .unit-cost-hero small {
-  color: var(--ink-faint);
+  color: var(--ink-3);
   font-family: var(--font-mono);
   font-size: 9px;
   text-transform: uppercase;
@@ -1861,15 +1839,15 @@ select:focus-visible {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 1px;
-  border-top: 1px solid var(--line);
-  background: var(--line);
+  border-top: 1px solid var(--rule);
+  background: var(--rule);
 }
 .language-cost-grid article {
   min-width: 0;
   display: grid;
   align-content: start;
   padding: 17px var(--pad);
-  background: var(--surface);
+  background: var(--sheet);
 }
 .language-cost-grid header {
   margin-bottom: 9px;
@@ -1881,10 +1859,10 @@ select:focus-visible {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 2px 12px;
   padding: 8px 0;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--rule);
 }
 .language-cost-line span {
-  color: var(--ink-dim);
+  color: var(--ink-2);
   font-size: 11.5px;
 }
 .language-cost-line strong {
@@ -1894,14 +1872,14 @@ select:focus-visible {
 }
 .language-cost-line small {
   grid-column: 1 / -1;
-  color: var(--ink-faint);
+  color: var(--ink-3);
   font-size: 9.5px;
 }
 .unit-cost-note,
 .empty-row {
   padding: 13px var(--pad);
-  border-top: 1px solid var(--line);
-  color: var(--ink-faint);
+  border-top: 1px solid var(--rule);
+  color: var(--ink-3);
   font-size: 10.5px;
   line-height: 1.5;
 }
@@ -1914,17 +1892,17 @@ select:focus-visible {
   gap: 6px 14px;
   margin-bottom: var(--gap);
   padding: 14px 18px;
-  border: 1px solid var(--danger);
+  border: 1px solid var(--alert);
   border-left-width: 3px;
   border-radius: var(--radius-control);
-  background: var(--surface);
+  background: var(--sheet);
   font-size: 12.5px;
 }
 .error-state strong {
   font-weight: 500;
 }
 .error-state span {
-  color: var(--ink-dim);
+  color: var(--ink-2);
 }
 
 /* Layout groups ------------------------------------------------------------*/
@@ -1977,7 +1955,7 @@ select:focus-visible {
     gap: 16px;
     padding: 14px 18px;
     border-right: 0;
-    border-bottom: 1px solid var(--line);
+    border-bottom: 1px solid var(--rule);
   }
   .brand {
     margin: 0;
@@ -2016,7 +1994,7 @@ select:focus-visible {
     gap: 12px;
     padding: 20px 0 0;
     border-left: 0;
-    border-top: 1px solid var(--line);
+    border-top: 1px solid var(--rule);
   }
   .followers-rail h2,
   .followers-rail > p {
@@ -2080,7 +2058,7 @@ select:focus-visible {
   }
   .brief-primary {
     border-right: 0;
-    border-bottom: 1px solid var(--line);
+    border-bottom: 1px solid var(--rule);
   }
   .playbook-card {
     grid-template-columns: 1fr;
@@ -2094,7 +2072,7 @@ select:focus-visible {
   .playbook-title,
   .playbook-evidence {
     padding-top: 13px;
-    border-top: 1px solid var(--line);
+    border-top: 1px solid var(--rule);
   }
   .playbook-tags {
     grid-column: auto;

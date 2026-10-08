@@ -18,7 +18,7 @@ const Claim: React.FC<{
   readonly from: number;
 }> = ({ kind, label, text, from }) => {
   const frame = useCurrentFrame();
-  const tone = kind === 'check' ? color.accent : color.inkDim;
+  const tone = kind === 'check' ? color['ink'] : color['ink-2'];
   return (
     <div
       style={{
@@ -43,7 +43,7 @@ const Claim: React.FC<{
         </span>
         <span
           style={{
-            fontFamily: font.sans,
+            fontFamily: font.text,
             fontSize: 44,
             lineHeight: 1.2,
             color: color.ink,
@@ -80,17 +80,17 @@ export const ScopeScene: React.FC<{ readonly scene: SceneOf<'scope'> }> = ({
       >
         <span
           style={{
-            fontFamily: font.serif,
+            fontFamily: font.display,
             fontSize: 210,
             lineHeight: 0.9,
             color: color.ink,
           }}
         >
-          <span style={{ color: color.accent }}>{facts.rulesCovered}</span> of{' '}
+          <span style={{ color: color['ink'] }}>{facts.rulesCovered}</span> of{' '}
           {facts.rulesTotal}
         </span>
         <span
-          style={{ fontFamily: font.sans, fontSize: 34, color: color.inkDim }}
+          style={{ fontFamily: font.text, fontSize: 34, color: color['ink-2'] }}
         >
           {countLabel}
         </span>
@@ -105,9 +105,9 @@ export const ScopeScene: React.FC<{ readonly scene: SceneOf<'scope'> }> = ({
                 border:
                   index < facts.rulesCovered
                     ? 'none'
-                    : `1px solid ${color.lineHi}`,
+                    : `1px solid ${color['rule-2']}`,
                 background:
-                  index < facts.rulesCovered ? color.accent : 'transparent',
+                  index < facts.rulesCovered ? color['ink'] : 'transparent',
                 opacity: rise(frame, 10 + index * 3, 10),
               }}
             />

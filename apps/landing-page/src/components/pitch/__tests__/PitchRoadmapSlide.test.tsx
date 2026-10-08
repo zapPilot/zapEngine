@@ -2,7 +2,10 @@ import '@testing-library/jest-dom';
 import { render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { PITCH_ROADMAP } from '@/config/pitch';
-import { CAPABILITIES, type CapabilityId } from '@/config/runtime';
+import {
+  CAPABILITIES,
+  type CapabilityId,
+} from '@zapengine/zap-pilot-story/facts';
 import { PitchRoadmapSlide } from '../PitchRoadmapSlide';
 
 function column(label: string) {

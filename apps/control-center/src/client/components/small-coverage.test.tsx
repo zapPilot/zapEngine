@@ -90,7 +90,7 @@ describe('tone color vars', () => {
   });
 
   it('falls back to faint ink for an unknown platform', () => {
-    expect(platformColorVar('mastodon')).toBe('var(--ink-faint)');
+    expect(platformColorVar('mastodon')).toBe('var(--ink-3)');
   });
 
   it('maps a supabase-backed source to its shared color', () => {

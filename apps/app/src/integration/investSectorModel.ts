@@ -12,7 +12,7 @@ export interface InvestSector {
   id: InvestSectorId;
   label: string;
   description: string;
-  colorKey: 'btc' | 'usd' | 'spy';
+  colorKey: 'btc' | 'stable' | 'spy';
   executable: boolean;
   lockedReason: string | null;
   positions: { positionId: InvestPositionId; intraBps: number }[];
@@ -32,7 +32,7 @@ export const INVEST_SECTORS: readonly InvestSector[] = [
     label: 'Stable',
     description:
       'USDC in lending (Morpho) and market making (HLP). Returns can be negative.',
-    colorKey: 'usd',
+    colorKey: 'stable',
     executable: true,
     lockedReason: null,
     positions: [

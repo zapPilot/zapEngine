@@ -10,10 +10,10 @@ import { Icon } from './Icon';
 import { useReducedMotion } from './useReducedMotion';
 import { cn } from '@/lib/cn';
 const borders = {
-  success: 'border-success-line',
-  error: 'border-danger-line',
-  warning: 'border-warning-line',
-  info: 'border-accent-line',
+  success: 'border-rule-2',
+  error: 'border-alert',
+  warning: 'border-rule-2',
+  info: 'border-rule-2',
 } as const;
 cssInterop(Animated.View, { className: 'style' });
 
@@ -41,10 +41,10 @@ export function ToastItem({
   }, [opacity, reducedMotion]);
   const tone =
     toast.type === 'error'
-      ? 'danger'
-      : toast.type === 'info'
-        ? 'accent'
-        : toast.type;
+      ? 'alert'
+      : toast.type === 'warning'
+        ? 'secondary'
+        : 'default';
   return (
     <Animated.View
       className="w-full max-w-narrow"
@@ -67,7 +67,7 @@ export function ToastItem({
           toast.action?.label ?? toast.link?.text ?? toast.title
         }
         className={cn(
-          'flex-row gap-3 rounded-card border bg-surface-elevated p-4 shadow-raised',
+          'flex-row gap-3 rounded-panel border bg-well p-4 shadow-raised',
           borders[toast.type],
         )}
       >
@@ -87,7 +87,7 @@ export function ToastItem({
             toast.type === 'error' ? 'assertive' : 'polite'
           }
         >
-          <Text variant="subheading" tone={tone}>
+          <Text variant="heading" tone={tone}>
             {toast.title}
           </Text>
           {toast.message ? (
@@ -96,7 +96,7 @@ export function ToastItem({
             </Text>
           ) : null}
           {toast.action || toast.link ? (
-            <Text variant="label" tone="accent" className="mt-2">
+            <Text variant="label" tone="default" className="mt-2">
               {toast.action?.label ?? toast.link?.text}
             </Text>
           ) : null}

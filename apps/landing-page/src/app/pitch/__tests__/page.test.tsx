@@ -10,10 +10,10 @@ import {
 import PitchPage from '../page';
 
 describe('PitchPage', () => {
-  it('wraps content in shell-root and pitch-root for shared landing styling', () => {
+  it('wraps content in track-record-root and pitch-root for shared landing styling', () => {
     const { container } = render(<PitchPage />);
     const root = container.firstChild as HTMLElement;
-    expect(root).toHaveClass('shell-root');
+    expect(root).toHaveClass('track-record-root');
     expect(root).toHaveClass('pitch-root');
   });
 

@@ -22,7 +22,7 @@ export function AllocationBar({
 }: AllocationBarProps) {
   return (
     <View
-      className={cn('flex-row overflow-hidden rounded-pill', className)}
+      className={cn('flex-row overflow-hidden rounded-round', className)}
       style={{ height, gap: 2 }}
     >
       {segments.map((segment, index) => (

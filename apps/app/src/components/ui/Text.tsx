@@ -8,14 +8,13 @@ import { textVariants } from './textVariants';
 
 const tones = {
   default: 'text-ink',
-  secondary: 'text-ink-dim',
-  muted: 'text-ink-muted',
-  disabled: 'text-ink-faint',
-  inverse: 'text-ink-inverse',
-  accent: 'text-accent',
-  danger: 'text-danger',
-  warning: 'text-warning',
-  success: 'text-success',
+  secondary: 'text-ink-2',
+  muted: 'text-ink-3',
+  inverse: 'text-on-sign',
+  sign: 'text-sign-ink',
+  alert: 'text-alert',
+  up: 'text-up',
+  down: 'text-down',
 } as const;
 type Variant = keyof typeof textVariants;
 type Tone = keyof typeof tones;
@@ -43,9 +42,7 @@ export function Text({
   const inherited = useContext(TextContext);
   const resolvedVariant = variant ?? inherited.variant;
   const resolvedTone = tone ?? inherited.tone;
-  const display = ['display', 'display-sm', 'title', 'title-sm'].includes(
-    resolvedVariant,
-  );
+  const display = ['display-xl', 'display', 'title'].includes(resolvedVariant);
   return (
     <TextContext.Provider
       value={{ variant: resolvedVariant, tone: resolvedTone }}

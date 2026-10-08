@@ -22,9 +22,9 @@ const COMPOSITION_ROWS: {
   key: keyof CompositionTarget;
   color: string;
 }[] = [
-  { label: 'Equities', key: 'equities', color: tokens.color.pillar.spy },
-  { label: 'Crypto', key: 'crypto', color: tokens.color.pillar.btc },
-  { label: 'Stables', key: 'stables', color: tokens.color.pillar.usd },
+  { label: 'Equities', key: 'equities', color: tokens.sleeve.night.spy },
+  { label: 'Crypto', key: 'crypto', color: tokens.sleeve.night.btc },
+  { label: 'Stables', key: 'stables', color: tokens.sleeve.night.stable },
 ];
 
 /**

@@ -1,3 +1,4 @@
+import '../track-record/track-record.css';
 import { NavbarPitch } from '@/components/pitch/NavbarPitch';
 import { PitchAskSlide } from '@/components/pitch/PitchAskSlide';
 import { PitchExecutionSlide } from '@/components/pitch/PitchExecutionSlide';
@@ -15,14 +16,14 @@ import { PitchWhyNowSlide } from '@/components/pitch/PitchWhyNowSlide';
 /**
  * /pitch — investor deck.
  *
- * The page is wrapped in `.shell-root .pitch-root` so all landing component CSS
- * (scoped to `.shell-root`) keeps working for the wrapped slides
+ * The page is wrapped in `.track-record-root .pitch-root` so all landing component CSS
+ * (scoped to `.track-record-root`) keeps working for the wrapped slides
  * (BacktestProof / TrustStrip), while `.pitch-root` adds deck-only chrome,
  * scroll-snap and the tokens the reused home-page cards (`.zp-*`) read.
  */
 export default function PitchPage() {
   return (
-    <div className="shell-root pitch-root">
+    <div className="track-record-root pitch-root">
       <PitchProgressBar />
       <NavbarPitch />
       <PitchNav />

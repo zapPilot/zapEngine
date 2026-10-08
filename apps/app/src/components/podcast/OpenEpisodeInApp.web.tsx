@@ -43,12 +43,12 @@ export function OpenEpisodeInApp({
   const appUrl = `zappilotv2://podcast/${encodeURIComponent(localizationId)}?lang=${encodeURIComponent(languageCode)}`;
 
   return (
-    <View className="mb-4 flex-row flex-wrap items-center justify-between gap-3 rounded-card border border-line bg-surface p-3">
+    <View className="mb-4 flex-row flex-wrap items-center justify-between gap-3 rounded-panel border border-rule bg-sheet p-3">
       <Text variant="label">{t('podcast.title')}</Text>
       <View className="flex-row flex-wrap items-center gap-3">
         <a
           href={appUrl}
-          className="inline-flex min-h-control-md items-center rounded-control bg-accent px-3 py-2 font-sans-semibold text-label text-bg"
+          className="inline-flex min-h-control-md items-center rounded-control bg-ink px-3 py-2 font-text-semibold text-label text-ground"
         >
           {t('podcast.openInApp')}
         </a>

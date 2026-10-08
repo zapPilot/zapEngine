@@ -59,7 +59,10 @@ async function render(node: ReactNode) {
 describe('HomeActionRow platform split', () => {
   it('renders Invest, Rebalance, and Send in the shared/web implementation', async () => {
     const rendered = await render(
-      createElement(HomeActionRow, { isStrategyActionRequired: false }),
+      createElement(HomeActionRow, {
+        isStrategyActionRequired: false,
+        isDemo: false,
+      }),
     );
 
     expect(
@@ -73,7 +76,10 @@ describe('HomeActionRow platform split', () => {
 
   it('renders nothing in the iOS implementation', async () => {
     const rendered = await render(
-      createElement(HomeActionRowIos, { isStrategyActionRequired: true }),
+      createElement(HomeActionRowIos, {
+        isStrategyActionRequired: true,
+        isDemo: false,
+      }),
     );
 
     expect(rendered.container.innerHTML).toBe('');

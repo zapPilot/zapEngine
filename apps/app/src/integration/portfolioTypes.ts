@@ -13,4 +13,4 @@ export interface DemoAsset {
   chains: ChainKey[];
 }
 
-export type MetricTone = 'neutral' | 'positive' | 'negative' | 'accent';
+export type MetricTone = 'neutral' | 'positive' | 'negative';

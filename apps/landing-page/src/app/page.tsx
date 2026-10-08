@@ -1,31 +1,34 @@
-import { CtaExperiment } from '@/components/landing-v2/CtaExperiment';
-import { Adapters } from '@/components/landing-v2/Adapters';
-import { BacktestProof } from '@/components/landing-v2/BacktestProof';
-import { ClosingCta } from '@/components/landing-v2/ClosingCta';
-import { Footer } from '@/components/landing-v2/Footer';
-import { Hero } from '@/components/landing-v2/Hero';
-import { Navbar } from '@/components/landing-v2/Navbar';
-import { Ownership } from '@/components/landing-v2/Ownership';
-import { Runtime } from '@/components/landing-v2/Runtime';
-import { Strategies } from '@/components/landing-v2/Strategies';
-import { TrustBoundary } from '@/components/landing-v2/TrustBoundary';
-
+import { LandingStory } from '@zapengine/zap-pilot-story/scenes';
+import { HERO } from '@zapengine/zap-pilot-story/copy';
+import { CtaExperiment } from '@/components/site/CtaExperiment';
+import { SiteHeader } from '@/components/site/SiteHeader';
+import { SiteFooter } from '@/components/site/SiteFooter';
+import { WaitlistForm } from '@/components/site/WaitlistForm';
+import { LINKS } from '@/config/links';
 export default function LandingPage() {
   return (
     <CtaExperiment>
-      <div className="zp-root">
-        <Navbar />
+      <div className="zp-motion" data-theme="paper">
+        <SiteHeader />
         <main>
-          <Hero />
-          <Ownership />
-          <Runtime />
-          <Strategies />
-          <BacktestProof />
-          <Adapters />
-          <TrustBoundary />
-          <ClosingCta />
+          <LandingStory
+            heroActions={
+              <a className="zp-btn zp-btn-sign" href="#join">
+                Join waitlist
+              </a>
+            }
+            heroNote={
+              <p>
+                {HERO.note} ·{' '}
+                <a className="zp-tlink" href={LINKS.downloads.appStore}>
+                  App Store
+                </a>
+              </p>
+            }
+            joinForm={<WaitlistForm />}
+          />
         </main>
-        <Footer />
+        <SiteFooter />
       </div>
     </CtaExperiment>
   );

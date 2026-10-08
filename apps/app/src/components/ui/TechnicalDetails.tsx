@@ -26,7 +26,7 @@ export function TechnicalDetails({
         </Text>
       }
     >
-      <View className="rounded-control border border-line bg-surface-high p-3">
+      <View className="rounded-control border border-rule bg-well p-3">
         <Text variant="caption" tone="secondary" selectable>
           {message}
         </Text>

@@ -17,7 +17,7 @@ describe('videoAssetPaths', () => {
     const filePaths = [
       videoAssetPaths.notoSansCjkTcRegular,
       videoAssetPaths.notoSansCjkTcBold,
-      videoAssetPaths.jetBrainsMonoSemibold,
+      videoAssetPaths.martianMonoSemibold,
       videoAssetPaths.logo,
       videoAssetPaths.podcastIntro,
     ];

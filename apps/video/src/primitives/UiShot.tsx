@@ -116,8 +116,8 @@ const HighlightBox: React.FC<{
         width={width - 3}
         height={height - 3}
         rx={14}
-        fill={color.accentSubtle}
-        stroke={color.accent}
+        fill={color['well']}
+        stroke={color['ink']}
         strokeWidth={3}
         pathLength={1}
         strokeDasharray={1}
@@ -148,7 +148,7 @@ const Pointer: React.FC<{
             width: 28 + 112 * ripple,
             height: 28 + 112 * ripple,
             borderRadius: 999,
-            border: `3px solid ${color.accent}`,
+            border: `3px solid ${color['ink']}`,
             opacity: 1 - ripple,
           }}
         />
@@ -170,7 +170,7 @@ const Pointer: React.FC<{
         <path
           d="M2 1.5 L2 19 L6.6 14.8 L9.6 21.6 L12.6 20.3 L9.7 13.6 L16 13.4 Z"
           fill={color.ink}
-          stroke={color.bg}
+          stroke={color['ground']}
           strokeWidth={1.2}
           strokeLinejoin="round"
         />
@@ -234,7 +234,7 @@ export const UiShot: React.FC<{
             : {
                 borderRadius: 28,
                 border: hairline,
-                background: color.bg,
+                background: color['ground'],
                 boxShadow: '0 40px 120px rgba(0, 0, 0, 0.55)',
               }),
         }}

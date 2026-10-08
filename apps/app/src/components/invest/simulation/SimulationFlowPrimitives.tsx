@@ -1,3 +1,5 @@
+import { Icon as UiIcon } from '@/components/ui/Icon';
+import { cn } from '@/lib/cn';
 import type {
   PrivySimulationAssetChange,
   PrivySimulationToken,
@@ -39,10 +41,22 @@ export function SimulationFlowSectionHeader({
   return (
     <View className="flex-row items-center gap-2 px-4 pb-1 pt-4">
       {children}
-      <Text className="font-mono-semibold text-[9px] uppercase tracking-[.8px] text-ink-faint">
+      <Text className="font-mono-semibold text-data uppercase tracking-[.8px] text-ink-3">
         {label}
       </Text>
     </View>
+  );
+}
+
+/** One-line secondary annotation shared by both simulation asset views. */
+export function SimulationAssetSubtitle({ children }: { children: ReactNode }) {
+  return (
+    <Text
+      className="font-mono-medium mt-0.5 text-label text-ink-3"
+      numberOfLines={1}
+    >
+      {children}
+    </Text>
   );
 }
 
@@ -63,11 +77,11 @@ export function SimulationAssetAmountRow({
   const outgoing = direction === 'out';
 
   return (
-    <View className="flex-row items-center gap-3 border-t border-line px-4 py-3 first:border-t-0">
+    <View className="flex-row items-center gap-3 border-t border-rule px-4 py-3 first:border-t-0">
       <SimulationTokenMark token={token} />
       <View className="min-w-0 flex-1">
         <Text
-          className="font-sans-semibold text-[13px] text-ink"
+          className="font-text-semibold text-body-sm text-ink"
           numberOfLines={1}
         >
           {token.symbol}
@@ -75,9 +89,11 @@ export function SimulationAssetAmountRow({
         {subtitle}
       </View>
       <Text
-        className={`${amountMaxWidthClassName} font-mono-semibold text-[13px] ${
-          outgoing ? 'text-danger' : 'text-success'
-        }`}
+        className={cn(
+          amountMaxWidthClassName,
+          'font-mono-semibold text-data',
+          outgoing ? 'text-alert' : 'text-ink',
+        )}
         numberOfLines={1}
       >
         {outgoing ? '−' : '+'}
@@ -106,17 +122,17 @@ function SimulationDirectionalSection<T>({
   emptyLabel?: string;
 }) {
   const Icon = direction === 'out' ? ArrowUpRight : ArrowDownLeft;
-  const iconColor = direction === 'out' ? '#ff6f61' : '#7ad88f';
+  const iconTone = direction === 'out' ? 'down' : 'up';
 
   return (
     <View>
       <SimulationFlowSectionHeader label={label}>
-        <Icon size={14} color={iconColor} />
+        <UiIcon icon={Icon} size="xs" tone={iconTone} />
       </SimulationFlowSectionHeader>
       {items.length > 0 ? (
         items.map(renderItem)
       ) : (
-        <Text className="px-4 py-3 text-[12px] text-ink-faint">
+        <Text className="font-text px-4 py-3 text-caption text-ink-3">
           {emptyLabel}
         </Text>
       )}
@@ -146,7 +162,7 @@ export function SimulationAssetFlowSections({
         items={outgoing}
         renderItem={renderItem}
       />
-      <View className="mx-4 h-px bg-line" />
+      <View className="mx-4 h-px bg-rule" />
       <SimulationDirectionalSection
         label="You receive"
         direction="in"

@@ -1,3 +1,4 @@
+import { tokens } from '@zapengine/design-tokens/tokens';
 import { Text, View } from 'react-native';
 import { AllocationBar } from '@/components/charts/AllocationBar';
 import { sectorColor } from '@/components/invest/sectorColors';
@@ -28,12 +29,14 @@ export function SectorAllocationBar({ weights }: { weights: SectorWeights }) {
               style={{
                 width: 9,
                 height: 9,
-                borderRadius: 5,
+                borderRadius: tokens.radius.control,
                 backgroundColor: sectorColor(s),
               }}
             />
-            <Text className="text-[10px] text-ink-dim">{s.label}</Text>
-            <Text className="font-mono text-[10px] text-ink">
+            <Text className="font-mono-medium text-label text-ink-2">
+              {s.label}
+            </Text>
+            <Text className="font-mono text-data text-ink">
               {bpsToPercentInput(weights[s.id])}%
             </Text>
           </View>

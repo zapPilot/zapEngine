@@ -4,9 +4,8 @@ import { View } from 'react-native';
 import { Text } from './Text';
 const tones = {
   neutral: 'default',
-  positive: 'success',
-  negative: 'danger',
-  accent: 'accent',
+  positive: 'up',
+  negative: 'down',
 } as const;
 export function Stat({
   label,
@@ -19,10 +18,10 @@ export function Stat({
 }): ReactElement {
   return (
     <View>
-      <Text variant="overline" tone="muted">
+      <Text variant="label" tone="muted">
         {label}
       </Text>
-      <Text variant="numeric-lg" numeric tone={tones[tone]} className="mt-2">
+      <Text variant="data-md" numeric tone={tones[tone]} className="mt-2">
         {value}
       </Text>
     </View>

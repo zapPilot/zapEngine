@@ -13,7 +13,9 @@ export async function renderTsTokens(tokens) {
   const source = `// Generated from packages/design-tokens/tokens.json. Do not edit by hand.
 import type { DesignTokens } from '../tokens.js';
 
+// jscpd:ignore-start -- Literal data mirrors tokens.json; drift tests verify every value. Handwritten generators remain checked.
 export const tokens = ${JSON.stringify(tokens, null, 2)} as const satisfies DesignTokens;
+// jscpd:ignore-end
 `;
   const config = await resolveConfig(join(packageRoot, outputPath));
   return format(source, buildPrettierOptions(config));

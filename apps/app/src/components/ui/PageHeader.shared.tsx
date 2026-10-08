@@ -62,7 +62,7 @@ export function PageHeader({
             </Text>
           )}
           {step ? (
-            <Text variant="overline" tone="muted" className="mt-1">
+            <Text variant="label" tone="muted" className="mt-1">
               {step}
             </Text>
           ) : null}

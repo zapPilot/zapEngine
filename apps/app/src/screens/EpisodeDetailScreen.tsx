@@ -1,3 +1,4 @@
+import { Icon } from '@/components/ui/Icon';
 import { podcastEpisodeHref } from '@/integration/podcastRoutes';
 import { EpisodeDownloadButton } from '@/components/podcast/EpisodeDownloadButton';
 import { OpenEpisodeInApp } from '@/components/podcast/OpenEpisodeInApp';
@@ -65,11 +66,11 @@ function EpisodeDetailHeader({
     <View className="flex-row items-center justify-between pb-3">
       <View className="flex-row items-center gap-3">
         <PodcastIconButton label={t('common.back')} onPress={onBack}>
-          <ChevronLeft size={20} strokeWidth={2} color="#d4c5a3" />
+          <Icon icon={ChevronLeft} size="md" tone="sign" />
         </PodcastIconButton>
         <PodcastLanguageDropdown onLanguageSelected={onLanguageSelected} />
       </View>
-      <Text className="min-w-0 flex-1 px-3 text-center font-sans-semibold text-[14px] text-ink">
+      <Text className="min-w-0 flex-1 px-3 text-center font-text-semibold text-body text-ink">
         {t('podcast.title')}
       </Text>
       <View className="flex-row items-center gap-2">
@@ -78,7 +79,7 @@ function EpisodeDetailHeader({
           label={t('podcast.shareEpisode')}
           onPress={shareEpisode}
         >
-          <Share2 size={18} strokeWidth={2} color="#d4c5a3" />
+          <Icon icon={Share2} size="md" tone="sign" />
         </PodcastIconButton>
       </View>
     </View>
@@ -91,21 +92,21 @@ function EpisodeHeroCard({ episode }: { episode: PodcastEpisode }) {
 
   return (
     <Card className="overflow-hidden p-5">
-      <View className="absolute -right-7 top-5 h-28 w-28 rounded-full border border-[rgba(212,197,163,.13)] bg-[rgba(212,197,163,.05)]" />
-      <Text className="font-sans-bold text-[25px] leading-[31px] text-ink">
+      <View className="absolute -right-7 top-5 h-28 w-28 rounded-round border border-rule-2 bg-well" />
+      <Text className="font-text-semibold text-title leading-[31px] text-ink">
         {episode.title}
       </Text>
       <View className="mt-4 flex-row flex-wrap items-center gap-2">
         {date !== '' ? (
-          <Text className="font-mono text-[10px] uppercase tracking-[1px] text-ink-faint">
+          <Text className="font-mono text-data uppercase tracking-[1px] text-ink-3">
             {date}
           </Text>
         ) : null}
-        <Text className="font-mono text-[10px] uppercase tracking-[1px] text-ink-faint">
+        <Text className="font-mono text-data uppercase tracking-[1px] text-ink-3">
           {episode.listened ? t('podcast.listened') : t('podcast.unheard')}
         </Text>
         {episode.likeCount > 0 ? (
-          <Text className="font-mono text-[10px] uppercase tracking-[1px] text-ink-faint">
+          <Text className="font-mono text-data uppercase tracking-[1px] text-ink-3">
             {episode.likeCount} likes
           </Text>
         ) : null}
@@ -133,7 +134,7 @@ function LanguageClassroomSection({
 
   return (
     <View className="pt-7">
-      <Text className="font-sans-semibold text-[17px] text-ink">
+      <Text className="font-text-semibold text-body-lg text-ink">
         {t('podcast.languageClassroom')}
       </Text>
       <View className="mt-3 gap-3">
@@ -143,12 +144,12 @@ function LanguageClassroomSection({
             className="p-4"
           >
             <View className="flex-row items-start gap-3">
-              <View className="rounded-full border border-[rgba(212,197,163,.3)] bg-[rgba(212,197,163,.12)] px-3 py-1">
-                <Text className="font-mono text-[10px] font-sans-bold text-accent">
+              <View className="rounded-round border border-rule-2 bg-well px-3 py-1">
+                <Text className="font-mono text-data font-text-semibold text-ink">
                   {contentLanguageBadge(lesson.targetLanguageCode)}
                 </Text>
               </View>
-              <Text className="min-w-0 flex-1 font-sans-semibold text-[13px] leading-[19px] text-ink">
+              <Text className="min-w-0 flex-1 font-text-semibold text-body-sm leading-[19px] text-ink">
                 {lesson.oneLiner}
               </Text>
             </View>
@@ -156,12 +157,12 @@ function LanguageClassroomSection({
               {lesson.keywords.map((keyword) => (
                 <View
                   key={`${keyword.term}-${keyword.meaning}`}
-                  className="max-w-[260px] rounded-xl bg-[rgba(255,255,255,.055)] px-3 py-2"
+                  className="max-w-[260px] rounded-panel bg-well px-3 py-2"
                 >
-                  <Text className="font-sans-semibold text-[13px] text-ink">
+                  <Text className="font-text-semibold text-body-sm text-ink">
                     {keyword.term}
                   </Text>
-                  <Text className="mt-1 text-[11px] leading-[15px] text-ink-dim">
+                  <Text className="font-mono-medium mt-1 text-label leading-[15px] text-ink-2">
                     {keywordSupportingText(keyword)}
                   </Text>
                 </View>
@@ -177,10 +178,10 @@ function LanguageClassroomSection({
 function DetailSkeleton() {
   return (
     <View className="pt-4" accessibilityRole="progressbar">
-      <SkeletonBlock className="h-[210px] rounded-[28px]" />
-      <SkeletonBlock className="mt-5 h-[210px] rounded-[28px]" />
+      <SkeletonBlock className="h-[210px] rounded-sheet" />
+      <SkeletonBlock className="mt-5 h-[210px] rounded-sheet" />
       <SkeletonBlock className="mt-7 h-5 w-32" />
-      <SkeletonBlock className="mt-3 h-40 rounded-[20px]" />
+      <SkeletonBlock className="mt-3 h-40 rounded-panel" />
     </View>
   );
 }
@@ -265,7 +266,7 @@ export function EpisodeDetailScreen() {
       <ScreenScrollView width="reading" bottomPadding={36 + insets.bottom}>
         <View className="flex-row items-center pb-3">
           <PodcastIconButton label={t('common.back')} onPress={goBack}>
-            <ChevronLeft size={20} strokeWidth={2} color="#d4c5a3" />
+            <Icon icon={ChevronLeft} size="md" tone="sign" />
           </PodcastIconButton>
         </View>
         {isLoading ? (
@@ -273,12 +274,12 @@ export function EpisodeDetailScreen() {
         ) : (
           <View className="pt-4">
             <Card className="p-5">
-              <Text className="font-sans-semibold text-[16px] text-ink">
+              <Text className="font-text-semibold text-body-lg text-ink">
                 {isError
                   ? t('podcast.episodeUnavailable')
                   : 'Episode not found'}
               </Text>
-              <Text className="mt-2 text-[13px] leading-5 text-ink-dim">
+              <Text className="font-text mt-2 text-body-sm leading-5 text-ink-2">
                 {isError
                   ? t('podcast.episodeUnavailableMessage')
                   : 'This episode is not in the current language feed.'}
@@ -296,7 +297,7 @@ export function EpisodeDetailScreen() {
   };
 
   return (
-    <View className="flex-1 bg-bg">
+    <View className="flex-1 bg-ground">
       <ScreenScrollView width="reading" bottomPadding={36 + insets.bottom}>
         <EpisodeDetailHeader
           episode={episode}

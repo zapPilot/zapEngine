@@ -68,10 +68,10 @@ export function AccountScreen() {
       <PageHeader title={t('account.settingsTitle')} />
       <View className="pt-5">
         <Card className="p-5">
-          <Text className="font-sans-semibold text-[15px] text-ink">
+          <Text className="font-text-semibold text-body text-ink">
             {t('tabs.account')}
           </Text>
-          <Text className="mt-2 text-[12.5px] leading-5 text-ink-dim">
+          <Text className="font-text mt-2 text-caption leading-5 text-ink-2">
             {t('account.iosAuthBody')}
           </Text>
         </Card>
@@ -80,14 +80,14 @@ export function AccountScreen() {
         <AppVersionCard />
 
         <Card className="mt-4 p-5">
-          <Text className="font-sans-semibold text-[15px] text-ink">
+          <Text className="font-text-semibold text-body text-ink">
             {t('account.watchAddressTitle')}
           </Text>
-          <Text className="mt-1 text-[12.5px] leading-5 text-ink-dim">
+          <Text className="font-text mt-1 text-caption leading-5 text-ink-2">
             {t('account.watchAddressBody')}
           </Text>
           <TextInput
-            className="mt-4 rounded-2xl border border-line bg-[rgba(255,255,255,.035)] px-4 py-3 font-mono text-[13px] text-ink"
+            className="mt-4 rounded-panel border border-rule bg-well px-4 py-3 font-mono text-data text-ink"
             autoCapitalize="none"
             autoCorrect={false}
             placeholder={t('account.watchAddressPlaceholder')}
@@ -100,12 +100,12 @@ export function AccountScreen() {
             }}
           />
           {watchAddressError ? (
-            <Text className="mt-2 text-[11.5px] leading-[16px] text-[#ef9292]">
+            <Text className="font-mono-medium mt-2 text-label leading-[16px] text-alert">
               {watchAddressError}
             </Text>
           ) : null}
           {watchAddressSaved ? (
-            <Text className="mt-2 text-[11.5px] leading-[16px] text-success">
+            <Text className="font-mono-medium mt-2 text-label leading-[16px] text-ink">
               {t('account.watchAddressSaved')}
             </Text>
           ) : null}
@@ -124,7 +124,7 @@ export function AccountScreen() {
               accessibilityLabel={t('account.watchAddressClear')}
               onPress={clearWatchAddress}
             >
-              <Text className="font-sans-semibold text-[12px] text-ink-dim">
+              <Text className="font-text-semibold text-caption text-ink-2">
                 {t('account.watchAddressClear')}
               </Text>
             </Tap>
@@ -132,10 +132,10 @@ export function AccountScreen() {
         </Card>
 
         <Card className="mt-4 p-5">
-          <Text className="font-sans-semibold text-[15px] text-ink">
+          <Text className="font-text-semibold text-body text-ink">
             {t('account.webFeaturesTitle')}
           </Text>
-          <Text className="mt-1 text-[12.5px] leading-5 text-ink-dim">
+          <Text className="font-text mt-1 text-caption leading-5 text-ink-2">
             {t('account.webFeaturesBody')}
           </Text>
         </Card>

@@ -91,8 +91,13 @@ it('keeps technical errors collapsed and supports labelled retry and copy action
 });
 it('does not invent a default error heading for inline notices', async () => {
   const page = await mount(
-    <Callout tone="danger" body="Some balances are unavailable" />,
+    <Callout tone="alert" body="Some balances are unavailable" />,
   );
   expect(page.textContent).toBe('Some balances are unavailable');
   expect(page.textContent).not.toContain('Something went wrong');
 });
+
+vi.mock(
+  'react-native-svg',
+  async () => (await import('./support/svgStub')).svgStub,
+);

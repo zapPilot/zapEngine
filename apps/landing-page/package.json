@@ -18,8 +18,8 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:ci": "vitest run --coverage",
-    "deadcode": "knip --files --exports --dependencies --treat-config-hints-as-errors",
-    "deadcode:fix": "knip --files --exports --dependencies --fix",
+    "deadcode": "knip --directory ../.. --workspace apps/landing-page --config apps/landing-page/knip.ts --files --exports --dependencies --treat-config-hints-as-errors",
+    "deadcode:fix": "knip --directory ../.. --workspace apps/landing-page --config apps/landing-page/knip.ts --files --exports --dependencies --fix",
     "dup:check": "node ../../scripts/lint/run-jscpd.mjs src",
     "security:audit": "pnpm audit --prod --audit-level=moderate",
     "clean": "rm -rf .next out coverage"
@@ -37,7 +37,10 @@
     "posthog-js": "^1.418.14",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "viem": "catalog:"
+    "viem": "catalog:",
+    "@zapengine/zap-pilot-story": "workspace:*",
+    "@fontsource-variable/archivo": "catalog:",
+    "@fontsource-variable/martian-mono": "catalog:"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "catalog:",

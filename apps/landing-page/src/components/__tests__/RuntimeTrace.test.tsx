@@ -3,7 +3,11 @@ import { render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { RuntimeTrace } from '@/components/landing-v2/RuntimeTrace';
 import { MESSAGES } from '@/config/messages';
-import { CAPABILITIES, STATUS_LABEL, capabilityIds } from '@/config/runtime';
+import {
+  CAPABILITIES,
+  STATUS_LABEL,
+  capabilityIds,
+} from '@zapengine/zap-pilot-story/facts';
 
 describe('RuntimeTrace', () => {
   it('renders one row per stage with that stage’s status badge', () => {

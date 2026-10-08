@@ -175,10 +175,10 @@ describe('allocationBar', () => {
     });
 
     expect(segments.map((segment) => segment.color)).toEqual([
-      'var(--event-btc)',
-      'var(--event-eth)',
-      'var(--event-spy)',
-      'var(--event-stable)',
+      'var(--sleeve-btc)',
+      'var(--sleeve-eth)',
+      'var(--sleeve-spy)',
+      'var(--sleeve-stable)',
     ]);
   });
 

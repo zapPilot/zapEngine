@@ -16,10 +16,10 @@ function EpisodeBadge({ active }: { active: boolean }) {
     <View
       className={cn(
         'h-10 w-10 shrink-0 items-center justify-center rounded-control border',
-        active ? 'border-accent-line bg-accent-soft' : 'border-line bg-surface',
+        active ? 'border-rule-2 bg-well' : 'border-rule bg-sheet',
       )}
     >
-      <Icon icon={Headphones} size="sm" tone={active ? 'accent' : 'muted'} />
+      <Icon icon={Headphones} size="sm" tone={active ? 'default' : 'muted'} />
     </View>
   );
 }
@@ -47,7 +47,7 @@ export function EpisodeRow({
     <View
       className={cn(
         'flex-row items-center gap-3 py-[13px]',
-        !first && 'border-t border-line',
+        !first && 'border-t border-rule',
       )}
     >
       <Tap
@@ -59,8 +59,8 @@ export function EpisodeRow({
         <EpisodeBadge active={active} />
         <View className="min-w-0 flex-1">
           <Text
-            variant="subheading"
-            tone={active ? 'accent' : 'default'}
+            variant="heading"
+            tone={active ? 'default' : 'default'}
             numberOfLines={2}
           >
             {episode.title}
@@ -75,8 +75,8 @@ export function EpisodeRow({
             </Text>
             {episode.listened ? (
               <View className="flex-row items-center gap-1">
-                <Icon icon={Check} size="xs" tone="success" />
-                <Text variant="caption" tone="success">
+                <Icon icon={Check} size="xs" tone="default" />
+                <Text variant="caption" tone="default">
                   {t('podcast.completedEpisode')}
                 </Text>
               </View>
@@ -88,7 +88,7 @@ export function EpisodeRow({
       <IconButton
         icon={playing ? Pause : Play}
         size="sm"
-        variant={playing ? 'tonal' : 'secondary'}
+        variant={playing ? 'secondary' : 'secondary'}
         onPress={onToggle}
         accessibilityLabel={
           playing

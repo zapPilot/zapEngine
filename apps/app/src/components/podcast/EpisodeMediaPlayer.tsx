@@ -1,3 +1,5 @@
+import { palette } from '@/lib/palette';
+import { Icon } from '@/components/ui/Icon';
 import { resolveOfflineEpisodeVideo } from '@/integration/podcastVideoDownloads';
 import { usePodcastDownloads } from '@/providers/PodcastDownloadsProvider';
 import Slider from '@react-native-community/slider';
@@ -84,15 +86,14 @@ interface VideoClockState {
 }
 
 const ICON_BUTTON_TONES = {
-  accent: 'border-[rgba(212,197,163,.28)] bg-[rgba(212,197,163,.12)]',
-  success: 'border-success-line bg-success-soft',
-  danger: 'border-danger-line bg-danger-soft',
+  default: 'border-rule-2 bg-well',
+  alert: 'border-alert bg-alert-wash',
 } as const;
 
 export function PodcastIconButton({
   label,
   hint,
-  tone = 'accent',
+  tone = 'default',
   busy = false,
   disabled = false,
   onPress,
@@ -115,10 +116,8 @@ export function PodcastIconButton({
       disabled={disabled}
       onPress={onPress}
       className={cn(
-        'h-11 w-11 items-center justify-center rounded-full border',
-        disabled
-          ? 'border-line bg-[rgba(255,255,255,.03)] opacity-40'
-          : ICON_BUTTON_TONES[tone],
+        'h-11 w-11 items-center justify-center rounded-round border',
+        disabled ? 'border-rule bg-well opacity-40' : ICON_BUTTON_TONES[tone],
       )}
     >
       {children}
@@ -156,22 +155,22 @@ function EpisodeMediaTabButton({
       aria-selected={active}
       onPress={onPress}
       className={cn(
-        'h-11 min-w-0 flex-1 items-center justify-center rounded-xl',
-        active ? 'bg-[rgba(212,197,163,.18)]' : 'bg-transparent opacity-70',
+        'h-11 min-w-0 flex-1 items-center justify-center rounded-panel',
+        active ? 'bg-well' : 'bg-transparent opacity-70',
       )}
     >
       <View className="flex-row items-center gap-2">
         {busy ? (
           <ActivityIndicator
             accessibilityLabel={`${label} is being generated`}
-            color="#d4c5a3"
+            color={palette.ink}
             size="small"
           />
         ) : null}
         <Text
           className={cn(
-            'font-sans-semibold text-[13px]',
-            active ? 'text-accent' : 'text-ink-dim',
+            'font-text-semibold text-body-sm',
+            active ? 'text-ink' : 'text-ink-2',
           )}
         >
           {label}
@@ -208,11 +207,11 @@ function UnavailableMediaPanel({
       )}
       <Text
         accessibilityLiveRegion={liveRegion}
-        className="text-center font-sans-semibold text-[15px] text-ink"
+        className="text-center font-text-semibold text-body text-ink"
       >
         {message}
       </Text>
-      <Text className="mt-2 text-center text-[12px] leading-[18px] text-ink-dim">
+      <Text className="font-text mt-2 text-center text-caption leading-[18px] text-ink-2">
         {detail}
       </Text>
       {action === undefined ? null : (
@@ -243,10 +242,10 @@ function EpisodeVideoProgressAccessory({
         accessibilityLabel={t('podcast.generatingVideo')}
       />
       <View className="mt-2 flex-row items-center justify-between">
-        <Text className="font-sans-medium text-[12px] text-ink-dim">
+        <Text className="font-text-medium text-caption text-ink-2">
           {stageLabel ?? 'Video is rendering'}
         </Text>
-        <Text className="font-mono text-[11px] text-accent">{percent}%</Text>
+        <Text className="font-mono text-data text-ink">{percent}%</Text>
       </View>
     </View>
   );
@@ -310,7 +309,7 @@ function EpisodeVideoStatusPanel({
           className="min-h-[220px] justify-center p-5"
         >
           <Callout
-            tone="danger"
+            tone="alert"
             title="Video unavailable"
             body="Video generation failed for this episode. Story and Classroom audio still work."
           />
@@ -380,17 +379,17 @@ function AudioPlaybackControls({
         minimumValue={0}
         maximumValue={duration > 0 ? duration : 1}
         value={currentTime}
-        minimumTrackTintColor="#d4c5a3"
-        maximumTrackTintColor="rgba(255,255,255,.12)"
-        thumbTintColor="#d4c5a3"
+        minimumTrackTintColor={palette.ink}
+        maximumTrackTintColor={palette.rule}
+        thumbTintColor={palette.ink}
         onSlidingComplete={player.seek}
         style={{ height: 32 }}
       />
       <View className="mt-1 flex-row items-center justify-between px-1">
-        <Text className="font-mono text-[10px] text-ink-faint">
+        <Text className="font-mono text-data text-ink-3">
           {formatPodcastClock(currentTime)}
         </Text>
-        <Text className="font-mono text-[10px] text-ink-faint">
+        <Text className="font-mono text-data text-ink-3">
           {formatPodcastClock(duration)}
         </Text>
       </View>
@@ -401,36 +400,36 @@ function AudioPlaybackControls({
           disabled={!isCurrent}
           onPress={() => player.seekRelative(-15)}
         >
-          <RotateCcw size={19} strokeWidth={2} color="#d4c5a3" />
+          <Icon icon={RotateCcw} size="md" tone="sign" />
         </PodcastIconButton>
         <PodcastIconButton
           label="Previous episode"
           disabled={!player.hasPreviousEpisode}
           onPress={skipPrevious}
         >
-          <SkipBack size={20} strokeWidth={2} color="#d4c5a3" />
+          <Icon icon={SkipBack} size="md" tone="sign" />
         </PodcastIconButton>
         <Tap
           accessibilityRole="button"
           accessibilityLabel={isPlaying ? 'Pause episode' : 'Play episode'}
           onPress={play}
-          className="h-[72px] w-[72px] items-center justify-center rounded-full border border-[rgba(212,197,163,.35)] bg-[rgba(212,197,163,.18)]"
+          className="h-[72px] w-[72px] items-center justify-center rounded-round border border-rule-2 bg-well"
         >
-          <PrimaryPlaybackIcon size={31} strokeWidth={2.1} color="#d4c5a3" />
+          <Icon icon={PrimaryPlaybackIcon} size="lg" tone="default" />
         </Tap>
         <PodcastIconButton
           label="Next episode"
           disabled={!player.hasNextEpisode}
           onPress={skipNext}
         >
-          <SkipForward size={20} strokeWidth={2} color="#d4c5a3" />
+          <Icon icon={SkipForward} size="md" tone="sign" />
         </PodcastIconButton>
         <PodcastIconButton
           label="Forward 30 seconds"
           disabled={!isCurrent}
           onPress={() => player.seekRelative(30)}
         >
-          <RotateCw size={19} strokeWidth={2} color="#d4c5a3" />
+          <Icon icon={RotateCw} size="md" tone="sign" />
         </PodcastIconButton>
       </View>
 
@@ -443,10 +442,10 @@ function AudioPlaybackControls({
           onPress={() =>
             player.setSpeed(nextPodcastPlaybackSpeed(player.speed))
           }
-          className="min-h-11 flex-row items-center gap-2 rounded-full border border-line bg-[rgba(255,255,255,.04)] px-3 py-2"
+          className="min-h-11 flex-row items-center gap-2 rounded-round border border-rule bg-well px-3 py-2"
         >
-          <Gauge size={14} strokeWidth={2} color="#a1a1aa" />
-          <Text className="font-mono text-[11px] text-ink-dim">
+          <Icon icon={Gauge} size="xs" tone="secondary" />
+          <Text className="font-mono text-data text-ink-2">
             {player.speed}x{isClassroomSection ? ' · Classroom' : ''}
           </Text>
         </Tap>
@@ -827,16 +826,16 @@ export function EpisodeMediaPlayer({
                   accessibilityState={{ selected: isActiveLanguage }}
                   onPress={() => selectAudioTab('classroom', language)}
                   className={cn(
-                    'rounded-full border px-3 py-1.5',
+                    'rounded-round border px-3 py-1.5',
                     isActiveLanguage
-                      ? 'border-[rgba(212,197,163,.5)] bg-[rgba(212,197,163,.18)]'
-                      : 'border-line bg-[rgba(255,255,255,.04)]',
+                      ? 'border-rule-2 bg-well'
+                      : 'border-rule bg-well',
                   )}
                 >
                   <Text
                     className={cn(
-                      'font-sans-semibold text-[12px]',
-                      isActiveLanguage ? 'text-accent' : 'text-ink-dim',
+                      'font-text-semibold text-caption',
+                      isActiveLanguage ? 'text-ink' : 'text-ink-2',
                     )}
                   >
                     {classroomLanguageLabel(language, t)}
@@ -862,12 +861,12 @@ export function EpisodeMediaPlayer({
 
   return (
     <View className="pt-5">
-      <View className="overflow-hidden rounded-[28px] border border-line bg-surface">
-        <View className="border-b border-line p-3">
+      <View className="overflow-hidden rounded-sheet border border-rule bg-sheet">
+        <View className="border-b border-rule p-3">
           <View
             accessibilityRole="tablist"
             accessibilityLabel="Episode media"
-            className="flex-row rounded-2xl bg-[rgba(255,255,255,.045)] p-1"
+            className="flex-row rounded-panel bg-well p-1"
           >
             <EpisodeMediaTabButton
               active={activeTab === 'story'}

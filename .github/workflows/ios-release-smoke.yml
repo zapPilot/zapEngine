@@ -50,6 +50,7 @@ jobs:
               - 'packages/app-core/src/**'
               - 'packages/app-core/package.json'
               - 'packages/design-tokens/src/**'
+              - 'packages/design-tokens/fonts/static/**'
               - 'packages/design-tokens/package.json'
               - 'packages/design-tokens/tokens.json'
               - 'packages/intent-engine/src/**'

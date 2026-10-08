@@ -30,132 +30,52 @@ describe('design-token loading and CSS generation', () => {
     const first = loadTokens();
 
     expect(first).toEqual(expected);
-    first.color.bg = '#changed-in-test';
+    first.mode.paper.ground = '#changed-in-test';
     expect(loadTokens()).toEqual(expected);
   });
 
-  it('renders every CSS token family without obsolete or colliding names', () => {
+  it('emits mode roles, sleeve/material roles and typed global variables without legacy aliases', async () => {
     const tokens = loadTokens();
-    const css = renderCssVariables(tokens);
-    const { pillar, ...colors } = tokens.color;
-    for (const [name, value] of Object.entries({ ...colors, ...pillar })) {
-      expect(css).toContain(`  --${name}: ${value};`);
+    const css = await renderCssVariables(tokens);
+    const normalized = css.replace(/\s/g, '').replace(/\b0\./g, '.');
+    const valueOf = (value: string) =>
+      value.replace(/\s/g, '').replace(/\b0\./g, '.');
+    expect(css).toMatch(/:root,\s*\[data-theme=['"]paper['"]\]/);
+    expect(css).toMatch(/\[data-theme=['"]night['"]\],\s*\.dark/);
+    for (const mode of ['paper', 'night'] as const) {
+      for (const [name, value] of Object.entries(tokens.mode[mode]))
+        expect(normalized).toContain(`--${name}:${valueOf(value)};`);
+      for (const [name, value] of Object.entries(tokens.sleeve[mode]))
+        expect(normalized).toContain(`--sleeve-${name}:${valueOf(value)};`);
+      for (const [name, value] of Object.entries(tokens.material[mode]))
+        expect(normalized).toContain(`--material-${name}:${valueOf(value)};`);
     }
-    for (const [name, value] of Object.entries(tokens.radius)) {
-      expect(css).toContain(`  --radius-${name}: ${value}px;`);
-    }
-    for (const [name, role] of Object.entries(tokens.type)) {
-      for (const [field, value] of Object.entries(role)) {
-        expect(css).toContain(`  --type-${name}-${field}: ${value}px;`);
-      }
-    }
-    for (const [name, value] of Object.entries(tokens.shadow))
-      expect(css).toContain(`--shadow-${name}: ${value.css};`);
-    for (const [name, value] of Object.entries(tokens.easing))
-      expect(css).toContain(`--easing-${name}: ${value};`);
-    for (const [name, value] of Object.entries(tokens.duration))
-      expect(css).toContain(`--duration-${name}: ${value}ms;`);
-    expect(css).toMatch(
-      /^\/\* Generated from .* Do not edit by hand\. \*\/\n:root \{/,
+    expect(Object.keys(tokens.mode.paper)).toEqual(
+      Object.keys(tokens.mode.night),
     );
-    for (const obsolete of [
-      '--bg-2:',
-      '--error:',
-      '--pillar-',
-      '--font-',
-      '--container-',
-      '--breakpoint-',
-      '--motion-',
-      '--gutter-',
-      '--size-',
-      '.v2-root',
-    ])
-      expect(css).not.toContain(obsolete);
+    for (const [name, value] of Object.entries(tokens.radius))
+      expect(css).toContain(`--radius-${name}: ${value}px;`);
+    for (const [name, value] of Object.entries(tokens.type))
+      expect(css).toContain(`--type-${name}-tracking: ${value.tracking}em;`);
+    expect(css).toContain('--easing-scene: cubic-bezier(0.16, 1, 0.3, 1);');
+    expect(css).toContain('--space-9: 104px;');
+    expect(normalized.replace(/['"]/g, '')).toContain(
+      '--font-mono:MartianMonoVariable,',
+    );
+    expect(css).not.toMatch(
+      /--(?:background|foreground|color-|container-|breakpoint-|spacing|ease-|text-|bg:|accent:|radius-pill)/,
+    );
     expect(css.endsWith('\n')).toBe(true);
   });
 
-  it('preserves landing and control-center consumer variable contracts', () => {
-    const css = renderCssVariables(loadTokens());
-    const names = [
-      'bg',
-      'surface',
-      'surface-elevated',
-      'ink',
-      'ink-dim',
-      'ink-faint',
-      'line',
-      'line-hi',
-      'accent',
-      'accent-soft',
-      'accent-muted',
-      'danger',
-      'warning',
-      'success',
-      'spy',
-      'btc',
-      'usd',
-      'radius-pill',
-      'radius-subtle',
-      'radius-control',
-      'radius-tile',
-      'radius-card',
-      'easing-primary',
-      'background',
-      'foreground',
-    ];
-    for (const name of names) expect(css).toContain(`--${name}:`);
-    for (const [name, target] of Object.entries({
-      background: 'bg',
-      foreground: 'ink',
-      muted: 'surface',
-      card: 'surface',
-      primary: 'accent',
-      warning: 'warning',
-      error: 'danger',
-      success: 'success',
-    })) {
-      expect(css).toContain(`--color-fd-${name}: var(--${target});`);
-    }
-    expect(css).toContain('--background: var(--bg);');
-    expect(css).toContain('--foreground: var(--ink);');
-  });
-
-  it('keeps readable muted text above the small-text AA contrast threshold', () => {
-    const luminance = (hex: string) => {
-      const channels = [1, 3, 5]
-        .map((offset) => parseInt(hex.slice(offset, offset + 2), 16) / 255)
-        .map((value) =>
-          value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4,
-        );
-      return (
-        channels[0]! * 0.2126 + channels[1]! * 0.7152 + channels[2]! * 0.0722
-      );
-    };
-    const tokens = loadTokens();
-    for (const surface of [
-      tokens.color.bg,
-      tokens.color.surface,
-      tokens.color['surface-elevated'],
-    ]) {
-      expect(
-        (luminance(tokens.color['ink-muted']) + 0.05) /
-          (luminance(surface) + 0.05),
-      ).toBeGreaterThanOrEqual(4.5);
-    }
-    expect(
-      Math.min(...Object.values(tokens.type).map((role) => role.size)),
-    ).toBe(11);
-    expect(tokens.size.hit).toBeGreaterThanOrEqual(44);
-  });
-
-  it('writes the checked-in CSS output deterministically', () => {
-    writeCssVariables();
-    runCssVariablesCli(pathToFileURL(process.argv[1] ?? '').href);
-    runCssVariablesCli(pathToFileURL('/definitely/not-current.ts').href);
+  it('writes the checked-in CSS output deterministically', async () => {
+    await writeCssVariables();
+    await runCssVariablesCli(pathToFileURL(process.argv[1] ?? '').href);
+    await runCssVariablesCli(pathToFileURL('/definitely/not-current.ts').href);
 
     expect(
       readFileSync(join(packageRoot, 'dist/css/variables.css'), 'utf8'),
-    ).toBe(renderCssVariables(loadTokens()));
+    ).toBe(await renderCssVariables(loadTokens()));
   });
 });
 

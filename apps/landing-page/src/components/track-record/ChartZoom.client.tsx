@@ -8,7 +8,7 @@
  * shell declares `container-type: inline-size`, which would trap an in-tree
  * `position: fixed` child inside the containment box.
  *
- * The overlay is portalled to `document.body` and re-declares `.shell-root`
+ * The overlay is portalled to `document.body` and re-declares `.track-record-root`
  * there: every landing chart rule is scoped under that class, so an overlay
  * outside the shell would render an unstyled chart.
  *
@@ -75,7 +75,7 @@ export function ChartZoom({
       {open &&
         createPortal(
           <div
-            className="shell-root chart-zoom-overlay"
+            className="track-record-root chart-zoom-overlay"
             onClick={(event) => {
               if (event.target === event.currentTarget) setOpen(false);
             }}

@@ -27,12 +27,12 @@ export default function RootLayout(): ReactElement | null {
           ...DarkTheme,
           colors: {
             ...DarkTheme.colors,
-            primary: tokens.color.accent,
-            background: tokens.color.bg,
-            card: tokens.color.surface,
-            text: tokens.color.ink,
-            border: tokens.color.line,
-            notification: tokens.color.danger,
+            primary: tokens.mode.night['ink'],
+            background: tokens.mode.night['ground'],
+            card: tokens.mode.night['sheet'],
+            text: tokens.mode.night.ink,
+            border: tokens.mode.night['rule'],
+            notification: tokens.mode.night['alert'],
           },
         }}
       >
@@ -40,7 +40,7 @@ export default function RootLayout(): ReactElement | null {
           <Stack
             screenOptions={{
               headerShown: false,
-              contentStyle: { backgroundColor: tokens.color.bg },
+              contentStyle: { backgroundColor: tokens.mode.night['ground'] },
             }}
           />
         </AppShell>

@@ -1,8 +1,10 @@
 import { createHash } from 'node:crypto';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
 import { BGM_TRACK_IDS } from './manifest.js';
 
+const assetRequire = createRequire(import.meta.url);
 const videoAssetsUrl = new URL('../../../assets/video/', import.meta.url);
 
 export const videoAssetPaths = {
@@ -14,8 +16,14 @@ export const videoAssetPaths = {
   notoSansCjkTcBold: fileURLToPath(
     new URL('fonts/NotoSansCJKtc-Bold.otf', videoAssetsUrl),
   ),
-  jetBrainsMonoSemibold: fileURLToPath(
-    new URL('fonts/JetBrainsMono-SemiBold.ttf', videoAssetsUrl),
+  archivoText: assetRequire.resolve(
+    '@zapengine/design-tokens/fonts/static/Archivo-Text.ttf',
+  ),
+  archivoTextSemibold: assetRequire.resolve(
+    '@zapengine/design-tokens/fonts/static/Archivo-TextSemiBold.ttf',
+  ),
+  martianMonoSemibold: assetRequire.resolve(
+    '@zapengine/design-tokens/fonts/static/MartianMono-SemiBold.ttf',
   ),
   logo: fileURLToPath(new URL('brand/zap-pilot-logo.svg', videoAssetsUrl)),
   podcastIntro: fileURLToPath(new URL('brand/intro.png', videoAssetsUrl)),

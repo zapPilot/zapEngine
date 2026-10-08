@@ -1,6 +1,6 @@
 /**
  * Every claim the calculator pitch puts on screen or in narration. facts.test.ts
- * pins each value to apps/landing-page/src/data/verifiable-strategy.json (and
+ * pins each value to packages/zap-pilot-story/src/facts/data/verifiable-strategy.json (and
  * recomputes the CREATE2 address), so a redeploy or data refresh turns the test
  * red instead of shipping a video that contradicts the product.
  *

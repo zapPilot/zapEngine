@@ -11,8 +11,6 @@ from scripts.landing.events import derive_events, reconcile
 
 DCA_CONFIG_ID = "dca_classic"
 ROI_TOLERANCE_PP = 1.0
-STRATEGY_COLOR = "#d4c5a3"
-DCA_COLOR = "#52525b"
 
 # The buckets the landing chart draws. `alt` is deliberately absent: the
 # production strategy never allocates to it, and folding a non-zero alt into
@@ -334,13 +332,11 @@ def generate(
             {
                 "id": "strategy",
                 "label": "Strategy",
-                "color": STRATEGY_COLOR,
                 "values": strategy_points,
             },
             {
                 "id": "dca",
                 "label": "DCA Classic",
-                "color": DCA_COLOR,
                 "values": dca_points,
             },
         ],

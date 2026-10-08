@@ -133,16 +133,16 @@ export const DEMO: DemoData = {
     changePctToday: 0.4,
     metrics: [
       { label: 'Value change', value: '+16.7%', tone: 'positive' },
-      { label: 'Current APY', value: '9.2%', tone: 'accent' },
+      { label: 'Current APY', value: '9.2%', tone: 'neutral' },
       { label: '7D value change', value: '+1.8%', tone: 'positive' },
       { label: '30D value change', value: '+4.2%', tone: 'positive' },
       { label: 'Max drawdown', value: '−6.1%', tone: 'negative' },
     ],
     allocation: [
-      { label: 'Stables', pct: 35, color: tokens.color.pillar.usd },
-      { label: 'ETH', pct: 24, color: tokens.color.pillar.spy },
-      { label: 'BTC', pct: 20, color: tokens.color.pillar.btc },
-      { label: 'DeFi yield', pct: 21, color: tokens.color.accent },
+      { label: 'Stables', pct: 35, color: tokens.sleeve.night.stable },
+      { label: 'ETH', pct: 24, color: tokens.sleeve.night.eth },
+      { label: 'BTC', pct: 20, color: tokens.sleeve.night.btc },
+      { label: 'DeFi yield', pct: 21, color: tokens.sleeve.night.alt },
     ],
   },
 };

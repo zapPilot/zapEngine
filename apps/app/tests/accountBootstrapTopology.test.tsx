@@ -253,3 +253,8 @@ vi.mock('@/storage/accountSessions', () => ({
 vi.mock('@zapengine/app-core/services/accountAuthService', () => ({
   revokeAccountOwnerSession: vi.fn(),
 }));
+
+vi.mock(
+  'react-native-svg',
+  async () => (await import('./support/svgStub')).svgStub,
+);

@@ -15,7 +15,7 @@ export const Glyph: React.FC<{
   readonly from: number;
   readonly size?: number;
   readonly tone?: string;
-}> = ({ kind, from, size = 56, tone = color.accent }) => {
+}> = ({ kind, from, size = 56, tone = color['ink'] }) => {
   const frame = useCurrentFrame();
   const ring = rise(frame, from, 14);
   const mark = rise(frame, from + 6, 14);

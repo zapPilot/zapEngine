@@ -74,12 +74,15 @@ export async function runSatoriStage(
   const input = JSON.parse(
     await readFile(inputPath, 'utf8'),
   ) as SatoriStageInput;
-  const [regularFont, boldFont, monoFont, logo] = await Promise.all([
-    readFile(videoAssetPaths.notoSansCjkTcRegular),
-    readFile(videoAssetPaths.notoSansCjkTcBold),
-    readFile(videoAssetPaths.jetBrainsMonoSemibold),
-    readFile(videoAssetPaths.logo),
-  ]);
+  const [regularFont, boldFont, monoFont, archivoFont, archivoSemibold, logo] =
+    await Promise.all([
+      readFile(videoAssetPaths.notoSansCjkTcRegular),
+      readFile(videoAssetPaths.notoSansCjkTcBold),
+      readFile(videoAssetPaths.martianMonoSemibold),
+      readFile(videoAssetPaths.archivoText),
+      readFile(videoAssetPaths.archivoTextSemibold),
+      readFile(videoAssetPaths.logo),
+    ]);
 
   const { element, width, height } = await stageElementAndSize(
     input,
@@ -90,6 +93,18 @@ export async function runSatoriStage(
     height,
     embedFont: true,
     fonts: [
+      {
+        name: 'Archivo Text',
+        data: fontArrayBuffer(archivoFont),
+        weight: 400,
+        style: 'normal',
+      },
+      {
+        name: 'Archivo Text',
+        data: fontArrayBuffer(archivoSemibold),
+        weight: 600,
+        style: 'normal',
+      },
       {
         name: 'Noto Sans TC',
         data: fontArrayBuffer(regularFont),
@@ -103,9 +118,9 @@ export async function runSatoriStage(
         style: 'normal',
       },
       {
-        name: 'JetBrains Mono',
+        name: 'MartianMono SemiBold',
         data: fontArrayBuffer(monoFont),
-        weight: 700,
+        weight: 600,
         style: 'normal',
       },
     ],

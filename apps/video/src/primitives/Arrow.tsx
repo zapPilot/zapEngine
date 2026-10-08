@@ -9,7 +9,7 @@ export const Arrow: React.FC<{
   readonly from: number;
   readonly width?: number;
   readonly tone?: string;
-}> = ({ from, width = 120, tone = color.accentLine }) => {
+}> = ({ from, width = 120, tone = color['rule-2'] }) => {
   const frame = useCurrentFrame();
   const t = rise(frame, from, 16);
   return (

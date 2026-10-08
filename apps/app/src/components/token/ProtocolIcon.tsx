@@ -38,7 +38,7 @@ export function ProtocolIcon({
         />
       ) : (
         <Text
-          className="font-sans-bold text-ink-dim"
+          className="font-text-semibold text-ink-2"
           style={{ fontSize: size * 0.42 }}
         >
           {label.slice(0, 1).toUpperCase()}

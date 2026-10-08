@@ -1,3 +1,4 @@
+import { Icon } from '@/components/ui/Icon';
 import { ChevronDown } from 'lucide-react-native';
 import type { ReactNode } from 'react';
 import { View } from 'react-native';
@@ -47,7 +48,11 @@ export function DisclosureChevron({
     // Rotate a wrapper: on web lucide forwards `style` to the inner path,
     // which then spins around the viewBox origin and leaves the icon.
     <View style={{ transform: [{ rotate: expanded ? '180deg' : '0deg' }] }}>
-      <ChevronDown size={size} color="#a1a1aa" />
+      <Icon
+        icon={ChevronDown}
+        size={size <= 16 ? 'sm' : size <= 20 ? 'md' : 'lg'}
+        tone="secondary"
+      />
     </View>
   );
 }

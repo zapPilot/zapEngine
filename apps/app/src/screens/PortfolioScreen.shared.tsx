@@ -1,3 +1,4 @@
+import { cn } from '@/lib/cn';
 import { ArrowLeft } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
@@ -102,18 +103,19 @@ export function PortfolioScreen() {
         </View>
         <View className="mt-[9px] flex-row items-center gap-2">
           <Text
-            className={`rounded-full px-[9px] py-[3px] font-sans-semibold text-[12.5px] ${
+            className={cn(
+              'rounded-round px-[9px] py-[3px] font-text-semibold text-caption',
               typeof portfolio?.valueChangePct === 'number' &&
-              portfolio.valueChangePct < 0
-                ? 'bg-danger-soft text-danger'
-                : 'bg-success-soft text-success'
-            }`}
+                portfolio.valueChangePct < 0
+                ? 'bg-alert-wash text-alert'
+                : 'bg-well text-ink',
+            )}
           >
             {typeof portfolio?.valueChangePct === 'number'
               ? formatSignedPct(portfolio.valueChangePct).replace('+', '')
               : '-'}
           </Text>
-          <Text className="text-[13px] text-ink-dim">
+          <Text className="font-text text-body-sm text-ink-2">
             {typeof portfolio?.valueChangeUsd === 'number'
               ? `${formatSignedUsd(portfolio.valueChangeUsd)} ${t('portfolio.selectedRange', { range })}`
               : t('portfolio.selectedRange', { range })}
@@ -140,7 +142,7 @@ export function PortfolioScreen() {
         </View>
         <View className="mt-3 h-[170px] justify-center">
           {loading && trendPoints.length < 2 ? (
-            <SkeletonBlock className="h-[158px] w-full rounded-2xl" />
+            <SkeletonBlock className="h-[158px] w-full rounded-panel" />
           ) : trendPoints.length >= 2 ? (
             <PortfolioTrendChart
               trendPoints={trendPoints}
@@ -148,7 +150,7 @@ export function PortfolioScreen() {
               gradientId="portfolioValueSpark"
             />
           ) : (
-            <Text className="text-center font-mono text-[18px] text-ink-faint">
+            <Text className="text-center font-mono text-data-md text-ink-3">
               -
             </Text>
           )}
@@ -163,12 +165,10 @@ export function PortfolioScreen() {
 
       <View className="mt-6">
         <View className="flex-row items-center justify-between">
-          <Text className="font-sans-semibold text-[15px] text-ink">
+          <Text className="font-text-semibold text-body text-ink">
             {t('strategy.currentAllocation')}
           </Text>
-          <Text className="font-mono text-[9.5px] text-ink-faint">
-            High-level
-          </Text>
+          <Text className="font-mono text-data text-ink-3">High-level</Text>
         </View>
         <View className="mt-3">
           <AllocationSummary
@@ -178,7 +178,7 @@ export function PortfolioScreen() {
         </View>
         <View className="mt-4">
           <Callout
-            tone="info"
+            tone="neutral"
             title={t('portfolio.nonCustodialTitle')}
             body={t('portfolio.nonCustodialBody')}
           />

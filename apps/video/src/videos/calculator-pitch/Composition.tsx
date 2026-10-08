@@ -38,7 +38,7 @@ export const CalculatorPitch: FC<VideoProps> = ({ captions, music }) => (
     scenes={SCENES}
     captions={captions}
     music={music}
-    background={color.bg}
+    background={color['ground']}
     backdrop={<Backdrop />}
     overlay={<Grain />}
   />

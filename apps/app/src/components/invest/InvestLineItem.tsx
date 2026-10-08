@@ -1,3 +1,4 @@
+import { cn } from '@/lib/cn';
 import type { ReactNode } from 'react';
 import { Text, View } from 'react-native';
 export function InvestLineItem({
@@ -19,16 +20,24 @@ export function InvestLineItem({
 }) {
   return (
     <View
-      className={`flex-row items-center gap-3 py-3 ${divider ? 'border-t border-line' : ''}`}
+      className={cn(
+        'flex-row items-center gap-3 py-3',
+        divider ? 'border-t border-rule' : '',
+      )}
     >
       {icon}
       <View className="min-w-0 flex-1">
-        <Text className="text-[12px] text-ink">{title}</Text>
-        <Text className="mt-1 text-[10px] text-ink-dim">{subtitle}</Text>
+        <Text className="font-text text-caption text-ink">{title}</Text>
+        <Text className="font-mono-medium mt-1 text-label text-ink-2">
+          {subtitle}
+        </Text>
         {trailing}
       </View>
       <Text
-        className={`font-mono text-[11px] ${valueTone === 'error' ? 'text-danger' : 'text-ink'}`}
+        className={cn(
+          'font-mono text-data',
+          valueTone === 'error' ? 'text-alert' : 'text-ink',
+        )}
       >
         {value}
       </Text>

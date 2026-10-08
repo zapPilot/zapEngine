@@ -67,7 +67,7 @@ function GlyphDisc({
         color: '#fff',
         display: 'inline-flex',
         flexShrink: 0,
-        fontFamily: 'var(--font-sans), Arial, sans-serif',
+        fontFamily: 'var(--font-text), Arial, sans-serif',
         fontSize: size * 0.55,
         fontWeight: 700,
         height: size,
@@ -106,7 +106,7 @@ export function TokenIcon({
 
   return (
     <GlyphDisc
-      color={brand?.color ?? 'rgba(255, 255, 255, 0.1)'}
+      color={brand?.color ?? 'var(--well)'}
       glyph={brand?.glyph ?? symbol.trim().slice(0, 1).toUpperCase()}
       size={size}
     />
@@ -171,7 +171,7 @@ export function ProtocolIcon({
   if (!brandKey) {
     return (
       <GlyphDisc
-        color="rgba(255, 255, 255, 0.1)"
+        color="var(--well)"
         glyph={protocol.trim().slice(0, 1).toUpperCase()}
         size={size}
       />
@@ -184,7 +184,7 @@ export function ProtocolIcon({
       aria-hidden
       style={{
         alignItems: 'center',
-        border: '1px solid rgba(255, 255, 255, 0.12)',
+        border: '1px solid var(--rule)',
         borderRadius: size * 0.28,
         display: 'inline-flex',
         flexShrink: 0,

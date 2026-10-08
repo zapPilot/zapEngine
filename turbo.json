@@ -72,7 +72,7 @@
     },
     "codegen:css": {
       "inputs": ["$TURBO_DEFAULT$", "tokens.json"],
-      "outputs": ["dist/css/variables.css"]
+      "outputs": ["dist/css/**"]
     },
     "codegen:ts": {
       "inputs": ["$TURBO_DEFAULT$", "tokens.json", "!src/generated/**"],

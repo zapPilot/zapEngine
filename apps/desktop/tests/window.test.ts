@@ -20,7 +20,7 @@ it('opens a desktop-sized dark window while retaining a compact minimum and isol
     width: 1280,
     height: 832,
     minWidth: 390,
-    backgroundColor: tokens.color.bg,
+    backgroundColor: tokens.mode.night.ground,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,

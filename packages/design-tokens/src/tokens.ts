@@ -2,202 +2,162 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { packageRoot } from './paths.js';
 
+export const MODES = ['paper', 'night'] as const;
+export type Mode = (typeof MODES)[number];
+export type Bezier = readonly [number, number, number, number];
+export type ModeRole =
+  | 'ground'
+  | 'sheet'
+  | 'well'
+  | 'ink'
+  | 'ink-2'
+  | 'ink-3'
+  | 'rule'
+  | 'rule-2'
+  | 'grid'
+  | 'sign'
+  | 'sign-ink'
+  | 'on-sign'
+  | 'sign-wash'
+  | 'up'
+  | 'down'
+  | 'alert'
+  | 'alert-wash'
+  | 'scrim';
+export type ModeRoles = Record<ModeRole, string>;
+export type Sleeve = 'spy' | 'stable' | 'eth' | 'btc' | 'alt';
+export type Material =
+  | 'top'
+  | 'front'
+  | 'left'
+  | 'edge'
+  | 'ink-top'
+  | 'ink-front'
+  | 'ink-left'
+  | 'floor'
+  | 'shadow';
+export type Status = 'live' | 'in-development' | 'research' | 'planned';
+export type FontRole = 'display' | 'text' | 'mono';
+export type NativeFont =
+  | 'display-xl'
+  | 'display'
+  | 'heading'
+  | 'text'
+  | 'text-medium'
+  | 'text-semibold'
+  | 'mono'
+  | 'mono-medium'
+  | 'mono-semibold'
+  | 'data';
+export type TypeRole =
+  | 'display-xl'
+  | 'display'
+  | 'title'
+  | 'heading'
+  | 'body-lg'
+  | 'body'
+  | 'body-sm'
+  | 'caption'
+  | 'action'
+  | 'label'
+  | 'data-lg'
+  | 'data-md'
+  | 'data';
+export interface Typography {
+  size: number;
+  line: number;
+  tracking: number;
+  weight: number;
+  width: number;
+  family: FontRole;
+  native: NativeFont;
+  case: 'uppercase' | 'none';
+  numeric: 'normal' | 'tabular-nums';
+}
+export interface FontInstance {
+  family: string;
+  source: 'Archivo' | 'MartianMono';
+  weight: number;
+  width: number;
+  file: string;
+}
+export type MarkLayer =
+  | {
+      id: string;
+      kind: 'path';
+      d: string;
+      role: 'ink' | 'sign-ink';
+      strokeWidth: number;
+    }
+  | {
+      id: string;
+      kind: 'circle';
+      cx: number;
+      cy: number;
+      r: number;
+      role: 'ink' | 'sign-ink';
+    };
 export interface DesignTokens {
-  color: {
-    bg: string;
-    surface: string;
-    'surface-elevated': string;
-    ink: string;
-    'ink-dim': string;
-    'ink-faint': string;
-    line: string;
-    'line-hi': string;
-    accent: string;
-    'accent-soft': string;
-    'accent-muted': string;
-    warning: string;
-    success: string;
-    pillar: {
-      spy: string;
-      btc: string;
-      usd: string;
-      eth: string;
-      alt: string;
-    };
-    danger: string;
-    'surface-high': string;
-    'surface-overlay': string;
-    scrim: string;
-    'ink-muted': string;
-    'ink-inverse': string;
-    'accent-hover': string;
-    'accent-dim': string;
-    'accent-subtle': string;
-    'accent-line': string;
-    'danger-soft': string;
-    'danger-line': string;
-    'warning-soft': string;
-    'warning-line': string;
-    'success-soft': string;
-    'success-line': string;
+  mode: Record<Mode, ModeRoles>;
+  sleeve: Record<Mode, Record<Sleeve, string>>;
+  material: Record<Mode, Record<Material, string>>;
+  status: Record<
+    Status,
+    {
+      glyph: 'filled' | 'half' | 'center-dot' | 'dashed-ring';
+      line: 'solid' | 'dashed';
+    }
+  >;
+  mark: {
+    viewBox: readonly [number, number, number, number];
+    layers: readonly MarkLayer[];
   };
-  font: {
-    serif: string;
-    sans: string;
-    'sans-medium': string;
-    'sans-semibold': string;
-    'sans-bold': string;
-    mono: string;
-    'mono-medium': string;
-    'mono-semibold': string;
-    'mono-bold': string;
-  };
-  radius: {
-    subtle: number;
-    tile: number;
-    control: number;
-    card: number;
-    sheet: number;
-    pill: number;
-  };
-  easing: {
-    primary: string;
-    standard: string;
-    exit: string;
-  };
-  type: {
-    display: {
-      size: number;
-      line: number;
-      tracking: number;
-    };
-    'display-sm': {
-      size: number;
-      line: number;
-      tracking: number;
-    };
-    title: {
-      size: number;
-      line: number;
-      tracking: number;
-    };
-    'title-sm': {
-      size: number;
-      line: number;
-      tracking: number;
-    };
-    heading: {
-      size: number;
-      line: number;
-      tracking: number;
-    };
-    subheading: {
-      size: number;
-      line: number;
-      tracking: number;
-    };
-    body: {
-      size: number;
-      line: number;
-      tracking: number;
-    };
-    'body-sm': {
-      size: number;
-      line: number;
-      tracking: number;
-    };
-    label: {
-      size: number;
-      line: number;
-      tracking: number;
-    };
-    caption: {
-      size: number;
-      line: number;
-      tracking: number;
-    };
-    overline: {
-      size: number;
-      line: number;
-      tracking: number;
-    };
-    'numeric-lg': {
-      size: number;
-      line: number;
-      tracking: number;
-    };
-    numeric: {
-      size: number;
-      line: number;
-      tracking: number;
-    };
-    'numeric-sm': {
-      size: number;
-      line: number;
-      tracking: number;
-    };
-  };
-  shadow: {
-    raised: {
-      css: string;
-      elevation: number;
-    };
-    overlay: {
-      css: string;
-      elevation: number;
-    };
-  };
-  duration: {
-    fast: number;
-    normal: number;
-    slow: number;
-    slower: number;
-  };
-  motion: {
-    'press-scale': number;
-    'press-spring': {
-      speed: number;
-      bounciness: number;
-    };
-    'enter-spring': {
-      damping: number;
-      stiffness: number;
-      mass: number;
-    };
-  };
-  breakpoint: {
-    medium: number;
-    expanded: number;
-  };
+  font: Record<
+    FontRole,
+    {
+      family: string;
+      web: string;
+      fallback: string;
+      axes: {
+        wght: readonly [number, number];
+        wdth: readonly [number, number];
+      };
+    }
+  > & { native: Record<NativeFont, FontInstance> };
+  type: Record<TypeRole, Typography>;
+  radius: Record<'tag' | 'control' | 'panel' | 'sheet' | 'round', number>;
+  line: Record<'hair' | 'strong' | 'rail' | 'sheet-offset', number>;
+  space: readonly [
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+  ];
+  shadow: { overlay: Record<Mode, { css: string; elevation: number }> };
+  duration: Record<'fast' | 'normal' | 'slow' | 'ambient', number>;
+  easing: Record<'enter' | 'exit' | 'scene', Bezier>;
+  motion: { 'press-scale': number };
+  breakpoint: { medium: number; expanded: number };
   container: {
     narrow: number;
     measure: number;
     reading: number;
     dashboard: number;
+    page: number;
   };
-  gutter: {
-    compact: number;
-    medium: number;
-    expanded: number;
-  };
+  gutter: { compact: number; medium: number; expanded: number };
   size: {
     hit: number;
-    control: {
-      sm: number;
-      md: number;
-      lg: number;
-    };
-    icon: {
-      xs: number;
-      sm: number;
-      md: number;
-      lg: number;
-      xl: number;
-    };
+    control: Record<'sm' | 'md' | 'lg', number>;
+    icon: Record<'xs' | 'sm' | 'md' | 'lg' | 'xl', number>;
     sidenav: number;
   };
 }
-
 export function loadTokens(): DesignTokens {
   return JSON.parse(
     readFileSync(join(packageRoot, 'tokens.json'), 'utf8'),

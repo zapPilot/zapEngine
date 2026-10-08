@@ -67,9 +67,9 @@ export const AllocationBars: React.FC<{
     <span
       style={{
         width: 120,
-        fontFamily: font.sans,
+        fontFamily: font.text,
         fontSize: 26,
-        color: color.inkDim,
+        color: color['ink-2'],
       }}
     >
       {text}
@@ -100,7 +100,7 @@ export const AllocationBars: React.FC<{
           rowGap: 14,
           marginTop: 10,
           paddingTop: 22,
-          borderTop: `1px solid ${color.line}`,
+          borderTop: `1px solid ${color['rule']}`,
           fontSize: 30,
         }}
       >
@@ -113,7 +113,7 @@ export const AllocationBars: React.FC<{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 14,
-                fontFamily: font.sans,
+                fontFamily: font.text,
                 color: color.ink,
               }}
             >
@@ -131,7 +131,7 @@ export const AllocationBars: React.FC<{
               key={`${asset}-before`}
               style={{
                 fontFamily: font.mono,
-                color: color.inkDim,
+                color: color['ink-2'],
                 textAlign: 'right',
               }}
             >
@@ -139,7 +139,7 @@ export const AllocationBars: React.FC<{
             </span>,
             <span
               key={`${asset}-arrow`}
-              style={{ fontFamily: font.mono, color: color.inkMuted }}
+              style={{ fontFamily: font.mono, color: color['ink-3'] }}
             >
               →
             </span>,
@@ -148,7 +148,7 @@ export const AllocationBars: React.FC<{
               style={{
                 fontFamily: font.mono,
                 textAlign: 'right',
-                color: changed && t > 0.5 ? color.accent : color.ink,
+                color: changed && t > 0.5 ? color['ink'] : color.ink,
                 fontWeight: changed ? 500 : 400,
               }}
             >

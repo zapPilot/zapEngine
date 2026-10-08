@@ -26,11 +26,11 @@ export const Kicker: React.FC<{
         fontSize: 24,
         letterSpacing: '0.16em',
         textTransform: 'uppercase',
-        color: color.inkDim,
+        color: color['ink-2'],
         opacity: t,
       }}
     >
-      <span style={{ width: 56 * t, height: 2, background: color.accent }} />
+      <span style={{ width: 56 * t, height: 2, background: color['ink'] }} />
       {children}
     </div>
   );

@@ -3,7 +3,7 @@ import { View } from 'react-native';
 import { ZapLogo } from '@/components/ui/ZapLogo';
 export function BootScreen() {
   return (
-    <View className="flex-1 items-center justify-center bg-bg">
+    <View className="flex-1 items-center justify-center bg-ground">
       <ZapLogo size={tokens.size.control.lg} />
     </View>
   );

@@ -30,13 +30,13 @@ export function SkeletonBlock({ className, style }: SkeletonBlockProps) {
       Animated.sequence([
         Animated.timing(opacity, {
           toValue: 0.5,
-          duration: tokens.duration.slower * 3,
+          duration: tokens.duration.ambient * 3,
           easing: Easing.inOut(Easing.quad),
           useNativeDriver: true,
         }),
         Animated.timing(opacity, {
           toValue: 1,
-          duration: tokens.duration.slower * 3,
+          duration: tokens.duration.ambient * 3,
           easing: Easing.inOut(Easing.quad),
           useNativeDriver: true,
         }),
@@ -48,7 +48,7 @@ export function SkeletonBlock({ className, style }: SkeletonBlockProps) {
 
   return (
     <Animated.View
-      className={cn('rounded-control bg-line', className)}
+      className={cn('rounded-control bg-rule', className)}
       style={[style, { opacity }]}
     />
   );

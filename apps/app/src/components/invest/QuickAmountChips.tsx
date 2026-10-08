@@ -1,3 +1,4 @@
+import { cn } from '@/lib/cn';
 import { Text, View } from 'react-native';
 
 import { Tap } from '@/components/ui/Tap';
@@ -54,15 +55,14 @@ export function QuickAmountChips({
               : option.defaultAccessibilityLabel
           }
           accessibilityState={{ disabled }}
-          className={`min-h-11 flex-1 items-center justify-center rounded-full border border-line bg-[#171719] ${
-            disabled ? 'opacity-50' : ''
-          }`}
+          className={cn(
+            'min-h-11 flex-1 items-center justify-center rounded-round border border-rule bg-well',
+            disabled ? 'opacity-50' : '',
+          )}
           disabled={disabled}
           onPress={() => onSelect(option.bps)}
         >
-          <Text className="font-mono text-[11px] text-ink-dim">
-            {option.label}
-          </Text>
+          <Text className="font-mono text-data text-ink-2">{option.label}</Text>
         </Tap>
       ))}
     </View>

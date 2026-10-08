@@ -1,3 +1,4 @@
+import { Icon } from '@/components/ui/Icon';
 import type { WalletConnectorOption } from '@zapengine/app-core/types';
 import { QrCode } from 'lucide-react-native';
 import { Text, View } from 'react-native';
@@ -47,13 +48,13 @@ export function ConnectSheet({
       dismissible={!isBusy}
     >
       <SectionHeader title={CONNECT_SHEET_COPY.eyebrow} />
-      <Text className="mt-2 font-sans text-[12.5px] leading-5 text-ink-dim">
+      <Text className="mt-2 font-text text-caption leading-5 text-ink-2">
         {CONNECT_SHEET_COPY.subtitle}
       </Text>
 
       {errorCopy ? (
         <Callout
-          tone="danger"
+          tone="alert"
           className="mt-4"
           title={errorCopy.title}
           body={errorCopy.body}
@@ -69,9 +70,9 @@ export function ConnectSheet({
       </View>
 
       <View className="my-4 flex-row items-center gap-3">
-        <View className="h-px flex-1 bg-line" />
+        <View className="h-px flex-1 bg-rule" />
         <SectionHeader title={CONNECT_SHEET_COPY.divider} />
-        <View className="h-px flex-1 bg-line" />
+        <View className="h-px flex-1 bg-rule" />
       </View>
 
       {options.length > 0 ? (
@@ -85,23 +86,23 @@ export function ConnectSheet({
           />
         </View>
       ) : (
-        <View className="flex-row items-center gap-3 rounded-2xl border border-line bg-[rgba(255,255,255,.03)] px-4 py-4">
-          <View className="h-9 w-9 items-center justify-center rounded-xl border border-line bg-[rgba(255,255,255,.04)]">
-            <QrCode size={18} strokeWidth={1.75} color="#52525b" />
+        <View className="flex-row items-center gap-3 rounded-panel border border-rule bg-well px-4 py-4">
+          <View className="h-9 w-9 items-center justify-center rounded-panel border border-rule bg-well">
+            <Icon icon={QrCode} size="md" tone="muted" />
           </View>
           <View className="flex-1">
-            <Text className="font-sans-semibold text-[13px] text-ink">
+            <Text className="font-text-semibold text-body-sm text-ink">
               {CONNECT_SHEET_COPY.emptyTitle}
             </Text>
-            <Text className="mt-0.5 font-sans text-[11.5px] leading-4 text-ink-dim">
+            <Text className="mt-0.5 font-text text-label leading-4 text-ink-2">
               {CONNECT_SHEET_COPY.emptyBody}
             </Text>
           </View>
         </View>
       )}
 
-      <View className="mt-4 flex-row items-center gap-2 border-t border-line pt-3">
-        <Text className="font-sans text-[11px] text-ink-faint">
+      <View className="mt-4 flex-row items-center gap-2 border-t border-rule pt-3">
+        <Text className="font-text text-label text-ink-3">
           {CONNECT_SHEET_COPY.footer}
         </Text>
       </View>

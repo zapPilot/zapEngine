@@ -1,0 +1,3307 @@
+.track-record-root {
+  position: relative;
+  isolation: isolate;
+  min-height: 100vh;
+  overflow-x: clip;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--font-text);
+  font-feature-settings: 'ss01', 'cv11';
+  -webkit-font-smoothing: antialiased;
+}
+
+.track-record-root *,
+.track-record-root *::before,
+.track-record-root *::after {
+  box-sizing: border-box;
+}
+
+.track-record-root a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.track-record-root .nav {
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 22px 40px;
+  background: var(--ground);
+}
+
+.track-record-root .brand,
+.track-record-root .nav-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.track-record-root .brand-mark {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--ground);
+}
+
+.track-record-root .nav-links {
+  display: flex;
+  gap: 32px;
+}
+
+.track-record-root .nav-links a {
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  transition:
+    color 0.2s,
+    border-color 0.2s,
+    background-color 0.2s;
+}
+
+.track-record-root .nav-links a:hover {
+  color: var(--ink);
+}
+
+.track-record-root .nav-cta {
+  border-radius: var(--radius-round);
+  padding: 8px 16px;
+  background: var(--ink);
+  color: var(--ground);
+  font-size: 13px;
+  font-weight: 600;
+  transition:
+    background-color 0.2s,
+    transform 0.2s;
+}
+
+.track-record-root .nav-cta:hover {
+  background: var(--ink);
+  transform: translateY(-1px);
+}
+
+.track-record-root .hero {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(420px, 1fr);
+  align-items: center;
+  max-width: 1440px;
+  min-height: calc(100svh - 44px);
+  margin: 0 auto;
+  padding: 118px 40px 92px;
+  gap: 40px;
+}
+
+.track-record-root .hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: var(--ground);
+}
+
+.track-record-root .eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 36px;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-round);
+  padding: 6px 12px 6px 8px;
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  opacity: 0;
+  transform: translateY(8px);
+  animation: shell-fade-up 0.7s 0.1s var(--easing-enter) forwards;
+}
+
+.track-record-root .eyebrow .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ink);
+}
+
+.track-record-root .hero-title {
+  margin: 0 0 28px;
+  font-family: var(--font-display);
+  font-size: 80px;
+  font-weight: 400;
+  line-height: 1.02;
+  letter-spacing: 0;
+  text-wrap: balance;
+  opacity: 0;
+  transform: translateY(14px);
+  animation: shell-fade-up 0.9s 0.25s var(--easing-enter) forwards;
+}
+
+.track-record-root .hero-sub {
+  max-width: 520px;
+  margin: 0 0 40px;
+  color: var(--ink-2);
+  font-size: 19px;
+  font-weight: 300;
+  line-height: 1.55;
+  opacity: 0;
+  transform: translateY(14px);
+  animation: shell-fade-up 0.9s 0.45s var(--easing-enter) forwards;
+}
+
+.track-record-root .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 46px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-round);
+  padding: 14px 22px;
+  font-family: var(--font-text);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  transition:
+    border-color 0.2s,
+    color 0.2s,
+    background-color 0.2s,
+    transform 0.2s;
+}
+
+.track-record-root .btn-primary {
+  background: var(--ink);
+  color: var(--ground);
+}
+
+.track-record-root .btn-primary:hover {
+  background: var(--ink);
+  transform: translateY(-1px);
+}
+
+.track-record-root .btn-ghost {
+  border-color: var(--rule-2);
+  background: var(--well);
+  color: var(--ink);
+}
+
+.track-record-root .btn-ghost:hover {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+.track-record-root .btn svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}
+
+.track-record-root .pillar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.track-record-root .core {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 4;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ink);
+  transform: translate(-50%, -50%);
+  animation: shell-core-pulse 2.4s ease-out infinite;
+}
+
+.track-record-root .shell-section {
+  position: relative;
+  z-index: 2;
+}
+
+@keyframes regime-shimmer {
+  from {
+    background-position: 120% 0;
+  }
+
+  to {
+    background-position: -120% 0;
+  }
+}
+
+.track-record-root .shell-section {
+  padding: 92px 40px;
+}
+
+.track-record-root .section-inner {
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+.track-record-root .section-kicker,
+.track-record-root .proof-disclaimer,
+.track-record-root .equity-curve,
+.track-record-root .footer,
+.track-record-root .trust-strip {
+  font-family: var(--font-mono);
+}
+
+.track-record-root .section-kicker {
+  margin-bottom: 18px;
+  color: var(--ink);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.track-record-root .section-inner h2 {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 52px;
+  font-weight: 400;
+  line-height: 1.04;
+  letter-spacing: 0;
+}
+
+.track-record-root .section-heading-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 32px;
+  margin-bottom: 36px;
+}
+
+.track-record-root .section-heading-row p {
+  color: var(--ink-2);
+  font-size: 16px;
+  line-height: 1.7;
+}
+
+.track-record-root .section-heading-row p {
+  max-width: 760px;
+  margin: 18px 0 0;
+}
+
+.track-record-root .backtest-stat {
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-panel);
+  background: var(--ground);
+}
+
+.track-record-root .backtest-stat:hover {
+  border-color: transparent;
+  background: var(--ground);
+}
+
+.track-record-root .backtest-proof {
+  border-block: 1px solid var(--rule);
+  background: var(--well);
+}
+
+.track-record-root .method-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-round);
+  padding: 12px 16px;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.track-record-root .method-link svg {
+  width: 14px;
+  height: 14px;
+}
+
+.track-record-root .equity-curve {
+  margin: 0 0 18px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-panel);
+  padding: 22px 22px 18px;
+  background: var(--ground);
+}
+
+.track-record-root .equity-curve-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 16px;
+}
+
+.track-record-root .equity-curve-kicker {
+  margin: 0 0 8px;
+  color: var(--ink-3);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.track-record-root .equity-curve h3 {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 400;
+  line-height: 1.1;
+}
+
+.track-record-root .equity-curve-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 12px;
+  color: var(--ink-2);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.track-record-root .legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.track-record-root .legend-item span {
+  width: 20px;
+  height: 2px;
+  border-radius: var(--radius-round);
+  background: var(--ink-3);
+}
+
+.track-record-root .legend-item.strategy span {
+  background: var(--ink);
+}
+
+.track-record-root .equity-curve-chart {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.track-record-root .equity-drawdown-band {
+  fill: var(--well);
+  stroke: var(--ink-2);
+}
+
+.track-record-root .equity-grid-line line {
+  stroke: var(--ink-2);
+  stroke-width: 1;
+}
+
+.track-record-root .equity-grid-line text,
+.track-record-root .equity-x-labels text,
+.track-record-root .equity-series text {
+  fill: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0;
+}
+
+.track-record-root .equity-axis {
+  stroke: var(--ink-2);
+  stroke-width: 1;
+}
+
+.track-record-root .equity-series path {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.25;
+  vector-effect: non-scaling-stroke;
+}
+
+.track-record-root .equity-series.dca path {
+  stroke-dasharray: 7 7;
+  stroke-width: 2;
+}
+
+.track-record-root .equity-series circle {
+  fill: var(--ground);
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+.track-record-root .equity-series.strategy {
+  color: var(--ink);
+}
+
+.track-record-root .equity-series.dca {
+  color: var(--ink-3);
+}
+
+.track-record-root .equity-series.strategy text {
+  fill: var(--ink);
+}
+
+.track-record-root .equity-x-labels text:last-child {
+  text-anchor: end;
+}
+
+.track-record-root .equity-curve figcaption {
+  margin: 10px 0 0;
+  color: var(--ink-3);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  line-height: 1.5;
+  text-transform: uppercase;
+}
+
+.track-record-root .backtest-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  border-top: 1px solid var(--rule);
+  border-left: 1px solid var(--rule);
+}
+
+.track-record-root .backtest-stat {
+  min-height: 190px;
+  border-top: 0;
+  border-left: 0;
+  border-radius: 0;
+  padding: 24px;
+}
+
+.track-record-root .backtest-stat p,
+.track-record-root .backtest-stat span {
+  margin: 0;
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.track-record-root .backtest-stat strong {
+  display: block;
+  margin: 28px 0 20px;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 31px;
+  font-weight: 500;
+  line-height: 1.08;
+}
+
+.track-record-root .backtest-stat:first-child {
+  background: var(--ground);
+}
+
+.track-record-root .backtest-stat:first-child strong {
+  color: var(--ink);
+  font-size: 38px;
+}
+
+.track-record-root .comparison-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 16px;
+  border: 1px solid var(--rule);
+  background: var(--well);
+}
+
+.track-record-root .comparison-item {
+  display: grid;
+  grid-template-columns: 1.2fr repeat(3, auto);
+  align-items: center;
+  gap: 18px;
+  min-height: 58px;
+  padding: 14px 18px;
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.track-record-root .comparison-item + .comparison-item {
+  border-left: 1px solid var(--rule);
+}
+
+.track-record-root .comparison-item strong {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.track-record-root .proof-disclaimer {
+  margin: 26px 0 0;
+  color: var(--ink-3);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.track-record-root .protocols h2 {
+  max-width: 760px;
+}
+
+.track-record-root .cta {
+  padding-top: 112px;
+  padding-bottom: 116px;
+}
+
+.track-record-root .trust-strip {
+  position: relative;
+  z-index: 2;
+  border-top: 1px solid var(--rule);
+  padding: 22px 40px;
+  background: var(--ground);
+}
+
+.track-record-root .trust-strip-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+.track-record-root .trust-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 34px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-round);
+  padding: 9px 13px;
+  background: var(--well);
+  color: var(--ink-2);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.track-record-root .trust-badge svg {
+  width: 14px;
+  height: 14px;
+  color: var(--ink);
+  stroke-width: 1.7;
+}
+
+.track-record-root a.trust-badge:hover {
+  border-color: var(--rule-2);
+  color: var(--ink);
+}
+
+.track-record-root .trust-strip + .footer {
+  border-top: 0;
+}
+
+.track-record-root .footer {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  border-top: 1px solid var(--rule);
+  padding: 24px 40px 30px;
+  color: var(--ink-3);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.track-record-root .footer > * + *::before {
+  content: '·';
+  margin-right: 14px;
+  color: var(--ink-3);
+}
+
+.track-record-root .footer a {
+  color: var(--ink);
+}
+
+@keyframes shell-scene-in {
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes shell-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes shell-core-pulse {
+  0% {
+  }
+
+  70% {
+  }
+
+  100% {
+  }
+}
+
+@keyframes shell-pulse-ring {
+  0% {
+  }
+
+  70% {
+  }
+
+  100% {
+  }
+}
+
+@keyframes shell-fade-up {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 1100px) {
+  .track-record-root .hero {
+    grid-template-columns: minmax(0, 0.95fr) minmax(340px, 1.05fr);
+  }
+
+  .track-record-root .hero-title {
+    font-size: 66px;
+  }
+
+  .track-record-root .backtest-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .track-record-root .nav {
+    padding: 16px 20px;
+  }
+
+  .track-record-root .nav-links {
+    display: none;
+  }
+
+  .track-record-root .nav-actions {
+    gap: 8px;
+  }
+
+  .track-record-root .nav-cta {
+    display: none;
+  }
+
+  .track-record-root .hero {
+    grid-template-columns: 1fr;
+    min-height: auto;
+    padding: 98px 24px 48px;
+  }
+
+  .track-record-root .hero-title {
+    font-size: 52px;
+  }
+
+  .track-record-root .hero-sub {
+    font-size: 17px;
+  }
+
+  .track-record-root .comparison-row,
+  .track-record-root .section-heading-row {
+    grid-template-columns: 1fr;
+  }
+
+  .track-record-root .shell-section {
+    padding-right: 24px;
+    padding-left: 24px;
+  }
+
+  .track-record-root .comparison-item {
+    grid-template-columns: 1fr;
+  }
+
+  .track-record-root .equity-curve-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .track-record-root .equity-curve-legend {
+    justify-content: flex-start;
+  }
+
+  .track-record-root .trust-strip {
+    padding-right: 24px;
+    padding-left: 24px;
+  }
+
+  .track-record-root .comparison-item + .comparison-item {
+    border-top: 1px solid var(--rule);
+    border-left: 0;
+  }
+
+  .track-record-root .section-inner h2 {
+    font-size: 42px;
+  }
+
+  .track-record-root .method-link {
+    width: fit-content;
+  }
+}
+
+@media (max-width: 480px) {
+  .track-record-root .eyebrow {
+    align-items: flex-start;
+    max-width: 100%;
+    flex-wrap: wrap;
+    border-radius: var(--radius-sheet);
+    line-height: 1.45;
+  }
+
+  .track-record-root .hero-title {
+    font-size: 38px;
+    text-wrap: auto;
+  }
+
+  .track-record-root .btn {
+    width: 100%;
+  }
+
+  .track-record-root .backtest-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .track-record-root .equity-curve {
+    padding: 18px 14px 16px;
+  }
+
+  .track-record-root .equity-curve h3 {
+    font-size: 26px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .track-record-root *,
+  .track-record-root *::before,
+  .track-record-root *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.001ms !important;
+  }
+
+  .track-record-root .eyebrow,
+  .track-record-root .hero-title,
+  .track-record-root .hero-sub {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ============================================
+   Track Record Pages
+   ============================================ */
+
+.track-record-root .track-record-shell {
+  position: relative;
+  isolation: isolate;
+  min-height: 100vh;
+  overflow-x: clip;
+  background: var(--ground);
+  color: var(--ink);
+}
+
+.track-record-root .track-record-header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 22px 40px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.track-record-root .track-record-header .brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink);
+}
+
+.track-record-root .track-record-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.track-record-root .track-record-breadcrumb a {
+  color: var(--ink-2);
+  transition: color 0.2s;
+}
+
+.track-record-root .track-record-breadcrumb a:hover {
+  color: var(--ink);
+}
+
+.track-record-root .snapshot-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-round);
+  padding: 5px 12px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink);
+  margin-left: auto;
+}
+
+.track-record-root .pending-badge {
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-round);
+  padding: 5px 12px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  margin-left: auto;
+}
+
+.track-record-root .track-record-nav {
+  display: flex;
+  gap: 32px;
+  padding: 0 40px;
+  border-bottom: 1px solid var(--rule);
+  background: var(--well);
+}
+
+.track-record-root .track-record-nav a {
+  padding: 16px 0;
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  border-bottom: 2px solid transparent;
+  transition:
+    color 0.2s,
+    border-color 0.2s;
+  margin-bottom: -1px;
+}
+
+.track-record-root .track-record-nav a:hover {
+  color: var(--ink);
+}
+
+.track-record-root .track-record-main {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 56px 40px;
+}
+
+/* Track Record Overview Page */
+
+.track-record-root .track-record-page {
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+
+.track-record-root .track-record-error {
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-panel);
+  padding: 16px 20px;
+  background: var(--well);
+  color: var(--ink-2);
+  font-size: 14px;
+}
+
+.track-record-root .pending-banner {
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-panel);
+  padding: 18px 20px;
+  background: var(--well);
+  color: var(--ink-2);
+  font-size: 15px;
+}
+
+.track-record-root .pending-banner strong {
+  color: var(--ink);
+}
+
+.track-record-root .track-record-status {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-top: 1px solid var(--rule);
+  border-left: 1px solid var(--rule);
+}
+
+.track-record-root .status-block {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 88px;
+  border-right: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  padding: 20px;
+}
+
+.track-record-root .status-kicker {
+  margin: 0;
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.track-record-root .status-block strong {
+  overflow-wrap: anywhere;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 24px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.track-record-root .status-block span {
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+.track-record-root .no-live-notice {
+  color: var(--ink-2);
+  font-size: 15px;
+  line-height: 1.7;
+  margin: 0 0 24px;
+}
+
+.track-record-root .model-wallets,
+.track-record-root .backtest-vs-live {
+  border-top: 1px solid var(--rule);
+  padding-top: 32px;
+}
+
+.track-record-root .model-wallets h3,
+.track-record-root .backtest-vs-live h3 {
+  margin: 0 0 18px;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.track-record-root .wallet-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.track-record-root .wallet-list li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.track-record-root .wallet-list a {
+  color: var(--ink);
+}
+
+.track-record-root .chain-badge {
+  color: var(--ink-2);
+  font-size: 10px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-round);
+  padding: 2px 8px;
+}
+
+.track-record-root .no-data-note {
+  color: var(--ink-3);
+  font-size: 13px;
+  font-family: var(--font-mono);
+}
+
+.track-record-root .backtest-vs-live p {
+  color: var(--ink-2);
+  font-size: 15px;
+  line-height: 1.75;
+  margin: 0 0 12px;
+}
+
+.track-record-root .backtest-vs-live a {
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+}
+
+/* NAV Curve Chart */
+
+.track-record-root .nav-curve-chart,
+.track-record-root .drawdown-chart,
+.track-record-root .benchmark-chart,
+.track-record-root .market-series-chart,
+.track-record-root .sentiment-chart {
+  margin: 0 0 18px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-panel);
+  padding: 22px 22px 18px;
+  background: var(--ground);
+}
+
+.track-record-root .nav-curve-chart-empty,
+.track-record-root .drawdown-chart-empty,
+.track-record-root .benchmark-chart-empty,
+.track-record-root .market-series-chart-empty,
+.track-record-root .sentiment-chart-empty,
+.track-record-root .market-signals-empty {
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-panel);
+  padding: 40px 22px;
+  text-align: center;
+  color: var(--ink-2);
+  font-size: 14px;
+  margin: 0 0 18px;
+}
+
+.track-record-root .nav-curve-header,
+.track-record-root .drawdown-chart-header,
+.track-record-root .benchmark-chart-header,
+.track-record-root .market-series-chart-header,
+.track-record-root .sentiment-chart-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 16px;
+}
+
+.track-record-root .nav-curve-kicker,
+.track-record-root .drawdown-kicker,
+.track-record-root .benchmark-kicker,
+.track-record-root .market-series-kicker,
+.track-record-root .sentiment-kicker {
+  margin: 0 0 8px;
+  color: var(--ink-3);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-family: var(--font-mono);
+}
+
+.track-record-root .nav-curve-header h3,
+.track-record-root .drawdown-chart-header h3,
+.track-record-root .benchmark-chart-header h3,
+.track-record-root .market-series-chart-header h3,
+.track-record-root .sentiment-chart-header h3 {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 400;
+  line-height: 1.1;
+}
+
+.track-record-root .nav-curve-legend,
+.track-record-root .benchmark-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 12px;
+  color: var(--ink-2);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-family: var(--font-mono);
+}
+
+.track-record-root .legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.track-record-root .legend-item span {
+  width: 20px;
+  height: 2px;
+  border-radius: var(--radius-round);
+  background: var(--ink-3);
+}
+
+.track-record-root .legend-item.strategy span {
+  background: var(--ink);
+}
+
+.track-record-root .legend-item.dca span {
+  background: var(--well);
+}
+
+.track-record-root .nav-curve-svg,
+.track-record-root .drawdown-svg,
+.track-record-root .benchmark-svg,
+.track-record-root .market-series-svg,
+.track-record-root .sentiment-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.track-record-root .drawdown-area {
+  fill: var(--well);
+  stroke: var(--ink-2);
+  stroke-width: 1;
+}
+
+.track-record-root .chart-series.strategy {
+  fill: none;
+  stroke: var(--ink);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.25;
+  vector-effect: non-scaling-stroke;
+}
+
+.track-record-root .chart-series.dca {
+  fill: none;
+  stroke: var(--ink-3);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.5;
+  stroke-dasharray: 7 7;
+  vector-effect: non-scaling-stroke;
+}
+
+.track-record-root .chart-series.market,
+.track-record-root .chart-series.market-dma,
+.track-record-root .chart-series.sentiment {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.track-record-root .chart-series.market {
+  stroke: var(--series-color);
+  stroke-width: 2.5;
+}
+
+.track-record-root .chart-series.market-dma {
+  stroke: var(--ink-2);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 4;
+  opacity: 0.5;
+}
+
+.track-record-root .chart-series.sentiment {
+  stroke: var(--ink);
+  stroke-width: 2.5;
+}
+
+.track-record-root .sentiment-band line {
+  stroke: var(--ink-2);
+  stroke-width: 1;
+  stroke-dasharray: 2 5;
+}
+
+.track-record-root .sentiment-band text {
+  fill: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-anchor: end;
+  text-transform: uppercase;
+}
+
+.track-record-root .chart-grid-line line {
+  stroke: var(--ink-2);
+  stroke-width: 1;
+}
+
+.track-record-root .chart-grid-line text,
+.track-record-root .chart-x-labels text,
+.track-record-root .chart-end-label {
+  fill: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0;
+}
+
+.track-record-root .chart-axis {
+  stroke: var(--ink-2);
+  stroke-width: 1;
+}
+
+.track-record-root .chart-x-labels text:last-child {
+  text-anchor: end;
+}
+
+/* Chart hover layer
+   Every interactive element here is HTML on top of the SVG, never an SVG
+   child: the chart is width:100% on a fixed 720x320 viewBox, so one unit
+   renders between roughly 0.4px and 1.5px depending on the column. Marker
+   sizes and hit targets in px cannot live inside the viewBox. Positions come
+   from chartGeometry as percentages of the same box; sizes are CSS px.
+   The reduced-motion block above already neutralises transitions here. */
+
+.track-record-root .chart-hover-shell {
+  position: relative;
+  display: block;
+  container-type: inline-size;
+}
+
+/* Inset comes from plotInsetPercent() inline, so the surface spans exactly the
+   plot band and pointer-fraction maps straight onto index-fraction. It holds
+   nothing: a wrapper that also contained the tooltip would widen when the
+   tooltip mounts and corrupt the measured box mid-hover. */
+.track-record-root .chart-hover-surface {
+  position: absolute;
+  touch-action: pan-y;
+  cursor: crosshair;
+  background: transparent;
+}
+
+.track-record-root .chart-hover-surface:focus-visible {
+  outline: 1px solid var(--ink);
+  outline-offset: 3px;
+}
+
+.track-record-root .chart-crosshair {
+  position: absolute;
+  width: 1px;
+  margin-left: -0.5px;
+  background: var(--rule-2);
+  pointer-events: none;
+}
+
+.track-record-root .chart-focus-dot {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  margin: -4.5px 0 0 -4.5px;
+  border: 2px solid var(--ink);
+  border-radius: var(--radius-round);
+  background: var(--ground);
+  pointer-events: none;
+}
+
+.track-record-root .chart-tooltip {
+  position: absolute;
+  top: 4px;
+  z-index: 2;
+  width: max-content;
+  /* Sized for the widest line: a trade sentence carrying both its USD amount
+     and its share of the book. Half of this is TOOLTIP_EDGE_GUARD in
+     chartHover.ts, which keeps the box inside the card. */
+  max-width: 240px;
+  transform: translateX(-50%);
+  padding: 8px 10px;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-tag);
+  background: var(--well);
+  pointer-events: none;
+}
+
+.track-record-root .chart-tooltip-date {
+  margin: 0 0 6px;
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+.track-record-root .chart-tooltip-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+/* A line key, not a filled box: at tooltip density a swatch is data-weight ink
+   doing a label's job. */
+.track-record-root .chart-tooltip-key {
+  width: 12px;
+  height: 2px;
+  border-radius: var(--radius-round);
+  background: var(--row-color, var(--ink-3));
+}
+
+/* Value leads, label follows — the reader already knows the series. */
+.track-record-root .chart-tooltip-value {
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.track-record-root .chart-tooltip-label {
+  color: var(--ink-2);
+  font-size: 11px;
+}
+
+.track-record-root .chart-tooltip-event {
+  margin: 6px 0 0;
+  padding-top: 6px;
+  border-top: 1px solid var(--rule);
+  color: var(--ink-2);
+  font-size: 11px;
+}
+
+.track-record-root .chart-tooltip-alloc-group {
+  display: grid;
+  row-gap: 5px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--rule);
+}
+
+/* On a trading day the event sentence already drew the rule; a second one two
+   rows later reads as a divider between the trade and its own before/after. */
+.track-record-root .chart-tooltip-event + .chart-tooltip-alloc-group {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.track-record-root .chart-tooltip-alloc {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  column-gap: 6px;
+}
+
+.track-record-root .chart-tooltip-alloc[data-labelled='false'] {
+  grid-template-columns: 1fr;
+}
+
+.track-record-root .chart-tooltip-alloc-label {
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.track-record-root .chart-tooltip-alloc-bar {
+  display: flex;
+  height: 6px;
+  overflow: hidden;
+  border-radius: var(--radius-control);
+  /* Shows through only if the segments ever fail to sum to 100. */
+  background: var(--rule);
+}
+
+.track-record-root .chart-tooltip-alloc-bar span {
+  height: 100%;
+}
+
+.track-record-root .chart-tooltip-alloc-values {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  white-space: pre;
+}
+
+/* Validated as a set against #0a0a0a: worst CVD pair ΔE 10.1, worst
+   normal-vision pair ΔE 21.7. Deliberately literals rather than
+   var(--pillar-*) — aliasing to shared marketing tokens would let an unrelated
+   tweak degrade the separation with no failing test. Re-run the dataviz
+   palette validator if any of them changes. See chartMarkers.tsx. */
+.track-record-root .chart-event-layer,
+.track-record-root .chart-legend,
+.track-record-root .chart-tooltip,
+.track-record-root .track-record-calculator,
+.track-record-root .market-series-chart,
+.track-record-root .sentiment-chart {
+  /* Cash is the one segment that is not an asset, so it is the one colour that
+     is not a hue: achromatic grey cannot be confused with any of the three
+     under any CVD type, and it reads as absence of position. ΔE 7.6 against
+     #0a0a0a keeps a 6px band visible. */
+}
+
+.track-record-root .chart-event-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* The crosshair snaps to the nearest index, so it — not the 12px glyph —
+   carries the hit target. That also keeps the chart at one tab stop. */
+.track-record-root .chart-event-marker {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin: -12px 0 0 -12px;
+}
+
+.track-record-root .chart-event-marker svg {
+  width: 12px;
+  height: 12px;
+  overflow: visible;
+}
+
+/* paint-order puts the surface-coloured stroke behind the fill, leaving a ~2px
+   ring so markers stay legible where they cross the series line. */
+.track-record-root .chart-event-marker path:last-child {
+  fill: var(--marker-color);
+  stroke: var(--rule-2);
+  stroke-width: 1;
+  stroke-linejoin: round;
+  paint-order: stroke fill;
+}
+
+/* The two-column performance layout gives the same events half the width, and
+   a busy period puts markers ~5px apart. Shrink the glyph so the series stays
+   readable; dropping events instead would read as "the strategy traded less". */
+@container (max-width: 700px) {
+  .track-record-root .chart-event-marker svg {
+    width: 8px;
+    height: 8px;
+  }
+
+  .track-record-root .chart-event-marker path {
+    stroke-width: 3;
+  }
+}
+
+.track-record-root .chart-legend-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.track-record-root .legend-item.market span {
+  background: var(--series-color);
+}
+
+.track-record-root .legend-item.market-dma span {
+  background: var(--ink-2);
+  background-image: linear-gradient(
+    90deg,
+    var(--ink-2) 0 50%,
+    transparent 50% 100%
+  );
+  background-size: 6px 2px;
+  opacity: 0.5;
+}
+
+.track-record-root .signal-chart-tools {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.track-record-root .signal-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-round);
+  padding: 3px 9px;
+  color: var(--ink);
+  background: var(--well);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.track-record-root .signal-chip.below {
+  color: var(--ink-2);
+}
+
+.track-record-root .legend-item.asset span {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-round);
+}
+
+.track-record-root .legend-item.action span {
+  width: auto;
+  height: auto;
+  background: none;
+}
+
+.track-record-root .legend-item.action svg {
+  width: 9px;
+  height: 9px;
+  fill: var(--ink-2);
+}
+
+.track-record-root .chart-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.track-record-root .nav-curve-chart figcaption,
+.track-record-root .drawdown-chart figcaption,
+.track-record-root .benchmark-chart figcaption,
+.track-record-root .market-series-chart figcaption,
+.track-record-root .sentiment-chart figcaption {
+  margin: 10px 0 0;
+  color: var(--ink-3);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  line-height: 1.5;
+  text-transform: uppercase;
+  font-family: var(--font-mono);
+}
+
+/* Chart zoom
+   A CSS overlay, not the Fullscreen API: `requestFullscreen` is unsupported for
+   arbitrary elements on iOS Safari, and .chart-hover-shell declares
+   `container-type: inline-size`, whose containment would trap an in-tree
+   position:fixed child. The overlay is portalled to <body> and re-declares
+   .track-record-root there, because every rule in this file is scoped under it. */
+
+/* Legend and expand button share one flex cell, so the button cannot become a
+   third space-between child and push the legend off its right edge. */
+.track-record-root .nav-curve-header-tools {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.track-record-root .chart-zoom-trigger {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-tag);
+  padding: 0;
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.track-record-root .chart-zoom-trigger:hover {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+.track-record-root .chart-zoom-trigger svg {
+  width: 14px;
+  height: 14px;
+}
+
+.track-record-root.chart-zoom-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  /* The shell's own 100vh floor would stretch the overlay past the viewport. */
+  min-height: 0;
+  padding: 24px;
+  background: var(--well);
+}
+
+/* The film-grain layer is fixed and z-index 100; inside the overlay's own
+   stacking context it would sit on top of the enlarged chart. */
+.track-record-root.chart-zoom-overlay::before {
+  content: none;
+}
+
+/* The card holds a 720x320 figure plus its header and caption, so the height
+   term keeps a wide viewport from producing a chart taller than the screen. */
+.track-record-root .chart-zoom-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(1500px, 94vw, calc((94vh - 130px) * 2.25));
+  max-height: 94vh;
+  overflow-y: auto;
+}
+
+.track-record-root .chart-zoom-close {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin-left: auto;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-round);
+  padding: 0;
+  background: var(--ground);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.track-record-root .chart-zoom-close:hover {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+.track-record-root .chart-zoom-close svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* An opaque ground: the card's own background is translucent, which over the
+   scrim would show the page through the chart. */
+.track-record-root .chart-zoom-dialog > figure {
+  margin: 0;
+  background: var(--ground);
+}
+
+/* Metrics Row */
+
+.track-record-root .metrics-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  border-top: 1px solid var(--rule);
+  border-left: 1px solid var(--rule);
+  margin: 0 0 40px;
+}
+
+.track-record-root .metric-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 160px;
+  border-right: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  border-radius: 0;
+  padding: 20px;
+  background: var(--well);
+}
+
+.track-record-root .metric-label {
+  margin: 0;
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.track-record-root .metric-value {
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1.1;
+}
+
+/* Performance Page */
+
+.track-record-root .track-record-performance {
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+
+.track-record-root .track-record-performance h2,
+.track-record-root .track-record-signals h2 {
+  margin: 0 0 8px;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 44px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.track-record-root .perf-charts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.track-record-root .perf-stats {
+  margin-top: 8px;
+}
+
+.track-record-root .perf-stats h3 {
+  margin: 0 0 16px;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 400;
+}
+
+.track-record-root .perf-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.track-record-root .stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-panel);
+  padding: 20px;
+  background: var(--ground);
+}
+
+.track-record-root .stat-label {
+  margin: 0;
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.track-record-root .stat-card strong {
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.track-record-root .stat-card span {
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+/* Positions Page */
+
+.track-record-root .track-record-positions {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.track-record-root .track-record-positions h2 {
+  margin: 0 0 8px;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 44px;
+  font-weight: 400;
+}
+
+.track-record-root .positions-meta {
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  margin: 0;
+}
+
+.track-record-root .positions-table-wrap,
+.track-record-root .rebalance-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-panel);
+  background: var(--well);
+}
+
+.track-record-root .positions-table-empty,
+.track-record-root .rebalance-table-empty {
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-panel);
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--ink-2);
+  font-size: 14px;
+}
+
+.track-record-root .positions-table,
+.track-record-root .rebalance-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.track-record-root .positions-table th,
+.track-record-root .rebalance-table th {
+  text-align: left;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.track-record-root .positions-table td,
+.track-record-root .rebalance-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink-2);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.track-record-root .positions-table tr:last-child td,
+.track-record-root .rebalance-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.track-record-root .td-asset {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.track-record-root .asset-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.track-record-root .market-series-chart-header h3 {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.track-record-root .signal-token-pair {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.track-record-root .signals-meta,
+.track-record-root .signals-note {
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+.track-record-root .signals-meta {
+  margin: 0 0 8px;
+}
+
+.track-record-root .signals-note {
+  margin: 0 0 24px;
+  color: var(--ink-3);
+}
+
+.track-record-root .signals-charts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+@media (max-width: 960px) {
+  .track-record-root .signals-charts {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .track-record-root .market-series-chart-header,
+  .track-record-root .sentiment-chart-header {
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .track-record-root .signal-chart-tools {
+    align-items: flex-start;
+    width: 100%;
+  }
+
+  .track-record-root .chart-legend-group {
+    flex-wrap: wrap;
+  }
+}
+
+.track-record-root .asset-token {
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.track-record-root .td-chain,
+.track-record-root .td-pct,
+.track-record-root .td-usd,
+.track-record-root .td-amount,
+.track-record-root .td-date,
+.track-record-root .td-type,
+.track-record-root .td-return,
+.track-record-root .td-cost {
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.track-record-root .td-hash a {
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.track-record-root .positions-legend {
+  margin-top: 8px;
+}
+
+.track-record-root .positions-legend h3 {
+  margin: 0 0 16px;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 400;
+}
+
+.track-record-root .position-detail {
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-panel);
+  padding: 20px;
+  margin-bottom: 12px;
+  background: var(--well);
+}
+
+.track-record-root .pos-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.track-record-root .pos-detail-header strong {
+  color: var(--ink);
+  font-size: 16px;
+}
+
+.track-record-root .pos-detail-header span {
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-round);
+  padding: 2px 8px;
+}
+
+.track-record-root .pos-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 16px;
+  margin: 0;
+}
+
+.track-record-root .pos-detail-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.track-record-root .pos-detail-grid dt {
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.track-record-root .pos-detail-grid dd {
+  margin: 0;
+  color: var(--ink);
+  font-size: 12px;
+  font-family: var(--font-mono);
+  word-break: break-all;
+}
+
+/* Rebalances Page */
+
+.track-record-root .track-record-rebalances {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.track-record-root .track-record-rebalances h2 {
+  margin: 0 0 8px;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 44px;
+  font-weight: 400;
+}
+
+.track-record-root .rebalances-meta {
+  color: var(--ink-2);
+  font-size: 14px;
+  margin: 0;
+}
+
+.track-record-root .rebalance-log-links {
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-panel);
+  padding: 18px;
+  background: var(--well);
+}
+
+.track-record-root .rebalance-log-links h3 {
+  margin: 0 0 12px;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 400;
+}
+
+.track-record-root .rebalance-log-links ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.track-record-root .rebalance-log-links a {
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  word-break: break-all;
+}
+
+.track-record-root .rebalance-methodology {
+  border-top: 1px solid var(--rule);
+  padding-top: 24px;
+}
+
+.track-record-root .rebalance-methodology h3,
+.track-record-root .verification-methodology h3,
+.track-record-root .verification-cli h3 {
+  margin: 0 0 16px;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 400;
+}
+
+.track-record-root .rebalance-methodology dl,
+.track-record-root .verification-methodology dl {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: 8px 24px;
+  margin: 0;
+}
+
+.track-record-root .rebalance-methodology dt,
+.track-record-root .verification-methodology dt {
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 4px 0;
+}
+
+.track-record-root .rebalance-methodology dd,
+.track-record-root .verification-methodology dd {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* Verification Page */
+
+.track-record-root .track-record-verification {
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+
+.track-record-root .track-record-verification h2 {
+  margin: 0 0 8px;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 44px;
+  font-weight: 400;
+}
+
+.track-record-root .verification-intro {
+  max-width: 700px;
+  color: var(--ink-2);
+  font-size: 16px;
+  line-height: 1.75;
+  margin: 0 0 8px;
+}
+
+.track-record-root .verification-panel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  border-top: 1px solid var(--rule);
+  padding-top: 32px;
+}
+
+.track-record-root .verification-section {
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-panel);
+  padding: 20px;
+  background: var(--well);
+}
+
+.track-record-root .verification-section h3 {
+  margin: 0 0 14px;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 400;
+}
+
+.track-record-root .verification-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.track-record-root .verification-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  word-break: break-all;
+}
+
+.track-record-root .verification-item svg {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+}
+
+.track-record-root .verification-item a {
+  color: var(--ink);
+  word-break: break-all;
+}
+
+.track-record-root .snapshot-cid-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.track-record-root .snapshot-cid-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.track-record-root .cid-date {
+  color: var(--ink-2);
+}
+
+.track-record-root .cid-value {
+  color: var(--ink-3);
+  font-size: 9px;
+}
+
+.track-record-root .verification-panel-loading {
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-panel);
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--ink-2);
+  font-size: 14px;
+  grid-column: span 2;
+}
+
+.track-record-root .verification-methodology,
+.track-record-root .verification-cli {
+  border-top: 1px solid var(--rule);
+  padding-top: 32px;
+}
+
+.track-record-root .verification-cli p {
+  color: var(--ink-2);
+  font-size: 14px;
+  line-height: 1.7;
+  margin: 0 0 12px;
+}
+
+.track-record-root .verification-cli pre {
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-panel);
+  padding: 16px 20px;
+  background: var(--well);
+  margin: 0 0 12px;
+  overflow-x: auto;
+}
+
+.track-record-root .verification-cli code {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--ink);
+}
+
+/* Loading state */
+
+.track-record-root .track-record-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 240px;
+  color: var(--ink-2);
+  font-size: 14px;
+}
+
+/* Live Track CTA on Home Page */
+
+/* ============================================
+   Responsive
+   ============================================ */
+
+@media (max-width: 1100px) {
+  .track-record-root .perf-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .track-record-root .pos-detail-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .track-record-root .track-record-header {
+    padding: 16px 20px;
+    flex-wrap: wrap;
+  }
+
+  .track-record-root .track-record-nav {
+    padding: 0 20px;
+    gap: 20px;
+    overflow-x: auto;
+  }
+
+  .track-record-root .track-record-main {
+    padding: 32px 20px;
+  }
+
+  .track-record-root .track-record-status {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .track-record-root .metrics-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .track-record-root .perf-charts {
+    grid-template-columns: 1fr;
+  }
+
+  .track-record-root .perf-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .track-record-root .pos-detail-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .track-record-root .verification-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .track-record-root .track-record-performance h2,
+  .track-record-root .track-record-signals h2,
+  .track-record-root .track-record-positions h2,
+  .track-record-root .track-record-rebalances h2,
+  .track-record-root .track-record-verification h2 {
+    font-size: 34px;
+  }
+}
+
+@media (max-width: 480px) {
+  .track-record-root .track-record-nav {
+    gap: 16px;
+  }
+
+  .track-record-root .metrics-row {
+    grid-template-columns: 1fr;
+  }
+
+  .track-record-root .perf-stats-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Hero account card — terminal state of the liquid-metal storyboard   */
+/* (pour → settle → account reveal → rebalance pulse). Pure DOM, so it */
+/* doubles as the no-WebGL / reduced-motion fallback.                  */
+/* ------------------------------------------------------------------ */
+
+@keyframes account-settle {
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+}
+
+@keyframes account-chip-blink {
+  50% {
+    opacity: 0.2;
+  }
+}
+
+.track-record-root .allocation-bar {
+  display: flex;
+  overflow: hidden;
+  border-radius: var(--radius-round);
+  background: var(--well);
+}
+
+.track-record-root .allocation-bar-segment {
+  transition: width 0.9s var(--easing-scene);
+}
+
+@keyframes account-alloc-settle {
+  from {
+    opacity: 0;
+    transform: scaleX(0.24);
+  }
+
+  to {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+@keyframes account-sweep {
+  to {
+    transform: translateX(320%) skewX(-8deg);
+  }
+}
+
+/* On-chain calculator: track-record asset colours and type, one raised surface
+   (the contract answer), everything else on hairlines. */
+.track-record-root .track-record-calculator {
+  display: grid;
+  gap: 40px;
+  font-size: 0.9375rem;
+}
+.track-record-root
+  .track-record-calculator
+  :where(div, section, aside, form, header, dl, label) {
+  min-width: 0;
+}
+.track-record-root .track-record-calculator :where(h1, h2, h3, p, dl, dd, ul) {
+  margin: 0;
+}
+.track-record-root
+  .track-record-calculator
+  :where(code, pre, input, .calc-day, .calc-chart-distance, .calc-status) {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.track-record-root .track-record-calculator :where(a) {
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--rule-2);
+  text-underline-offset: 3px;
+}
+.track-record-root .track-record-calculator :where(a):hover {
+  text-decoration-color: var(--ink-2);
+}
+.track-record-root .track-record-calculator :where(button, summary) {
+  cursor: pointer;
+}
+.track-record-root
+  .track-record-calculator
+  :where(button, a, summary):focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+  border-radius: var(--radius-control);
+}
+
+/* Hero */
+.track-record-root .calc-hero {
+  display: grid;
+  gap: 16px;
+  max-width: 46rem;
+}
+.track-record-root .calc-hero h1 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(2.75rem, 5.5vw, 4.25rem);
+  line-height: 1;
+  letter-spacing: -0.01em;
+}
+.track-record-root .calc-hero p {
+  max-width: 38rem;
+  color: var(--ink-2);
+  font-size: 1.0625rem;
+  line-height: 1.6;
+}
+.track-record-root .calc-hero .calc-disclosure {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8125rem;
+}
+.track-record-root .calc-disclosure::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ink-2);
+}
+
+/* Contract identity */
+.track-record-root .calc-identity {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 56px;
+  padding: 20px 0;
+  border-block: 1px solid var(--rule);
+}
+.track-record-root .calc-identity dt {
+  margin-bottom: 6px;
+  color: var(--ink-2);
+  font-size: 0.75rem;
+}
+.track-record-root .calc-identity dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+  font-size: 0.875rem;
+}
+.track-record-root .calc-identity code {
+  font-size: 0.8125rem;
+}
+.track-record-root .calc-pending {
+  color: var(--ink-2);
+}
+.track-record-root .track-record-calculator .calc-link,
+.track-record-root .calc-verify-body button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.8125rem;
+  text-decoration: underline;
+  text-decoration-color: var(--ink-3);
+  text-underline-offset: 3px;
+}
+
+/* Scenario */
+.track-record-root .calc-scenarios {
+  display: grid;
+  gap: 12px;
+}
+.track-record-root .calc-scenarios h2 {
+  color: var(--ink-2);
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+.track-record-root .calc-segments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 4px;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-control);
+  background: var(--sheet);
+}
+.track-record-root .calc-segments button {
+  padding: 9px 14px;
+  border: 0;
+  border-radius: var(--radius-panel);
+  background: transparent;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 0.875rem;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
+}
+.track-record-root .calc-segments button:hover:not(:disabled) {
+  background: var(--well);
+  color: var(--ink);
+}
+.track-record-root .calc-segments button[aria-pressed='true'] {
+  background: var(--well);
+  color: var(--ink);
+}
+.track-record-root .calc-scenario-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 16px;
+  color: var(--ink-2);
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+
+/* Layout */
+.track-record-root .calc-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 400px);
+  gap: 48px;
+  align-items: start;
+}
+.track-record-root .calc-main {
+  display: grid;
+  gap: 28px;
+}
+.track-record-root .calc-inputs fieldset {
+  display: grid;
+  gap: 44px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.track-record-root .calc-section {
+  display: grid;
+  gap: 16px;
+}
+.track-record-root .calc-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: end;
+  gap: 16px 24px;
+}
+.track-record-root .calc-section-head h2 {
+  font-size: 1.0625rem;
+  font-weight: 500;
+}
+.track-record-root .calc-section-head p {
+  margin-top: 4px;
+  color: var(--ink-2);
+  font-size: 0.875rem;
+}
+
+/* Fields */
+.track-record-root .calc-input,
+.track-record-root .calc-date input {
+  width: 100%;
+  min-width: 0;
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-panel);
+  background: var(--well);
+  color: var(--ink);
+  font-size: 0.8125rem;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+.track-record-root .calc-input {
+  text-align: right;
+}
+.track-record-root .calc-input:hover,
+.track-record-root .calc-date input:hover {
+  border-color: var(--rule-2);
+}
+.track-record-root .calc-input:focus,
+.track-record-root .calc-date input:focus {
+  outline: none;
+  border-color: var(--ink);
+  background: var(--ground);
+}
+.track-record-root .track-record-calculator [aria-invalid='true'] {
+  border-color: var(--alert);
+}
+.track-record-root .calc-inputs fieldset:disabled .calc-input {
+  opacity: 0.6;
+}
+.track-record-root .calc-date {
+  display: grid;
+  gap: 6px;
+  color: var(--ink-2);
+  font-size: 0.75rem;
+}
+.track-record-root .calc-date input {
+  width: 11.5rem;
+  color-scheme: dark;
+}
+.track-record-root .calc-error {
+  color: var(--alert);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+.track-record-root .calc-footnote {
+  color: var(--ink-2);
+  font-size: 0.8125rem;
+  line-height: 1.55;
+}
+
+/* Market table: one row per day, the price-vs-average chart spans both. */
+.track-record-root .calc-market {
+  border-bottom: 1px solid var(--rule);
+}
+.track-record-root .calc-market-head,
+.track-record-root .calc-asset {
+  display: grid;
+  grid-template-columns:
+    3.5rem 3.25rem minmax(0, 1fr) minmax(0, 1fr)
+    9.5rem;
+  column-gap: 10px;
+  align-items: center;
+}
+.track-record-root .calc-market-head {
+  padding-bottom: 8px;
+  color: var(--ink-2);
+  font-size: 0.75rem;
+}
+.track-record-root .calc-market-head > span:nth-child(3),
+.track-record-root .calc-market-head > span:nth-child(4) {
+  padding-right: 11px;
+  text-align: right;
+}
+.track-record-root .calc-legend {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.6875rem;
+}
+.track-record-root .calc-legend i {
+  width: 14px;
+  border-top: 2px solid var(--ink-2);
+}
+.track-record-root .calc-legend .calc-legend-average {
+  margin-left: 6px;
+  border-top: 1.5px dashed var(--ink-2);
+}
+.track-record-root .calc-asset {
+  row-gap: 6px;
+  padding: 12px 0;
+  border-top: 1px solid var(--rule);
+}
+.track-record-root .calc-asset-name {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+.track-record-root .calc-day {
+  color: var(--ink-2);
+  font-size: 0.75rem;
+}
+.track-record-root .calc-chart {
+  grid-column: 5;
+  grid-row: 1 / span 2;
+  display: grid;
+  gap: 4px;
+  justify-items: end;
+}
+.track-record-root .calc-chart svg {
+  width: 100%;
+  height: 48px;
+  overflow: visible;
+}
+.track-record-root .calc-chart-price {
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.track-record-root .calc-chart-average {
+  stroke: var(--ink-2);
+  stroke-width: 1.25;
+  stroke-dasharray: 3 3;
+}
+.track-record-root .calc-chart-crossing {
+  fill: none;
+  stroke: currentColor;
+  stroke-opacity: 0.45;
+  stroke-width: 1;
+}
+.track-record-root .calc-chart-yesterday {
+  fill: var(--ground);
+  stroke: currentColor;
+  stroke-width: 1.5;
+}
+.track-record-root .calc-chart-distance {
+  color: var(--ink-2);
+  font-size: 0.6875rem;
+  white-space: nowrap;
+}
+.track-record-root .calc-chart-missing {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 48px;
+  color: var(--ink-2);
+  font-size: 0.75rem;
+}
+.track-record-root .calc-asset .calc-error {
+  grid-column: 2 / -1;
+}
+
+/* Portfolio */
+.track-record-root .calc-bar.allocation-bar {
+  gap: 2px;
+  border-radius: var(--radius-control);
+  background: transparent;
+}
+.track-record-root .calc-bar .allocation-bar-segment {
+  border-radius: var(--radius-tag);
+}
+.track-record-root .calc-weights {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+.track-record-root .calc-weights label {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  color: var(--ink-2);
+  font-size: 0.75rem;
+}
+.track-record-root .calc-weights label > span:first-child {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.track-record-root .calc-swatch {
+  display: inline-block;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: var(--radius-tag);
+  vertical-align: 1px;
+}
+.track-record-root .calc-weights .calc-swatch {
+  margin-right: 0;
+}
+.track-record-root .calc-percent {
+  position: relative;
+}
+.track-record-root .calc-percent::after {
+  content: '%';
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  color: var(--ink-2);
+  font-size: 0.75rem;
+  pointer-events: none;
+}
+.track-record-root .calc-percent .calc-input {
+  padding-right: 24px;
+}
+.track-record-root .calc-section-head .calc-total {
+  color: var(--ink);
+  font-size: 0.8125rem;
+}
+
+/* Rule state */
+.track-record-root .calc-rule {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 20px 48px;
+}
+.track-record-root .calc-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 38px;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+.track-record-root .calc-toggle input {
+  appearance: none;
+  position: relative;
+  flex: none;
+  width: 36px;
+  height: 20px;
+  margin: 0;
+  border-radius: var(--radius-round);
+  background: var(--rule-2);
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+.track-record-root .calc-toggle input::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--ink);
+  transition: transform 0.2s var(--easing-scene);
+}
+.track-record-root .calc-toggle input:checked {
+  background: var(--ink);
+}
+.track-record-root .calc-toggle input:checked::before {
+  transform: translateX(16px);
+  background: var(--ground);
+}
+.track-record-root .calc-toggle input:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+.track-record-root .calc-note {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  border-left: 2px solid var(--ink-2);
+  background: var(--well);
+  font-size: 0.8125rem;
+}
+
+/* Contract answer: the only raised surface. */
+.track-record-root .calc-answer {
+  min-width: 0;
+  position: sticky;
+  top: 24px;
+  display: grid;
+  gap: 20px;
+  padding: 24px;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-panel);
+  background: var(--ground);
+}
+.track-record-root .calc-answer-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.track-record-root .calc-answer-head h2 {
+  color: var(--ink-2);
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+.track-record-root .calc-status {
+  padding: 3px 9px;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-round);
+  color: var(--ink-2);
+  font-size: 0.6875rem;
+}
+.track-record-root .calc-status[data-tone='done'] {
+  border-color: var(--rule-2);
+  color: var(--ink);
+}
+.track-record-root .calc-status[data-tone='busy'] {
+  border-color: var(--ink-3);
+  color: var(--ink);
+}
+.track-record-root .calc-status[data-tone='error'] {
+  border-color: var(--alert);
+  color: var(--alert);
+}
+.track-record-root .calc-answer-body {
+  display: grid;
+  gap: 16px;
+}
+.track-record-root .calc-verdict {
+  font-family: var(--font-display);
+  font-size: clamp(1.75rem, 2.6vw, 2.125rem);
+  line-height: 1.1;
+}
+.track-record-root .calc-reason {
+  color: var(--ink-2);
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+.track-record-root .calc-reference {
+  display: grid;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid var(--rule);
+}
+.track-record-root .calc-reference h3 {
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+.track-record-root .calc-reference p {
+  color: var(--ink-2);
+  font-size: 0.8125rem;
+  line-height: 1.55;
+}
+.track-record-root .calc-compare {
+  display: grid;
+  gap: 14px;
+}
+.track-record-root .calc-compare-bars {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr);
+  align-items: center;
+  gap: 8px 12px;
+  color: var(--ink-2);
+  font-size: 0.75rem;
+}
+.track-record-root .calc-compare table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+.track-record-root .calc-compare :where(th, td) {
+  padding: 7px 0;
+  border-top: 1px solid var(--rule);
+  font-weight: 400;
+  text-align: right;
+}
+.track-record-root .calc-compare thead th {
+  padding-top: 0;
+  border-top: 0;
+  color: var(--ink-2);
+  font-size: 0.75rem;
+}
+.track-record-root .calc-compare :where(th:first-child) {
+  text-align: left;
+}
+.track-record-root .calc-compare td {
+  color: var(--ink-2);
+}
+.track-record-root .calc-compare .calc-changed td:last-child {
+  color: var(--ink);
+  font-weight: 600;
+}
+.track-record-root .calc-outcomes {
+  display: grid;
+  gap: 8px;
+  padding: 0;
+  list-style: none;
+  font-size: 0.8125rem;
+}
+.track-record-root .calc-outcomes li {
+  display: grid;
+  grid-template-columns: 3.25rem minmax(0, 1fr);
+  gap: 8px;
+}
+.track-record-root .calc-outcomes b {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 600;
+}
+.track-record-root .calc-outcomes b svg {
+  width: 9px;
+  height: 9px;
+  fill: currentColor;
+}
+.track-record-root .calc-outcomes span {
+  color: var(--ink);
+}
+.track-record-root .calc-match {
+  color: var(--ink);
+  font-size: 0.875rem;
+}
+.track-record-root .calc-stale > :not(.calc-stale-note) {
+  opacity: 0.4;
+}
+.track-record-root .calc-stale-note {
+  color: var(--ink-2);
+  font-size: 0.8125rem;
+}
+.track-record-root .calc-answer > .calc-error {
+  padding: 12px 14px;
+  border-left: 2px solid var(--alert);
+  background: var(--well);
+}
+.track-record-root .calc-call {
+  height: 48px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: var(--ink);
+  color: var(--ground);
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  transition: filter 0.15s;
+}
+.track-record-root .calc-call:hover:not(:disabled) {
+}
+.track-record-root .calc-call:disabled {
+  background: transparent;
+  color: var(--ink-2);
+  cursor: not-allowed;
+}
+
+/* Keep long calldata inside the proof panel rather than sizing the grid. */
+.track-record-root .calc-answer :where(div, section, details, pre) {
+  min-width: 0;
+  max-width: 100%;
+}
+.track-record-root .calc-proof {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-panel);
+  background: var(--ground);
+  color: var(--ink-2);
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+.track-record-root .calc-proof strong {
+  color: var(--ink);
+  font-size: 0.8125rem;
+}
+.track-record-root .calc-proof a {
+  width: fit-content;
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.track-record-root .calc-proof p:last-child {
+  padding-top: 6px;
+  border-top: 1px solid var(--rule);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+}
+
+/* Disclosure blocks */
+.track-record-root .track-record-calculator summary {
+  width: fit-content;
+  color: var(--ink-2);
+  font-size: 0.8125rem;
+}
+.track-record-root .track-record-calculator summary:hover {
+  color: var(--ink);
+}
+.track-record-root .track-record-calculator pre {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  max-height: 320px;
+  margin: 10px 0 0;
+  overflow: auto;
+  padding: 14px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-panel);
+  background: var(--ground);
+  font-size: 0.6875rem;
+  line-height: 1.6;
+}
+.track-record-root .calc-verify-body {
+  overflow-wrap: anywhere;
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+  color: var(--ink-2);
+  font-size: 0.8125rem;
+}
+
+/* Limits */
+.track-record-root .calc-limits {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 28px 48px;
+  padding-top: 32px;
+  border-top: 1px solid var(--rule);
+}
+.track-record-root .calc-limits h2 {
+  margin-bottom: 8px;
+  font-size: 0.9375rem;
+  font-weight: 500;
+}
+.track-record-root .calc-limits p {
+  max-width: 34rem;
+  color: var(--ink-2);
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+.track-record-root .calc-doc-link {
+  font-size: 0.875rem;
+}
+
+@media (max-width: 1099px) {
+  .track-record-root .calc-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .track-record-root .calc-answer {
+    position: static;
+  }
+}
+@media (max-width: 639px) {
+  .track-record-root .track-record-calculator {
+    gap: 32px;
+  }
+  .track-record-root .calc-identity {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px 24px;
+  }
+  .track-record-root .calc-segments {
+    width: 100%;
+  }
+  .track-record-root .calc-segments button {
+    flex: 1 1 auto;
+  }
+  .track-record-root .calc-market-head,
+  .track-record-root .calc-asset {
+    grid-template-columns: 3rem minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .track-record-root .calc-market-head > span:first-child,
+  .track-record-root .calc-market-head > .calc-legend {
+    display: none;
+  }
+  .track-record-root .calc-asset-name {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+  .track-record-root .calc-chart {
+    grid-column: 2 / -1;
+    grid-row: 4;
+    grid-template-columns: 9rem auto;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 4px;
+  }
+  .track-record-root .calc-asset .calc-error {
+    grid-column: 1 / -1;
+  }
+  .track-record-root .calc-weights {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .track-record-root .calc-date input {
+    width: 100%;
+  }
+  .track-record-root .calc-answer {
+    padding: 20px;
+  }
+  .track-record-root .calc-limits {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .track-record-root .track-record-calculator *,
+  .track-record-root .track-record-calculator *::before,
+  .track-record-root .track-record-calculator *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* Wallet deployment */
+.track-record-root .calc-deploy {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  margin: 28px 0;
+  padding: clamp(20px, 4vw, 32px);
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-sheet);
+  background: var(--ground);
+}
+.track-record-root .calc-deploy h2 {
+  margin: 0;
+  font-size: 1.375rem;
+  font-weight: 500;
+}
+.track-record-root .calc-deploy p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 0.875rem;
+  line-height: 1.65;
+}
+.track-record-root .calc-deploy-network {
+  color: var(--ink);
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.track-record-root .calc-deploy code,
+.track-record-root .calc-deploy a {
+  overflow-wrap: anywhere;
+}
+.track-record-root .calc-deploy-address {
+  padding: 14px 16px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-panel);
+}
+.track-record-root .calc-deploy-address code {
+  display: block;
+  margin-top: 6px;
+  color: var(--ink);
+  font-size: 0.75rem;
+}
+.track-record-root .calc-deploy .calc-call {
+  width: 100%;
+  padding: 0 16px;
+  cursor: pointer;
+}
+.track-record-root .calc-deploy .calc-call:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 4px;
+}
+.track-record-root .calc-deploy-status {
+  border-left: 2px solid var(--ink);
+  padding-left: 12px;
+}
+.track-record-root .calc-deploy-receipt {
+  min-width: 0;
+  font-size: 0.8125rem;
+}
+
+.track-record-root .chart-event-marker path:first-child {
+  fill: none;
+  stroke: var(--sheet);
+  stroke-width: 4;
+}
+.track-record-root .calc-deploy .calc-call {
+  background: var(--sign);
+  color: var(--on-sign);
+}
+
+.track-record-root .status-block:first-child strong {
+  font-size: var(--type-data-md-size);
+  line-height: var(--type-data-md-line);
+}

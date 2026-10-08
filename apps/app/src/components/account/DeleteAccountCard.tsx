@@ -63,8 +63,8 @@ export function DeleteAccountCard() {
   };
 
   return (
-    <Card className="mt-8 border border-danger-line" padding="md">
-      <Text variant="subheading" tone="danger">
+    <Card className="mt-8 border border-alert" padding="md">
+      <Text variant="heading" tone="alert">
         {t('account.deleteTitle')}
       </Text>
       <Text variant="body-sm" tone="secondary" className="mt-2">
@@ -98,7 +98,7 @@ export function DeleteAccountCard() {
         {error ? (
           <Text
             variant="caption"
-            tone="danger"
+            tone="alert"
             accessibilityRole="alert"
             className="mt-3"
           >

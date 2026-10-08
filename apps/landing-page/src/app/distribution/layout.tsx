@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import '../landing-v2.css';
 import './distribution.css';
 
 const TITLE = 'Zap Pilot — Distribution engine';

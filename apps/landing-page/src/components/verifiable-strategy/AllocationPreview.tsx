@@ -1,12 +1,12 @@
 import { AllocationBar } from '@/components/primitives/AllocationBar';
+import { ALLOCATION_ASSETS } from '@zapengine/zap-pilot-story/facts';
 import {
-  ALLOCATION_ASSETS,
   displayDecimal,
   wadToPercent,
 } from '@/lib/verifiable-strategy/encoding';
 
 export const allocationColor = (asset: string) =>
-  asset === 'Alt' ? 'var(--ink-faint)' : `var(--event-${asset.toLowerCase()})`;
+  asset === 'Alt' ? 'var(--ink-3)' : `var(--sleeve-${asset.toLowerCase()})`;
 
 // Empty buckets are dropped so the bar's segment gaps never double up.
 const segments = (values: number[]) =>

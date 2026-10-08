@@ -1,4 +1,4 @@
-import { ASSETS } from './encoding';
+import { ASSETS } from '@zapengine/zap-pilot-story/facts';
 import type { AssetView, ExitResult } from './types';
 
 export function verdict(exit: ExitResult) {

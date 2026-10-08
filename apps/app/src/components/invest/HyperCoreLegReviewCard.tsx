@@ -36,17 +36,17 @@ export function HyperCoreLegReviewCard({
   return (
     <Card className="p-4">
       <View className="mb-3 flex-row items-center justify-between gap-3">
-        <Text className="min-w-0 flex-1 font-sans-semibold text-[12.5px] text-ink">
+        <Text className="min-w-0 flex-1 font-text-semibold text-caption text-ink">
           {stepLabel ? `${stepLabel} · ` : ''}
           {HYPERCORE_LEG_TITLE}
           {'\n'}
           {HYPERCORE_LEG_ACTION}
         </Text>
-        <Text className="font-mono-semibold text-[11px] text-accent">
+        <Text className="font-mono-semibold text-data text-ink">
           {formatUsd6(leg.requestedUsd6)}
         </Text>
       </View>
-      <Text className="mb-3 text-[10.5px] leading-4 text-ink-dim">
+      <Text className="font-mono-medium mb-3 text-label leading-4 text-ink-2">
         {HYPERCORE_LEG_NOT_SIMULATED}
       </Text>
       {rows.map((row, index) => (
@@ -60,7 +60,7 @@ export function HyperCoreLegReviewCard({
       {leg.isError ? (
         <Text
           accessibilityRole="alert"
-          className="mt-3 text-[11px] leading-4 text-danger"
+          className="font-mono-medium mt-3 text-label leading-4 text-alert"
         >
           The Hyperliquid deposit could not be prepared, so this plan cannot be
           sent yet. Go back and try again.
@@ -69,7 +69,7 @@ export function HyperCoreLegReviewCard({
       {leg.shortfallUsd6 !== null && leg.shortfallUsd6 > 0n ? (
         <Text
           accessibilityRole="alert"
-          className="mt-3 text-[11px] leading-4 text-danger"
+          className="font-mono-medium mt-3 text-label leading-4 text-alert"
         >
           Your spendable Hyperliquid balance no longer covers this deposit —
           short by {formatUsd6(leg.shortfallUsd6)}. Go back and lower the

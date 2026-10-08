@@ -1,5 +1,5 @@
+import { Icon } from '@/components/ui/Icon';
 import { useContentLanguage } from '@/providers/ContentLanguageProvider';
-import { tokens } from '@zapengine/design-tokens/tokens';
 import { useToast } from '@zapengine/app-core/providers/ToastContext';
 import * as Clipboard from 'expo-clipboard';
 import { Share2 } from 'lucide-react-native';
@@ -48,10 +48,10 @@ export function SharePortfolioButton(): ReactElement | null {
     <Tap
       accessibilityRole="button"
       accessibilityLabel={t('home.sharePortfolio')}
-      className="h-[34px] w-[34px] items-center justify-center rounded-full border border-line bg-[rgba(255,255,255,.05)]"
+      className="h-[34px] w-[34px] items-center justify-center rounded-round border border-rule bg-well"
       onPress={share}
     >
-      <Share2 size={17} strokeWidth={1.8} color={tokens.color['ink-dim']} />
+      <Icon icon={Share2} size="md" tone="secondary" />
     </Tap>
   );
 }

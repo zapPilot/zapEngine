@@ -41,7 +41,9 @@
     "lucide-react": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "zod": "catalog:"
+    "zod": "catalog:",
+    "@fontsource-variable/archivo": "catalog:",
+    "@fontsource-variable/martian-mono": "catalog:"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",

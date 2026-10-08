@@ -7,9 +7,11 @@ import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 
 export function HomeActionRow({
   isStrategyActionRequired,
+  isDemo,
   disabled = false,
 }: {
   isStrategyActionRequired: boolean;
+  isDemo: boolean;
   disabled?: boolean;
 }) {
   const router = useRouter();
@@ -19,7 +21,11 @@ export function HomeActionRow({
       <Button
         disabled={disabled}
         className="flex-1"
-        variant={isStrategyActionRequired ? 'secondary' : 'primary'}
+        variant={
+          isDemo || disabled || isStrategyActionRequired
+            ? 'secondary'
+            : 'primary'
+        }
         leadingIcon={ArrowDown}
         onPress={() => router.push('/invest/amount')}
       >
@@ -28,7 +34,11 @@ export function HomeActionRow({
       <Button
         disabled={disabled}
         className="flex-1"
-        variant={isStrategyActionRequired ? 'tonal' : 'secondary'}
+        variant={
+          !isDemo && !disabled && isStrategyActionRequired
+            ? 'primary'
+            : 'secondary'
+        }
         leadingIcon={Scale}
         showIndicator={isStrategyActionRequired}
         {...(isStrategyActionRequired

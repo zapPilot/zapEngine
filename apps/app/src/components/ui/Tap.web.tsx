@@ -7,7 +7,7 @@ const feedbackClasses = {
   scale:
     'web:transition-transform web:duration-fast web:active:scale-press web:motion-reduce:transform-none',
   highlight:
-    'web:transition-colors web:duration-fast web:hover:bg-accent-subtle web:active:bg-accent-soft',
+    'web:transition-colors web:duration-fast web:hover:bg-well web:active:bg-well',
   opacity:
     'web:transition-opacity web:duration-fast web:hover:opacity-90 web:active:opacity-75',
   none: '',

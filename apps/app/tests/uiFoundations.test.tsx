@@ -66,7 +66,7 @@ async function mount(node: ReactNode) {
 }
 it('inherits text roles and tones while retaining accessible numeric headings', async () => {
   await mount(
-    <Text variant="title" tone="accent" heading={1} numeric>
+    <Text variant="title" tone="default" heading={1} numeric>
       <Text>42</Text>
     </Text>,
   );
@@ -78,7 +78,7 @@ it('inherits text roles and tones while retaining accessible numeric headings', 
   });
   expect(outer.style).toContainEqual({ fontVariant: ['tabular-nums'] });
   expect(inner.className).toContain('text-title');
-  expect(inner.className).toContain('text-accent');
+  expect(inner.className).toContain('text-ink');
 });
 it('hides decorative icons and exposes named icons to accessibility', async () => {
   await mount(

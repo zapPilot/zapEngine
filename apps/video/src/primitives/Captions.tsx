@@ -37,7 +37,7 @@ export const Captions: React.FC<{
           background: 'rgba(10, 10, 10, 0.8)',
           border: hairline,
           color: color.ink,
-          fontFamily: font.sans,
+          fontFamily: font.text,
           fontWeight: 500,
           fontSize: 42,
           lineHeight: 1.25,

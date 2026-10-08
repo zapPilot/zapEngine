@@ -9,12 +9,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SimulationTenderlyEvidence } from '@/components/invest/simulation/SimulationTenderlyEvidence';
 
 vi.mock('react-native', () => ({
+  Platform: { OS: 'web' },
   Text: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
   View: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   Linking: { openURL: vi.fn() },
 }));
 
 vi.mock('react-native-svg', () => ({
+  Defs: ({ children }: { children?: ReactNode }) => <defs>{children}</defs>,
+  ClipPath: ({ children }: { children?: ReactNode }) => (
+    <clipPath>{children}</clipPath>
+  ),
+  Rect: () => <rect />,
+
   default: ({ children }: { children?: ReactNode }) => <>{children}</>,
   Path: () => null,
 }));

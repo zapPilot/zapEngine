@@ -164,31 +164,31 @@ export const PortfolioTrendChart = memo(function PortfolioTrendChart({
         <View pointerEvents="none" className="absolute inset-0">
           <View
             testID="portfolio-trend-marker"
-            className="absolute h-2 w-2 rounded-full border border-bg bg-accent"
+            className="absolute h-2 w-2 rounded-round border border-ground bg-ink"
             style={{ left: markerLeft, top: markerTop }}
           />
           <View
             testID="portfolio-trend-tooltip"
-            className="absolute top-1 rounded-xl border border-line bg-[#151411]/[0.96] px-3 py-2"
+            className="absolute top-1 rounded-panel border border-rule bg-well/[0.96] px-3 py-2"
             style={{ left: tooltipLeft, width: TOOLTIP_WIDTH }}
           >
             {dateLabel ? (
-              <Text className="font-mono text-[9px] text-ink-faint">
+              <Text className="font-mono text-data text-ink-3">
                 {t('portfolio.tooltip.date')}: {dateLabel}
               </Text>
             ) : null}
-            <Text className="mt-0.5 font-mono text-[10px] text-ink">
+            <Text className="mt-0.5 font-mono text-data text-ink">
               {t('portfolio.tooltip.netWorth')}: {formatUsd(selectedValue)}
             </Text>
             {change ? (
-              <Text className="mt-0.5 font-mono text-[10px] text-ink-dim">
+              <Text className="mt-0.5 font-mono text-data text-ink-2">
                 {t('portfolio.tooltip.netChange')}:{' '}
                 {formatSignedUsd(change.usd)}
               </Text>
             ) : null}
 
             {attribution.length > 0 ? (
-              <View className="mt-2 gap-1 border-t border-line pt-1.5">
+              <View className="mt-2 gap-1 border-t border-rule pt-1.5">
                 {attribution.map((contributor) => (
                   <View
                     key={attributionContributorKey(contributor)}
@@ -197,17 +197,17 @@ export const PortfolioTrendChart = memo(function PortfolioTrendChart({
                   >
                     <Text
                       numberOfLines={1}
-                      className="min-w-0 flex-1 font-mono text-[9.5px] text-ink-dim"
+                      className="min-w-0 flex-1 font-mono text-data text-ink-2"
                     >
                       {attributionLabel(contributor, t)}
                     </Text>
-                    <Text className="font-mono text-[9.5px] text-ink">
+                    <Text className="font-mono text-data text-ink">
                       {formatSignedUsd(contributor.valueUsd)}
                     </Text>
                   </View>
                 ))}
                 {hiddenAttributionCount > 0 ? (
-                  <Text className="font-mono text-[9px] text-ink-faint">
+                  <Text className="font-mono text-data text-ink-3">
                     {t('portfolio.tooltip.attribution.more', {
                       count: hiddenAttributionCount,
                     })}
@@ -217,13 +217,13 @@ export const PortfolioTrendChart = memo(function PortfolioTrendChart({
             ) : null}
 
             {categoryTotals.assetsUsd === undefined ? null : (
-              <Text className="mt-1.5 font-mono text-[9px] text-ink-faint">
+              <Text className="mt-1.5 font-mono text-data text-ink-3">
                 {t('portfolio.tooltip.assets')}:{' '}
                 {formatUsd(categoryTotals.assetsUsd)}
               </Text>
             )}
             {categoryTotals.debtUsd === undefined ? null : (
-              <Text className="mt-0.5 font-mono text-[9px] text-ink-faint">
+              <Text className="mt-0.5 font-mono text-data text-ink-3">
                 {t('portfolio.tooltip.debt')}:{' '}
                 {formatUsd(categoryTotals.debtUsd)}
               </Text>

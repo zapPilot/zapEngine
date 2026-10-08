@@ -57,7 +57,7 @@ export function WalletsScreen() {
 
       <View className="pt-5">
         <ListGroup className="p-5">
-          <Text className="font-sans-semibold text-[15px] text-ink">
+          <Text className="font-text-semibold text-body text-ink">
             {account.email || truncateAddress(account.address ?? '')}
           </Text>
           <View className="mt-3">
@@ -68,7 +68,7 @@ export function WalletsScreen() {
         <View className="mt-5 flex-row items-center justify-between">
           <SectionHeader title={<> Bundled wallets </>} />
           {manager.isRefreshing && rows.length > 0 ? (
-            <Text className="font-mono text-[9.5px] uppercase tracking-[0.76px] text-ink-faint">
+            <Text className="font-mono text-data uppercase tracking-[0.76px] text-ink-3">
               Refreshing
             </Text>
           ) : null}
@@ -114,7 +114,7 @@ export function WalletsScreen() {
         <View className="mt-5">
           {showAddForm ? (
             <ListGroup className="p-4">
-              <Text className="mb-3 font-sans-semibold text-[14px] text-ink">
+              <Text className="mb-3 font-text-semibold text-body text-ink">
                 Add wallet to bundle
               </Text>
               <AddWalletForm
@@ -134,7 +134,7 @@ export function WalletsScreen() {
           )}
         </View>
 
-        <Text className="mt-3 text-[11.5px] leading-[17px] text-ink-faint">
+        <Text className="font-mono-medium mt-3 text-label leading-[17px] text-ink-3">
           Bundle membership and ownership proof are separate. Added wallets stay
           unverified until you use Verify and sign with that wallet.
         </Text>

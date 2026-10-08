@@ -1,6 +1,6 @@
 import { defineKnipConfig } from '@zapengine/knip-config/base';
 
-export default defineKnipConfig({
+const config = defineKnipConfig({
   entry: ['src/app/**/page.tsx', 'src/app/**/layout.tsx'],
   project: ['src/**/*.{ts,tsx}'],
   ignoreDependencies: [
@@ -26,3 +26,17 @@ export default defineKnipConfig({
     entry: ['src/**/__tests__/**/*.{test,spec}.{ts,tsx}'],
   },
 });
+
+// Run from the monorepo root so workspace symlinks remain dependencies in the graph.
+const { entry, project, eslint, vitest, ...global } = config;
+const workspaceConfig = {
+  ...global,
+  // Excluded workspaces must not execute their ESLint plugins. The selected
+  // workspace keeps its original plugin setting below.
+  eslint: false,
+  workspaces: {
+    'apps/landing-page': { entry, project, eslint, vitest },
+  },
+};
+
+export default workspaceConfig;

@@ -23,7 +23,7 @@ export const Backdrop: React.FC = () => {
         background: [
           `radial-gradient(ellipse 70% 42% at ${78 - drift * 10}% ${12 + drift * 8}%, rgba(212, 197, 163, 0.09), transparent 68%)`,
           `radial-gradient(ellipse 48% 34% at ${12 + drift * 6}% 58%, rgba(39, 117, 202, 0.06), transparent 70%)`,
-          color.bg,
+          color['ground'],
         ].join(', '),
       }}
     />

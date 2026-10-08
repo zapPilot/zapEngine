@@ -2,7 +2,7 @@
  * Positioning guardrail.
  *
  * Every public claim on the home page, /pitch and in the docs must stay at or
- * below what `CAPABILITIES` (src/config/runtime.ts) records. Copy states
+ * below what `CAPABILITIES` (zap-pilot-story/facts/capabilities.ts) records. Copy states
  * liveness only through status badges, retired category words and known false
  * claims stay out, and every docs link resolves.
  *
@@ -25,7 +25,7 @@ import {
   capabilityIds,
   type CapabilityId,
   type CapabilityRef,
-} from '@/config/runtime';
+} from '@zapengine/zap-pilot-story/facts';
 import { backtestDisclaimer } from '@/data/backtest-stats';
 
 interface CopyString {
@@ -337,7 +337,17 @@ describe('positioning guardrail: rendered status badges', () => {
     const { container } = render(<LandingPage />);
     expect(badgeMismatches(container)).toEqual([]);
     const shown = renderedIds(container);
-    const missing = [...referencedIds(MESSAGES)].filter((id) => !shown.has(id));
+    // Motion replaces the v2 sections; independently enumerate its displayed capability claims.
+    const expected: CapabilityId[] = [
+      'reference-strategy',
+      'market-signals',
+      'wallet-signing',
+      'pre-sign-checks',
+      'rebalance-plans',
+      'self-hosting',
+      'tokenized-equities',
+    ];
+    const missing = expected.filter((id) => !shown.has(id));
     expect(missing).toEqual([]);
   });
 
@@ -352,7 +362,7 @@ describe('positioning guardrail: rendered status badges', () => {
   it('shows a status marker wherever the brand line headlines a screen', () => {
     const landing = render(<LandingPage />).container;
     expect(
-      landing.querySelector('#overview [data-capability~="self-hosting"]'),
+      landing.querySelector('#engine [data-capability~="self-hosting"]'),
     ).not.toBeNull();
     const pitch = render(<PitchPage />).container;
     expect(

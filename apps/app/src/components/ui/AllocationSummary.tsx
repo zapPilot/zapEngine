@@ -31,14 +31,14 @@ export function AllocationSummary({
                 className="min-h-hit flex-row items-center gap-2"
               >
                 <View
-                  className="h-2 w-2 rounded-pill"
+                  className="h-2 w-2 rounded-round"
                   style={{ backgroundColor: item.color }}
                   accessible={false}
                 />
                 <Text variant="body-sm" tone="secondary" className="flex-1">
                   {item.label}
                 </Text>
-                <Text variant="numeric-sm" numeric>
+                <Text variant="data" numeric>
                   {formatPct(item.pct)}
                 </Text>
               </View>
