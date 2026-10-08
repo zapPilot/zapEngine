@@ -1,3 +1,4 @@
+import { ASSET_GLYPHS } from '@zapengine/brand-assets/glyphs';
 import type { TokenBrandSymbol } from '@zapengine/brand-assets';
 import { render } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
@@ -6,14 +7,14 @@ import { TOKEN_ICON_SRC } from '@/data/assetIcons';
 import { ChainMark, ProtocolIcon, TokenIcon } from '../icons';
 
 describe('TokenIcon', () => {
-  it('renders a committed image for a known symbol', () => {
+  it('renders the shared sleeve mark for a known symbol', () => {
     const { container } = render(<TokenIcon symbol="ETH" size={20} />);
-    expect(container.querySelector('img')).toHaveAttribute('width', '20');
+    expect(container.querySelector('svg')).toHaveAttribute('width', '20');
   });
 
   it('normalizes mixed-case symbols', () => {
     const { container } = render(<TokenIcon symbol="cbBTC" />);
-    expect(container.querySelector('img')).toBeInTheDocument();
+    expect(container.querySelector('svg')).toBeInTheDocument();
   });
 
   it('uses the initial for an unknown symbol', () => {
@@ -30,8 +31,9 @@ describe('TokenIcon', () => {
 
     try {
       const { container } = render(<TokenIcon symbol="SPY" />);
-      expect(container.querySelector('.token-icon-glyph')).toHaveTextContent(
-        'S',
+      expect(container.querySelector('svg path')).toHaveAttribute(
+        'd',
+        ASSET_GLYPHS.spy,
       );
     } finally {
       sources.SPY = spySource!;

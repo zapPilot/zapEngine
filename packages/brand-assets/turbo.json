@@ -1,0 +1,13 @@
+{
+  "extends": ["//"],
+  "tasks": {
+    "build": {
+      "dependsOn": ["@zapengine/design-tokens#build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/packages/design-tokens/tokens.json",
+        "!src/token-colors.ts"
+      ]
+    }
+  }
+}

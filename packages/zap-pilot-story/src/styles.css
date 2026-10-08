@@ -202,6 +202,8 @@
   letter-spacing: 0.06em;
   white-space: pre-wrap;
   overflow: hidden;
+  --zp-face-fill: transparent;
+  background: var(--zp-face-fill);
 }
 .zp-dial3d {
   position: absolute;
@@ -1181,4 +1183,74 @@
   .zp-hero-n {
     animation: none;
   }
+}
+
+/* Geometry and data marks share the camera and the canonical sleeve materials. */
+.zp-asset-glyph {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.zp-signal {
+  margin-top: 24px;
+  width: min(100%, 380px);
+}
+.zp-signal-row {
+  display: grid;
+  grid-template-columns: 22px 1fr 100px 64px;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--rule);
+  font: 11px var(--font-mono);
+  color: var(--ink-2);
+}
+.zp-signal-row svg {
+  width: 100%;
+  height: 22px;
+}
+.zp-signal-row strong {
+  color: var(--ink);
+  text-align: right;
+  font-weight: 500;
+}
+.zp-gate-icons {
+  display: flex;
+  gap: 20px;
+  margin-top: 20px;
+}
+.zp-gate-icons svg {
+  width: 32px;
+  height: 32px;
+  color: var(--ink);
+}
+.zp-r-sv,
+.zp-r-sd {
+  position: relative;
+  padding-bottom: 8px;
+}
+.zp-stat-bar {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  background: currentColor;
+}
+@container (max-width: 440px) {
+  .zp-signal-row {
+    grid-template-columns: 20px 1fr 65px 60px;
+    gap: 5px;
+    font-size: 10px;
+  }
+}
+
+.zp-allocation-ring {
+  width: 92px;
+  height: 92px;
+  margin: 0 0 8px;
+}
+
+.zp-blb .zp-asset-glyph {
+  width: 18px;
+  height: 18px;
 }

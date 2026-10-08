@@ -6,10 +6,10 @@ settings:
 
 catalogs:
   default:
-    '@fontsource-variable/martian-mono':
+    '@fontsource-variable/archivo':
       specifier: 5.3.0
       version: 5.3.0
-    '@fontsource-variable/archivo':
+    '@fontsource-variable/martian-mono':
       specifier: 5.3.0
       version: 5.3.0
     '@hono/node-server':
@@ -1573,24 +1573,15 @@ importers:
       '@testing-library/react':
         specifier: 'catalog:'
         version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      jsdom:
-        specifier: 'catalog:'
-        version: 25.0.1(bufferutil@4.1.0)(utf-8-validate@6.0.6)
-      '@types/react-dom':
-        specifier: 'catalog:'
-        version: 19.2.3(@types/react@19.2.17)
-      react-dom:
-        specifier: 'catalog:'
-        version: 19.2.3(react@19.2.3)
-      '@types/react':
-        specifier: 'catalog:'
-        version: 19.2.17
-      react:
-        specifier: 'catalog:'
-        version: 19.2.3
       '@types/node':
         specifier: 'catalog:'
         version: 22.19.21
+      '@types/react':
+        specifier: 'catalog:'
+        version: 19.2.17
+      '@types/react-dom':
+        specifier: 'catalog:'
+        version: 19.2.3(@types/react@19.2.17)
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 4.1.11(vitest@4.1.11)
@@ -1606,12 +1597,21 @@ importers:
       eslint:
         specifier: 'catalog:'
         version: 9.39.4(jiti@2.7.0)
+      jsdom:
+        specifier: 'catalog:'
+        version: 25.0.1(bufferutil@4.1.0)(utf-8-validate@6.0.6)
       knip:
         specifier: 'catalog:'
         version: 5.88.1(@types/node@26.6.4)(typescript@5.9.3)
       prettier:
         specifier: 'catalog:'
         version: 3.8.4
+      react:
+        specifier: 'catalog:'
+        version: 19.2.3
+      react-dom:
+        specifier: 'catalog:'
+        version: 19.2.3(react@19.2.3)
       typescript:
         specifier: 'catalog:'
         version: 5.9.3
@@ -1620,12 +1620,6 @@ importers:
         version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@26.6.4)(@vitest/coverage-v8@4.1.11)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@25.0.1(bufferutil@4.1.0)(utf-8-validate@6.0.6))(vite@7.3.5(@types/node@26.6.4)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.1))
 
 packages:
-
-  '@fontsource-variable/martian-mono@5.3.0':
-    resolution: {integrity: sha512-0wVODx9ILwNnaYC4XCuSaFRYtj1Prd89MRVaSuv2ng6zLiQkS4SepaWEPefs7vqCZS8sbEOA8jb/4F5KNMnGdg==}
-
-  '@fontsource-variable/archivo@5.3.0':
-    resolution: {integrity: sha512-HogK8FJelrD1o7TlZlkIVtHgc20bO5PZRWE7mUeUTdMN055alznQV6/00J00IBeu8FQAH4s3zW9UJNvKExXf+g==}
 
   '@0no-co/graphql.web@1.2.0':
     resolution: {integrity: sha512-/1iHy9TTr63gE1YcR5idjx8UREz1s0kFhydf3bBLCXyqjhkIc6igAzTOx3zPifCwFR87tsh/4Pa9cNts6d2otw==}
@@ -2781,6 +2775,12 @@ packages:
 
   '@floating-ui/utils@0.2.11':
     resolution: {integrity: sha512-RiB/yIh78pcIxl6lLMG0CgBXAZ2Y0eVHqMPYugu+9U0AeT6YBeiJpf7lbdJNIugFP5SIjwNRgo4DhR1Qxi26Gg==}
+
+  '@fontsource-variable/archivo@5.3.0':
+    resolution: {integrity: sha512-HogK8FJelrD1o7TlZlkIVtHgc20bO5PZRWE7mUeUTdMN055alznQV6/00J00IBeu8FQAH4s3zW9UJNvKExXf+g==}
+
+  '@fontsource-variable/martian-mono@5.3.0':
+    resolution: {integrity: sha512-0wVODx9ILwNnaYC4XCuSaFRYtj1Prd89MRVaSuv2ng6zLiQkS4SepaWEPefs7vqCZS8sbEOA8jb/4F5KNMnGdg==}
 
   '@formatjs/intl-localematcher@0.6.2':
     resolution: {integrity: sha512-XOMO2Hupl0wdd172Y06h6kLpBz6Dv+J4okPLl4LPtzbr8f66WbIoy4ev98EBuZ6ZK4h5ydTN6XneT4QVpD7cdA==}
@@ -13877,10 +13877,6 @@ packages:
 
 snapshots:
 
-  '@fontsource-variable/martian-mono@5.3.0': {}
-
-  '@fontsource-variable/archivo@5.3.0': {}
-
   '@0no-co/graphql.web@1.2.0(graphql@16.14.2)':
     optionalDependencies:
       graphql: 16.14.2
@@ -15677,6 +15673,10 @@ snapshots:
       tabbable: 6.4.0
 
   '@floating-ui/utils@0.2.11': {}
+
+  '@fontsource-variable/archivo@5.3.0': {}
+
+  '@fontsource-variable/martian-mono@5.3.0': {}
 
   '@formatjs/intl-localematcher@0.6.2':
     dependencies:

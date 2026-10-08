@@ -156,17 +156,6 @@ export function ReplayBoard({ progress = 1 }: { progress?: number }) {
         })}
       </div>
       <div>
-        <div className="zp-r-sh">
-          <p className="zp-lbl">What the rules held</p>
-          <p className="zp-r-held">
-            {replay.allocations.assets
-              .map(
-                (asset, i) =>
-                  `${asset === 'spy' ? 'S&P' : asset === 'stable' ? 'Stables' : asset.toUpperCase()} ${(view.allocation[i]! * 100).toFixed(1)}`,
-              )
-              .join('   ')}
-          </p>
-        </div>
         <div className="zp-r-strip">
           <svg
             className="zp-r-svg"
@@ -224,22 +213,44 @@ export function ReplayBoard({ progress = 1 }: { progress?: number }) {
                     'Max drawdown',
                     percent(strategy.max_drawdown_percent),
                     percent(dca.max_drawdown_percent),
+                    strategy.max_drawdown_percent,
+                    dca.max_drawdown_percent,
                   ],
                   [
                     'Sharpe',
                     strategy.sharpe_ratio.toFixed(2),
                     dca.sharpe_ratio.toFixed(2),
+                    strategy.sharpe_ratio,
+                    dca.sharpe_ratio,
                   ],
                   [
                     'Trades',
                     String(strategy.trade_count),
                     String(dca.trade_count),
+                    strategy.trade_count,
+                    dca.trade_count,
                   ],
-                ].map(([label, a, b]) => (
+                ].map(([label, a, b, av, bv]) => (
                   <div key={label} style={{ display: 'contents' }}>
                     <span className="zp-r-sk">{label}</span>
-                    <span className="zp-r-sv">{a}</span>
-                    <span className="zp-r-sd">{b}</span>
+                    <span className="zp-r-sv">
+                      <i
+                        className="zp-stat-bar"
+                        style={{
+                          width: `${(Math.abs(Number(av)) / Math.max(Math.abs(Number(av)), Math.abs(Number(bv)), 1)) * 100}%`,
+                        }}
+                      />
+                      Rules {a}
+                    </span>
+                    <span className="zp-r-sd">
+                      <i
+                        className="zp-stat-bar"
+                        style={{
+                          width: `${(Math.abs(Number(bv)) / Math.max(Math.abs(Number(av)), Math.abs(Number(bv)), 1)) * 100}%`,
+                        }}
+                      />
+                      DCA {b}
+                    </span>
                   </div>
                 ))}
               </div>

@@ -1436,23 +1436,6 @@
   white-space: pre;
 }
 
-/* Validated as a set against #0a0a0a: worst CVD pair ΔE 10.1, worst
-   normal-vision pair ΔE 21.7. Deliberately literals rather than
-   var(--pillar-*) — aliasing to shared marketing tokens would let an unrelated
-   tweak degrade the separation with no failing test. Re-run the dataviz
-   palette validator if any of them changes. See chartMarkers.tsx. */
-.track-record-root .chart-event-layer,
-.track-record-root .chart-legend,
-.track-record-root .chart-tooltip,
-.track-record-root .track-record-calculator,
-.track-record-root .market-series-chart,
-.track-record-root .sentiment-chart {
-  /* Cash is the one segment that is not an asset, so it is the one colour that
-     is not a hue: achromatic grey cannot be confused with any of the three
-     under any CVD type, and it reads as absence of position. ΔE 7.6 against
-     #0a0a0a keeps a 6px band visible. */
-}
-
 .track-record-root .chart-event-layer {
   position: absolute;
   inset: 0;
@@ -2670,7 +2653,7 @@
 }
 .track-record-root .calc-date input {
   width: 11.5rem;
-  color-scheme: dark;
+  color-scheme: light;
 }
 .track-record-root .calc-error {
   color: var(--alert);
@@ -3304,4 +3287,8 @@
 .track-record-root .status-block:first-child strong {
   font-size: var(--type-data-md-size);
   line-height: var(--type-data-md-line);
+}
+
+:where([data-theme='night']) .track-record-root .calc-date input {
+  color-scheme: dark;
 }

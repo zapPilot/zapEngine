@@ -21,11 +21,16 @@ describe('approved Motion geometry', () => {
     expect(engineScene(0, 0, true).ox).toBe('50%');
   });
   it('produces finite geometry at every frame and all seven stages', () => {
+    const invalidFrames: number[] = [];
+    const undersizedFrames: number[] = [];
     for (let frame = 0; frame <= 1000; frame++) {
       const scene = engineScene(frame / 1000, frame / 30, frame % 2 === 0);
-      expect(JSON.stringify(scene)).not.toMatch(/NaN|Infinity|undefined/);
-      expect(scene.faces.length).toBeGreaterThan(40);
+      if (/NaN|Infinity|undefined/.test(JSON.stringify(scene)))
+        invalidFrames.push(frame);
+      if (scene.faces.length <= 40) undersizedFrames.push(frame);
     }
+    expect(invalidFrames).toEqual([]);
+    expect(undersizedFrames).toEqual([]);
     expect(STAGES.map((s) => s.name)).toEqual([
       'Parts',
       'Observe',

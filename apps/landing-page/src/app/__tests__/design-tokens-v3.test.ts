@@ -19,6 +19,10 @@ const retained = [
   ...files(join(root, 'components/brand')),
   ...files(join(root, 'app/track-record')),
   join(root, 'app/globals.css'),
+  ...files(join(root, 'app/distribution')),
+  ...files(join(root, 'app/pitch')),
+  join(root, 'app/landing-v2.css'),
+  join(root, 'components/landing-v2/AppCtaLink.module.css'),
 ];
 const css = readFileSync(
   require.resolve('@zapengine/design-tokens/css/variables.css'),
@@ -47,4 +51,20 @@ it('defines every role used by retained routes and removes retired pigments and 
     );
     expect(source, retained[i]).not.toMatch(/\bcolor\s*:\s*var\(--sign\)/);
   }
+});
+
+it('keeps migrated distribution, pitch and CTA styles free of raw pigments', () => {
+  const paths = [
+    'app/distribution/distribution.css',
+    'app/pitch/pitch.css',
+    'app/landing-v2.css',
+    'components/landing-v2/AppCtaLink.module.css',
+  ];
+  for (const path of paths)
+    expect(readFileSync(join(root, path), 'utf8'), path).not.toMatch(
+      /#[\da-f]{3,8}\b|rgba?\(/i,
+    );
+  expect(
+    readFileSync(join(root, 'app/track-record/track-record.css'), 'utf8'),
+  ).toContain('color-scheme: light;');
 });

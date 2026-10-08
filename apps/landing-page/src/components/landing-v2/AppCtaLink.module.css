@@ -12,18 +12,18 @@
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgb(0 0 0 / 55%);
+  background: var(--scrim);
   backdrop-filter: blur(6px);
 }
 
 .dialog {
   width: min(100%, 440px);
-  border: 1px solid rgb(255 255 255 / 14%);
+  border: 1px solid var(--rule);
   border-radius: 20px;
   padding: 28px;
-  background: #111315;
-  color: #f7f7f5;
-  box-shadow: 0 24px 80px rgb(0 0 0 / 45%);
+  background: var(--sheet);
+  color: var(--ink);
+  box-shadow: var(--shadow-overlay);
 }
 
 .head {
@@ -52,7 +52,7 @@
 
 .copy {
   margin: 14px 0 22px;
-  color: rgb(247 247 245 / 68%);
+  color: var(--ink-2);
   line-height: 1.55;
 }
 
@@ -64,17 +64,17 @@
 .email {
   width: 100%;
   box-sizing: border-box;
-  border: 1px solid rgb(255 255 255 / 18%);
+  border: 1px solid var(--rule);
   border-radius: 12px;
   padding: 13px 14px;
-  background: rgb(255 255 255 / 7%);
+  background: var(--well);
   color: inherit;
   font: inherit;
   outline: none;
 }
 
 .email:focus {
-  border-color: rgb(255 255 255 / 50%);
+  border-color: var(--sign-ink);
 }
 
 .submit,
@@ -82,8 +82,8 @@
   border: 0;
   border-radius: 12px;
   padding: 13px 16px;
-  background: #f7f7f5;
-  color: #111315;
+  background: var(--sign);
+  color: var(--on-sign);
   font: inherit;
   font-weight: 700;
   cursor: pointer;
@@ -101,11 +101,11 @@
 }
 
 .note {
-  color: rgb(247 247 245 / 50%);
+  color: var(--ink-3);
 }
 
 .error {
-  color: #ffb0a8;
+  color: var(--alert);
 }
 
 .success {
@@ -120,7 +120,7 @@
 
 .success p {
   margin: 0;
-  color: rgb(247 247 245 / 68%);
+  color: var(--ink-2);
 }
 
 .honeypot {

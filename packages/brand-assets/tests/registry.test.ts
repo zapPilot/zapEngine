@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { ASSET_GLYPHS } from '../src/glyphs.js';
 import { readdirSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -140,4 +142,29 @@ describe('assets', () => {
       assetKeys('tokens').filter((key) => !registered.includes(key)),
     ).toEqual([]);
   });
+});
+
+it('derives every token color from the canonical sleeve palette', () => {
+  const sourceTokens = JSON.parse(
+    readFileSync(
+      new URL('../../design-tokens/tokens.json', import.meta.url),
+      'utf8',
+    ),
+  );
+  const roles = {
+    USDC: 'stable',
+    USDT: 'stable',
+    ETH: 'eth',
+    WETH: 'eth',
+    BTC: 'btc',
+    WBTC: 'btc',
+    CBBTC: 'btc',
+    SPY: 'spy',
+    ALT: 'alt',
+  };
+  for (const [symbol, role] of Object.entries(roles))
+    expect(TOKEN_BRAND[symbol as TokenBrandSymbol].color).toBe(
+      sourceTokens.sleeve.paper[role],
+    );
+  expect(Object.keys(ASSET_GLYPHS)).toEqual(['btc', 'eth', 'stable', 'spy']);
 });

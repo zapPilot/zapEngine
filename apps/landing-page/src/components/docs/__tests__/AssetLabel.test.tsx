@@ -8,7 +8,7 @@ describe('AssetLabel', () => {
     const { container } = render(<AssetLabel symbol="ETH" />);
 
     expect(screen.getByText('ETH')).toBeInTheDocument();
-    expect(container.querySelector('img')).toHaveAttribute('width', '16');
+    expect(container.querySelector('svg')).toHaveAttribute('width', '16');
   });
 
   it('honours an explicit label and icon size', () => {
@@ -17,7 +17,7 @@ describe('AssetLabel', () => {
     );
 
     expect(screen.getByText('Bitcoin')).toBeInTheDocument();
-    expect(container.querySelector('img')).toHaveAttribute('width', '24');
+    expect(container.querySelector('svg')).toHaveAttribute('width', '24');
   });
 });
 
@@ -26,9 +26,9 @@ describe('AssetPairLabel', () => {
     const { container } = render(<AssetPairLabel first="ETH" second="USDC" />);
 
     expect(screen.getByText('ETH / USDC')).toBeInTheDocument();
-    expect([...container.querySelectorAll('img')]).toHaveLength(2);
+    expect([...container.querySelectorAll('svg')]).toHaveLength(2);
     expect(
-      [...container.querySelectorAll('img')].every(
+      [...container.querySelectorAll('svg')].every(
         (image) => image.getAttribute('width') === '16',
       ),
     ).toBe(true);
@@ -46,7 +46,7 @@ describe('AssetPairLabel', () => {
 
     expect(screen.getByText('Bitcoin / Tether')).toBeInTheDocument();
     expect(
-      [...container.querySelectorAll('img')].every(
+      [...container.querySelectorAll('svg')].every(
         (image) => image.getAttribute('width') === '20',
       ),
     ).toBe(true);

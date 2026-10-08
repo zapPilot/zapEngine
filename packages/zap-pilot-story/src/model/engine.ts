@@ -1,3 +1,4 @@
+import type { Sleeve } from '../scenes/AssetGlyph.js';
 import {
   worldLength,
   wireBorder,
@@ -23,6 +24,8 @@ interface FaceInput {
   ta?: string;
   mask?: string;
   text?: string;
+  glyph?: Sleeve;
+  clip?: string;
 }
 interface BoxInput {
   op?: number;
@@ -48,6 +51,7 @@ interface BoxInput {
 }
 interface PinInput {
   op: number;
+  asset?: Sleeve;
   g?: string;
   tone?: string;
   stem?: number;
@@ -68,8 +72,11 @@ export interface EngineFace {
   ta: string;
   mask: string;
   text: string;
+  glyph?: Sleeve;
+  clip: string;
 }
 export interface EnginePin {
+  asset?: Sleeve;
   tf: string;
   op: string;
   t: string;
@@ -199,7 +206,14 @@ class EngineModel {
       'deg) scale(' +
       (1 / cam.s).toFixed(4) +
       ')';
-    const px = worldLength;
+    const lengths = new Map<number, string>();
+    const px = (units: number) => {
+      const cached = lengths.get(units);
+      if (cached !== undefined) return cached;
+      const value = worldLength(units);
+      lengths.set(units, value);
+      return value;
+    };
     const T3 = function (x: number, y: number, z: number) {
       return 'translate3d(' + px(x) + ',' + px(y) + ',' + px(z) + ')';
     };
@@ -226,6 +240,8 @@ class EngineModel {
         ta: o.ta || 'left',
         mask: o.mask || 'none',
         text: o.text || '',
+        glyph: o.glyph,
+        clip: o.clip || 'none',
       });
     };
     const box = function (
@@ -314,6 +330,109 @@ class EngineModel {
         });
       }
     };
+    const assetModel = (
+      asset: Sleeve,
+      x: number,
+      y: number,
+      z: number,
+      height: number,
+      op: number,
+    ) => {
+      if (op < 0.004) return;
+      const color = `var(--sleeve-${asset})`;
+      const material = {
+        op,
+        front: color,
+        top: `linear-gradient(135deg, color-mix(in srgb, ${color} 65%, var(--material-top)), ${color})`,
+        left: `color-mix(in srgb, ${color} 72%, var(--material-ink-left))`,
+      };
+      if (asset === 'spy') {
+        [0.55, 1, 0.72].forEach((scale, i) =>
+          box(
+            x + i * 0.8,
+            y,
+            z,
+            0.7,
+            2.4,
+            Math.max(0.15, height * scale),
+            material,
+          ),
+        );
+      } else if (asset === 'eth') {
+        const equator = [
+          [x, y],
+          [x + 2.4, y],
+          [x + 2.4, y + 2.4],
+          [x, y + 2.4],
+        ];
+        const slant = Math.hypot(height / 2, 1.2);
+        const tilt = (Math.atan2(height / 2, 1.2) * 180) / Math.PI;
+        equator.forEach(([sx, sy], side) => {
+          for (const direction of [-1, 1]) {
+            face({
+              w: 2.4,
+              h: slant,
+              tf:
+                T3(sx!, sy!, z + height / 2) +
+                ` rotateZ(${side * 90}deg) rotateX(${(tilt * direction).toFixed(4)}deg)`,
+              bg: direction > 0 ? material.top : material.left,
+              clip: 'polygon(0 0, 100% 0, 50% 100%)',
+              op,
+            });
+          }
+        });
+      } else {
+        const layers = 1;
+        const sides = asset === 'btc' ? 6 : 12;
+        for (let layer = 0; layer < layers; layer++) {
+          const base = z + (height * layer) / layers;
+          const thickness = Math.max(0.04, height / layers - 0.04);
+          for (let side = 0; side < sides; side++) {
+            const angle = (side * Math.PI * 2) / sides;
+            const next = ((side + 1) * Math.PI * 2) / sides;
+            const dx = Math.cos(next) - Math.cos(angle);
+            const dy = Math.sin(next) - Math.sin(angle);
+            face({
+              w: Math.hypot(dx, dy) * 1.2,
+              h: thickness,
+              tf:
+                T3(
+                  x + 1.2 + Math.cos(angle) * 1.2,
+                  y + 1.2 + Math.sin(angle) * 1.2,
+                  base + thickness,
+                ) +
+                ` rotateZ(${((Math.atan2(dy, dx) * 180) / Math.PI).toFixed(4)}deg) rotateX(-90deg)`,
+              bg:
+                asset === 'stable'
+                  ? `repeating-linear-gradient(to bottom, var(--material-edge) 0 1px, transparent 1px calc(${height / 6} * var(--zp-u))), ${side % 2 ? material.left : material.front}`
+                  : side % 2
+                    ? material.left
+                    : material.front,
+              op,
+            });
+          }
+          face({
+            w: 2.4,
+            h: 2.4,
+            tf: T3(x, y, base + thickness),
+            bg: material.top,
+            clip:
+              asset === 'btc'
+                ? 'polygon(100% 50%, 75% 93.3%, 25% 93.3%, 0 50%, 25% 6.7%, 75% 6.7%)'
+                : 'circle(50%)',
+            op,
+          });
+        }
+      }
+      face({
+        w: 2.4,
+        h: 2.4,
+        tf: T3(x, y, z + height + 0.06),
+        fg: 'var(--ink)',
+        glyph: asset,
+        op,
+      });
+    };
     const line3 = function (
       p: number[],
       q: number[],
@@ -366,6 +485,7 @@ class EngineModel {
         return;
       }
       L.push({
+        asset: o.asset,
         tf: T3(p[0]!, p[1]!, p[2]!) + bb + ' translate(-50%,-100%)',
         op: o.op.toFixed(3),
         t: title,
@@ -567,6 +687,15 @@ class EngineModel {
         tfw: 600,
         tpad: px(0.5) + ' ' + px(0.6),
       });
+      face({
+        w: 1.1,
+        h: 1.1,
+        tf: T3(-8.5, -18.8, pz + 0.73),
+        text: ['↘', '↗', '⇄', '∶', '↑', '↓'][i - 1]!,
+        fs: 0.95,
+        fg: i === 1 && f1 > 0.5 ? 'var(--ground)' : 'var(--ink)',
+        op: dim,
+      });
       const stt = fire > 0.5 ? (i === 1 ? 'fired' : 'skipped') : '';
       tag([-14, -17, pz + 0.35], String(i), RT[i - 1]!, stt, {
         op: tagOp * (i === 1 ? 1 : 1 - 0.45 * fire),
@@ -588,10 +717,20 @@ class EngineModel {
       const s0 = SRC[k]!;
       const hot = k === 1;
       const p0 = [s0[1]!, s0[2]!, s0[3]!];
-      box(s0[1]! - 1.1, s0[2]! - 1.1, s0[3]! - 0.45, 2.2, 2.2, 0.9, {
-        op: bo,
-        top: hot ? ink : 'var(--material-top)',
-      });
+      if (k < 3) {
+        assetModel(
+          (['spy', 'btc', 'eth'] as const)[k]!,
+          s0[1]! - 1.2,
+          s0[2]! - 1.2,
+          s0[3]! - 0.45,
+          1.4,
+          bo * sg(0.105 + k * 0.009, 0.14 + k * 0.009),
+        );
+      } else {
+        box(s0[1]! - 1.1, s0[2]! - 1.1, s0[3]! - 0.45, 2.2, 2.2, 0.9, {
+          op: bo,
+        });
+      }
       line3(p0, hub, hot ? ink : 'var(--ink-3)', bo * (hot ? 1 : 0.6));
       for (let j = 0; j < 3; j++) {
         const fr = (((amb * 0.32 + obs * 1.4 + j / 3 + k * 0.17) % 1) + 1) % 1;
@@ -627,17 +766,30 @@ class EngineModel {
     const TG = decision.target;
     const SL = ['btc', 'eth', 'spy', 'stable'];
     const heldOp = sg(0.42, 0.45) * (1 - sg(0.55, 0.6));
-    const pv = [];
     for (let m = 0; m < 4; m++) {
       const pct = C.lerp(HELD[m]!, TG[m]!, tgt);
-      pv.push(pct);
-      const cv = 'var(--sleeve-' + SL[m]! + ')';
-      box(-3 + m * 3, -25.4, top, 2.4, 2.4, Math.max(0.04, 0.11 * pct), {
-        top: 'color-mix(in srgb, ' + cv + ' 72%, #fff)',
-        front: cv,
-        left: 'color-mix(in srgb, ' + cv + ' 80%, #000)',
-        sh: 'none',
-      });
+      assetModel(
+        SL[m]! as Sleeve,
+        -3 + m * 3,
+        -25.4,
+        top,
+        Math.max(0.18, 0.11 * pct),
+        1,
+      );
+      pin(
+        [
+          -1.8 + m * 3,
+          -24.2,
+          top + Math.max(0.18, 0.11 * pct) + 1.1 + (m < 3 ? m * 1.5 : 0),
+        ],
+        SL[m]!.toUpperCase(),
+        pct.toFixed(2) + '%',
+        {
+          asset: SL[m]! as Sleeve,
+          op: sg(0.425, 0.455) * (1 - sg(0.53, 0.56)),
+          stem: 0.7 + (m < 3 ? m * 1.5 : 0),
+        },
+      );
       face({
         w: 2.4,
         h: 2.4,
@@ -646,19 +798,11 @@ class EngineModel {
         op: heldOp,
       });
     }
-    pin(
-      [2.7, -24.2, top + 11.2],
-      'TARGET',
-      'BTC ' +
-        pv[0]!.toFixed(2) +
-        ' · ETH ' +
-        pv[1]!.toFixed(2) +
-        ' · S&P ' +
-        pv[2]!.toFixed(2) +
-        ' · STABLES ' +
-        pv[3]!.toFixed(2),
-      { op: sg(0.425, 0.455) * (1 - sg(0.53, 0.56)), g: 'st-live', stem: 1.4 },
-    );
+    pin([2.7, -24.2, top + 11.2], 'TARGET', '', {
+      op: sg(0.425, 0.455) * (1 - sg(0.53, 0.56)),
+      g: 'st-live',
+      stem: 1.4,
+    });
 
     // plan: a wireframe tray, because rebalance plans are not built yet
     const pf = sg(0.525, 0.555) * (1 - sg(0.605, 0.635));
@@ -722,11 +866,7 @@ class EngineModel {
     });
     const GY = [2, 5.5, 9, 12.5];
     const GN = ['APPROVAL CAPPED', 'MINIMUM RECEIVED', 'SIMULATED'];
-    const GS = [
-      'capped to the amount',
-      'a floor on every swap',
-      'before it reaches you',
-    ];
+    const GS = ['◇', '⊥', '✓'];
     const GP = [
       [0.15, 0.3],
       [0.41, 0.56],

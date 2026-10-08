@@ -19,6 +19,8 @@ interface RecordedExit {
     price: { decimal: string };
     dma: { decimal: string };
   }[];
+  previous: RecordedExit['current'];
+  previousDate: string;
   allocation: { decimal: string }[];
 }
 
@@ -31,6 +33,8 @@ function targetPercent(
 
 export interface EngineDecision {
   date: string;
+  previousDate: string;
+  previousDmaDistance: Readonly<Record<string, number>>;
   /** Which assets crossed below their 200-day average that day. */
   observation: string;
   stablePercent: string;
@@ -39,6 +43,22 @@ export interface EngineDecision {
   dmaDistance: Readonly<Record<string, number>>;
   held: readonly number[];
   target: readonly number[];
+}
+
+function dmaDistances(
+  records: RecordedExit['current'],
+): Record<string, number> {
+  return Object.fromEntries(
+    records.map((asset) => [
+      asset.symbol,
+      Number(
+        (
+          (Number(asset.price.decimal) / Number(asset.dma.decimal) - 1) *
+          100
+        ).toFixed(2),
+      ),
+    ]),
+  );
 }
 
 export function engineDecision(): EngineDecision {
@@ -54,18 +74,10 @@ export function engineDecision(): EngineDecision {
   const target = example.expected.publishedTarget;
   return {
     date: example.date,
+    previousDate: example.previousDate,
+    previousDmaDistance: dmaDistances(example.previous),
     rule: ruleOf(example.publishedEvent.reason),
-    dmaDistance: Object.fromEntries(
-      example.current.map((asset) => [
-        asset.symbol,
-        Number(
-          (
-            (Number(asset.price.decimal) / Number(asset.dma.decimal) - 1) *
-            100
-          ).toFixed(2),
-        ),
-      ]),
-    ),
+    dmaDistance: dmaDistances(example.current),
     held: example.allocation.map((value) =>
       Number((Number(value.decimal) * 100).toFixed(2)),
     ),

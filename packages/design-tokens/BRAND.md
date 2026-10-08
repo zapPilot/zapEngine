@@ -17,15 +17,15 @@ The wordmark is Archivo at width 108 and weight 640. The lockup pairs its outlin
 | well         | #eaeae5 | #1c1d21 |
 | ink          | #111111 | #eeeeea |
 | ink-2        | #45453f | #b9b9b3 |
-| ink-3        | #686862 | #8e8e88 |
+| ink-3        | #5f5f59 | #989892 |
 | sign         | #2540f5 | #4058ff |
 | sign-ink     | #2540f5 | #9aa6ff |
-| up           | #117647 | #5bd18b |
-| down / alert | #b4361c | #ff7a66 |
+| up           | #0f6d41 | #5bd18b |
+| down / alert | #a83119 | #ff7a66 |
 
 Text uses ink roles or sign-ink. Sign pigment is reserved for each page's primary action, wallet identity/connection, signing, focus, selection and the needle. User charts use ink; sleeve colors identify assets. Never use sign as a text color.
 
-Paper/night sleeves identify SPY, stable, ETH, BTC and ALT. Their labels and positions accompany colors. Materials use top/front/left faces with separate edges, face inks, floor and shadow. They do not inherit sleeve pigments.
+Paper/night sleeves identify SPY, stable, ETH, BTC and ALT. Their labels and positions accompany colors. Materials use top/front/left faces with separate edges, face inks, floor and shadow. Neutral scene materials retain their own roles; asset models combine sleeve pigments with these material roles for face highlights and edges.
 
 Status conveys state by geometry: live is filled/solid, in-development is half/dashed, research is center-dot/dashed and planned is dashed-ring/dashed. Success uses ink with a filled glyph; caution uses ink-2 with rule-2 dashes. Alert is reserved for errors and destructive actions, while down describes numeric movement.
 
@@ -48,3 +48,5 @@ pnpm turbo run build test:coverage --filter=@zapengine/design-tokens
 ## Retired system
 
 The v2 champagne pigment #d4c5a3, Instrument Serif, Geist, JetBrains Mono, pillar/USD aliases, success/warning pigments, pill radius and springs are retired. Do not reintroduce legacy role names or compatibility aliases. The isolated KOKODE composition preserves its own established visual/motion contract. Control-center operational health colors are a documented host exception, with healthy/degraded labels and icons accompanying color.
+
+Stablecoin marks (USDC and USDT) map to `sleeve.stable`; the sleeve represents stablecoins collectively, not a promise of a specific holding.

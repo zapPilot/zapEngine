@@ -1,3 +1,4 @@
+import tokens from '@zapengine/design-tokens/tokens.json';
 import { ImageResponse } from 'next/og';
 import { MESSAGES } from '@/config/messages';
 import { PITCH_OG } from '@/config/pitch';
@@ -36,10 +37,8 @@ export default function PitchOpenGraphImage() {
         padding: '72px 80px',
         // Satori only accepts gradients in `backgroundImage` — bare colors via
         // `background` shorthand are rejected with "Invalid background image".
-        backgroundColor: '#0a0a0a',
-        backgroundImage:
-          'radial-gradient(ellipse 70% 38% at 78% 12%, rgba(212, 197, 163, 0.18), transparent 68%)',
-        color: '#f4f4f5',
+        backgroundColor: tokens.mode.paper.ground,
+        color: tokens.mode.paper.ink,
       }}
     >
       <div
@@ -54,17 +53,13 @@ export default function PitchOpenGraphImage() {
           height={32}
           alt=""
           src={`data:image/svg+xml,${encodeURIComponent(
-            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="4 4 56 56" fill="none">' +
-              '<g stroke="#d4c5a3" stroke-linecap="round">' +
-              '<path d="M16.5 49.5 A24 24 0 1 1 47.5 49.5" stroke-width="4.5"/>' +
-              '<line x1="32" y1="32" x2="42.5" y2="13.8" stroke-width="3.4"/></g>' +
-              '<circle cx="32" cy="32" r="3.6" fill="#d4c5a3"/></svg>',
+            `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none"><path d="${tokens.mark.layers[0]!.d}" stroke="${tokens.mode.paper.ink}" stroke-width="2.2"/><path d="${tokens.mark.layers[1]!.d}" stroke="${tokens.mode.paper.ink}" stroke-width="1.6"/><path d="${tokens.mark.layers[2]!.d}" stroke="${tokens.mode.paper['sign-ink']}" stroke-width="2.2"/><circle cx="16" cy="16" r="2.6" fill="${tokens.mode.paper.ink}"/></svg>`,
           )}`}
         />
         <span
           style={{
             fontSize: 20,
-            color: '#a1a1aa',
+            color: tokens.mode.paper['ink-2'],
             letterSpacing: 3,
           }}
         >
@@ -85,7 +80,7 @@ export default function PitchOpenGraphImage() {
             fontSize: 76,
             lineHeight: 1.04,
             fontWeight: 400,
-            color: '#f4f4f5',
+            color: tokens.mode.paper.ink,
           }}
         >
           {MESSAGES.common.brandLine}
@@ -93,7 +88,7 @@ export default function PitchOpenGraphImage() {
         <div
           style={{
             fontSize: 28,
-            color: '#d4c5a3',
+            color: tokens.mode.paper['sign-ink'],
             letterSpacing: 0.3,
           }}
         >
@@ -108,17 +103,17 @@ export default function PitchOpenGraphImage() {
                 alignItems: 'center',
                 gap: 10,
                 fontSize: 20,
-                color: '#f4f4f5',
+                color: tokens.mode.paper.ink,
               }}
             >
               <span
                 style={{
-                  border: '1px solid rgba(255, 255, 255, 0.24)',
+                  border: `1px solid ${tokens.mode.paper.rule}`,
                   borderRadius: 999,
                   padding: '2px 10px',
                   fontSize: 14,
                   letterSpacing: 1.5,
-                  color: '#a1a1aa',
+                  color: tokens.mode.paper['ink-2'],
                 }}
               >
                 {STATUS_LABEL[
@@ -137,7 +132,7 @@ export default function PitchOpenGraphImage() {
           justifyContent: 'space-between',
           alignItems: 'flex-end',
           fontSize: 18,
-          color: '#a1a1aa',
+          color: tokens.mode.paper['ink-2'],
         }}
       >
         <span>{PITCH_OG.url}</span>

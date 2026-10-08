@@ -1,3 +1,4 @@
+import { ASSET_GLYPHS } from '@zapengine/brand-assets/glyphs';
 import {
   CHAIN_BRAND,
   TOKEN_BRAND,
@@ -64,7 +65,7 @@ function GlyphDisc({
         alignItems: 'center',
         backgroundColor: color,
         borderRadius: '999px',
-        color: '#fff',
+        color: 'var(--ink)',
         display: 'inline-flex',
         flexShrink: 0,
         fontFamily: 'var(--font-text), Arial, sans-serif',
@@ -93,6 +94,41 @@ export function TokenIcon({
   const brand = brandSymbol ? TOKEN_BRAND[brandSymbol] : undefined;
   const source = brandSymbol ? TOKEN_ICON_SRC[brandSymbol] : undefined;
 
+  const sleeves: Partial<Record<string, keyof typeof ASSET_GLYPHS>> = {
+    BTC: 'btc',
+    WBTC: 'btc',
+    CBBTC: 'btc',
+    ETH: 'eth',
+    WETH: 'eth',
+    USDC: 'stable',
+    USDT: 'stable',
+    SPY: 'spy',
+  };
+  const sleeve = sleeves[brandSymbol ?? ''];
+  if (sleeve) {
+    return (
+      <svg
+        className="token-icon"
+        aria-hidden="true"
+        width={size}
+        height={size}
+        viewBox="0 0 24 24"
+        style={{
+          color: `var(--sleeve-${sleeve})`,
+          verticalAlign: 'text-bottom',
+        }}
+      >
+        <path
+          d={ASSET_GLYPHS[sleeve as keyof typeof ASSET_GLYPHS]}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    );
+  }
   if (source) {
     return (
       <span

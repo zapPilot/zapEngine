@@ -26,14 +26,18 @@
       "import": "./dist/protocols.js",
       "require": "./dist/protocols.js"
     },
-    "./assets/*": "./assets/*"
+    "./assets/*": "./assets/*",
+    "./glyphs": {
+      "types": "./dist/glyphs.d.ts",
+      "import": "./dist/glyphs.js"
+    }
   },
   "files": [
     "dist",
     "assets"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "node scripts/token-colors.mjs && prettier --write src/token-colors.ts && tsc",
     "dev": "tsc -p tsconfig.json --watch --preserveWatchOutput",
     "clean": "rm -rf dist",
     "rasterize": "node scripts/rasterize.mjs",

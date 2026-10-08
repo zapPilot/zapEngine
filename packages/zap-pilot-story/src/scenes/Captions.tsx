@@ -1,3 +1,4 @@
+import { SignalGraphic } from './SignalGraphic.js';
 import { clamp, easeInOutCubic, parseKinetic } from '@zapengine/story-kit';
 import { KineticText } from '@zapengine/story-kit/react';
 import { STAGES } from '../copy/beats.js';
@@ -29,7 +30,29 @@ export function Captions({ time }: { time: number }) {
           exit={beat.name === 'Status' ? true : undefined}
         />
       </h2>
-      <p className="zp-cap-s">{beat.sub}</p>
+      {beat.name === 'Observe' || beat.name === 'Target' ? (
+        <SignalGraphic target={beat.name === 'Observe' ? null : target} />
+      ) : (
+        <p className="zp-cap-s">{beat.sub}</p>
+      )}
+      {beat.name === 'Check' && (
+        <div className="zp-gate-icons" aria-hidden="true">
+          {[
+            'M12 2 3 6v6c0 5 9 10 9 10s9-5 9-10V6Z',
+            'M3 17h18M6 5v8l6 4 6-4V5',
+            'M3 3h18v18H3ZM7 12l3 3 7-7',
+          ].map((path) => (
+            <svg key={path} viewBox="0 0 24 24">
+              <path
+                d={path}
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              />
+            </svg>
+          ))}
+        </div>
+      )}
       {beat.name === 'Parts' && (
         <ul className="zp-crows">
           {(

@@ -1,3 +1,4 @@
+import { AssetGlyph } from './AssetGlyph.js';
 import type { CSSProperties } from 'react';
 import { engineScene } from '../model/engine.js';
 export function EngineWorld({
@@ -20,24 +21,28 @@ export function EngineWorld({
             <div
               key={i}
               className="zp-fc"
-              style={{
-                width: face.w,
-                height: face.h,
-                transform: face.tf,
-                background: face.bg,
-                border: face.bd,
-                borderRadius: face.rad,
-                opacity: Number(face.op),
-                boxShadow: face.sh,
-                color: face.fg,
-                fontSize: face.fs,
-                fontWeight: face.fw,
-                padding: face.pad,
-                textAlign: face.ta as CSSProperties['textAlign'],
-                WebkitMaskImage: face.mask,
-                maskImage: face.mask,
-              }}
+              style={
+                {
+                  width: face.w,
+                  height: face.h,
+                  transform: face.tf,
+                  '--zp-face-fill': face.bg,
+                  border: face.bd,
+                  borderRadius: face.rad,
+                  opacity: Number(face.op),
+                  boxShadow: face.sh,
+                  color: face.fg,
+                  fontSize: face.fs,
+                  fontWeight: face.fw,
+                  padding: face.pad,
+                  textAlign: face.ta as CSSProperties['textAlign'],
+                  WebkitMaskImage: face.mask,
+                  maskImage: face.mask,
+                  clipPath: face.clip,
+                } as CSSProperties
+              }
             >
+              {face.glyph && <AssetGlyph asset={face.glyph} />}
               {face.text}
             </div>
           ))}
@@ -149,7 +154,9 @@ export function EngineWorld({
                   .map((c) => `zp-${c}`)
                   .join(' ')}
               >
-                <span>{pin.t}</span>
+                <span>
+                  {pin.asset ? <AssetGlyph asset={pin.asset} /> : pin.t}
+                </span>
                 <span className="zp-blb-s">{pin.s}</span>
               </span>
               <span className="zp-blb-stem" style={{ height: pin.stem }} />

@@ -17,7 +17,7 @@ export declare const tokens: {
       readonly up: '#0f6d41';
       readonly down: '#a83119';
       readonly alert: '#a83119';
-      readonly 'alert-wash': 'rgba(180, 54, 28, 0.1)';
+      readonly 'alert-wash': 'rgba(168, 49, 25, 0.1)';
       readonly scrim: 'rgba(17, 17, 17, 0.4)';
     };
     readonly night: {
