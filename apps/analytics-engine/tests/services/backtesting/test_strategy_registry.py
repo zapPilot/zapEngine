@@ -72,7 +72,6 @@ def test_portfolio_rules_recipe_builds_compare_strategy() -> None:
 
     strategy = recipe.build_strategy(
         StrategyBuildRequest(
-            mode="compare",
             config_id="portfolio-rules-test",
             total_capital=10_000.0,
             params={"cross_cooldown_days": 30},

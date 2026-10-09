@@ -56,7 +56,6 @@ def test_recipe_compare_build_contract(recipe: StrategyRecipe) -> None:
     )
     strategy = recipe.build_strategy(
         StrategyBuildRequest(
-            mode="compare",
             config_id=f"{recipe.strategy_id}-test",
             total_capital=10_000.0,
             params=dict(default_params),
@@ -80,27 +79,6 @@ def test_recipe_capability_contract(recipe: StrategyRecipe) -> None:
     assert isinstance(recipe.market_data_requirements.requires_sentiment, bool)
     assert buckets.total_value == pytest.approx(10_000.0)
     assert buckets.allocation()["spot"] == pytest.approx(0.3)
-
-
-@pytest.mark.parametrize(
-    "recipe",
-    [recipe for recipe in list_strategy_recipes() if recipe.supports_daily_suggestion],
-    ids=_recipe_ids,
-)
-def test_daily_suggestion_recipe_build_contract(recipe: StrategyRecipe) -> None:
-    default_params = public_params_to_runtime_params(
-        recipe.strategy_id,
-        get_default_public_params(recipe.strategy_id),
-    )
-    strategy = recipe.build_strategy(
-        StrategyBuildRequest(
-            mode="daily_suggestion",
-            total_capital=10_000.0,
-            params=dict(default_params),
-        )
-    )
-
-    assert hasattr(strategy, "get_daily_recommendation")
 
 
 def test_market_data_requirements_merge_or_sentiment_and_union_price_features() -> None:

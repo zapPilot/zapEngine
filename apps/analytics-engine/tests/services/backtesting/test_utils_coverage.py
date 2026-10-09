@@ -11,7 +11,6 @@ from src.services.backtesting import utils
 from src.services.backtesting.response_utils import coerce_action, coerce_rule_group
 from src.services.backtesting.strategies.base import (
     BaseStrategy,
-    DailyRecommendationInput,
     StrategyContext,
 )
 from src.services.backtesting.utils.coercion import (
@@ -114,22 +113,6 @@ def test_coerce_rule_group_falls_back_to_none_for_unknown_value() -> None:
 # --- strategies/base.py coverage (lines 80, 108, 133, 145) ---
 
 
-def test_daily_recommendation_input_features_property() -> None:
-    """Line 80: DailyRecommendationInput.features accesses MarketFeatureSet."""
-    mock_portfolio = Mock()
-    inp = DailyRecommendationInput(
-        current_date=date(2025, 1, 1),
-        price=50_000.0,
-        portfolio=mock_portfolio,
-        price_history=[50_000.0],
-        sentiment_aggregates=[],
-        current_sentiment=None,
-        extra_data={"dma_200": 48_000.0},
-    )
-    features = inp.features
-    assert features.indicators.dma_200 == pytest.approx(48_000.0)
-
-
 def test_strategy_context_features_property() -> None:
     """Line 108: StrategyContext.features accesses MarketFeatureSet."""
     mock_portfolio = Mock()
@@ -158,19 +141,3 @@ def test_base_strategy_on_day_raises_not_implemented() -> None:
     )
     with pytest.raises(NotImplementedError):
         strategy.on_day(ctx)
-
-
-def test_base_strategy_get_daily_recommendation_raises_not_implemented() -> None:
-    """Line 145: BaseStrategy.get_daily_recommendation raises NotImplementedError."""
-    strategy = BaseStrategy()
-    mock_portfolio = Mock()
-    inp = DailyRecommendationInput(
-        current_date=date(2025, 1, 1),
-        price=50_000.0,
-        portfolio=mock_portfolio,
-        price_history=[],
-        sentiment_aggregates=[],
-        current_sentiment=None,
-    )
-    with pytest.raises(NotImplementedError):
-        strategy.get_daily_recommendation(inp)

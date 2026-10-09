@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass, replace
@@ -10,13 +12,16 @@ from typing import TYPE_CHECKING, Any
 
 from sqlalchemy.orm import Session
 
+from src.core.cache_service import analytics_cache, build_service_cache_key
 from src.models.backtesting import (
+    BacktestCompareConfigV3,
     BacktestCompareRequestV3,
     BacktestPeriodInfo,
     BacktestResponse,
     BacktestWindowInfo,
 )
 from src.models.market_data_freshness import MarketDataFreshness, StaleFeatureInfo
+from src.models.strategy_config import SavedStrategyConfig
 from src.models.validation_utils import normalize_asset_symbol
 from src.services.backtesting.composition import (
     ResolvedSavedStrategyConfig,
@@ -27,7 +32,11 @@ from src.services.backtesting.composition_catalog import (
     CompositionCatalog,
     get_default_composition_catalog,
 )
-from src.services.backtesting.constants import PRIMER_DAYS
+from src.services.backtesting.constants import (
+    MODEL_TOTAL_CAPITAL,
+    MODEL_WINDOW_DAYS,
+    PRIMER_DAYS,
+)
 from src.services.backtesting.data.data_provider import BacktestDataProvider
 from src.services.backtesting.execution.compare import (
     materialize_compare_request,
@@ -40,6 +49,7 @@ from src.services.backtesting.strategy_registry import (
     get_strategy_recipe,
 )
 from src.services.exceptions import MarketDataUnavailableError
+from src.services.strategy.backtesting_protocol import ModelReplay
 from src.services.strategy.strategy_config_store import (
     SeedStrategyConfigStore,
     StrategyConfigStore,
@@ -54,6 +64,12 @@ if TYPE_CHECKING:  # pragma: no cover -- type-only import, never executed
     from src.services.market.token_price_service import TokenPriceService
 
 logger = logging.getLogger(__name__)
+
+# Bump to invalidate cached replays after a change to how the model is replayed.
+MODEL_REPLAY_CACHE_VERSION = "v1"
+# The model decides once a day, so a short window keeps every user on one replay
+# without waiting for a server-side signal that the day's data has landed.
+MODEL_REPLAY_CACHE_TTL = timedelta(minutes=10)
 
 
 def _resolve_date_range(
@@ -432,6 +448,22 @@ def _clamp_dma_window(
     )
 
 
+@dataclass(frozen=True)
+class _CompareOutcome:
+    response: BacktestResponse
+    resolved_configs: list[ResolvedSavedStrategyConfig]
+
+
+def _config_fingerprint(saved_config: SavedStrategyConfig) -> str:
+    """Stable digest of everything that can change what a saved config does."""
+    payload = json.dumps(
+        saved_config.model_dump(mode="json"),
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(payload.encode()).hexdigest()[:16]
+
+
 class BacktestingService:
     def __init__(
         self,
@@ -610,9 +642,11 @@ class BacktestingService:
             data_freshness=data_freshness,
         )
 
-    async def run_compare_v3(
-        self, request: BacktestCompareRequestV3, config: RegimeConfig | None = None
-    ) -> BacktestResponse:
+    def _compare(
+        self,
+        request: BacktestCompareRequestV3,
+        config: RegimeConfig | None,
+    ) -> _CompareOutcome:
         effective_request, resolved_configs, _primary_asset = (
             _materialize_compare_market_scope_with_store(
                 request,
@@ -620,9 +654,80 @@ class BacktestingService:
                 composition_catalog=self.composition_catalog,
             )
         )
-        return self._run_with_prepared_data(
+        response = self._run_with_prepared_data(
             request=effective_request,
             resolved_configs=resolved_configs,
             runner=run_compare_v3_on_data,
             config=config,
+        )
+        return _CompareOutcome(response=response, resolved_configs=resolved_configs)
+
+    async def run_compare_v3(
+        self, request: BacktestCompareRequestV3, config: RegimeConfig | None = None
+    ) -> BacktestResponse:
+        return self._compare(request, config).response
+
+    def replay_model(self, saved_config_id: str, requested_end: date) -> ModelReplay:
+        """Replay a saved config over the model window and return its last bar.
+
+        Runs the same compare path the API and the published snapshot use, over
+        ``MODEL_WINDOW_DAYS`` days ending at ``requested_end``. The replay does
+        not depend on any user, so one cached run serves everyone.
+        """
+        saved_config = self.strategy_config_store.resolve_config(saved_config_id)
+        cache_key = build_service_cache_key(
+            self.__class__.__name__,
+            MODEL_REPLAY_CACHE_VERSION,
+            saved_config.config_id,
+            _config_fingerprint(saved_config),
+            requested_end.isoformat(),
+        )
+        return analytics_cache.get_or_compute(
+            cache_key,
+            lambda: self._replay_model(saved_config, requested_end),
+            ttl=MODEL_REPLAY_CACHE_TTL,
+        )
+
+    def _replay_model(
+        self,
+        saved_config: SavedStrategyConfig,
+        requested_end: date,
+    ) -> ModelReplay:
+        config_id = saved_config.config_id
+        outcome = self._compare(
+            BacktestCompareRequestV3(
+                token_symbol=saved_config.primary_asset,
+                start_date=requested_end - timedelta(days=MODEL_WINDOW_DAYS - 1),
+                end_date=requested_end,
+                total_capital=MODEL_TOTAL_CAPITAL,
+                configs=[
+                    BacktestCompareConfigV3(
+                        config_id=config_id,
+                        saved_config_id=config_id,
+                    )
+                ],
+            ),
+            None,
+        )
+        response = outcome.response
+        window = response.window
+        assert window is not None
+        resolved = outcome.resolved_configs[0]
+        max_lag_days = resolved.market_data_requirements.max_lag_days
+        effective_end = window.effective.end_date
+        if (requested_end - effective_end).days > max_lag_days:
+            raise MarketDataUnavailableError(
+                f"Market data lag exceeds {max_lag_days}-day tolerance "
+                f"for {resolved.strategy_id}",
+                missing_assets=[resolved.primary_asset],
+                # The newest date the data does reach, i.e. where it went stale.
+                oldest_data_date=effective_end,
+            )
+        last_point = response.timeline[-1]
+        return ModelReplay(
+            config_id=config_id,
+            window=window,
+            data_freshness=response.data_freshness,
+            market=last_point.market,
+            state=last_point.strategies[config_id],
         )

@@ -60,6 +60,22 @@ function buildValidSuggestion() {
         reason_code: 'within_tolerance',
         rule_group: 'dma_fgi',
       },
+      model: {
+        allocation: { btc: 0.6, eth: 0, spy: 0, stable: 0.4, alt: 0 },
+        window: {
+          requested: {
+            start_date: '2025-02-20',
+            end_date: '2026-07-03',
+            days: 499,
+          },
+          effective: {
+            start_date: '2025-02-20',
+            end_date: '2026-07-03',
+            days: 499,
+          },
+          truncated: false,
+        },
+      },
     },
   };
 }

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date
 from typing import Any
 
 from src.services.backtesting.decision import AllocationIntent
@@ -12,68 +11,14 @@ from src.services.backtesting.execution.contracts import (
     AllocationExecutor,
     ExecutionHints,
 )
-from src.services.backtesting.features import MarketDataRequirements
 from src.services.backtesting.portfolio_rules.base import DecisionPolicy
 from src.services.backtesting.signals.contracts import StatefulSignalComponent
 from src.services.backtesting.strategies.base import (
     BaseStrategy,
-    DailyRecommendationInput,
     StrategyAction,
     StrategyContext,
     StrategyResult,
 )
-from src.services.backtesting.utils import coerce_to_date, normalize_regime_label
-
-
-@dataclass(frozen=True)
-class _HistoricalSentimentEntry:
-    entry_date: date
-    label: str
-    value: int | None
-
-
-def _extract_sentiment_history_entries(
-    sentiment_aggregates: list[dict[str, Any]],
-) -> list[_HistoricalSentimentEntry]:
-    history: list[_HistoricalSentimentEntry] = []
-    for row in sentiment_aggregates:
-        raw_date = row.get("snapshot_date") or row.get("date")
-        if not raw_date:
-            continue
-        entry_date = coerce_to_date(raw_date)
-        if entry_date is None:
-            continue
-        label = (
-            row.get("primary_classification")
-            or row.get("avg_label")
-            or row.get("label")
-            or "neutral"
-        )
-        raw_value = row.get("avg_sentiment", row.get("value"))
-        try:
-            value = None if raw_value is None else int(raw_value)
-        except (TypeError, ValueError):
-            value = None
-        history.append(
-            _HistoricalSentimentEntry(
-                entry_date=entry_date,
-                label=normalize_regime_label(str(label)),
-                value=value,
-            )
-        )
-    history.sort(key=lambda item: item.entry_date)
-    return history
-
-
-def _default_sentiment_payload(
-    *,
-    label: str | None,
-    value: int | None,
-) -> dict[str, Any]:
-    return {
-        "label": "neutral" if label is None else normalize_regime_label(label),
-        "value": 50 if value is None else int(value),
-    }
 
 
 @dataclass
@@ -184,144 +129,6 @@ class ComposedSignalStrategy(BaseStrategy):
 
     def finalize(self) -> StrategyResult:
         return StrategyResult(metrics={})
-
-    @staticmethod
-    def _extract_sentiment_history_entries(
-        sentiment_aggregates: list[dict[str, Any]],
-    ) -> list[_HistoricalSentimentEntry]:
-        return _extract_sentiment_history_entries(sentiment_aggregates)
-
-    @property
-    def regime_history(self) -> list[str]:
-        history = getattr(self.signal_component, "_regime_history", [])
-        return list(history)
-
-    def get_daily_recommendation(
-        self,
-        input_data: DailyRecommendationInput,
-    ) -> StrategyAction:
-        history_entries = _extract_sentiment_history_entries(
-            input_data.sentiment_aggregates
-        )
-        history_by_date = {
-            entry.entry_date: _default_sentiment_payload(
-                label=entry.label,
-                value=entry.value,
-            )
-            for entry in history_entries
-        }
-        current_sentiment = self._resolve_current_sentiment(
-            input_data=input_data,
-            history_by_date=history_by_date,
-        )
-        recommendation_context = self._build_recommendation_context(
-            input_data=input_data,
-            context_date=input_data.current_date,
-            price=input_data.price,
-            sentiment=current_sentiment,
-            price_map=dict(input_data.price_map),
-            extra_data=dict(input_data.extra_data),
-        )
-        self.initialize(input_data.portfolio, None, recommendation_context)
-        for warmup_context in self._build_warmup_contexts(
-            input_data=input_data,
-            history_by_date=history_by_date,
-        ):
-            self.warmup_day(warmup_context)
-        return self.on_day(recommendation_context)
-
-    def _build_warmup_contexts(
-        self,
-        *,
-        input_data: DailyRecommendationInput,
-        history_by_date: dict[date, dict[str, Any]],
-    ) -> list[StrategyContext]:
-        requirements = getattr(
-            self.signal_component,
-            "market_data_requirements",
-            MarketDataRequirements(),
-        )
-        fallback_sentiment = (
-            _default_sentiment_payload(
-                label=input_data.fallback_regime,
-                value=input_data.fallback_sentiment_value,
-            )
-            if requirements.requires_sentiment
-            else None
-        )
-        warmup_dates = sorted(
-            warmup_date
-            for warmup_date in (
-                set(input_data.warmup_price_by_date)
-                | set(input_data.warmup_extra_data_by_date)
-                | set(history_by_date)
-            )
-            if warmup_date < input_data.current_date
-        )
-        contexts: list[StrategyContext] = []
-        for warmup_date in warmup_dates:
-            contexts.append(
-                self._build_recommendation_context(
-                    input_data=input_data,
-                    context_date=warmup_date,
-                    price=input_data.warmup_price_by_date.get(
-                        warmup_date, input_data.price
-                    ),
-                    sentiment=history_by_date.get(warmup_date, fallback_sentiment),
-                    price_map=dict(
-                        input_data.warmup_price_map_by_date.get(
-                            warmup_date,
-                            input_data.price_map,
-                        )
-                    ),
-                    extra_data=dict(
-                        input_data.warmup_extra_data_by_date.get(warmup_date, {})
-                    ),
-                )
-            )
-        return contexts
-
-    def _resolve_current_sentiment(
-        self,
-        *,
-        input_data: DailyRecommendationInput,
-        history_by_date: dict[date, dict[str, Any]],
-    ) -> dict[str, Any] | None:
-        if input_data.current_sentiment and input_data.current_sentiment.get("label"):
-            return dict(input_data.current_sentiment)
-        if input_data.current_date in history_by_date:
-            return dict(history_by_date[input_data.current_date])
-        requirements = getattr(
-            self.signal_component,
-            "market_data_requirements",
-            MarketDataRequirements(),
-        )
-        if not requirements.requires_sentiment:
-            return None
-        return _default_sentiment_payload(
-            label=input_data.fallback_regime,
-            value=input_data.fallback_sentiment_value,
-        )
-
-    @staticmethod
-    def _build_recommendation_context(
-        *,
-        input_data: DailyRecommendationInput,
-        context_date: date,
-        price: float,
-        sentiment: dict[str, Any] | None,
-        price_map: dict[str, float],
-        extra_data: dict[str, Any],
-    ) -> StrategyContext:
-        return StrategyContext(
-            date=context_date,
-            price=price,
-            sentiment=sentiment,
-            price_history=input_data.price_history,
-            portfolio=input_data.portfolio,
-            price_map=dict(price_map),
-            extra_data=extra_data,
-        )
 
     def _execute(
         self,

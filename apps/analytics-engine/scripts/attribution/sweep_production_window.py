@@ -15,7 +15,11 @@ import httpx
 from scripts.attribution._helpers import _metric
 from scripts.landing.equity_curve import generate as generate_landing_equity_curve
 from src.config.strategy_presets import get_default_seed_strategy_config
-from src.services.backtesting.constants import STRATEGY_DISPLAY_NAMES
+from src.services.backtesting.constants import (
+    MODEL_TOTAL_CAPITAL,
+    MODEL_WINDOW_DAYS,
+    STRATEGY_DISPLAY_NAMES,
+)
 from src.services.backtesting.strategy_registry import (
     get_strategy_recipe,
     list_strategy_recipes,
@@ -25,8 +29,8 @@ APP_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_ENDPOINT = "http://localhost:8001"
 COMPARE_PATH = "/api/v3/backtesting/compare"
 DEFAULT_REFERENCE_DATE = "2026-04-15"
-DEFAULT_WINDOW_DAYS = 500
-DEFAULT_TOTAL_CAPITAL = 10_000.0
+DEFAULT_WINDOW_DAYS = MODEL_WINDOW_DAYS
+DEFAULT_TOTAL_CAPITAL = MODEL_TOTAL_CAPITAL
 DEFAULT_SNAPSHOT_PATH = (
     APP_ROOT / "tests/fixtures/strategy_performance_snapshot_500d.json"
 )

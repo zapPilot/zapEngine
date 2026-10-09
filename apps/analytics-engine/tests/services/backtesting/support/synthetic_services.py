@@ -6,7 +6,7 @@ fetch -> window -> compare path runs without a database.
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from types import SimpleNamespace
 from typing import Any
 
@@ -21,6 +21,10 @@ from src.services.backtesting.features import (
 )
 from src.services.backtesting.lab.synthetic import SyntheticMarket
 from src.services.strategy.backtesting_service import BacktestingService
+
+
+def _as_datetime(value: datetime | str) -> datetime:
+    return datetime.fromisoformat(value) if isinstance(value, str) else value
 
 
 def _in_range(row_date: date, start: date | None, end: date | None) -> bool:
@@ -100,7 +104,11 @@ class SyntheticMarketServices:
             row["date"]: {
                 "ratio": row["extra_data"][ETH_BTC_RATIO_FEATURE],
                 "dma_200": row["extra_data"][ETH_BTC_RATIO_DMA_200_FEATURE],
-                "is_above_dma": row["extra_data"][ETH_BTC_RATIO_IS_ABOVE_DMA_FEATURE],
+                "is_above_dma": row["extra_data"].get(
+                    ETH_BTC_RATIO_IS_ABOVE_DMA_FEATURE,
+                    row["extra_data"][ETH_BTC_RATIO_FEATURE]
+                    > row["extra_data"][ETH_BTC_RATIO_DMA_200_FEATURE],
+                ),
             }
             for row in self.market.prices
             if _in_range(row["date"], start_date, end_date)
@@ -147,7 +155,9 @@ class SyntheticMarketServices:
             SimpleNamespace(
                 value=entry["value"],
                 status=str(entry["label"]).replace("_", " ").title(),
-                timestamp=entry["timestamp"],
+                # Validation-event fixtures carry ISO strings, generated markets
+                # carry datetimes.
+                timestamp=_as_datetime(entry["timestamp"]),
             )
             for entry_date, entry in self.market.sentiments.items()
             if _in_range(entry_date, start_time, end_time)

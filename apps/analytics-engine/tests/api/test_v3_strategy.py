@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import cast
 from uuid import UUID
 
@@ -16,6 +16,8 @@ from src.main import app
 from src.models.backtesting import (
     Allocation,
     AssetAllocation,
+    BacktestPeriodInfo,
+    BacktestWindowInfo,
     MarketSnapshot,
     SignalState,
     TargetAllocation,
@@ -23,6 +25,7 @@ from src.models.backtesting import (
 from src.models.strategy import (
     DailySuggestionActionState,
     DailySuggestionContextState,
+    DailySuggestionModelState,
     DailySuggestionPortfolioState,
     DailySuggestionResponse,
     DailySuggestionStrategyContextState,
@@ -119,6 +122,13 @@ def _ensure_strategy_saved_configs_table(session: Session) -> None:
     session.commit()
 
 
+_MODEL_WINDOW = BacktestPeriodInfo(
+    start_date=date(2025, 1, 1),
+    end_date=date(2026, 5, 15),
+    days=499,
+)
+
+
 def _daily_response() -> DailySuggestionResponse:
     return DailySuggestionResponse(
         as_of=datetime.now(UTC),
@@ -188,6 +198,19 @@ def _daily_response() -> DailySuggestionResponse:
                 reason_code="above_greed_sell",
                 rule_group="dma_fgi",
                 details={},
+            ),
+            model=DailySuggestionModelState(
+                allocation=AssetAllocation(
+                    btc=0.0,
+                    eth=0.0,
+                    spy=0.0,
+                    stable=1.0,
+                    alt=0.0,
+                ),
+                window=BacktestWindowInfo(
+                    requested=_MODEL_WINDOW,
+                    effective=_MODEL_WINDOW,
+                ),
             ),
         ),
     )
@@ -525,6 +548,8 @@ async def test_get_daily_suggestion_returns_shared_snapshot_shape(
     assert parsed.action.required is False
     assert parsed.action.kind is None
     assert parsed.action.reason_code == "interval_wait"
+    assert parsed.context.model.allocation.stable == pytest.approx(1.0)
+    assert parsed.context.model.window.requested.days == 499
     body = cast(dict[str, object], response.json())
     assert "decision" not in body
     assert "user_action" not in body

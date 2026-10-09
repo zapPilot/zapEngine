@@ -38,7 +38,6 @@ from src.services.backtesting.strategies.rule_based_portfolio import (
     RuleBasedPortfolioStrategy,
 )
 
-StrategyBuildMode = Literal["compare", "daily_suggestion"]
 ParamFamily = Literal["dma", "none"]
 PublicParamNormalizer = Callable[[dict[str, Any]], dict[str, Any]]
 StrategyBuilder = Callable[["StrategyBuildRequest"], BaseStrategy]
@@ -47,7 +46,6 @@ InitialAllocationBuilder = Callable[..., dict[str, float]]
 
 @dataclass(frozen=True)
 class StrategyBuildRequest:
-    mode: StrategyBuildMode
     total_capital: float
     params: dict[str, Any] = field(default_factory=dict)
     config_id: str | None = None
@@ -60,13 +58,7 @@ class StrategyBuildRequest:
         return self.config_id or ""
 
 
-def _require_compare_mode(request: StrategyBuildRequest) -> None:
-    if request.mode != "compare":
-        raise ValueError("This strategy does not support daily suggestion mode")
-
-
 def _require_compare_runtime_inputs(request: StrategyBuildRequest) -> None:
-    _require_compare_mode(request)
     if request.initial_allocation is None or request.user_start_date is None:
         raise ValueError(
             "Compare strategy build requires initial allocation and start date"
@@ -149,13 +141,9 @@ def _build_portfolio_rules_strategy(
 ) -> BaseStrategy:
     params = DmaGatedFgiParams.from_public_params(request.params)
     strategy_id = request.resolved_config_id or STRATEGY_DMA_FGI_PORTFOLIO_RULES
-    initial_asset_allocation = (
-        _build_compare_price_row_initial_asset_allocation(
-            request,
-            build_initial_flat_minimum_asset_allocation,
-        )
-        if request.mode == "compare"
-        else None
+    initial_asset_allocation = _build_compare_price_row_initial_asset_allocation(
+        request,
+        build_initial_flat_minimum_asset_allocation,
     )
     return RuleBasedPortfolioStrategy(
         total_capital=request.total_capital,

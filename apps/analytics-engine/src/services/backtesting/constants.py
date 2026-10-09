@@ -3,6 +3,11 @@
 from __future__ import annotations
 
 PRIMER_DAYS = 7
+# The model window: the live suggestion, the published snapshot and the daily
+# backtest refresh all replay this many days ending at a reference date, so the
+# strategy a user is told to follow is the one the track record was measured on.
+MODEL_WINDOW_DAYS = 500
+MODEL_TOTAL_CAPITAL = 10_000.0
 REGIME_ORDER = ["extreme_fear", "fear", "neutral", "greed", "extreme_greed"]
 
 ALLOCATION_STATES = {

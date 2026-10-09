@@ -269,18 +269,6 @@ class TestRegistryConfigDecisionGaps:
             "name": None,
         }
 
-    def test_allocation_executor_seed_trade_dates_is_noop(self) -> None:
-        from datetime import date as date_cls
-
-        from src.services.backtesting.execution.allocation_intent_executor import (
-            AllocationIntentExecutor,
-        )
-
-        # Line allocation_intent_executor.py:96 — history flows via plugins only.
-        executor = AllocationIntentExecutor()
-        executor.seed_trade_dates([date_cls(2026, 1, 1)])
-        assert executor.last_trade_date is None
-
     def test_apply_buy_strength_leaves_non_buy_unchanged(self) -> None:
         from src.services.backtesting.execution.pacing.base import (
             RebalancePacingInputs,
@@ -305,21 +293,6 @@ class TestRegistryConfigDecisionGaps:
             {"borrow": {"bad": "shape"}},  # type: ignore[dict-item]
         )
         assert portfolio.debt_balance == 50.0
-
-    def test_rule_based_executor_empty_deltas_at_target(self) -> None:
-        from src.services.backtesting.execution.rule_based.allocation_executor import (
-            RuleBasedAllocationExecutor,
-        )
-
-        # Line allocation_executor.py:114 — no deltas means already at target.
-        assert RuleBasedAllocationExecutor._is_effectively_at_target({}) is True
-        assert (
-            RuleBasedAllocationExecutor._is_effectively_at_target({"btc": 1e-9}) is True
-        )
-        assert (
-            RuleBasedAllocationExecutor._is_effectively_at_target({"btc": 0.01})
-            is False
-        )
 
     def test_cross_up_equal_weight_has_no_public_params_section(self) -> None:
         from src.services.backtesting.portfolio_rules.cross_up_equal_weight import (
@@ -717,79 +690,6 @@ class TestMetricsAndRuleBoundaries:
                 {"config_id": "c2", "strategy_id": "dca_classic", "params": {}}
             )
             assert out["params"] == {"flat": 1}
-
-    def test_daily_suggestion_response_lazy_states(self) -> None:
-        from datetime import UTC
-        from datetime import datetime as dt_cls
-
-        from src.models.backtesting import (
-            Allocation,
-            AssetAllocation,
-            MarketSnapshot,
-            SignalState,
-            TargetAllocation,
-        )
-        from src.models.strategy import (
-            DailySuggestionActionState,
-            DailySuggestionContextState,
-            DailySuggestionPortfolioState,
-            DailySuggestionResponse,
-            DailySuggestionStrategyContextState,
-            DailySuggestionTargetState,
-        )
-
-        # Lines models/strategy.py:88,101 — lazy decision/execution states.
-        response = DailySuggestionResponse(
-            as_of=dt_cls(2026, 1, 1, tzinfo=UTC),
-            config_id="c1",
-            config_display_name="C1",
-            strategy_id="dca_classic",
-            action=DailySuggestionActionState(
-                status="no_action",
-                required=False,
-                kind=None,
-                reason_code="flat",
-                transfers=[],
-            ),
-            context=DailySuggestionContextState(
-                market=MarketSnapshot(
-                    date=dt_cls(2026, 1, 1, tzinfo=UTC).date(),
-                    token_price={"btc": 100.0},
-                    sentiment=None,
-                    sentiment_label=None,
-                ),
-                signal=SignalState(
-                    id="dma_fgi_portfolio_rules_signal",
-                    regime="neutral",
-                    confidence=0.5,
-                ),
-                portfolio=DailySuggestionPortfolioState(
-                    spot_usd=50.0,
-                    stable_usd=50.0,
-                    total_value=100.0,
-                    total_assets_usd=100.0,
-                    total_debt_usd=0.0,
-                    total_net_usd=100.0,
-                    allocation=Allocation(spot=0.5, stable=0.5),
-                    asset_allocation=AssetAllocation(
-                        btc=0.5, eth=0.0, spy=0.0, stable=0.5, alt=0.0
-                    ),
-                ),
-                target=DailySuggestionTargetState(
-                    allocation=TargetAllocation(
-                        btc=0.5, eth=0.0, spy=0.0, stable=0.5, alt=0.0
-                    )
-                ),
-                strategy=DailySuggestionStrategyContextState(
-                    stance="hold",
-                    reason_code="flat",
-                    rule_group="none",
-                    details={},
-                ),
-            ),
-        )
-        assert response.decision.action == "hold"
-        assert response.execution.status == "no_action"
 
 
 class TestBootstrapYieldRouterGaps:
@@ -1390,95 +1290,6 @@ class TestCompositionGaps:
             catalog=catalog,
         )
         catalog.resolve_plugin_factory.assert_called_once_with("p1")
-
-
-class TestDailySuggestionGaps:
-    def test_macro_service_missing_fails_closed(self) -> None:
-        from datetime import date as date_cls
-        from unittest.mock import Mock, patch
-
-        import pytest
-
-        from src.services.backtesting.features import MarketDataRequirements
-        from src.services.exceptions import MarketDataUnavailableError
-        from src.services.strategy.strategy_daily_suggestion_service import (
-            StrategyDailySuggestionService,
-        )
-
-        # Line 394 — macro requirement without a service fails closed.
-        service = StrategyDailySuggestionService.__new__(StrategyDailySuggestionService)
-        service.token_price_service = Mock()
-        service.stock_price_service = Mock()
-        service.macro_fear_greed_service = None
-        requirements = Mock(spec=MarketDataRequirements)
-        requirements.requires_macro_fear_greed = True
-        with patch(
-            "src.services.strategy.strategy_daily_suggestion_service.resolve_price_feature_history",
-            return_value={},
-        ):
-            with pytest.raises(MarketDataUnavailableError, match="not configured"):
-                service._load_required_market_features_by_date(
-                    resolved_config=Mock(primary_asset="BTC"),
-                    market_data_requirements=requirements,
-                    current_date=date_cls(2026, 1, 2),
-                    history_start=date_cls(2026, 1, 1),
-                )
-
-    def test_seed_history_loads_guards_and_plugins(self) -> None:
-        from datetime import date as date_cls
-        from unittest.mock import Mock
-        from uuid import uuid4
-
-        from src.services.backtesting.execution.trade_quota_guard_plugin import (
-            TradeQuotaGuardExecutionPlugin,
-        )
-        from src.services.strategy.strategy_daily_suggestion_service import (
-            StrategyDailySuggestionService,
-        )
-
-        # Lines 638,640,651 — quota guards extend lookback; plugins load dates.
-        # NOTE: history plugins are filtered by runtime_checkable
-        # TradeHistoryAwareExecutionPlugin, which Mock does not satisfy —
-        # use a real quota-guard plugin here.
-        service = StrategyDailySuggestionService.__new__(StrategyDailySuggestionService)
-        history_plugin = TradeQuotaGuardExecutionPlugin(max_trades_7d=2)
-        execution_engine = Mock()
-        execution_engine.plugins = (history_plugin,)
-        guard_7d = Mock()
-        guard_7d.min_trade_interval_days = None
-        guard_7d.max_trades_7d = 2
-        guard_7d.max_trades_30d = 5
-        decision_policy = Mock()
-        decision_policy.risk_guards = (guard_7d,)
-        strategy = Mock()
-        strategy.execution_engine = execution_engine
-        strategy.decision_policy = decision_policy
-        service.trade_history_store = Mock()
-        service.trade_history_store.list_trade_dates.return_value = [
-            date_cls(2026, 1, 1)
-        ]
-        service._seed_trade_history_plugins(
-            strategy=strategy,
-            user_id=uuid4(),
-            current_date=date_cls(2026, 1, 5),
-        )
-        assert history_plugin._trade_dates == [date_cls(2026, 1, 1)]
-        execution_engine.seed_trade_dates.assert_called_once()
-
-    def test_coerce_portfolio_total_edges(self) -> None:
-        from src.services.strategy.strategy_daily_suggestion_service import (
-            StrategyDailySuggestionService,
-        )
-
-        coerce = StrategyDailySuggestionService._coerce_portfolio_total
-        # Line 693 — None/bool fall back.
-        assert coerce(value=None, fallback=1.5) == 1.5
-        assert coerce(value=True, fallback=1.5) == 1.5
-        # Line 695 — non-numeric types fall back.
-        assert coerce(value=object(), fallback=2.5) == 2.5
-        # Lines 698-699 — unparseable numeric strings fall back.
-        assert coerce(value="not-a-number", fallback=3.5) == 3.5
-        assert coerce(value="2.0", fallback=0.0) == 2.0
 
 
 class TestFinalThreeLines:

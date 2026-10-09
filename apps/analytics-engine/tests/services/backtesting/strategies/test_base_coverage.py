@@ -42,8 +42,6 @@ def test_base_strategy_default_hooks_are_noops_or_raise() -> None:
 
     with pytest.raises(NotImplementedError):
         strategy.on_day(context)
-    with pytest.raises(NotImplementedError):
-        strategy.get_daily_recommendation(object())  # type: ignore[arg-type]
 
 
 def test_base_strategy_record_day_appends_default_daily_record() -> None:

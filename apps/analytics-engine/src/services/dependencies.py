@@ -424,36 +424,17 @@ BacktestingServiceDep = Annotated[
 def get_strategy_daily_suggestion_service(
     db: Session = Depends(get_db),
     landing_page_service: LandingPageService = Depends(get_landing_page_service),
-    regime_tracking_service: RegimeTrackingService = Depends(
-        get_regime_tracking_service
-    ),
-    sentiment_service: SentimentDatabaseService = Depends(
-        get_sentiment_database_service
-    ),
-    token_price_service: TokenPriceService = Depends(get_token_price_service),
+    backtesting_service: BacktestingServiceProtocol = Depends(get_backtesting_service),
     canonical_snapshot_service: CanonicalSnapshotService = Depends(
         get_canonical_snapshot_service
     ),
-    stock_price_service: StockPriceService = Depends(get_stock_price_service),
-    macro_fear_greed_service: MacroFearGreedDatabaseService = Depends(
-        get_macro_fear_greed_database_service
-    ),
 ) -> StrategyDailySuggestionService:
     """Create StrategyDailySuggestionService with dependency injection."""
-    from src.services.strategy.strategy_trade_history_store import (
-        StrategyTradeHistoryStore,
-    )
-
     return StrategyDailySuggestionService(
         landing_page_service=landing_page_service,
-        regime_tracking_service=regime_tracking_service,
-        sentiment_service=sentiment_service,
-        token_price_service=token_price_service,
+        backtesting_service=backtesting_service,
         canonical_snapshot_service=canonical_snapshot_service,
         strategy_config_store=StrategyConfigStore(db),
-        trade_history_store=StrategyTradeHistoryStore(db),
-        stock_price_service=stock_price_service,
-        macro_fear_greed_service=macro_fear_greed_service,
     )
 
 

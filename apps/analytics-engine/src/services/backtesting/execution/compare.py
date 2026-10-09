@@ -42,7 +42,6 @@ def build_compare_strategies_from_resolved_configs(
     for config in configs:
         strategy = config.build_strategy(
             StrategyBuildRequest(
-                mode="compare",
                 total_capital=total_capital,
                 params=dict(config.public_params),
                 config_id=config.request_config_id,
@@ -84,7 +83,6 @@ def run_compare_v3_on_data(
             recipe = get_strategy_recipe(config_item.strategy_id)
             strategy = recipe.build_strategy(
                 StrategyBuildRequest(
-                    mode="compare",
                     total_capital=request.total_capital,
                     params=dict(config_item.params),
                     config_id=config_item.config_id,

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import date
 
 import pytest
@@ -8,6 +9,7 @@ from src.config.strategy_presets import (
     DMA_FGI_PORTFOLIO_RULES_CONFIG_ID,
     resolve_seed_strategy_config,
 )
+from src.models.backtesting import BacktestCompareConfigV3, BacktestCompareRequestV3
 from src.models.strategy_config import (
     SavedStrategyConfig,
     StrategyComponentRef,
@@ -21,6 +23,7 @@ from src.services.backtesting.composition_catalog import (
     StrategyFamilySpec,
     build_default_composition_catalog,
 )
+from src.services.backtesting.execution.compare import run_compare_v3_on_data
 from src.services.backtesting.features import DMA_200_FEATURE, ETH_DMA_200_FEATURE
 from src.services.backtesting.strategies.rule_based_portfolio import (
     RuleBasedPortfolioStrategy,
@@ -53,7 +56,6 @@ def test_resolved_seed_portfolio_rules_strategy_uses_rule_based_builder() -> Non
 
     strategy = resolved.build_strategy(
         StrategyBuildRequest(
-            mode="compare",
             total_capital=10_000.0,
             config_id=resolved.request_config_id,
             user_prices=[
@@ -85,6 +87,46 @@ def test_registered_mock_family_resolves_with_injected_catalog() -> None:
     assert resolved.strategy_id == MOCK_COMPOSED_STRATEGY_ID
     assert resolved.summary_signal_id == "mock_signal"
     assert resolved.market_data_requirements.requires_sentiment is False
+
+
+def test_composed_family_saved_config_runs_through_the_compare_engine() -> None:
+    saved_config = build_mock_saved_config(config_id="mock_family_saved")
+    resolved = replace(
+        resolve_saved_strategy_config(
+            saved_config, catalog=build_mock_composed_catalog()
+        ),
+        request_config_id="mock_family_saved",
+    )
+    day = date(2025, 1, 10)
+    request = BacktestCompareRequestV3(
+        token_symbol="BTC",
+        start_date=day,
+        end_date=day,
+        total_capital=10_000.0,
+        configs=[
+            BacktestCompareConfigV3(
+                config_id="mock_family_saved",
+                saved_config_id=saved_config.config_id,
+            )
+        ],
+    )
+
+    response = run_compare_v3_on_data(
+        prices=[
+            {"date": date(2025, 1, 9), "price": 99_500.0},
+            {"date": day, "price": 100_000.0},
+        ],
+        sentiments={},
+        request=request,
+        user_start_date=day,
+        resolved_configs=[resolved],
+    )
+
+    state = response.timeline[0].strategies["mock_family_saved"]
+    assert state.decision.reason == "mock family hold"
+    assert state.signal is not None
+    assert state.signal.id == "mock_signal"
+    assert response.strategies["mock_family_saved"].parameters == {}
 
 
 def test_registered_mock_family_reports_missing_slot_from_family_spec() -> None:

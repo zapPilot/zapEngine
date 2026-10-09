@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import {
   DailySuggestionActionSchema,
   DailySuggestionActionStatusSchema,
+  DailySuggestionContextSchema,
+  DailySuggestionModelSchema,
   DailySuggestionResponseSchema,
   DailySuggestionStrategyContextSchema,
 } from '../../../src/strategy/suggestion.js';
@@ -81,6 +83,35 @@ describe('DailySuggestionStrategyContextSchema', () => {
         rule_group: 'made-up',
       }).success,
     ).toBe(false);
+  });
+});
+
+describe('DailySuggestionModelSchema', () => {
+  const period = {
+    start_date: '2025-02-20',
+    end_date: '2026-07-03',
+    days: 499,
+  };
+  const valid = {
+    allocation: { btc: 0, eth: 0.1, spy: 0.9, stable: 0, alt: 0 },
+    window: { requested: period, effective: period, truncated: false },
+  };
+
+  it('accepts the model holdings with the window it was replayed over', () => {
+    expect(DailySuggestionModelSchema.safeParse(valid).success).toBe(true);
+  });
+
+  it('rejects a model without its replay window', () => {
+    const { window: _, ...withoutWindow } = valid;
+    expect(DailySuggestionModelSchema.safeParse(withoutWindow).success).toBe(
+      false,
+    );
+  });
+
+  it('is required on the suggestion context', () => {
+    expect(DailySuggestionContextSchema.shape.model).toBe(
+      DailySuggestionModelSchema,
+    );
   });
 });
 

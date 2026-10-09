@@ -37,8 +37,6 @@ def make_mock_recipe(
         return {}
 
     def _build_strategy(request: StrategyBuildRequest) -> BaseStrategy:
-        if request.mode != "compare":
-            raise ValueError(f"{strategy_id} only supports compare mode")
         if request.initial_allocation is None or request.user_start_date is None:
             raise ValueError(
                 f"{strategy_id} compare strategy build requires initial allocation and start date"

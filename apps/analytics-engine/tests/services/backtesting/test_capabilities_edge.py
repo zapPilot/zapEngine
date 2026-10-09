@@ -45,6 +45,40 @@ class TestAssetAllocation:
         assert buckets.asset_allocation() is None
 
 
+class TestRuntimeMode:
+    def test_aggregate_mode_prices_all_spot_value_at_the_primary_price(self) -> None:
+        buckets = PortfolioBuckets(
+            spot_value=1_000.0, stable_value=500.0, btc_value=1_000.0
+        )
+
+        portfolio = buckets.to_portfolio(
+            250.0, price_map={"btc": 250.0}, runtime_mode="aggregate"
+        )
+
+        assert portfolio.spot_balance == pytest.approx(4.0)
+        assert portfolio.stable_balance == pytest.approx(500.0)
+
+    def test_aggregate_mode_without_a_price_holds_no_spot(self) -> None:
+        buckets = PortfolioBuckets(spot_value=1_000.0, stable_value=500.0)
+
+        portfolio = buckets.to_portfolio(0.0, runtime_mode="aggregate")
+
+        assert portfolio.spot_balance == 0.0
+        assert portfolio.stable_balance == pytest.approx(500.0)
+
+    def test_unknown_runtime_mode_is_rejected(self) -> None:
+        buckets = PortfolioBuckets(
+            spot_value=1_000.0, stable_value=500.0, btc_value=1_000.0
+        )
+
+        with pytest.raises(ValueError, match="Unsupported runtime portfolio mode"):
+            buckets.to_portfolio(
+                100.0,
+                price_map={"btc": 100.0},
+                runtime_mode="turbo",  # type: ignore[arg-type]
+            )
+
+
 class TestToPortfolioWithAssets:
     """Cover lines 61-66: to_portfolio() with btc/eth values."""
 

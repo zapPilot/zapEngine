@@ -1,13 +1,14 @@
 import { z } from 'zod';
 
 import { MarketDataFreshnessSchema } from '../shared/market-freshness.js';
-import { TargetAllocationSchema } from './allocation.js';
+import { AssetAllocationSchema, TargetAllocationSchema } from './allocation.js';
 import { BucketTransferSchema } from './bucket.js';
 import {
   BacktestDecisionDetailsSchema,
   BacktestMarketPointSchema,
   BacktestSignalSchema,
   BacktestStrategyPortfolioSchema,
+  BacktestWindowInfoSchema,
 } from './backtesting.js';
 
 export const DailySuggestionPortfolioSchema =
@@ -49,12 +50,22 @@ export const DailySuggestionStrategyContextSchema = z.object({
   details: BacktestDecisionDetailsSchema.optional(),
 });
 
+/**
+ * The model portfolio the suggestion follows: its own holdings after its last
+ * bar and the rolling backtest window it was replayed over.
+ */
+export const DailySuggestionModelSchema = z.object({
+  allocation: AssetAllocationSchema,
+  window: BacktestWindowInfoSchema,
+});
+
 export const DailySuggestionContextSchema = z.object({
   market: BacktestMarketPointSchema,
   signal: BacktestSignalSchema,
   portfolio: DailySuggestionPortfolioSchema,
   target: DailySuggestionTargetSchema,
   strategy: DailySuggestionStrategyContextSchema,
+  model: DailySuggestionModelSchema,
 });
 
 export const DailySuggestionResponseSchema = z.object({
@@ -75,6 +86,7 @@ export type DailySuggestionActionStatus = z.infer<
 >;
 export type DailySuggestionAction = z.infer<typeof DailySuggestionActionSchema>;
 export type DailySuggestionTarget = z.infer<typeof DailySuggestionTargetSchema>;
+export type DailySuggestionModel = z.infer<typeof DailySuggestionModelSchema>;
 export type DailySuggestionStrategyContext = z.infer<
   typeof DailySuggestionStrategyContextSchema
 >;
