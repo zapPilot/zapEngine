@@ -269,31 +269,6 @@ class TestRegistryConfigDecisionGaps:
             "name": None,
         }
 
-    def test_apply_buy_strength_leaves_non_buy_unchanged(self) -> None:
-        from src.services.backtesting.execution.pacing.base import (
-            RebalancePacingInputs,
-            apply_buy_strength,
-        )
-
-        # Line pacing/base.py:81 — non-buy paths ignore buy_strength.
-        inputs = RebalancePacingInputs(
-            current_regime="fear", decision_action="sell", buy_strength=0.1
-        )
-        assert apply_buy_strength(0.7, inputs) == 0.7
-
-    def test_portfolio_dict_borrow_rate_reads_as_zero(self) -> None:
-        from src.services.backtesting.execution.portfolio import Portfolio
-
-        # Line execution/portfolio.py:323 — malformed borrow rate degrades to 0.
-        portfolio = Portfolio(spot_balance=1.0, stable_balance=100.0)
-        portfolio.btc_balance = 1.0
-        portfolio.debt_balance = 50.0
-        portfolio.apply_daily_yield(
-            {"btc": 100.0},
-            {"borrow": {"bad": "shape"}},  # type: ignore[dict-item]
-        )
-        assert portfolio.debt_balance == 50.0
-
     def test_cross_up_equal_weight_has_no_public_params_section(self) -> None:
         from src.services.backtesting.portfolio_rules.cross_up_equal_weight import (
             CrossUpEqualWeightRule,
@@ -301,15 +276,6 @@ class TestRegistryConfigDecisionGaps:
 
         # Line cross_up_equal_weight.py:32 — rule has no tunable public section.
         assert CrossUpEqualWeightRule.public_params_section() is None
-
-    def test_trade_quota_history_lookback(self) -> None:
-        from src.services.backtesting.trade_quota import TradeQuotaLimits
-
-        # Line trade_quota.py:68 — lookback is the max of configured windows.
-        assert TradeQuotaLimits().history_lookback_days == 0
-        assert TradeQuotaLimits(min_trade_interval_days=3).history_lookback_days == 3
-        assert TradeQuotaLimits(max_trades_7d=2).history_lookback_days == 7
-        assert TradeQuotaLimits(max_trades_30d=5).history_lookback_days == 30
 
     def test_dca_classic_parameters_shape(self) -> None:
         from src.services.backtesting.strategies.dca_classic import DcaClassicStrategy
@@ -355,71 +321,8 @@ class TestRegistryConfigDecisionGaps:
             == {}
         )
 
-    def test_composition_catalog_two_bucket_rejects_params(self) -> None:
-        import pytest
-
-        from src.services.backtesting.composition_catalog import (
-            _build_two_bucket_execution_profile,
-        )
-
-        # Line composition_catalog.py:99 — two-bucket profile takes no params.
-        assert _build_two_bucket_execution_profile({}) is None
-        with pytest.raises(ValueError, match="does not accept params"):
-            _build_two_bucket_execution_profile({"k": 1})
-
-    def test_composition_catalog_rejects_kind_mismatch(self) -> None:
-        import pytest
-
-        from src.models.strategy_config import SavedStrategyConfig, StrategyComposition
-        from src.services.backtesting.composition_catalog import StrategyFamilySpec
-
-        # Line composition_catalog.py:151 — family validates composition kind.
-        family = StrategyFamilySpec(
-            strategy_id="test_bench",
-            composition_kind="benchmark",
-        )
-        bad = SavedStrategyConfig(
-            config_id="kind-mismatch",
-            display_name="Mismatch",
-            strategy_id="test_bench",
-            composition=StrategyComposition(kind="composed"),
-        )
-        with pytest.raises(ValueError, match="must use"):
-            family.validate_saved_config(bad)
-
 
 class TestRiskValidationEngineGaps:
-    def test_selected_state_returns_none_without_assets(self) -> None:
-        from src.services.backtesting.portfolio_rules.base import PortfolioSnapshot
-        from src.services.backtesting.risk.dma_buy_gate import (
-            _buy_strength,
-            _selected_state,
-        )
-
-        # Lines risk/dma_buy_gate.py:142,149 — empty snapshot has no DMA state.
-        # NOTE: tests.services.backtesting.helpers.snapshot defaults to 3 assets
-        # when assets={} is passed (falsy), so construct directly.
-        empty = PortfolioSnapshot(
-            assets={},
-            current_asset_allocation={
-                "btc": 0.0,
-                "eth": 0.0,
-                "spy": 0.0,
-                "stable": 1.0,
-                "alt": 0.0,
-            },
-            previous_fgi_regime={},
-            macro_fgi_regime=None,
-            crypto_fgi_regime=None,
-            cycle_open_per_symbol={},
-            eth_btc_ratio_state=None,
-            last_trade_date=None,
-            current_date=None,
-            trade_dates=(),
-        )
-        assert _selected_state(empty) is None
-        assert _buy_strength(empty) == 0.0
-
     def test_constraint_predicates_match_returns_none(self) -> None:
         from src.services.backtesting.validation.constraint_predicates import (
             predicate_decision_action_equals,
@@ -438,24 +341,6 @@ class TestRiskValidationEngineGaps:
         assert (
             predicate_decision_detail_equals(
                 assertion={"key": "k", "value": "v"}, point=point
-            )
-            is None
-        )
-
-    def test_resolve_recipe_alias_unknown_id_returns_none(self) -> None:
-        from unittest.mock import Mock
-
-        from src.services.strategy.backtesting_service import (
-            _resolve_saved_config_recipe_alias,
-        )
-
-        # Lines backtesting_service.py:236-237 — unknown ids degrade to None.
-        store = Mock()
-        store.get_config.return_value = None
-        request = Mock(saved_config_id="no-such-recipe-xyz", config_id="req-1")
-        assert (
-            _resolve_saved_config_recipe_alias(
-                request_config=request, config_store=store
             )
             is None
         )
@@ -483,42 +368,6 @@ class TestRiskValidationEngineGaps:
         assert result == {"ok": True}
         sent = service.run_compare_v3.call_args[0][0]
         assert sent.emit_decision_log is True
-
-    def test_engine_applies_stable_cost(self) -> None:
-        from datetime import date as date_cls
-        from unittest.mock import Mock
-
-        from src.services.backtesting.execution.engine import (
-            EngineConfig,
-            StrategyEngine,
-        )
-        from src.services.backtesting.execution.portfolio import Portfolio
-        from src.services.backtesting.strategies.base import (
-            StrategyAction,
-            StrategyContext,
-        )
-
-        # Line execution/engine.py:427 — stable costs are charged after moves.
-        engine = StrategyEngine(config=EngineConfig())
-        portfolio = Portfolio(spot_balance=1.0, stable_balance=1000.0)
-        context = StrategyContext(
-            date=date_cls(2026, 1, 2),
-            price=100.0,
-            sentiment=None,
-            price_history=[100.0],
-            portfolio=portfolio,
-        )
-        action = StrategyAction(
-            snapshot=Mock(),
-            apply_yield=False,
-            debt_delta_usd=0.0,
-            stable_cost_usd=5.0,
-            transfers=[],
-            target_allocations=None,
-        )
-        before = portfolio.stable_balance
-        engine._apply_action(portfolio, context, action)
-        assert portfolio.stable_balance == before - 5.0
 
     def test_cross_down_exit_skips_inapplicable_peer(self) -> None:
         from src.services.backtesting.portfolio_rules.base import PortfolioRuleConfig
@@ -639,13 +488,12 @@ class TestMetricsAndRuleBoundaries:
 
 class TestBootstrapYieldRouterGaps:
     def _public_config(self, config_id: str, *, is_default: bool = False):
-        from src.models.strategy_config import SavedStrategyConfig, StrategyComposition
+        from src.models.strategy_config import SavedStrategyConfig
 
         return SavedStrategyConfig(
             config_id=config_id,
             display_name=config_id,
             strategy_id="dma_fgi_portfolio_rules",
-            composition=StrategyComposition(kind="composed"),
             is_default=is_default,
             is_benchmark=False,
         )
@@ -672,7 +520,7 @@ class TestBootstrapYieldRouterGaps:
 
         import pytest
 
-        from src.models.strategy_config import SavedStrategyConfig, StrategyComposition
+        from src.models.strategy_config import SavedStrategyConfig
         from src.services.strategy.strategy_bootstrap_service import (
             _build_public_presets,
         )
@@ -684,7 +532,6 @@ class TestBootstrapYieldRouterGaps:
             config_id="bench-default",
             display_name="Bench",
             strategy_id="dma_fgi_portfolio_rules",
-            composition=StrategyComposition(kind="benchmark"),
             is_benchmark=True,
         )
         with pytest.raises(ValueError, match="is a benchmark"):
@@ -697,7 +544,7 @@ class TestBootstrapYieldRouterGaps:
 
         import pytest
 
-        from src.models.strategy_config import SavedStrategyConfig, StrategyComposition
+        from src.models.strategy_config import SavedStrategyConfig
         from src.services.strategy.strategy_bootstrap_service import (
             _build_public_presets,
         )
@@ -709,7 +556,6 @@ class TestBootstrapYieldRouterGaps:
             config_id="cfg-hidden",
             display_name="Hidden",
             strategy_id="dma_fgi_portfolio_rules",
-            composition=StrategyComposition(kind="composed"),
             is_benchmark=False,
         )
         with pytest.raises(ValueError, match="not exposed"):
@@ -844,115 +690,7 @@ class TestBootstrapYieldRouterGaps:
         assert rows == [{"d": 1}, {"d": 2}]
 
 
-class TestExecutionPluginEthBtcGaps:
-    def _buy_intent(self, *, immediate: bool = False, target=None):
-        from src.services.backtesting.decision import AllocationIntent
-
-        return AllocationIntent(
-            action="buy",
-            target_allocation=(
-                {"btc": 0.8, "eth": 0.0, "spy": 0.0, "stable": 0.2, "alt": 0.0}
-                if target is None
-                else target
-            ),
-            allocation_name="test",
-            immediate=immediate,
-            reason="test",
-            rule_group="dma_fgi",
-            decision_score=0.8,
-        )
-
-    def _hints(self, *, enable: bool = True, action: str = "buy"):
-        from src.services.backtesting.execution.contracts import ExecutionHints
-
-        return ExecutionHints(
-            signal_id="sig",
-            current_regime="fear",
-            signal_value=0.5,
-            signal_confidence=1.0,
-            decision_score=0.8,
-            decision_action=action,  # type: ignore[arg-type]
-            dma_distance=-0.15,
-            enable_buy_gate=enable,
-            buy_strength=0.6,
-        )
-
-    def _context(self):
-        from datetime import date as date_cls
-        from unittest.mock import Mock
-
-        from src.services.backtesting.strategies.base import StrategyContext
-
-        portfolio = Mock()
-        portfolio.total_value = Mock(return_value=10_000.0)
-        return StrategyContext(
-            date=date_cls(2026, 1, 1),
-            price=50_000.0,
-            sentiment=None,
-            price_history=[50_000.0],
-            portfolio=portfolio,
-        )
-
-    def test_trade_quota_guard_plugin_basics(self) -> None:
-        from datetime import date as date_cls
-
-        from src.services.backtesting.execution.plugins import PluginInvocation
-        from src.services.backtesting.execution.trade_quota_guard_plugin import (
-            TradeQuotaGuardExecutionPlugin,
-        )
-
-        # Line 44: history lookback delegates to limits.
-        plugin = TradeQuotaGuardExecutionPlugin(max_trades_7d=2)
-        assert plugin.history_lookback_days == 7
-        # Line 57: reset restores seeded dates.
-        plugin.load_trade_dates([date_cls(2026, 1, 1)])
-        plugin._trade_dates.append(date_cls(2026, 1, 2))
-        plugin.reset()
-        assert plugin._trade_dates == [date_cls(2026, 1, 1)]
-        # Line 60: observe is a no-op sink.
-        plugin.observe(object())
-        # Line 64: disabled or missing target short-circuits precheck.
-        disabled = TradeQuotaGuardExecutionPlugin()
-        invocation = PluginInvocation(
-            context=self._context(),
-            intent=self._buy_intent(target=None),
-            hints=self._hints(),
-        )
-        assert disabled.precheck(invocation).allowed is True
-        # Line 97: disabled after_execution returns empty result.
-        assert disabled.after_execution(invocation, []).allowed is True
-
-    def test_dma_buy_gate_plugin_reset_and_short_circuits(self) -> None:
-        from src.services.backtesting.execution.dma_buy_gate_plugin import (
-            DmaBuyGateExecutionPlugin,
-        )
-        from src.services.backtesting.execution.plugins import PluginInvocation
-
-        # Line 32: reset clears gate state.
-        plugin = DmaBuyGateExecutionPlugin()
-        plugin._gate.observe_dma_distance(-0.15)
-        plugin.reset()
-        # Line 49: immediate intents return diagnostics without gating.
-        invocation = PluginInvocation(
-            context=self._context(),
-            intent=self._buy_intent(immediate=True),
-            hints=self._hints(enable=True),
-        )
-        result = plugin.precheck(invocation)
-        assert result.allowed is True
-        assert len(result.diagnostics) == 1
-        # Line 73: disabled/immediate adjust returns the plan unchanged.
-        step_plan = {"btc": 100.0, "stable": -100.0}
-        out = plugin.adjust_step_plan(invocation, step_plan)
-        assert out.step_plan == step_plan
-        # Line 122: inactive invocation yields empty after_execution.
-        inactive = PluginInvocation(
-            context=self._context(),
-            intent=self._buy_intent(),
-            hints=self._hints(enable=False),
-        )
-        assert plugin.after_execution(inactive, []).allowed is True
-
+class TestEthBtcRuleGaps:
     def test_eth_btc_deviation_tier_edges(self) -> None:
         import pytest
 
@@ -1007,204 +745,6 @@ class TestExecutionPluginEthBtcGaps:
             cooldown_state=cooldown,
         )
         assert _ratio_deviation(flat) is None
-
-
-class TestCompositionGaps:
-    def _legacy_family(self, family_id: str = "mock_legacy_family"):
-        from src.models.strategy_config import SavedStrategyConfig, StrategyComposition
-        from src.services.backtesting.composition_catalog import StrategyFamilySpec
-
-        def _builder(config_id: str, params):
-            return SavedStrategyConfig(
-                config_id=config_id,
-                display_name=config_id,
-                strategy_id=family_id,
-                composition=StrategyComposition(kind="composed"),
-                params=dict(params),
-            )
-
-        family = StrategyFamilySpec(
-            strategy_id=family_id,
-            composition_kind="composed",
-            legacy_saved_config_builder=_builder,
-        )
-        return family, _builder
-
-    def test_build_saved_config_from_legacy_success(self) -> None:
-        from src.services.backtesting.composition import build_saved_config_from_legacy
-        from src.services.backtesting.composition_catalog import (
-            get_default_composition_catalog,
-        )
-
-        # Line composition.py:140 — legacy builder path returns the config.
-        family, _ = self._legacy_family()
-        catalog = get_default_composition_catalog().with_extensions(
-            strategy_families={family.strategy_id: family}
-        )
-        result = build_saved_config_from_legacy(
-            strategy_id=family.strategy_id,
-            params={"a": 1},
-            config_id="legacy-1",
-            catalog=catalog,
-        )
-        assert result.config_id == "legacy-1"
-
-    def test_resolve_compare_legacy_path(self) -> None:
-        from src.models.backtesting import BacktestCompareConfigV3
-        from src.services.backtesting.composition import resolve_compare_request_config
-        from src.services.backtesting.composition_catalog import (
-            get_default_composition_catalog,
-        )
-
-        # Lines 157-158 — inline strategy_id resolves via legacy builder.
-        family, _ = self._legacy_family()
-        catalog = get_default_composition_catalog().with_extensions(
-            strategy_families={family.strategy_id: family}
-        )
-        request = BacktestCompareConfigV3.model_construct(
-            config_id="req-1",
-            saved_config_id=None,
-            strategy_id=family.strategy_id,
-            params={"a": 1},
-        )
-        result = resolve_compare_request_config(
-            request,
-            resolve_saved_config=lambda _cid: (_ for _ in ()).throw(
-                AssertionError("should not call saved path")
-            ),
-            catalog=catalog,
-        )
-        assert result.config_id == "req-1"
-
-    def test_resolve_benchmark_family_path(self) -> None:
-        from unittest.mock import Mock, patch
-
-        from src.models.strategy_config import SavedStrategyConfig, StrategyComposition
-        from src.services.backtesting.composition import resolve_saved_strategy_config
-        from src.services.backtesting.composition_catalog import StrategyFamilySpec
-
-        # Lines 193-194 — benchmark families resolve via recipe metadata.
-        family = StrategyFamilySpec(
-            strategy_id="bench_fam",
-            composition_kind="benchmark",
-            benchmark_strategy_builder_factory=lambda cfg: (lambda req: Mock()),
-        )
-        catalog = Mock()
-        catalog.resolve_family.return_value = family
-        catalog.resolve_bucket_mapper.return_value = Mock()
-        mock_recipe = Mock()
-        mock_recipe.signal_id = "sig"
-        mock_recipe.warmup_lookback_days = 0
-        mock_recipe.market_data_requirements = Mock()
-        saved = SavedStrategyConfig(
-            config_id="bench-1",
-            display_name="Bench",
-            strategy_id="bench_fam",
-            composition=StrategyComposition(kind="benchmark"),
-        )
-        with (
-            patch(
-                "src.services.backtesting.composition.get_default_composition_catalog",
-                return_value=catalog,
-            ),
-            patch(
-                "src.services.backtesting.composition.get_strategy_recipe",
-                return_value=mock_recipe,
-            ),
-        ):
-            resolved = resolve_saved_strategy_config(saved, catalog=catalog)
-        assert resolved.summary_signal_id == "sig"
-
-    def test_resolve_recipe_rejects_non_composed(self) -> None:
-        from unittest.mock import Mock
-
-        import pytest
-
-        from src.services.backtesting.composition import (
-            _resolve_recipe_saved_strategy_config,
-        )
-        from src.services.backtesting.composition_catalog import StrategyFamilySpec
-
-        # Line 268 — recipe path requires a composed family.
-        family = StrategyFamilySpec(
-            strategy_id="bench_fam",
-            composition_kind="benchmark",
-        )
-        with pytest.raises(ValueError, match="not recipe-backed"):
-            _resolve_recipe_saved_strategy_config(
-                saved_config=Mock(strategy_id="bench_fam"),
-                family=family,
-                bucket_mapper=Mock(),
-                catalog=Mock(),
-            )
-
-    def test_resolve_recipe_plugin_loop(self) -> None:
-        from unittest.mock import Mock, patch
-
-        from src.models.strategy_config import StrategyComponentRef
-        from src.services.backtesting.composition import (
-            _resolve_recipe_saved_strategy_config,
-        )
-        from tests.services.backtesting.support import (
-            build_mock_composed_catalog,
-            build_mock_saved_config,
-        )
-
-        # Line 282 — recipe validation instantiates each plugin.
-        catalog = build_mock_composed_catalog()
-        base = catalog.strategy_families["mock_signal_family"]
-        saved = build_mock_saved_config()
-        plugin_ref = StrategyComponentRef(component_id="mock_plugin", params={})
-        saved = saved.model_copy(
-            update={
-                "composition": saved.composition.model_copy(
-                    update={"plugins": [plugin_ref]}, deep=True
-                )
-            },
-            deep=True,
-        )
-        # CompositionCatalog is frozen; wrap resolve in a Mock facade instead
-        # of patching the frozen instance.
-        facade = Mock(wraps=catalog)
-        facade.resolve_plugin_factory.return_value = lambda params: Mock()
-        with patch(
-            "src.services.backtesting.composition.get_strategy_recipe"
-        ) as mock_recipe_fn:
-            mock_recipe = Mock()
-            mock_recipe.signal_id = "sig"
-            mock_recipe.warmup_lookback_days = 0
-            mock_recipe.market_data_requirements = Mock()
-            mock_recipe.normalize_public_params.return_value = {}
-            mock_recipe.build_strategy = Mock()
-            mock_recipe_fn.return_value = mock_recipe
-            resolved = _resolve_recipe_saved_strategy_config(
-                saved_config=saved,
-                family=base,
-                bucket_mapper=Mock(),
-                catalog=facade,
-            )
-        assert resolved.summary_signal_id == "sig"
-
-    def test_validate_component_params_plugin_loop(self) -> None:
-        from unittest.mock import Mock
-
-        from src.models.strategy_config import StrategyComponentRef
-        from src.services.backtesting.composition import _validate_component_params
-
-        # Line 322 — component validation instantiates each plugin.
-        catalog = Mock()
-        catalog.resolve_plugin_factory.return_value = lambda params: Mock()
-        _validate_component_params(
-            decision_factory=lambda p: Mock(),
-            decision_params={},
-            pacing_factory=lambda p: Mock(),
-            pacing_params={},
-            execution_factory=lambda p: Mock(),
-            execution_params={},
-            plugin_refs=[StrategyComponentRef(component_id="p1", params={})],
-            catalog=catalog,
-        )
-        catalog.resolve_plugin_factory.assert_called_once_with("p1")
 
 
 class TestFinalThreeLines:

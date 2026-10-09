@@ -13,12 +13,12 @@ from src.models.backtesting import (
     BacktestWindowInfo,
 )
 from src.services.backtesting.audit import write_decision_log
-from src.services.backtesting.composition import ResolvedSavedStrategyConfig
 from src.services.backtesting.constants import ALLOCATION_STATES
 from src.services.backtesting.execution.config import RegimeConfig
 from src.services.backtesting.execution.engine import EngineConfig, StrategyEngine
 from src.services.backtesting.strategies.base import BaseStrategy
 from src.services.backtesting.strategy_registry import (
+    ResolvedSavedStrategyConfig,
     StrategyBuildRequest,
     get_strategy_recipe,
 )

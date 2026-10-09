@@ -13,11 +13,13 @@ from src.config.strategy_presets import (
     get_benchmark_seed_strategy_config,
     get_default_seed_strategy_config,
     get_default_strategy_preset,
+    list_seed_strategy_configs,
     list_strategy_presets,
     resolve_seed_strategy_config,
     resolve_strategy_preset,
 )
 from src.services.backtesting.constants import MODEL_WINDOW_DAYS
+from src.services.backtesting.strategy_registry import get_strategy_recipe
 
 
 def test_list_strategy_presets_returns_live_non_benchmark_presets() -> None:
@@ -85,19 +87,11 @@ def test_seed_live_configs_expose_only_the_params_that_change_decisions() -> Non
     }
 
 
-def test_seed_live_configs_attach_rule_based_composition_refs() -> None:
-    config = resolve_seed_strategy_config(DMA_FGI_PORTFOLIO_RULES_CONFIG_ID)
-
-    assert config.composition.signal is not None
-    assert config.composition.signal.component_id == "dma_fgi_portfolio_rules_signal"
-    assert config.composition.decision_policy is not None
-    assert (
-        config.composition.decision_policy.component_id
-        == "dma_fgi_portfolio_rules_policy"
-    )
-    assert config.composition.signal.params == {}
-    assert config.composition.bucket_mapper_id == "spy_eth_btc_stable"
-    assert config.composition.plugins == []
+def test_seed_configs_name_the_recipe_that_runs_them() -> None:
+    for config in list_seed_strategy_configs():
+        recipe = get_strategy_recipe(config.strategy_id)
+        assert recipe.strategy_id == config.strategy_id
+        assert recipe.supports_daily_suggestion is config.supports_daily_suggestion
 
 
 def test_get_default_seed_strategy_config_raises_when_no_default() -> None:

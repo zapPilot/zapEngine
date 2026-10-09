@@ -6,7 +6,6 @@ from dataclasses import dataclass, field
 from datetime import date
 
 from src.services.backtesting.decision import AllocationIntent
-from src.services.backtesting.execution.contracts import ExecutionHints
 from src.services.backtesting.execution.rebalance_calculator import (
     RebalanceCalculator,
     plan_transfers_to_target,
@@ -23,7 +22,6 @@ class AllocationExecutionResult:
     transfers: list[TransferIntent] | None
     event: str | None
     drift: float
-    immediate_execution: bool = True
     block_reason: str | None = None
 
 
@@ -41,17 +39,12 @@ class RuleBasedAllocationExecutor:
         self.trade_dates = []
         self.last_trade_date = None
 
-    def observe(self, hints: ExecutionHints) -> None:
-        del hints
-
     def execute(
         self,
         *,
         context: StrategyContext,
         intent: AllocationIntent,
-        hints: ExecutionHints,
     ) -> AllocationExecutionResult:
-        del hints
         assert intent.target_allocation is not None
         target_allocation = dict(intent.target_allocation)
         current_allocation = (
@@ -79,7 +72,6 @@ class RuleBasedAllocationExecutor:
             transfers=transfers or None,
             event="rebalance" if transfers else None,
             drift=drift,
-            immediate_execution=True,
         )
 
 

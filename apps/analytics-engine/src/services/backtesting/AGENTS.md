@@ -12,6 +12,7 @@ The non-default technical-indicator research surface is documented in [TECHNICAL
 - Rule experiments (`enabled_rules`, `disabled_rules`, rule thresholds/priorities) belong only to the rule-based strategy.
 - `dca_classic` is a frozen benchmark and must not start accepting rule-engine params.
 - `StrategyRecipe` in `strategy_registry.py` is the public params source of truth. Do not create parallel strategy-id/params allowlists elsewhere.
+- A saved config is a recipe id plus validated params; `resolve_saved_strategy_config` in `strategy_registry.py` binds them. There is no component catalog or composition layer, and no staged-execution path (pacing, buy gate, execution plugins): each matched rule executes in full on its bar through `RuleBasedAllocationExecutor`.
 - Keep benchmark/is-default distinctions in the existing registry/config metadata rather than introducing directory taxonomy solely for that distinction.
 
 ## One strategy path

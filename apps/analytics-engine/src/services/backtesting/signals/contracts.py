@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 from src.services.backtesting.decision import AllocationIntent
 from src.services.backtesting.domain import SignalObservation
-from src.services.backtesting.execution.contracts import ExecutionHints
 from src.services.backtesting.features import MarketDataRequirements, MarketFeatureSet
 
 if TYPE_CHECKING:  # pragma: no cover -- type-only import, never executed
@@ -45,14 +44,6 @@ class StatefulSignalComponent(Protocol):
         snapshot: Any,
         intent: AllocationIntent,
     ) -> SignalObservation: ...
-
-    def build_execution_hints(
-        self,
-        *,
-        snapshot: Any,
-        intent: AllocationIntent,
-        signal_confidence: float,
-    ) -> ExecutionHints: ...
 
 
 def _resolve_signal_context_extra_data(

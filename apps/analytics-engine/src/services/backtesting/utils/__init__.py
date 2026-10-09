@@ -2,7 +2,6 @@
 
 from src.services.backtesting.utils.coercion import (
     coerce_float,
-    coerce_float_list,
     coerce_int,
     coerce_nullable_float,
     coerce_nullable_int,
@@ -19,7 +18,6 @@ from src.services.backtesting.utils.two_bucket import (
 __all__ = [
     "calculate_runtime_allocation",
     "coerce_float",
-    "coerce_float_list",
     "coerce_int",
     "coerce_nullable_float",
     "coerce_nullable_int",

@@ -49,8 +49,5 @@ class StrategyConfigStore:
             f"Unknown config_id '{str(config_id).strip()}'. Valid values: {valid}"
         )
 
-    def get_config(self, config_id: str) -> SavedStrategyConfig | None:
-        return _find_config(self.list_configs(), config_id)
-
 
 __all__ = ["StrategyConfigStore"]

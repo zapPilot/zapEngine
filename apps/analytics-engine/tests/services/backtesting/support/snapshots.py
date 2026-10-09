@@ -26,9 +26,6 @@ def make_strategy_snapshot(
     event: str | None = None,
     transfers: list[TransferIntent] | None = None,
     blocked_reason: str | None = None,
-    step_count: int = 0,
-    steps_remaining: int = 0,
-    interval_days: int = 0,
 ) -> StrategySnapshot:
     return StrategySnapshot(
         signal=signal,
@@ -45,9 +42,6 @@ def make_strategy_snapshot(
             event=event,
             transfers=[] if transfers is None else list(transfers),
             blocked_reason=blocked_reason,
-            step_count=step_count,
-            steps_remaining=steps_remaining,
-            interval_days=interval_days,
         ),
     )
 

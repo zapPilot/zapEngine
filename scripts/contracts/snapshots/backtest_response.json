@@ -512,37 +512,6 @@
                         }
                       ]
                     },
-                    "diagnostics": {
-                      "additionalProperties": false,
-                      "properties": {
-                        "plugins": {
-                          "additionalProperties": {
-                            "anyOf": [
-                              {
-                                "additionalProperties": {
-                                  "$ref": "#/$defs/__schema0"
-                                },
-                                "propertyNames": {
-                                  "type": "string"
-                                },
-                                "type": "object"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          },
-                          "propertyNames": {
-                            "type": "string"
-                          },
-                          "type": "object"
-                        }
-                      },
-                      "required": [
-                        "plugins"
-                      ],
-                      "type": "object"
-                    },
                     "event": {
                       "anyOf": [
                         {
@@ -553,11 +522,6 @@
                         }
                       ]
                     },
-                    "interval_days": {
-                      "maximum": 9007199254740991,
-                      "minimum": 0,
-                      "type": "integer"
-                    },
                     "status": {
                       "enum": [
                         "action_required",
@@ -565,16 +529,6 @@
                         "no_action"
                       ],
                       "type": "string"
-                    },
-                    "step_count": {
-                      "maximum": 9007199254740991,
-                      "minimum": 0,
-                      "type": "integer"
-                    },
-                    "steps_remaining": {
-                      "maximum": 9007199254740991,
-                      "minimum": 0,
-                      "type": "integer"
                     },
                     "transfers": {
                       "items": {
@@ -618,10 +572,7 @@
                   "required": [
                     "event",
                     "transfers",
-                    "blocked_reason",
-                    "step_count",
-                    "steps_remaining",
-                    "interval_days"
+                    "blocked_reason"
                   ],
                   "type": "object"
                 },

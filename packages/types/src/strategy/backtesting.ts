@@ -133,20 +133,12 @@ export const BacktestDecisionSchema = z.object({
   details: BacktestDecisionDetailsSchema.optional(),
 });
 
-export const BacktestExecutionDiagnosticsSchema = z.object({
-  plugins: z.record(z.string(), JsonObjectSchema.nullable()),
-});
-
 export const BacktestExecutionSchema = z.object({
   event: z.string().nullable(),
   transfers: z.array(BucketTransferSchema),
   blocked_reason: z.string().nullable(),
   status: z.enum(['action_required', 'blocked', 'no_action']).optional(),
   action_required: z.boolean().optional(),
-  step_count: z.number().int().nonnegative(),
-  steps_remaining: z.number().int().nonnegative(),
-  interval_days: z.number().int().nonnegative(),
-  diagnostics: BacktestExecutionDiagnosticsSchema.optional(),
 });
 
 export const BacktestStrategyPointSchema = z.object({
@@ -267,9 +259,6 @@ export type BacktestDecisionDetails = z.infer<
   typeof BacktestDecisionDetailsSchema
 >;
 export type BacktestDecision = z.infer<typeof BacktestDecisionSchema>;
-export type BacktestExecutionDiagnostics = z.infer<
-  typeof BacktestExecutionDiagnosticsSchema
->;
 export type BacktestExecution = z.infer<typeof BacktestExecutionSchema>;
 export type BacktestStrategyPoint = z.infer<typeof BacktestStrategyPointSchema>;
 export type BacktestStrategySet<T> = Record<string, T>;

@@ -371,7 +371,7 @@ class StrategyEngine:
             sentiment_label,
             apply_yield=action.apply_yield,
         )
-        equity = portfolio.equity(context.portfolio_price)
+        equity = portfolio.total_value(context.portfolio_price)
         if not record_point:
             return None
         strategy_daily_values[strategy.strategy_id].append(equity)
@@ -390,8 +390,6 @@ class StrategyEngine:
     ) -> bool:
         moved = False
         price = context.portfolio_price
-        if action.debt_delta_usd > 0.0:
-            portfolio.borrow(action.debt_delta_usd)
         if action.transfers:
             for transfer in action.transfers:
                 if transfer.amount_usd <= 0:
@@ -423,10 +421,6 @@ class StrategyEngine:
             if amount > 0:
                 portfolio.execute_transfer(from_bucket, to_bucket, amount, price)
                 moved = True
-        if action.stable_cost_usd > 0.0:
-            portfolio.charge_stable(action.stable_cost_usd)
-        if action.debt_delta_usd < 0.0:
-            portfolio.repay(-action.debt_delta_usd)
         return moved
 
     def _apply_yield(
@@ -440,7 +434,6 @@ class StrategyEngine:
             return {
                 "spot_yield": 0.0,
                 "stable_yield": 0.0,
-                "borrow_cost": 0.0,
                 "total_yield": 0.0,
             }
         apr_rates = self.config.apr_by_regime.get(sentiment_label or "neutral", {})

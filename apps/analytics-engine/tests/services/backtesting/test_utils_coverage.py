@@ -15,7 +15,6 @@ from src.services.backtesting.strategies.base import (
 )
 from src.services.backtesting.utils.coercion import (
     coerce_float,
-    coerce_float_list,
     coerce_int,
     coerce_nullable_float,
     coerce_to_date,
@@ -27,7 +26,6 @@ def test_utils_init():
     assert utils.__all__ == [
         "calculate_runtime_allocation",
         "coerce_float",
-        "coerce_float_list",
         "coerce_int",
         "coerce_nullable_float",
         "coerce_nullable_int",
@@ -80,11 +78,6 @@ def test_coerce_to_date_preserves_timestamp_slice() -> None:
 def test_coerce_int_rejects_bool() -> None:
     with pytest.raises(ValueError, match="must be an integer"):
         coerce_int(True, field_name="x")
-
-
-def test_coerce_float_list_rejects_non_list() -> None:
-    with pytest.raises(ValueError, match="must be an array of numbers"):
-        coerce_float_list((1.0, 2.0), field_name="weights")
 
 
 # --- response_utils.py coverage (lines 13, 19) ---

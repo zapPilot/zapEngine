@@ -162,40 +162,6 @@ def test_component_builds_signal_observation_for_cross_intent() -> None:
     assert observation.dma.fgi_slope == pytest.approx(0.08)
 
 
-def test_component_builds_execution_hints_for_buy_gate() -> None:
-    component = DmaGatedFgiSignalComponent()
-    market_state = state(
-        symbol="SPY",
-        zone="below",
-        dma_distance=-0.12,
-        fgi_regime="neutral",
-        fgi_value=50.0,
-        macro_fear_greed_regime="extreme_fear",
-        macro_fear_greed_value=4.0,
-    )
-    intent = AllocationIntent(
-        action="buy",
-        target_allocation={"spy": 0.2, "stable": 0.8},
-        allocation_name="spy_buy",
-        immediate=False,
-        reason="portfolio_extreme_fear_dca_buy",
-        rule_group="dma_fgi",
-        decision_score=1.0,
-    )
-
-    hints = component.build_execution_hints(
-        snapshot=market_state,
-        intent=intent,
-        signal_confidence=0.81,
-    )
-
-    assert hints.enable_buy_gate is True
-    assert hints.buy_strength is not None
-    assert hints.current_regime == "neutral"
-    assert hints.signal_value == pytest.approx(50.0)
-    assert hints.signal_confidence == pytest.approx(0.81)
-
-
 def test_component_warmup_observe_apply_and_reset_cycle() -> None:
     component = DmaGatedFgiSignalComponent()
     warmup_context = _strategy_context(

@@ -15,9 +15,9 @@ from src.models.backtesting import (
     BacktestCompareRequestV3,
     BacktestResponse,
 )
-from src.services.backtesting.composition import resolve_saved_strategy_config
 from src.services.backtesting.execution.compare import run_compare_v3_on_data
 from src.services.backtesting.lab.synthetic import SyntheticMarket
+from src.services.backtesting.strategy_registry import resolve_saved_strategy_config
 
 DEFAULT_CONFIG_ID = "dma_fgi_portfolio_rules_default"
 TOTAL_CAPITAL = 10_000.0

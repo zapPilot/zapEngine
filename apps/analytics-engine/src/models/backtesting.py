@@ -127,20 +127,12 @@ class DecisionState(BaseModel):
     details: dict[str, JsonValue] = Field(default_factory=dict)
 
 
-class ExecutionDiagnostics(BaseModel):
-    plugins: dict[str, dict[str, JsonValue] | None] = Field(default_factory=dict)
-
-
 class ExecutionState(BaseModel):
     event: str | None = None
     transfers: list[TransferRecord] = Field(default_factory=list)
     blocked_reason: str | None = None
     status: ExecutionStatus = "no_action"
     action_required: bool = False
-    step_count: int = Field(ge=0)
-    steps_remaining: int = Field(ge=0)
-    interval_days: int = Field(ge=0)
-    diagnostics: ExecutionDiagnostics = Field(default_factory=ExecutionDiagnostics)
 
 
 class StrategyState(BaseModel):

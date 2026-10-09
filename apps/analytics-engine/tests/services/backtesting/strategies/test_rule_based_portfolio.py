@@ -158,12 +158,10 @@ def test_strategy_cross_down_exits_crypto_peers_to_stable() -> None:
     assert action.transfers[0].to_bucket == "stable"
 
 
-def test_strategy_uses_rule_based_executor_without_legacy_pacing() -> None:
+def test_strategy_uses_the_atomic_rule_based_executor() -> None:
     strategy = RuleBasedPortfolioStrategy(total_capital=10_000.0)
 
     assert isinstance(strategy.execution_engine, RuleBasedAllocationExecutor)
-    assert not hasattr(strategy.execution_engine, "pacing_policy")
-    assert not hasattr(strategy.execution_engine, "plugins")
 
 
 def test_strategy_cross_up_equal_weights_currently_above_assets() -> None:

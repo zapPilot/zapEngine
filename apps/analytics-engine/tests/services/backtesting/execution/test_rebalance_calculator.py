@@ -55,40 +55,6 @@ class TestCalculateDeltas:
         assert result["stable"] == pytest.approx(5_000.0)
 
 
-class TestCalculateDeltasFromContext:
-    def test_extracts_values_from_context(self) -> None:
-        mock_portfolio = Mock()
-        mock_portfolio.total_value.return_value = 10_000.0
-        mock_portfolio.values_for_allocation_keys.return_value = {
-            "btc": 5_000.0,
-            "eth": 0.0,
-            "spy": 0.0,
-            "stable": 5_000.0,
-            "alt": 0.0,
-        }
-
-        context = StrategyContext(
-            date=Mock(),
-            price=100.0,
-            sentiment=None,
-            price_history=[],
-            portfolio=mock_portfolio,
-        )
-
-        result = RebalanceCalculator.calculate_deltas_from_context(
-            context,
-            target_allocation={
-                "btc": 0.6,
-                "eth": 0.0,
-                "spy": 0.0,
-                "stable": 0.4,
-                "alt": 0.0,
-            },
-        )
-        assert result["btc"] == pytest.approx(1_000.0)
-        assert result["stable"] == pytest.approx(-1_000.0)
-
-
 class TestCalculateCurrentAllocation:
     def test_basic_allocation_calculation(self) -> None:
         result = RebalanceCalculator.calculate_current_allocation(
@@ -170,67 +136,6 @@ class TestNormalizeTargetAllocation:
     def test_rejects_unsupported_keys(self) -> None:
         with pytest.raises(ValueError, match="unsupported buckets"):
             RebalanceCalculator._normalize_target_allocation({"lp": 0.5, "stable": 0.5})
-
-
-class TestCalculateDeltasFromContextNonDictValues:
-    def test_non_dict_values_for_keys_falls_back(self) -> None:
-        mock_portfolio = Mock()
-        mock_portfolio.total_value.return_value = 10_000.0
-        mock_portfolio.values_for_allocation_keys.return_value = "not_a_dict"
-        mock_portfolio.bucket_values.return_value = {"spot": 5_000.0, "stable": 5_000.0}
-
-        context = StrategyContext(
-            date=Mock(),
-            price=100.0,
-            sentiment=None,
-            price_history=[],
-            portfolio=mock_portfolio,
-        )
-
-        result = RebalanceCalculator.calculate_deltas_from_context(
-            context,
-            target_allocation={
-                "btc": 0.5,
-                "eth": 0.0,
-                "spy": 0.0,
-                "stable": 0.5,
-                "alt": 0.0,
-            },
-        )
-        # Fallback bucket_values has 'spot'/'stable' keys, target is canonical;
-        # union covers both spaces and missing buckets default to 0.
-        assert result["btc"] == pytest.approx(5_000.0)
-        assert result["stable"] == pytest.approx(0.0)
-        assert result["spot"] == pytest.approx(-5_000.0)
-
-    def test_no_values_for_keys_falls_back_to_bucket_values(self) -> None:
-        mock_portfolio = Mock(spec=[])
-        mock_portfolio.total_value = Mock(return_value=10_000.0)
-        mock_portfolio.bucket_values = Mock(
-            return_value={"spot": 5_000.0, "stable": 5_000.0}
-        )
-
-        context = StrategyContext(
-            date=Mock(),
-            price=100.0,
-            sentiment=None,
-            price_history=[],
-            portfolio=mock_portfolio,
-        )
-
-        result = RebalanceCalculator.calculate_deltas_from_context(
-            context,
-            target_allocation={
-                "btc": 0.5,
-                "eth": 0.0,
-                "spy": 0.0,
-                "stable": 0.5,
-                "alt": 0.0,
-            },
-        )
-        assert result["btc"] == pytest.approx(5_000.0)
-        assert result["stable"] == pytest.approx(0.0)
-        assert result["spot"] == pytest.approx(-5_000.0)
 
 
 class TestCurrentAllocationFromContextEdgeCases:

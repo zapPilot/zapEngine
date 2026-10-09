@@ -18,7 +18,6 @@ from src.models.backtesting import (
     BacktestStrategyCatalogResponseV3,
     BacktestWindowInfo,
     DecisionState,
-    ExecutionDiagnostics,
     ExecutionState,
     MarketSnapshot,
     PortfolioState,
@@ -197,17 +196,6 @@ def _response() -> BacktestResponse:
                                 )
                             ],
                             blocked_reason=None,
-                            step_count=1,
-                            steps_remaining=0,
-                            interval_days=1,
-                            diagnostics=ExecutionDiagnostics(
-                                plugins={
-                                    "dma_buy_gate": {
-                                        "buy_strength": None,
-                                        "sideways_confirmed": None,
-                                    }
-                                }
-                            ),
                         ),
                     ),
                 },
@@ -276,17 +264,6 @@ def _response() -> BacktestResponse:
                                 )
                             ],
                             blocked_reason=None,
-                            step_count=1,
-                            steps_remaining=0,
-                            interval_days=1,
-                            diagnostics=ExecutionDiagnostics(
-                                plugins={
-                                    "dma_buy_gate": {
-                                        "buy_strength": 0.8,
-                                        "sideways_confirmed": False,
-                                    }
-                                }
-                            ),
                         ),
                     ),
                 },
@@ -395,10 +372,6 @@ async def test_backtesting_compare_v3_returns_shared_snapshot_response(
     )
     assert dma_point.signal.details["ath_event"] == "token_ath"
     assert cast(dict[str, object], dma_point.signal.details["dma"])["zone"] == "above"
-    assert (
-        dma_point.execution.diagnostics.plugins["dma_buy_gate"]["sideways_confirmed"]
-        is None
-    )
     assert dma_point.decision.reason == "dma_cross_down"
 
 

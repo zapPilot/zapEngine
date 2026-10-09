@@ -45,15 +45,6 @@ def test_resolve_config_raises_on_unknown_config_id() -> None:
         StrategyConfigStore().resolve_config("nonexistent")
 
 
-def test_get_config_found_and_missing() -> None:
-    store = StrategyConfigStore()
-
-    found = store.get_config("dma_fgi_portfolio_rules_default")
-    assert found is not None
-    assert found.config_id == "dma_fgi_portfolio_rules_default"
-    assert store.get_config("nonexistent") is None
-
-
 def test_the_store_serves_copies_so_callers_cannot_mutate_the_seeds() -> None:
     store = StrategyConfigStore()
     first = store.resolve_config(None)

@@ -236,8 +236,8 @@ def normalize_saved_strategy_public_params(
     """Normalize public params for persisted/admin strategy configs.
 
     Built-in strategies must use the nested public schema. Unknown strategy IDs
-    keep their existing free-form params to avoid breaking test-only extension
-    families that are validated through the composition catalog instead.
+    keep their existing free-form params; resolving such a config fails later,
+    when no recipe is found for it.
     """
     return normalize_nested_public_params(strategy_id, params)
 

@@ -7,8 +7,6 @@ from typing import Final
 from src.models.strategy_config import (
     BacktestDefaults,
     SavedStrategyConfig,
-    StrategyComponentRef,
-    StrategyComposition,
     StrategyPreset,
 )
 from src.services.backtesting.constants import (
@@ -28,24 +26,12 @@ def _build_default_seed_config() -> SavedStrategyConfig:
         display_name="DMA/FGI Portfolio Rules",
         description=(
             "Default rule-based strategy: SPY/BTC/ETH portfolio rules driven by "
-            "DMA crosses, ETH/BTC ratio rotation, and FGI regime shifts. Risk "
-            "guards enforce trade pacing."
+            "DMA crosses, ETH/BTC ratio rotation, and FGI regime shifts. "
+            "Per-rule cooldowns limit churn."
         ),
         strategy_id=STRATEGY_DMA_FGI_PORTFOLIO_RULES,
         primary_asset="BTC",
         params=get_default_public_params(STRATEGY_DMA_FGI_PORTFOLIO_RULES),
-        composition=StrategyComposition(
-            kind="composed",
-            bucket_mapper_id="spy_eth_btc_stable",
-            signal=StrategyComponentRef(
-                component_id="dma_fgi_portfolio_rules_signal",
-                params={},
-            ),
-            decision_policy=StrategyComponentRef(
-                component_id="dma_fgi_portfolio_rules_policy",
-                params={},
-            ),
-        ),
         supports_daily_suggestion=True,
         is_default=True,
         is_benchmark=False,
@@ -61,7 +47,6 @@ SEED_STRATEGY_CONFIGS: Final[list[SavedStrategyConfig]] = [
         strategy_id=STRATEGY_DCA_CLASSIC,
         primary_asset="BTC",
         params={},
-        composition=StrategyComposition(kind="benchmark"),
         supports_daily_suggestion=False,
         is_default=False,
         is_benchmark=True,

@@ -1,4 +1,4 @@
-"""Internal strategy recipe registry for backtesting composition."""
+"""Strategy recipes: the wire strategies and how a saved config binds to one."""
 
 from __future__ import annotations
 
@@ -7,8 +7,9 @@ from dataclasses import dataclass, field
 from datetime import date
 from typing import Any, Literal, cast
 
-from pydantic import BaseModel
+from pydantic import BaseModel, JsonValue
 
+from src.models.strategy_config import SavedStrategyConfig
 from src.services.backtesting.capabilities import (
     PortfolioBucketMapper,
     RuntimePortfolioMode,
@@ -27,7 +28,10 @@ from src.services.backtesting.features import (
     SPY_DMA_200_FEATURE,
     MarketDataRequirements,
 )
-from src.services.backtesting.public_params import DmaGatedFgiPublicParams
+from src.services.backtesting.public_params import (
+    DmaGatedFgiPublicParams,
+    public_params_to_runtime_params,
+)
 from src.services.backtesting.signals.flat_minimum import (
     build_initial_flat_minimum_asset_allocation,
 )
@@ -233,3 +237,92 @@ def list_strategy_recipes() -> list[StrategyRecipe]:
 def validate_strategy_id(strategy_id: str) -> str:
     get_strategy_recipe(strategy_id)
     return strategy_id
+
+
+@dataclass(frozen=True)
+class ResolvedSavedStrategyConfig:
+    """A recipe bound to the params it runs with, ready for the compare engine."""
+
+    saved_config_id: str
+    request_config_id: str
+    strategy_id: str
+    display_name: str
+    description: str | None
+    primary_asset: str
+    summary_signal_id: str | None
+    warmup_lookback_days: int
+    market_data_requirements: MarketDataRequirements
+    portfolio_bucket_mapper: PortfolioBucketMapper
+    runtime_portfolio_mode: RuntimePortfolioMode
+    supports_daily_suggestion: bool
+    public_params: dict[str, JsonValue]
+    build_strategy: StrategyBuilder
+
+
+def _resolve_recipe_config(
+    recipe: StrategyRecipe,
+    *,
+    saved_config_id: str,
+    request_config_id: str,
+    display_name: str,
+    description: str | None,
+    primary_asset: str,
+    supports_daily_suggestion: bool,
+    public_params: dict[str, Any],
+) -> ResolvedSavedStrategyConfig:
+    return ResolvedSavedStrategyConfig(
+        saved_config_id=saved_config_id,
+        request_config_id=request_config_id,
+        strategy_id=recipe.strategy_id,
+        display_name=display_name,
+        description=description,
+        primary_asset=primary_asset,
+        summary_signal_id=recipe.signal_id,
+        warmup_lookback_days=recipe.warmup_lookback_days,
+        market_data_requirements=recipe.market_data_requirements,
+        portfolio_bucket_mapper=recipe.portfolio_bucket_mapper,
+        runtime_portfolio_mode=recipe.runtime_portfolio_mode,
+        supports_daily_suggestion=supports_daily_suggestion,
+        public_params=public_params,
+        build_strategy=recipe.build_strategy,
+    )
+
+
+def resolve_saved_strategy_config(
+    saved_config: SavedStrategyConfig,
+) -> ResolvedSavedStrategyConfig:
+    """Bind a saved config's params to the recipe its ``strategy_id`` names."""
+    recipe = get_strategy_recipe(saved_config.strategy_id)
+    runtime_params = recipe.normalize_public_params(
+        public_params_to_runtime_params(saved_config.strategy_id, saved_config.params)
+    )
+    return _resolve_recipe_config(
+        recipe,
+        saved_config_id=saved_config.config_id,
+        request_config_id=saved_config.config_id,
+        display_name=saved_config.display_name,
+        description=saved_config.description,
+        primary_asset=saved_config.primary_asset,
+        supports_daily_suggestion=saved_config.supports_daily_suggestion,
+        public_params=runtime_params,
+    )
+
+
+def resolve_inline_strategy_config(
+    *,
+    config_id: str,
+    strategy_id: str,
+    params: Mapping[str, Any],
+) -> ResolvedSavedStrategyConfig:
+    """Bind request-supplied params (already normalized) to a recipe."""
+    recipe = get_strategy_recipe(strategy_id)
+    return _resolve_recipe_config(
+        recipe,
+        saved_config_id=config_id,
+        request_config_id=config_id,
+        display_name=config_id,
+        description=recipe.description,
+        primary_asset=recipe.primary_asset,
+        supports_daily_suggestion=recipe.supports_daily_suggestion,
+        public_params=dict(params),
+    )

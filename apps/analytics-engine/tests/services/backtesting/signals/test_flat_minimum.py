@@ -292,17 +292,10 @@ def test_signal_component_handles_ratio_cooldown_and_empty_observation() -> None
     )
 
     observation = component.build_signal_observation(snapshot=empty, intent=intent)
-    hints = component.build_execution_hints(
-        snapshot=empty,
-        intent=intent,
-        signal_confidence=0.5,
-    )
 
     assert observation.regime == "neutral"
     assert observation.dma is None
     assert observation.ratio is None
-    assert hints.current_regime == "neutral"
-    assert hints.enable_buy_gate is False
 
 
 def test_forced_cross_events_ignore_invalid_entries() -> None:

@@ -138,23 +138,6 @@ class TestBlockedDays:
         assert response.action.reason_code == "trade_quota_min_interval_active"
         assert response.action.transfers == []
 
-    def test_a_nested_block_reason_in_plugin_diagnostics_is_surfaced(self) -> None:
-        service, _replayer, _portfolios = build_service(
-            build_replay(
-                traded=False,
-                action="hold",
-                reason="regime_no_signal",
-                plugin_diagnostics={
-                    "quota": {"state": {"block_reason": "cooling_off"}}
-                },
-            ),
-        )
-
-        response = service.get_daily_suggestion(USER_ID)
-
-        assert response.action.status == "blocked"
-        assert response.action.reason_code == "cooling_off"
-
     def test_a_trade_quota_hold_decision_counts_as_blocked(self) -> None:
         service, _replayer, _portfolios = build_service(
             build_replay(

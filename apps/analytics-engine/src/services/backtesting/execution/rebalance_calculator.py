@@ -62,20 +62,6 @@ class RebalanceCalculator:
         }
 
     @staticmethod
-    def calculate_deltas_from_context(
-        context: StrategyContext,
-        target_allocation: dict[str, float],
-    ) -> dict[str, float]:
-        price = context.portfolio_price
-        total_value = context.portfolio.total_value(price)
-        current_values = RebalanceCalculator._resolve_current_values(
-            context, price, target_allocation
-        )
-        return RebalanceCalculator.calculate_deltas(
-            total_value, target_allocation, current_values
-        )
-
-    @staticmethod
     def calculate_current_allocation(
         balances: dict[str, float] | None = None,
         price: float | None = None,

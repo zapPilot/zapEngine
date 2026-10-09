@@ -7,6 +7,21 @@ For current best template and active strategy state, see [AGENTS.md](./AGENTS.md
 
 Newest first. Each entry: date, commit, finding, key numbers.
 
+### 2026-10-09 - Deleted the execution machinery nothing reaches and folded the composition layer into the recipe
+
+- **Status**: Refactor. One response-schema change (execution step/plugin fields removed) and one bug fix (`saved_config_id: "dca_classic"` returned 400). No decision changes. Third step of the DMA/FGI review.
+- **Commit**: pending (`claude/dma-fgi-strategy-review-lab-9b9354-pr3`).
+- **Finding**: Since `RuleBasedAllocationExecutor` replaced the intent executor (2026-05), the staged-execution machinery was reachable only through the generic "composed" saved-config path, which no saved config selects: `AllocationIntentExecutor`, the pacing policies, the DMA buy gate (as plugin and as risk guard), the trade-quota *plugin*, `StepPlanExecutor`, the plugin protocol, and the component catalog that wired them. The module-level import graph confirms nothing else reached them; the golden digests confirm deleting them changes no decision.
+- **Removed (about 3,000 lines of `src`, 3,100 of tests)**: `execution/{allocation_intent_executor,step_plan_executor,dma_buy_gate,dma_buy_gate_plugin,trade_quota_guard_plugin,plugins,block_reasons}.py`, `execution/pacing/`, `risk/dma_buy_gate.py`, `composition.py`, `composition_catalog.py`; `ExecutionHints` with `build_execution_hints` and `compute_dma_buy_strength`; `StrategyComposition` and `StrategyComponentRef`; the leverage research residue (`Portfolio.debt_balance/ltv/health_factor/borrow/repay/charge_stable/equity`, `StrategyAction.debt_delta_usd/stable_cost_usd`); and the symbols that became unused (`RebalanceCalculator.calculate_deltas_from_context`, `TradeQuotaLimits.history_lookback_days`, `StrategyConfigStore.get_config`, `AllocationExecutionResult.immediate_execution`). Stale `vulture_whitelist.py` entries for these and for the PR1/PR2 removals went with them.
+- **Kept**: `trade_quota.py` and `risk/trade_quota_guard.py` (the only live quota path, driven by `trade_quota` params), and `blocked_reason` / `status` / `action_required` on the execution state.
+- **Contract**: `ExecutionState` lost `step_count`, `steps_remaining`, `interval_days` and `diagnostics.plugins`; `BacktestExecutionSchema` (TS), the `backtest_response` contract snapshot and the fixtures follow. Nothing in the app or account-engine read them.
+- **A saved config is a recipe id plus validated params**: `SavedStrategyConfig` has no `composition`; `strategy_registry.resolve_saved_strategy_config` binds its params to the recipe its `strategy_id` names (the same `StrategyRecipe` that already owned the data requirements and the strategy builder, so the catalog duplicated it). The recipe alias (a `saved_config_id` that is not a saved config but equals a recipe id) is gone; an unknown saved id is rejected like any other unknown id.
+- **Bug fixed**: `saved_config_id: "dca_classic"` failed with `Unsupported strategy family 'dca_classic'` because only the DMA family was registered in the component catalog. The benchmark now resolves through its recipe.
+- **Copy**: the default seed's description no longer says "Risk guards enforce trade pacing" (pacing never executed; the cooldowns are what limit churn).
+- **Evidence**: the six golden digests of `test_engine_golden.py` and the live-vs-compare parity tests are unchanged, so the engine path is bit-identical. `vulture --min-confidence 60` over `src` reports two names PR2 did not, both false positives: an API response field that shared its name with the deleted `health_factor` parameter, and a pydantic validator (whitelisted).
+- **Snapshot delta**: None expected. `sweep_production_window.py --check --in-process` was **not run locally** (needs `DATABASE_READ_ONLY_URL`); the CI `tests` job runs it.
+- **Next**: PR4 replaces the optimistic fill and yield assumptions with `BacktestAssumptions` (next-day fills, a fixed 3% stable APR, slippage) and splits PnL into price, yield and cost. Headline numbers change there, in their own commit.
+
 ### 2026-10-09 - Removed nine parameters that never changed a decision, the tuned preset and the DB overlay
 
 - **Status**: Contract change (public strategy params, saved configs, admin API). No decision changes. Second step of the DMA/FGI review.
@@ -20,7 +35,7 @@ Newest first. Each entry: date, commit, finding, key numbers.
 - **Contract**: `BacktestCompareParamsV3Schema` now mirrors `DmaGatedFgiPublicParams` (it also still carried an `extreme_fear` section the server stopped accepting long ago) and joined the contracts gate as `strategy_params`.
 - **Operator check before merge**: `select config_id, params, composition, is_default from public.strategy_saved_configs` in production. A row that differs from the seeds would silently stop applying once the overlay is gone. Not run here (needs a read-only DSN).
 - **Snapshot delta**: None expected, and the golden digests are unchanged. `sweep_production_window.py --check --in-process` was **not run locally** (needs `DATABASE_READ_ONLY_URL`); the CI `tests` job runs it.
-- **Next**: PR3 deletes the unreachable execution machinery (`AllocationIntentExecutor`, pacing, buy gates, plugins, the composed path).
+- **Next**: PR3 deletes the unreachable execution machinery (`AllocationIntentExecutor`, pacing, buy gates, plugins, the composed path); see the entry above.
 
 ### 2026-10-09 - Live suggestion now follows the backtest model's last bar
 

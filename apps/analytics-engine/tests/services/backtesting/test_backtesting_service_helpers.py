@@ -7,11 +7,10 @@ import pytest
 
 from src.config.strategy_presets import resolve_seed_strategy_config
 from src.models.backtesting import BacktestCompareConfigV3, BacktestResponse
-from src.services.backtesting.constants import STRATEGY_DMA_FGI_PORTFOLIO_RULES
-from src.services.backtesting.features import (
-    DMA_200_FEATURE,
-    ETH_DMA_200_FEATURE,
-    SPY_DMA_200_FEATURE,
+from src.models.strategy_config import SavedStrategyConfig
+from src.services.backtesting.constants import (
+    STRATEGY_DCA_CLASSIC,
+    STRATEGY_DMA_FGI_PORTFOLIO_RULES,
 )
 from src.services.exceptions import MarketDataUnavailableError
 from src.services.strategy.backtesting_service import (
@@ -19,8 +18,6 @@ from src.services.strategy.backtesting_service import (
     _select_longest_dma_segment,
 )
 from tests.services.backtesting.support import (
-    build_mock_composed_catalog,
-    build_mock_saved_config,
     compare_request,
     price_row,
     price_series,
@@ -315,16 +312,19 @@ async def test_run_compare_v3_rejects_mixed_primary_assets_before_fetch(
 
 
 @pytest.mark.asyncio
-async def test_run_compare_v3_resolves_saved_config_with_injected_catalog(
+async def test_run_compare_v3_resolves_a_saved_config_through_its_recipe(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    saved_config = build_mock_saved_config(config_id="mock_saved")
-    catalog = build_mock_composed_catalog()
+    register_mock_recipe(monkeypatch, strategy_id="mock_saved_family")
+    saved_config = SavedStrategyConfig(
+        config_id="mock_saved",
+        display_name="Mock Saved",
+        strategy_id="mock_saved_family",
+    )
     service = BacktestingService(
         token_price_service=MagicMock(),
         sentiment_service=MagicMock(),
         strategy_config_store=MagicMock(resolve_config=lambda _config_id: saved_config),
-        composition_catalog=catalog,
     )
     service.data_provider.fetch_token_prices = MagicMock(
         return_value=[
@@ -354,7 +354,7 @@ async def test_run_compare_v3_resolves_saved_config_with_injected_catalog(
     )
     service.data_provider.fetch_sentiments.assert_not_called()
     resolved_configs = mock_runner.call_args.kwargs["resolved_configs"]
-    assert [config.strategy_id for config in resolved_configs] == ["mock_signal_family"]
+    assert [config.strategy_id for config in resolved_configs] == ["mock_saved_family"]
 
 
 @pytest.mark.asyncio
@@ -401,77 +401,50 @@ async def test_run_compare_v3_does_not_auto_inject_baseline_for_saved_configs(
 
 
 @pytest.mark.asyncio
-async def test_run_compare_v3_accepts_builtin_strategy_id_as_saved_config_alias(
+async def test_run_compare_v3_runs_the_benchmark_by_saved_config_id(
+    service: BacktestingService,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    service = BacktestingService(
-        token_price_service=MagicMock(),
-        sentiment_service=MagicMock(),
-        strategy_config_store=MagicMock(
-            get_config=lambda _config_id: None,
-            list_configs=lambda: [
-                resolve_seed_strategy_config("dma_fgi_portfolio_rules_default")
-            ],
-        ),
-    )
+    """``saved_config_id: dca_classic`` used to fail as an unsupported family."""
     service.data_provider.fetch_token_prices = MagicMock(
-        return_value=[
-            {
-                **price_row(date(2025, 1, 1), price=100.0, dma_200=95.0),
-                "prices": {"btc": 100.0, "eth": 110.0, "spy": 500.0},
-                "extra_data": {
-                    DMA_200_FEATURE: 95.0,
-                    ETH_DMA_200_FEATURE: 105.0,
-                    SPY_DMA_200_FEATURE: 450.0,
-                },
-            },
-            {
-                **price_row(date(2025, 1, 2), price=101.0, dma_200=95.0),
-                "prices": {"btc": 101.0, "eth": 111.0, "spy": 501.0},
-                "extra_data": {
-                    DMA_200_FEATURE: 95.0,
-                    ETH_DMA_200_FEATURE: 105.0,
-                    SPY_DMA_200_FEATURE: 450.0,
-                },
-            },
-        ]
+        return_value=price_series(days=3)
     )
-    service.data_provider.fetch_sentiments = MagicMock(
-        return_value=sentiment_map(days=2)
-    )
+    service.data_provider.fetch_sentiments = MagicMock(return_value={})
     mock_runner = _patch_compare_runner(monkeypatch)
 
     await service.run_compare_v3(
         compare_request(
-            end_date=date(2025, 1, 2),
             configs=[
                 BacktestCompareConfigV3(
-                    config_id=STRATEGY_DMA_FGI_PORTFOLIO_RULES,
-                    saved_config_id=STRATEGY_DMA_FGI_PORTFOLIO_RULES,
+                    config_id="baseline",
+                    saved_config_id=STRATEGY_DCA_CLASSIC,
                 )
             ],
         )
     )
 
-    requirements = service.data_provider.fetch_token_prices.call_args.kwargs[
-        "market_data_requirements"
-    ]
-    assert requirements.required_price_features == frozenset(
-        {DMA_200_FEATURE, ETH_DMA_200_FEATURE, SPY_DMA_200_FEATURE}
-    )
     resolved_configs = mock_runner.call_args.kwargs["resolved_configs"]
-    assert [config.strategy_id for config in resolved_configs] == [
-        STRATEGY_DMA_FGI_PORTFOLIO_RULES
-    ]
+    assert [
+        (config.strategy_id, config.request_config_id) for config in resolved_configs
+    ] == [(STRATEGY_DCA_CLASSIC, "baseline")]
 
 
-def test_has_composition_path_returns_false_for_none_strategy_id() -> None:
-    """Cover line 193: strategy_id is None returns False."""
-    from src.services.strategy.backtesting_service import _has_composition_path
+@pytest.mark.asyncio
+async def test_run_compare_v3_rejects_a_strategy_id_that_is_not_a_saved_config(
+    service: BacktestingService,
+) -> None:
+    service.data_provider.fetch_token_prices = MagicMock(return_value=[])
 
-    request_config = MagicMock()
-    request_config.saved_config_id = None
-    request_config.strategy_id = None
+    with pytest.raises(ValueError, match="Unknown config_id"):
+        await service.run_compare_v3(
+            compare_request(
+                configs=[
+                    BacktestCompareConfigV3(
+                        config_id=STRATEGY_DMA_FGI_PORTFOLIO_RULES,
+                        saved_config_id=STRATEGY_DMA_FGI_PORTFOLIO_RULES,
+                    )
+                ],
+            )
+        )
 
-    catalog = build_mock_composed_catalog()
-    assert _has_composition_path(request_config, catalog) is False
+    service.data_provider.fetch_token_prices.assert_not_called()

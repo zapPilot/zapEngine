@@ -3,7 +3,6 @@
 from unittest.mock import sentinel
 
 from src.core.filter_utils import normalize_filter
-from src.services.backtesting.execution.step_plan_executor import StepPlanExecutor
 from src.services.market.query_backed_service import QueryBackedMarketService
 
 
@@ -34,18 +33,3 @@ def test_query_backed_market_service_resolves_the_default(monkeypatch) -> None:
 
     assert service.db is sentinel.db
     assert service.query_service is sentinel.default_query_service
-
-
-def test_step_plan_executor_clear_is_idempotent() -> None:
-    executor = StepPlanExecutor(
-        rebalance_step_count=3,
-        step_plan={"btc": 100.0, "stable": -100.0},
-        steps_remaining=2,
-    )
-
-    executor.clear()
-    executor.clear()
-
-    assert executor.rebalance_step_count == 3
-    assert executor.step_plan is None
-    assert executor.steps_remaining == 0

@@ -38,19 +38,12 @@ from src.services.backtesting.asset_allocation_serialization import (
     serialize_asset_allocation,
 )
 from src.services.backtesting.capabilities import PortfolioBuckets
-from src.services.backtesting.composition import (
-    ResolvedSavedStrategyConfig,
-    resolve_saved_strategy_config,
-)
-from src.services.backtesting.composition_catalog import (
-    CompositionCatalog,
-    get_default_composition_catalog,
-)
-from src.services.backtesting.execution.block_reasons import (
-    resolve_effective_block_reason,
-)
 from src.services.backtesting.execution.rebalance_calculator import (
     plan_transfers_to_target,
+)
+from src.services.backtesting.strategy_registry import (
+    ResolvedSavedStrategyConfig,
+    resolve_saved_strategy_config,
 )
 from src.services.strategy.backtesting_protocol import (
     BacktestingServiceProtocol,
@@ -92,7 +85,6 @@ class StrategyDailySuggestionService:
     backtesting_service: BacktestingServiceProtocol
     canonical_snapshot_service: CanonicalSnapshotService | None
     strategy_config_store: StrategyConfigStore
-    composition_catalog: CompositionCatalog
 
     def __init__(
         self,
@@ -100,16 +92,12 @@ class StrategyDailySuggestionService:
         backtesting_service: BacktestingServiceProtocol,
         canonical_snapshot_service: CanonicalSnapshotService | None = None,
         strategy_config_store: StrategyConfigStore | None = None,
-        composition_catalog: CompositionCatalog | None = None,
         clock: Callable[[], datetime] = _utc_now,
     ) -> None:
         self.landing_page_service = landing_page_service
         self.backtesting_service = backtesting_service
         self.canonical_snapshot_service = canonical_snapshot_service
         self.strategy_config_store = strategy_config_store or StrategyConfigStore()
-        self.composition_catalog = (
-            composition_catalog or get_default_composition_catalog()
-        )
         self._clock = clock
 
     def get_daily_suggestion(
@@ -118,10 +106,7 @@ class StrategyDailySuggestionService:
         config_id: str | None = None,
     ) -> DailySuggestionResponse:
         saved_config = self.strategy_config_store.resolve_config(config_id)
-        resolved_config = resolve_saved_strategy_config(
-            saved_config,
-            catalog=self.composition_catalog,
-        )
+        resolved_config = resolve_saved_strategy_config(saved_config)
         if not resolved_config.supports_daily_suggestion:
             raise ValueError(
                 f"Strategy '{resolved_config.strategy_id}' does not support /daily-suggestion"
@@ -302,17 +287,14 @@ class StrategyDailySuggestionService:
 
     @staticmethod
     def _resolve_block_reason(replay: ModelReplay) -> str | None:
-        execution = replay.state.execution
-        block_reason = resolve_effective_block_reason(
-            blocked_reason=execution.blocked_reason,
-            diagnostics=execution.diagnostics.plugins,
-        )
+        block_reason = replay.state.execution.blocked_reason or None
         decision = replay.state.decision
         if (
             block_reason is None
             and decision.action == "hold"
             and decision.reason.startswith("trade_quota_")
         ):
+            # The trade-quota guard turns a decision into a hold named for its limit.
             return decision.reason
         return block_reason
 

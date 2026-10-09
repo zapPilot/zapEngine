@@ -29,7 +29,7 @@ from src.services.backtesting.portfolio_rules.base import (
     signals_consulted_for_symbols,
 )
 from src.services.backtesting.portfolio_rules.cross_down_exit import CrossDownExitRule
-from src.services.backtesting.risk import DmaBuyGateGuard, TradeQuotaGuard
+from src.services.backtesting.risk import TradeQuotaGuard
 from src.services.backtesting.signals.ratio_state import EthBtcRatioState
 from tests.services.backtesting.portfolio_rules.helpers import snapshot, state
 
@@ -86,9 +86,8 @@ def test_default_rule_priorities_leave_room_for_new_rule_layers() -> None:
     ]
 
 
-def test_risk_guard_priorities_preserve_existing_ordering() -> None:
+def test_trade_quota_guard_runs_before_every_rule() -> None:
     assert TradeQuotaGuard().priority == 0
-    assert DmaBuyGateGuard().priority == 35
 
 
 def test_add_split_proceeds_default_50_50() -> None:

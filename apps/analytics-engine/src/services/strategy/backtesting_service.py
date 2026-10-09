@@ -21,15 +21,6 @@ from src.models.backtesting import (
 from src.models.market_data_freshness import MarketDataFreshness, StaleFeatureInfo
 from src.models.strategy_config import SavedStrategyConfig
 from src.models.validation_utils import normalize_asset_symbol
-from src.services.backtesting.composition import (
-    ResolvedSavedStrategyConfig,
-    resolve_compare_request_config,
-    resolve_saved_strategy_config,
-)
-from src.services.backtesting.composition_catalog import (
-    CompositionCatalog,
-    get_default_composition_catalog,
-)
 from src.services.backtesting.constants import (
     MODEL_TOTAL_CAPITAL,
     MODEL_WINDOW_DAYS,
@@ -43,8 +34,9 @@ from src.services.backtesting.execution.compare import (
 from src.services.backtesting.execution.config import RegimeConfig
 from src.services.backtesting.features import MarketDataRequirements
 from src.services.backtesting.strategy_registry import (
-    StrategyRecipe,
-    get_strategy_recipe,
+    ResolvedSavedStrategyConfig,
+    resolve_inline_strategy_config,
+    resolve_saved_strategy_config,
 )
 from src.services.exceptions import MarketDataUnavailableError
 from src.services.strategy.backtesting_protocol import ModelReplay
@@ -124,32 +116,6 @@ def _resolve_recipe_warmup_days(configs: list[ResolvedSavedStrategyConfig]) -> i
     return max(PRIMER_DAYS, recipe_warmup_days)
 
 
-def _recipe_to_resolved_config(
-    recipe: StrategyRecipe,
-    *,
-    saved_config_id: str,
-    request_config_id: str,
-    display_name: str,
-    public_params: dict[str, Any],
-) -> ResolvedSavedStrategyConfig:
-    return ResolvedSavedStrategyConfig(
-        saved_config_id=saved_config_id,
-        request_config_id=request_config_id,
-        strategy_id=recipe.strategy_id,
-        display_name=display_name,
-        description=recipe.description,
-        primary_asset=recipe.primary_asset,
-        summary_signal_id=recipe.signal_id,
-        warmup_lookback_days=recipe.warmup_lookback_days,
-        market_data_requirements=recipe.market_data_requirements,
-        portfolio_bucket_mapper=recipe.portfolio_bucket_mapper,
-        runtime_portfolio_mode=recipe.runtime_portfolio_mode,
-        supports_daily_suggestion=recipe.supports_daily_suggestion,
-        public_params=public_params,
-        build_strategy=recipe.build_strategy,
-    )
-
-
 def _resolve_shared_primary_asset(configs: list[ResolvedSavedStrategyConfig]) -> str:
     primary_assets = sorted(
         {
@@ -170,15 +136,10 @@ def _materialize_compare_market_scope_with_store(
     request: BacktestCompareRequestV3,
     *,
     config_store: StrategyConfigStore,
-    composition_catalog: CompositionCatalog | None = None,
 ) -> tuple[BacktestCompareRequestV3, list[ResolvedSavedStrategyConfig], str]:
     effective_request = materialize_compare_request(request)
     resolved_configs = [
-        _resolve_runtime_config(
-            config,
-            config_store=config_store,
-            composition_catalog=composition_catalog,
-        )
+        _resolve_runtime_config(config, config_store=config_store)
         for config in effective_request.configs
     ]
     primary_asset = _resolve_shared_primary_asset(resolved_configs)
@@ -198,77 +159,26 @@ def _materialize_compare_market_scope_with_store(
 
 
 def _resolve_runtime_config(
-    request_config: Any,
+    request_config: BacktestCompareConfigV3,
     *,
     config_store: StrategyConfigStore,
-    composition_catalog: CompositionCatalog | None = None,
 ) -> ResolvedSavedStrategyConfig:
-    resolved_catalog = composition_catalog or get_default_composition_catalog()
     if request_config.saved_config_id:
-        recipe_alias = _resolve_saved_config_recipe_alias(
-            request_config=request_config,
-            config_store=config_store,
-        )
-        if recipe_alias is not None:
-            return recipe_alias
-    if _has_composition_path(request_config, resolved_catalog):
         resolved = resolve_saved_strategy_config(
-            resolve_compare_request_config(
-                request_config,
-                resolve_saved_config=config_store.resolve_config,
-                catalog=resolved_catalog,
-            ),
-            catalog=resolved_catalog,
+            config_store.resolve_config(request_config.saved_config_id)
         )
         return replace(
             resolved,
             request_config_id=request_config.config_id,
+            display_name=request_config.config_id,
         )
-    recipe = get_strategy_recipe(request_config.strategy_id)
-    return _recipe_to_resolved_config(
-        recipe,
-        saved_config_id=request_config.config_id,
-        request_config_id=request_config.config_id,
-        display_name=request_config.config_id,
-        public_params=dict(request_config.params),
+    # The request model requires either a saved config or an inline strategy.
+    assert request_config.strategy_id is not None
+    return resolve_inline_strategy_config(
+        config_id=request_config.config_id,
+        strategy_id=request_config.strategy_id,
+        params=request_config.params,
     )
-
-
-def _resolve_saved_config_recipe_alias(
-    *,
-    request_config: Any,
-    config_store: StrategyConfigStore,
-) -> ResolvedSavedStrategyConfig | None:
-    saved_config_id = str(request_config.saved_config_id)
-    if config_store.get_config(saved_config_id) is not None:
-        return None
-    try:
-        recipe = get_strategy_recipe(saved_config_id)
-    except ValueError:
-        return None
-    return _recipe_to_resolved_config(
-        recipe,
-        saved_config_id=saved_config_id,
-        request_config_id=request_config.config_id,
-        display_name=request_config.config_id,
-        public_params=recipe.normalize_public_params({}),
-    )
-
-
-def _has_composition_path(
-    request_config: Any,
-    catalog: CompositionCatalog,
-) -> bool:
-    """Check whether this request config should be resolved via the composition catalog."""
-    if request_config.saved_config_id:
-        return True
-    if request_config.strategy_id is None:
-        return False
-    try:
-        family = catalog.resolve_family(request_config.strategy_id)
-    except ValueError:
-        return False
-    return family.legacy_saved_config_builder is not None
 
 
 def _select_prices_in_window(
@@ -465,7 +375,6 @@ class BacktestingService:
         token_price_service: TokenPriceService,
         sentiment_service: SentimentDatabaseService,
         strategy_config_store: StrategyConfigStore | None = None,
-        composition_catalog: CompositionCatalog | None = None,
         stock_price_service: StockPriceService | None = None,
         macro_fear_greed_service: MacroFearGreedDatabaseService | None = None,
     ):
@@ -476,9 +385,6 @@ class BacktestingService:
             macro_fear_greed_service=macro_fear_greed_service,
         )
         self.strategy_config_store = strategy_config_store or StrategyConfigStore()
-        self.composition_catalog = (
-            composition_catalog or get_default_composition_catalog()
-        )
 
     def _run_with_prepared_data(
         self,
@@ -643,7 +549,6 @@ class BacktestingService:
             _materialize_compare_market_scope_with_store(
                 request,
                 config_store=self.strategy_config_store,
-                composition_catalog=self.composition_catalog,
             )
         )
         response = self._run_with_prepared_data(

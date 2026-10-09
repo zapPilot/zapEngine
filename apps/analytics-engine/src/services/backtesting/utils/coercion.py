@@ -44,13 +44,6 @@ def coerce_float(value: Any, *, field_name: str) -> float:
     return float(value)
 
 
-def coerce_float_list(value: Any, *, field_name: str) -> list[float]:
-    """Coerce a list of values to a list of floats."""
-    if not isinstance(value, list):
-        raise ValueError(f"{field_name} must be an array of numbers")
-    return [coerce_float(item, field_name=field_name) for item in value]
-
-
 def coerce_params(
     raw: Mapping[str, Any],
     spec: Mapping[str, Coercer],

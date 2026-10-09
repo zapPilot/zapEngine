@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal, Self
+from typing import Self
 
 from pydantic import BaseModel, Field, JsonValue, model_validator
 
@@ -38,46 +38,6 @@ class StrategyPreset(BaseModel):
         return self
 
 
-class StrategyComponentRef(BaseModel):
-    """Reference to one composable strategy component."""
-
-    component_id: str = Field(description="Stable component identifier")
-    params: dict[str, JsonValue] = Field(default_factory=dict)
-
-    @model_validator(mode="after")
-    def check_component_id(self) -> Self:
-        validate_config_id(self.component_id, "component_id")
-        return self
-
-
-class StrategyComposition(BaseModel):
-    """Internal composition payload persisted for saved strategy configs."""
-
-    kind: Literal["benchmark", "composed"] = Field(default="composed")
-    bucket_mapper_id: str = Field(default="two_bucket_spot_stable")
-    signal: StrategyComponentRef | None = None
-    decision_policy: StrategyComponentRef | None = None
-    pacing_policy: StrategyComponentRef | None = None
-    execution_profile: StrategyComponentRef | None = None
-    plugins: list[StrategyComponentRef] = Field(default_factory=list)
-
-    @model_validator(mode="after")
-    def validate_composition(self) -> Self:
-        validate_config_id(self.bucket_mapper_id, "bucket_mapper_id")
-        if self.kind == "benchmark":
-            if (
-                self.signal is not None
-                or self.decision_policy is not None
-                or self.pacing_policy is not None
-                or self.execution_profile is not None
-                or self.plugins
-            ):
-                raise ValueError(
-                    "benchmark composition must not declare signal/policy/pacing/execution components"
-                )
-        return self
-
-
 class SavedStrategyConfig(BaseModel):
     """Authoritative saved config used by backtesting and daily suggestion."""
 
@@ -87,7 +47,6 @@ class SavedStrategyConfig(BaseModel):
     strategy_id: str
     primary_asset: str = Field(default="BTC")
     params: dict[str, JsonValue] = Field(default_factory=dict)
-    composition: StrategyComposition
     supports_daily_suggestion: bool = False
     is_default: bool = False
     is_benchmark: bool = False

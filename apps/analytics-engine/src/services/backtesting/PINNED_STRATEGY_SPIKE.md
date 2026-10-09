@@ -174,10 +174,10 @@ real-history run; no blanket acceptability claim is made.
 - Selected assets may start DMA cooldown even without an eventual fill; only
   actual transfers update the global rule execution date. Empty holdings and
   peer exit are retained rather than redesigned.
-- Python currently has execution plugin factory paths distinct from this
-  strategy's direct allocation executor. This spike does not wire plugins or
-  change quota/pacing behavior. The reference strategy runs for real in both
-  touch modes, rather than assuming only cross_on_touch matters.
+- Python executes this strategy through its direct allocation executor; there
+  are no execution plugins or pacing paths. This spike does not change quota
+  behavior. The reference strategy runs for real in both touch modes, rather
+  than assuming only cross_on_touch matters.
 - Live reset/warmup and missing persisted state remain outside this work. Pure
   bytecode does not authenticate prior state or market inputs. The supplied
   backend state remains a trust boundary. No production DB saved-config facts

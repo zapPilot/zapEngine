@@ -39,29 +39,17 @@ def test_execute_returns_noop_for_hold_without_target() -> None:
         decision_score=0.0,
     )
 
-    outcome = strategy._execute(context=context, intent=intent, hints=Mock())
+    outcome = strategy._execute(context=context, intent=intent)
 
     assert outcome == ExecutionOutcome(event=None, transfers=[])
     strategy.execution_engine.execute.assert_not_called()
 
 
-def test_to_execution_outcome_copies_none_transfers_and_plugin_metadata() -> None:
+def test_to_execution_outcome_copies_none_transfers_and_the_block_reason() -> None:
     outcome = ComposedSignalStrategy._to_execution_outcome(
-        SimpleNamespace(
-            event="rebalance",
-            transfers=None,
-            block_reason="blocked",
-            step_count=2,
-            steps_remaining=1,
-            interval_days=3,
-            plugin_diagnostics=("diag",),
-        )
+        SimpleNamespace(event="rebalance", transfers=None, block_reason="blocked")
     )
 
     assert outcome.event == "rebalance"
     assert outcome.transfers == []
     assert outcome.blocked_reason == "blocked"
-    assert outcome.step_count == 2
-    assert outcome.steps_remaining == 1
-    assert outcome.interval_days == 3
-    assert outcome.plugin_diagnostics == ("diag",)

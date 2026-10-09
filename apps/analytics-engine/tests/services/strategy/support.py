@@ -14,7 +14,6 @@ from src.models.backtesting import (
     BacktestPeriodInfo,
     BacktestWindowInfo,
     DecisionState,
-    ExecutionDiagnostics,
     ExecutionState,
     MarketSnapshot,
     PortfolioState,
@@ -60,7 +59,6 @@ def build_replay(
     rule_group: str = "cross",
     details: dict[str, Any] | None = None,
     blocked_reason: str | None = None,
-    plugin_diagnostics: dict[str, dict[str, Any] | None] | None = None,
     signal: SignalState | None = None,
     freshness: MarketDataFreshness | None = None,
 ) -> ModelReplay:
@@ -99,10 +97,6 @@ def build_replay(
             blocked_reason=blocked_reason,
             status="action_required" if traded else "no_action",
             action_required=traded,
-            step_count=0,
-            steps_remaining=0,
-            interval_days=0,
-            diagnostics=ExecutionDiagnostics(plugins=plugin_diagnostics or {}),
         ),
     )
     return ModelReplay(

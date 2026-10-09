@@ -8,8 +8,6 @@ from pydantic import ValidationError
 from src.models.strategy_config import (
     BacktestDefaults,
     SavedStrategyConfig,
-    StrategyComponentRef,
-    StrategyComposition,
     StrategyConfigsResponse,
     StrategyPreset,
 )
@@ -100,24 +98,6 @@ def test_removed_parameters_are_rejected_by_the_saved_config_contract() -> None:
 
 
 # ---------------------------------------------------------------------------
-# StrategyComposition validation (line 67)
-# ---------------------------------------------------------------------------
-
-
-def test_strategy_composition_rejects_benchmark_with_signal() -> None:
-    """Line 67: benchmark composition must not declare signal/policy/pacing/execution."""
-    with pytest.raises(
-        ValidationError,
-        match="benchmark composition must not declare signal/policy/pacing/execution components",
-    ):
-        StrategyComposition(
-            kind="benchmark",
-            bucket_mapper_id="two_bucket_spot_stable",
-            signal=StrategyComponentRef(component_id="dma_gated_fgi_signal"),
-        )
-
-
-# ---------------------------------------------------------------------------
 # SavedStrategyConfig validation (line 93)
 # ---------------------------------------------------------------------------
 
@@ -131,11 +111,7 @@ def test_saved_strategy_config_rejects_both_default_and_benchmark() -> None:
         SavedStrategyConfig(
             config_id="both_flags",
             display_name="Both Flags",
-            strategy_id="legacy_benchmark",
-            composition=StrategyComposition(
-                kind="benchmark",
-                bucket_mapper_id="two_bucket_spot_stable",
-            ),
+            strategy_id="dca_classic",
             is_default=True,
             is_benchmark=True,
         )

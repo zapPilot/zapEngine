@@ -15,8 +15,6 @@ from src.services.backtesting.domain import (
     RatioSignalDiagnostics,
     SignalObservation,
 )
-from src.services.backtesting.execution.contracts import ExecutionHints
-from src.services.backtesting.execution.pacing.base import compute_dma_buy_strength
 from src.services.backtesting.features import (
     DMA_200_FEATURE,
     DMA_ASSET_FEATURE,
@@ -259,37 +257,6 @@ class FlatMinimumSignalComponent(StatefulSignalComponent):
             dma=_convert_dma_to_diagnostics(selected_state, selected[0]),
             spy_dma=_convert_dma_to_diagnostics(snapshot.spy_dma_state, "SPY"),
             ratio=_convert_ratio_to_diagnostics(snapshot.eth_btc_ratio_state),
-        )
-
-    def build_execution_hints(
-        self,
-        *,
-        snapshot: FlatMinimumState,
-        intent: AllocationIntent,
-        signal_confidence: float,
-    ) -> ExecutionHints:
-        _symbol, selected_state = _select_observation_state(snapshot, intent)
-        enable_buy_gate = intent.action == "buy" and selected_state is not None
-        return ExecutionHints(
-            signal_id=self.signal_id,
-            current_regime=(
-                "neutral" if selected_state is None else selected_state.fgi_regime
-            ),
-            signal_value=None if selected_state is None else selected_state.fgi_value,
-            signal_confidence=float(signal_confidence),
-            decision_score=intent.decision_score,
-            decision_action=intent.action,
-            dma_distance=(
-                None if selected_state is None else selected_state.dma_distance
-            ),
-            fgi_slope=None if selected_state is None else selected_state.fgi_slope,
-            buy_strength=(
-                None
-                if not enable_buy_gate or selected_state is None
-                else compute_dma_buy_strength(selected_state.dma_distance)
-            ),
-            enable_buy_gate=enable_buy_gate,
-            reset_buy_gate=intent.rule_group == "cross",
         )
 
     def _build_dma_signal(self, symbol: str) -> DmaGatedFgiSignalComponent:

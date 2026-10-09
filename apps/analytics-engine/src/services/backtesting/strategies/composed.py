@@ -7,10 +7,7 @@ from typing import Any
 
 from src.services.backtesting.decision import AllocationIntent
 from src.services.backtesting.domain import ExecutionOutcome, StrategySnapshot
-from src.services.backtesting.execution.contracts import (
-    AllocationExecutor,
-    ExecutionHints,
-)
+from src.services.backtesting.execution.contracts import AllocationExecutor
 from src.services.backtesting.portfolio_rules.base import DecisionPolicy
 from src.services.backtesting.signals.contracts import StatefulSignalComponent
 from src.services.backtesting.strategies.base import (
@@ -23,7 +20,7 @@ from src.services.backtesting.strategies.base import (
 
 @dataclass
 class ComposedSignalStrategy(BaseStrategy):
-    """Strategy that wires signal, decision, pacing, and execution components."""
+    """Strategy that wires signal, decision, and execution components."""
 
     total_capital: float
     signal_component: StatefulSignalComponent
@@ -59,17 +56,7 @@ class ComposedSignalStrategy(BaseStrategy):
             snapshot=committed_state,
             intent=decision,
         )
-        hints = self.signal_component.build_execution_hints(
-            snapshot=committed_state,
-            intent=decision,
-            signal_confidence=signal_observation.confidence,
-        )
-        self.execution_engine.observe(hints)
-        execution = self._execute(
-            context=context,
-            intent=decision,
-            hints=hints,
-        )
+        execution = self._execute(context=context, intent=decision)
         record_execution = getattr(self.decision_policy, "record_execution", None)
         if callable(record_execution):
             record_execution(
@@ -124,9 +111,6 @@ class ComposedSignalStrategy(BaseStrategy):
             }
         )
 
-    def parameters(self) -> dict[str, Any]:
-        return dict(self.public_params)
-
     def finalize(self) -> StrategyResult:
         return StrategyResult(metrics={})
 
@@ -135,15 +119,10 @@ class ComposedSignalStrategy(BaseStrategy):
         *,
         context: StrategyContext,
         intent: AllocationIntent,
-        hints: ExecutionHints,
     ) -> ExecutionOutcome:
         if intent.action == "hold" and intent.target_allocation is None:
             return ExecutionOutcome(event=None, transfers=[])
-        execution = self.execution_engine.execute(
-            context=context,
-            intent=intent,
-            hints=hints,
-        )
+        execution = self.execution_engine.execute(context=context, intent=intent)
         return self._to_execution_outcome(execution)
 
     @staticmethod
@@ -154,12 +133,6 @@ class ComposedSignalStrategy(BaseStrategy):
             event=execution.event,
             transfers=[] if execution.transfers is None else list(execution.transfers),
             blocked_reason=execution.block_reason,
-            step_count=int(getattr(execution, "step_count", 0)),
-            steps_remaining=int(getattr(execution, "steps_remaining", 0)),
-            interval_days=int(getattr(execution, "interval_days", 0)),
-            plugin_diagnostics=tuple(
-                getattr(execution, "plugin_diagnostics", ()),
-            ),
         )
 
 

@@ -8,7 +8,6 @@ export type {
   BacktestDecisionDetails,
   BacktestDmaSignalDetails,
   BacktestExecution,
-  BacktestExecutionDiagnostics,
   BacktestMacroFearGreedSnapshot,
   BacktestMarketPoint,
   BacktestPeriodInfo,
