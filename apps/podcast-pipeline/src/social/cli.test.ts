@@ -116,7 +116,8 @@ const copy: GeneratedSocialCopy = {
   },
   youtube: { hookType: 'explainer' },
 };
-const CTA = '官網 https://www.zap-pilot.org';
+const CTA =
+  'Your strategy. Your machine. Your wallet.\n官網 https://www.zap-pilot.org';
 const originalExitCode = process.exitCode;
 const originalStdinTty = Object.getOwnPropertyDescriptor(
   process.stdin,
@@ -473,6 +474,28 @@ describe('runSocialCli media preparation', () => {
     // the generated body: it is not part of what actually gets published.
     expect(console.log).toHaveBeenCalledWith(`標題：${episode.title}`);
     expect(console.log).not.toHaveBeenCalledWith(copy.rednote!.body);
+  });
+
+  it('previews an unsendable Rednote title as unavailable instead of cutting it', async () => {
+    mocks.getSocialEpisode.mockResolvedValue({
+      ...episode,
+      title: 'Bitget遭3.5億美元駭客攻擊，資金追蹤全解析',
+    });
+
+    await runSocialCli([
+      EPISODE_ID,
+      '--language',
+      'zh-Hant',
+      '--dry-run',
+      '--platform',
+      'rednote',
+    ]);
+
+    expect(console.log).toHaveBeenCalledWith(
+      expect.stringContaining(
+        '標題：⛔ title unavailable — Rednote title measures 21 units',
+      ),
+    );
   });
 
   it('fails before generation when a required canonical video URL is absent', async () => {

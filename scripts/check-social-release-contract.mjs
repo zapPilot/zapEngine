@@ -29,6 +29,33 @@ const languageRecoveryMigration = read(
 const claimMigration = read(
   'supabase/migrations/20260826120000_claim_social_publish_batch_episode_scope.sql',
 );
+const brandCta = read('apps/podcast-pipeline/src/brand/cta.ts');
+const platforms = read('apps/podcast-pipeline/src/social/platforms.ts');
+requireMatch(
+  'canonical brand slogan import',
+  brandCta,
+  /import\s*\{[^}]*SLOGAN[^}]*\}\s*from\s*['"]@zapengine\/zap-pilot-story\/brand['"]/,
+);
+forbidMatch(
+  'no per-platform slogan table',
+  brandCta,
+  /(?:SLOGAN|BRAND_CTA)_BY_(?:PLATFORM|LANGUAGE)/,
+);
+forbidMatch(
+  'no hard-coded slogan in the brand CTA',
+  brandCta,
+  /your\s+strategy\W+your\s+machine/i,
+);
+requireMatch(
+  'Rednote excludes brand sign-off',
+  platforms,
+  /rednote:\s*\{[^}]*ctaMode:\s*'none'/s,
+);
+requireMatch(
+  'brand packaging contract',
+  socialAgents,
+  /Brand sign-off is universal packaging/,
+);
 const contractTest =
   'apps/podcast-pipeline/src/social/daemon-release-cohort-contract.test.ts';
 const languageContractTest = 'apps/podcast-pipeline/src/social/cohort.test.ts';
@@ -284,12 +311,31 @@ function checkSocialTitleImports(directory) {
       forbidMatch(
         path,
         read(path),
-        /generateEditorialTitleWithLLM|compressEditorialTitleWithLLM|title-[\w-]*system-prompt/,
+        /generateEditorialTitle|compressEditorialTitle|editorial-title|title-repair-cli|title-[\w-]*system-prompt/,
       );
     }
   }
 }
 checkSocialTitleImports('apps/podcast-pipeline/src/social');
+
+// Titles are never cut to fit a platform: an over-budget title is held, not
+// truncated. The deleted helpers must not come back under any directory.
+function checkNoTitleTruncation(directory) {
+  for (const entry of readdirSync(resolve(root, directory), {
+    withFileTypes: true,
+  })) {
+    const path = `${directory}/${entry.name}`;
+    if (entry.isDirectory()) checkNoTitleTruncation(path);
+    else if (/\.[cm]?tsx?$/.test(entry.name)) {
+      forbidMatch(
+        path,
+        read(path),
+        /fitTitleToBudget|fitRednoteTitle|fitTransportTitle/,
+      );
+    }
+  }
+}
+checkNoTitleTruncation('apps/podcast-pipeline/src');
 forbidMatch(
   'compression prompt platform names',
   read('apps/podcast-pipeline/prompts/title-compression-system-prompt.txt'),

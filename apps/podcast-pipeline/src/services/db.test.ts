@@ -1990,6 +1990,7 @@ describe('updates', () => {
       expect.objectContaining({
         title: '軟體更新',
         title_variants: {},
+        title_provenance: null,
         raw_text: '滑鼠',
       }),
     );
@@ -2025,6 +2026,18 @@ describe('updates', () => {
         title_variants: variants,
         script: '正文',
       }),
+    );
+  });
+
+  it('persists title provenance in the same script status update', async () => {
+    const row = localizationRow();
+    state.query!.maybeSingle.mockResolvedValue({ data: row, error: null });
+    const titleProvenance = { version: 1, variantSource: 'ingest' as const };
+    await updateEpisodeLocalizationStatus(row.id, 'script_generated', {
+      titleProvenance: titleProvenance as never,
+    });
+    expect(state.query!.update).toHaveBeenCalledWith(
+      expect.objectContaining({ title_provenance: titleProvenance }),
     );
   });
 

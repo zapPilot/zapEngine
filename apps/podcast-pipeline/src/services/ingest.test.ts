@@ -6,7 +6,11 @@ import type {
   EpisodeRow,
   LanguageClassroomRow,
 } from '../types.js';
-import { packagePodcastScript } from './podcast-packaging.js';
+import {
+  packagePodcastScript,
+  PODCAST_PACKAGING_VERSION,
+  stripKnownPodcastPackaging,
+} from './podcast-packaging.js';
 
 const PACKAGED_SCRIPT = packagePodcastScript('Generated script');
 
@@ -17,7 +21,7 @@ const {
   mockGenerateHls,
   mockGenerateLanguageClassroomsWithLLM,
   mockGenerateScriptWithLLM,
-  mockGenerateEditorialTitleWithLLM,
+  mockGenerateEditorialTitle,
   mockInsertEpisode,
   mockInsertEpisodeLocalization,
   mockListLanguageClassroomsByLocalizationId,
@@ -37,7 +41,7 @@ const {
   mockGenerateHls: vi.fn(),
   mockGenerateLanguageClassroomsWithLLM: vi.fn(),
   mockGenerateScriptWithLLM: vi.fn(),
-  mockGenerateEditorialTitleWithLLM: vi.fn(),
+  mockGenerateEditorialTitle: vi.fn(),
   mockInsertEpisode: vi.fn(),
   mockInsertEpisodeLocalization: vi.fn(),
   mockListLanguageClassroomsByLocalizationId: vi.fn(),
@@ -53,11 +57,7 @@ const {
 }));
 
 vi.mock('./editorial-title.js', () => ({
-  generateEditorialTitleWithLLM: mockGenerateEditorialTitleWithLLM,
-  buildEditorialTitleVariants: vi.fn(async () => ({
-    titleVariants: {},
-    cost: [],
-  })),
+  generateEditorialTitle: mockGenerateEditorialTitle,
 }));
 
 vi.mock('./db.js', () => ({
@@ -152,11 +152,13 @@ describe('performIngest failure paths', () => {
         status: 'scraped',
       }),
     );
-    mockGenerateEditorialTitleWithLLM.mockResolvedValue({
+    mockGenerateEditorialTitle.mockResolvedValue({
       title: '软件更新的新变化',
+      titleVariants: {},
+      provenance: null,
+      cost: [],
       model: 'test-model',
       provider: 'test-provider',
-      costUsd: 0,
     });
     mockGenerateScriptWithLLM.mockResolvedValue({
       script: 'Generated script',
@@ -405,11 +407,13 @@ describe('performIngest failure paths', () => {
   it('cleans standalone separators only for the main TTS input', async () => {
     const originalScript =
       'First paragraph.\n\n---\n\nKeep inline --- punctuation.';
-    mockGenerateEditorialTitleWithLLM.mockResolvedValue({
+    mockGenerateEditorialTitle.mockResolvedValue({
       title: '软件更新的新变化',
+      titleVariants: {},
+      provenance: null,
+      cost: [],
       model: 'test-model',
       provider: 'test-provider',
-      costUsd: 0,
     });
     mockGenerateScriptWithLLM.mockResolvedValue({
       script: originalScript,
@@ -473,11 +477,18 @@ describe('performIngest failure paths', () => {
   });
 
   it('retains title cost in failed ingest telemetry without generating script', async () => {
-    mockGenerateEditorialTitleWithLLM.mockResolvedValue({
+    mockGenerateEditorialTitle.mockResolvedValue({
       title: null,
-      model: 'test-model',
-      provider: 'test-provider',
-      costUsd: 0.00002,
+      reason: 'no candidate passed',
+      cost: [
+        {
+          category: 'llm',
+          label: 'LLM title',
+          model: 'test-model',
+          provider: 'test-provider',
+          costUsd: 0.00002,
+        },
+      ],
     });
     const telemetry: import('./ingest/script-stage.js').IngestLanguageTelemetry =
       {
@@ -501,11 +512,21 @@ describe('performIngest failure paths', () => {
   });
 
   it('sums LLM costs for a fresh ingest invocation', async () => {
-    mockGenerateEditorialTitleWithLLM.mockResolvedValue({
+    mockGenerateEditorialTitle.mockResolvedValue({
       title: '软件更新的新变化',
+      titleVariants: {},
+      provenance: null,
+      cost: [
+        {
+          category: 'llm',
+          label: 'LLM title',
+          model: 'test-model',
+          provider: 'test-provider',
+          costUsd: 0.00002,
+        },
+      ],
       model: 'test-model',
       provider: 'test-provider',
-      costUsd: 0.00002,
     });
     const result = await performIngest(
       'https://example.com/article',
@@ -924,6 +945,54 @@ describe('performIngest failure paths', () => {
       }),
     );
   });
+
+  it.each(['script_generated', 'audio_generated', 'completed'] as const)(
+    'upgrades old secondary packaging only before audio (%s)',
+    async (status) => {
+      const canonical = localizationRow({
+        script: packagePodcastScript('市场正文。'),
+        script_body: '市场正文。',
+        packaging_version: 'podcast-script.v1',
+      });
+      const secondary = localizationRow({
+        id: 'en-localization',
+        language_code: 'en',
+        status,
+        script: 'Legacy English body.',
+        packaging_version: 'podcast-script.v1',
+      });
+      mockFindEpisodeBySourceUrl.mockResolvedValue(episodeRow());
+      mockFindEpisodeLocalizationByEpisodeId.mockImplementation(
+        (_id: string, language: string) =>
+          Promise.resolve(language === 'en' ? secondary : canonical),
+      );
+      await performIngest('https://example.com/article', 'en');
+      if (status === 'script_generated') {
+        expect(mockTranslateCanonicalScript).toHaveBeenCalledWith({
+          title: canonical.title,
+          script: '市场正文。',
+          targetLanguageCode: 'en',
+        });
+        expect(mockUpdateEpisodeLocalizationStatus).toHaveBeenCalledWith(
+          secondary.id,
+          'script_generated',
+          expect.objectContaining({
+            script: packagePodcastScript('Translated script', 'en'),
+            scriptBody: 'Translated script',
+            packagingVersion: PODCAST_PACKAGING_VERSION,
+          }),
+        );
+      } else {
+        expect(mockTranslateCanonicalScript).not.toHaveBeenCalled();
+        expect(mockTextToSpeech).not.toHaveBeenCalled();
+        expect(mockUpdateEpisodeLocalizationStatus).not.toHaveBeenCalledWith(
+          secondary.id,
+          'script_generated',
+          expect.anything(),
+        );
+      }
+    },
+  );
 
   it('can continue from an existing secondary script without retranslating', async () => {
     const chineseLocalization = localizationRow({
@@ -1451,7 +1520,9 @@ describe('performIngest failure paths', () => {
       'ja-localization',
       'script_generated',
       expect.objectContaining({
-        script: '日本語スクリプト',
+        script: packagePodcastScript('日本語スクリプト', 'ja'),
+        scriptBody: '日本語スクリプト',
+        packagingVersion: PODCAST_PACKAGING_VERSION,
         llmModel: 'script-model',
         llmThinkingModel: 'thinking-model',
         llmProvider: 'openrouter',
@@ -1480,14 +1551,16 @@ describe('performIngest failure paths', () => {
     const localizations = new Map<string, EpisodeLocalizationRow>();
     const editorialTitle = '市场流动性正在重新定价';
 
-    mockGenerateEditorialTitleWithLLM.mockResolvedValue({
+    mockGenerateEditorialTitle.mockResolvedValue({
       title: editorialTitle,
+      titleVariants: {},
+      provenance: null,
+      cost: [],
       model: 'test-model',
       provider: 'test-provider',
-      costUsd: 0,
     });
     mockGenerateScriptWithLLM.mockResolvedValue({
-      script: PACKAGED_SCRIPT,
+      script: stripKnownPodcastPackaging(PACKAGED_SCRIPT),
       model: 'test-model',
       thinkingModel: null,
       provider: 'test-provider',
@@ -1625,12 +1698,12 @@ describe('performIngest failure paths', () => {
     expect(mockGenerateScriptWithLLM).toHaveBeenCalledTimes(1);
     expect(mockTranslateCanonicalScript).toHaveBeenCalledWith({
       title: editorialTitle,
-      script: PACKAGED_SCRIPT,
+      script: stripKnownPodcastPackaging(PACKAGED_SCRIPT),
       targetLanguageCode: 'ja',
     });
     expect(mockTranslateCanonicalScript).toHaveBeenCalledWith({
       title: editorialTitle,
-      script: PACKAGED_SCRIPT,
+      script: stripKnownPodcastPackaging(PACKAGED_SCRIPT),
       targetLanguageCode: 'en',
     });
     expect(
@@ -1713,6 +1786,8 @@ describe('performIngest failure paths', () => {
         Promise.resolve(
           localizationRow({
             ...corrupted,
+            hls_url:
+              (updates as { hlsUrl?: string }).hlsUrl ?? corrupted.hls_url,
             status,
             script: (updates as { script?: string }).script ?? corrupted.script,
           }),
@@ -1727,7 +1802,7 @@ describe('performIngest failure paths', () => {
       targetLanguageCode: 'en',
     });
     expect(mockTextToSpeech).toHaveBeenCalledWith(
-      'Healthy English script.',
+      packagePodcastScript('Healthy English script.', 'en'),
       expect.objectContaining({ languageCode: 'en' }),
     );
   });
@@ -1766,6 +1841,7 @@ describe('performIngest failure paths', () => {
         Promise.resolve(
           localizationRow({
             ...blank,
+            hls_url: (updates as { hlsUrl?: string }).hlsUrl ?? blank.hls_url,
             status,
             script: (updates as { script?: string }).script ?? blank.script,
           }),
@@ -1811,6 +1887,8 @@ describe('performIngest failure paths', () => {
         Promise.resolve(
           localizationRow({
             ...corrupted,
+            hls_url:
+              (updates as { hlsUrl?: string }).hlsUrl ?? corrupted.hls_url,
             status,
             script: (updates as { script?: string }).script ?? corrupted.script,
           }),
@@ -2382,8 +2460,10 @@ function localizationRow(
   overrides: Partial<EpisodeLocalizationRow> = {},
 ): EpisodeLocalizationRow {
   const status = overrides.status ?? 'completed';
-  const hlsUrl = overrides.hls_url ?? 'https://cdn.example.com/playlist.m3u8';
   const audioStatus = status === 'audio_generated' || status === 'completed';
+  const hlsUrl =
+    overrides.hls_url ??
+    (audioStatus ? 'https://cdn.example.com/playlist.m3u8' : '');
   let classroomHlsUrl =
     audioStatus && hlsUrl.trim().length > 0
       ? 'https://cdn.example.com/classroom/playlist.m3u8'
@@ -2408,6 +2488,7 @@ function localizationRow(
     classroom_hls_url: classroomHlsUrl,
     raw_text: 'Article text',
     script: 'Script',
+    packaging_version: PODCAST_PACKAGING_VERSION,
     llm_model: 'model',
     llm_thinking_model: null,
     llm_provider: 'provider',

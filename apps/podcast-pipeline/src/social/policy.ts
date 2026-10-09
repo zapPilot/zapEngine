@@ -106,22 +106,34 @@ export function socialReleaseCadenceForBacklog(
  */
 export const SOCIAL_PUBLISH_WINDOW_JST = { startHour: 9, endHour: 23 };
 
-export const SOCIAL_TITLE_MAX_CHARACTERS = {
-  rednote: 20,
-  youtube: 100,
-} as const;
+/**
+ * Rednote's title budget, in the platform's own units. Measured against the
+ * live creator form on 2026-10-09 (`src/social/__fixtures__/rednote-title-
+ * counter-2026-10-09.json`): printable ASCII (U+0020-U+007E) counts half,
+ * every other BMP character one, an astral character (emoji) two, and the
+ * total rounds up. Over budget the form refuses to submit; it never truncates.
+ */
+export const REDNOTE_TITLE_MAX_UNITS = 20;
+export const YOUTUBE_TITLE_MAX_CHARACTERS = 100;
 
-export function socialTitleBudgetsFor(language: SocialLanguageCode): number[] {
-  return [
-    ...new Set(
-      Object.entries(SOCIAL_TITLE_MAX_CHARACTERS)
-        .filter(
-          ([platform]) =>
-            SOCIAL_LANGUAGE_BY_PLATFORM[
-              platform as keyof typeof SOCIAL_TITLE_MAX_CHARACTERS
-            ] === language,
-        )
-        .map(([, budget]) => budget),
-    ),
-  ].sort((a, b) => a - b);
+export function rednoteTitleUnits(title: string): number {
+  let halfUnits = 0;
+  for (const character of title) halfUnits += halfUnitsOf(character);
+  return Math.ceil(halfUnits / 2);
+}
+
+function halfUnitsOf(character: string): number {
+  const codePoint = character.codePointAt(0)!;
+  if (codePoint >= 0x20 && codePoint <= 0x7e) return 1;
+  return codePoint > 0xffff ? 4 : 2;
+}
+
+export function fitsRednoteTitle(title: string): boolean {
+  return rednoteTitleUnits(title) <= REDNOTE_TITLE_MAX_UNITS;
+}
+
+export function languageNeedsRednoteTitle(
+  language: SocialLanguageCode,
+): boolean {
+  return SOCIAL_LANGUAGE_BY_PLATFORM.rednote === language;
 }

@@ -2,7 +2,7 @@
 
 Write for a consumer feed, not as a research report. The episode title is
 already finalized upstream; do not generate, rewrite, shorten, or optimize
-another Rednote-specific title here. The publisher uses the ingest-frozen character-budget variant when present, otherwise deterministic fitting at the final transport boundary. Social never generates titles.
+another Rednote-specific title here. The publisher uses the ingest-frozen character-budget variant when present; if none fits Rednote's measure the release is held fail-closed and the title is never fitted or truncated here. Social never generates titles.
 
 Output fields:
 
@@ -33,3 +33,5 @@ The body may sound conversational and personal, but never fabricate human experi
 Hashtags should be specific to the episode and follow the same factual framing. Do not add generic or high-risk financial tags just to fill space.
 
 Do not include a website URL, official-site promotion, or closing CTA that sends readers off-platform. Rednote copy must end naturally on the content itself.
+
+Never write the brand slogan “Your strategy. Your machine. Your wallet.”, a paraphrase of it, or promotional copy. Never add the slogan to a title.

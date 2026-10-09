@@ -41,6 +41,7 @@ function svgDataUri(svg: Buffer): string {
 async function stageElementAndSize(
   input: SatoriStageInput,
   logoDataUri: string,
+  signoffDataUri: string,
 ): Promise<{
   element: ReactElement;
   width: number;
@@ -55,7 +56,7 @@ async function stageElementAndSize(
   }
   if (input.kind === 'outro') {
     return {
-      element: renderOutroElement(input.outro, logoDataUri),
+      element: renderOutroElement(input.outro, signoffDataUri),
       width: PORTRAIT_TEMPLATE_WIDTH,
       height: PORTRAIT_TEMPLATE_HEIGHT,
     };
@@ -74,19 +75,28 @@ export async function runSatoriStage(
   const input = JSON.parse(
     await readFile(inputPath, 'utf8'),
   ) as SatoriStageInput;
-  const [regularFont, boldFont, monoFont, archivoFont, archivoSemibold, logo] =
-    await Promise.all([
-      readFile(videoAssetPaths.notoSansCjkTcRegular),
-      readFile(videoAssetPaths.notoSansCjkTcBold),
-      readFile(videoAssetPaths.martianMonoSemibold),
-      readFile(videoAssetPaths.archivoText),
-      readFile(videoAssetPaths.archivoTextSemibold),
-      readFile(videoAssetPaths.logo),
-    ]);
+  const [
+    regularFont,
+    boldFont,
+    monoFont,
+    archivoFont,
+    archivoSemibold,
+    logo,
+    signoff,
+  ] = await Promise.all([
+    readFile(videoAssetPaths.notoSansCjkTcRegular),
+    readFile(videoAssetPaths.notoSansCjkTcBold),
+    readFile(videoAssetPaths.martianMonoSemibold),
+    readFile(videoAssetPaths.archivoText),
+    readFile(videoAssetPaths.archivoTextSemibold),
+    readFile(videoAssetPaths.logo),
+    readFile(videoAssetPaths.zapPilotSignoff),
+  ]);
 
   const { element, width, height } = await stageElementAndSize(
     input,
     svgDataUri(logo),
+    svgDataUri(signoff),
   );
   const svg = await satori(element, {
     width,

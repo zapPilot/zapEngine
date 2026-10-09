@@ -1,14 +1,20 @@
 import {
   CAPABILITIES,
   STATUS_LABEL,
-  type CapabilityId,
+  capabilityIds,
+  type SharedCapabilityRef,
 } from '../facts/capabilities.js';
-export function StatusBadge({ capability }: { capability: CapabilityId }) {
-  const { status } = CAPABILITIES[capability];
+export function StatusBadge({
+  capability,
+}: {
+  capability: SharedCapabilityRef;
+}) {
+  const ids = capabilityIds(capability);
+  const { status } = CAPABILITIES[ids[0]!];
   return (
     <span
       className="zp-badge"
-      data-capability={capability}
+      data-capability={ids.join(' ')}
       data-status={status}
     >
       <i className="status-glyph" data-status={status} aria-hidden="true" />

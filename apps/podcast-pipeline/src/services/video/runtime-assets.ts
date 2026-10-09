@@ -30,6 +30,9 @@ export const videoAssetPaths = {
   zapPilotOutro: fileURLToPath(
     new URL('brand/zap-pilot-outro.png', videoAssetsUrl),
   ),
+  zapPilotSignoff: fileURLToPath(
+    new URL('brand/zap-pilot-signoff.svg', videoAssetsUrl),
+  ),
   musicDirectory: fileURLToPath(new URL('music/', videoAssetsUrl)),
 } as const;
 

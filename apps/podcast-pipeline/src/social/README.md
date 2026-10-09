@@ -219,7 +219,7 @@ before returning. Threads and Rednote share the zh-Hant row. Ordinary daemon
 retries (including `ops --social-once`) reuse that row even after transport
 failure or partial publication; they never overwrite
 or automatically regenerate it. Missing platform blocks and database read/write
-failures stop the release. Best Title and frozen budget variants come from the localization; the deterministic last-mile lexicon checks the actual transport title, body and hashtags,
+failures stop the release. Best Title and frozen budget variants come from the localization (a missing or invalid Rednote variant holds the cohort); the deterministic last-mile lexicon checks the actual transport title, body and hashtags,
 and `social_posts` still records only successful publication. Snapshot invalidation
 and the interactive break-glass CLI's explicit edit/regenerate workflow are
 separate from this daemon retry contract. Deploy the root migration before
@@ -504,15 +504,19 @@ Title and variants precede script generation; failures stop ingest without a scr
 Semantically equivalent compression variants are generated in ingest by character
 budget and persisted atomically in `title_variants`; they are never recomputed
 by social or after resume. Social never generates titles or calls a title LLM.
-Transport reads a stored budget variant, otherwise deterministic fitting at word
-or clause boundaries (Rednote 20, YouTube 100); X and Threads have no title field.
+Transport reads a stored, revalidated budget variant (Rednote measure in
+`policy.ts`: printable ASCII 0.5, other BMP 1, emoji 2, rounded up, limit 20;
+YouTube is a 100-code-point check only); when none fits, `resolveTransportTitle`
+returns null and the release barrier holds the cohort fail-closed rather than
+fitting or truncating. Operator repair (`titles:repair`) only fills
+missing/invalid variants. X and Threads have no title field.
 Platform audience, per-platform hook, thesis, and learned headline strategies
 are forbidden. Never add a title field to `GeneratedSocialCopy`.
 
 `social_publish_jobs.legacy_title_override` exists only for the finite set of
 already-queued Rednote jobs that predate the canonical-title migration. New jobs
 must leave it null; it is not a new title strategy, and any override is subject
-to the same final Rednote transport truncation.
+to the same Rednote title measure and fail-closed hold; nothing truncates it.
 
 ## Account follower snapshots
 
@@ -615,3 +619,9 @@ kill before tick completion can leave that in-flight tick without a terminal
 record. Retain the independent per-minute DB/host monitor evidence as well.
 
 Optimization contract: [one universal packaging strategy](AGENTS.md#social-optimization-contract). Owner interest controls topic selection. Cover → title → video opening; observed associations never prove causation or justify topic selection.
+
+## Canonical brand sign-off
+
+The publisher appends “Your strategy. Your machine. Your wallet.” and the attributed website URL to X, Threads and YouTube. The generated body and all titles exclude it; Rednote has no off-platform signature. X Japanese copy reserves 78 weighted units for the suffix, leaving 202 for the body. Threads body is at most 320 characters and is checked against the actual UTM URL before generation. YouTube descriptions include the status-bound one-liner, English slogan and website.
+
+Frozen copy snapshots remain unchanged. If a body cannot fit the full signature, publication uses the original website CTA without truncating the body. If the body plus original attributed CTA still exceeds the platform limit, publication fails before transport; that snapshot requires operator attention. UTM attribution remains unchanged.

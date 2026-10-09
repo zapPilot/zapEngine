@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   enrichStoryboardSearchIntents,
+  sceneSearchEntities,
   SubjectCatalogUnavailableError,
 } from './search-intents.js';
 import {
@@ -165,7 +166,7 @@ it('bounds readable catalog repair issues and labels short names by subject ID',
   const { z } = await import('zod');
   const raw = {
     primarySubjectId: 'subject-openai',
-    subjects: [subject({ canonicalName: 'A' })],
+    subjects: [subject({ canonicalName: '7' })],
   };
   try {
     parseVisualSubjectCatalog(raw);
@@ -173,7 +174,7 @@ it('bounds readable catalog repair issues and labels short names by subject ID',
   } catch (error) {
     expect(catalogRepairIssues(error, raw)).toEqual([
       expect.stringContaining(
-        'canonicalName must be 2–80 characters (subject-openai: A)',
+        'canonicalName must be 1–80 characters; a one-character name must be an ASCII letter (subject-openai: 7)',
       ),
     ]);
   }
@@ -221,4 +222,39 @@ it('rejects a stored query that names no catalog identity', () => {
       subjects: [{ ...catalog.subjects[0], searchQuery: 'Unknown Company' }],
     }).success,
   ).toBe(false);
+});
+
+describe('scene search entities for one-letter subjects', () => {
+  it('falls back to the identity query when a one-letter canonical name has no hint to disambiguate it', () => {
+    const [x] = parseVisualSubjectCatalog({
+      primarySubjectId: 'subject-x',
+      subjects: [
+        subject({
+          id: 'subject-x',
+          canonicalName: 'X',
+          identityHints: ['a descriptive hint too long to disambiguate'],
+          searchQualifier: 'Twitter',
+        }),
+      ],
+    }).subjects;
+
+    expect(x?.canonicalName).toBe('X');
+    expect(sceneSearchEntities([x!])).toEqual(['X Twitter']);
+  });
+
+  it('never offers a one-character alias as a scene entity', () => {
+    const [coinbase] = parseVisualSubjectCatalog({
+      primarySubjectId: 'subject-coinbase',
+      subjects: [
+        subject({
+          id: 'subject-coinbase',
+          canonicalName: 'Coinbase',
+          aliases: ['X', 'Base'],
+          identityHints: ['crypto exchange'],
+        }),
+      ],
+    }).subjects;
+
+    expect(sceneSearchEntities([coinbase!])).toEqual(['Coinbase', 'Base']);
+  });
 });

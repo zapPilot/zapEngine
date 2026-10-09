@@ -223,6 +223,12 @@
   letter-spacing: -0.045em;
   line-height: 0.94;
 }
+.zp-hero-status {
+  margin: 14px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
 .zp-hero-p {
   margin: 30px 0 0;
   max-width: 31em;

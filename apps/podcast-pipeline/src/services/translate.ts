@@ -10,7 +10,6 @@ import {
   type OpenRouterChatCompletion,
 } from './llm.js';
 import { OPENROUTER_FREE_MODEL } from './llm-model-fallback.js';
-import { fitTitleToBudget } from './title-variants.js';
 import { splitCanonicalSentences } from './video/storyboard/sentences.js';
 
 export type SecondaryLanguageCode = Exclude<
@@ -20,7 +19,9 @@ export type SecondaryLanguageCode = Exclude<
 
 // Translation uses the shared free-router primary; transport failures advance
 // through LLM_FALLBACK_MODELS like every other OpenRouter workload.
-const TRANSLATION_MAX_ATTEMPTS = 2;
+// Three, not two: an over-long English title is retried rather than cut, so the
+// last attempt has to be able to fail closed with room to recover first.
+const TRANSLATION_MAX_ATTEMPTS = 3;
 const TRANSLATION_MAX_CHUNK_CHARS = 2_000;
 const TRANSLATION_RETRY_DELAY_MS = 500;
 export const TRANSLATED_TITLE_MAX_CHARACTERS: Partial<
@@ -176,7 +177,6 @@ async function tryTranslationModel<K extends string>(
         targetLanguageCode,
         model,
         retryReason,
-        attempt === TRANSLATION_MAX_ATTEMPTS,
       );
       return {
         fields: result.fields,
@@ -238,7 +238,6 @@ async function translateFieldsWithOpenRouter<K extends string>(
   targetLanguageCode: SecondaryLanguageCode,
   translationModel: string,
   retryReason: string | null,
-  finalAttempt: boolean,
 ): Promise<{ fields: Record<K, string>; cost: UsageCostLine[] }> {
   const keys = Object.keys(fields) as K[];
   const { completion, model } = await createTranslationCompletion(
@@ -260,13 +259,7 @@ async function translateFieldsWithOpenRouter<K extends string>(
       fields: Object.fromEntries(
         keys.map((key) => [
           key,
-          readTranslatedField(
-            payload,
-            key,
-            fields[key],
-            targetLanguageCode,
-            finalAttempt,
-          ),
+          readTranslatedField(payload, key, fields[key], targetLanguageCode),
         ]),
       ) as Record<K, string>,
       cost: [costLine],
@@ -473,7 +466,6 @@ function readTranslatedField(
   field: string,
   sourceText: string,
   targetLanguageCode: SecondaryLanguageCode,
-  finalAttempt: boolean,
 ): string {
   if (sourceText.length === 0) {
     return '';
@@ -501,14 +493,6 @@ function readTranslatedField(
       : undefined;
   const characterCount = Array.from(value.trim()).length;
   if (maxCharacters && characterCount > maxCharacters) {
-    if (finalAttempt) {
-      logIngestEvent('translate:title-truncated', {
-        targetLanguageCode,
-        characterCount,
-        maxCharacters,
-      });
-      return fitTitleToBudget(value, maxCharacters);
-    }
     throw new TranslationResponseError(
       `OpenRouter translation returned ${field} over ${maxCharacters} characters (${characterCount})`,
     );

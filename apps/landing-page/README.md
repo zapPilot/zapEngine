@@ -16,7 +16,8 @@ pnpm build          # → ./out (static)
 
 ## Content
 
-- Home page sections: `src/components/landing-v2/` (Hero with RuntimeTrace, Ownership, Runtime, Strategies, BacktestProof, Adapters, TrustBoundary, ClosingCta). Their copy lives in `src/config/messages.ts` (`MESSAGES`); /pitch copy lives in `src/config/pitch.ts`.
+- Home page: `@zapengine/zap-pilot-story/scenes` renders the engine, replay and join from story copy. `@zapengine/zap-pilot-story/brand` owns verbal identity. `src/config/messages.ts` owns metadata, waitlist, download and retained host surfaces; `/pitch` copy lives in `src/config/pitch.ts` and its cover reuses the story hero.
+- Sharing: home and pitch use file-based `opengraph-image.tsx` routes and the shared `components/og/OgCard.tsx`. Packaged static fonts and token mark/status geometry render PNG cards with the self-hosting marker.
 - Capability status: `packages/zap-pilot-story/src/facts/capabilities.ts` (`CAPABILITIES`) records whether each capability is Live, Research, In development or Planned. Copy references a capability id and pages render its `StatusBadge`; prose never states liveness. `src/config/__tests__/positioning.test.tsx` fences every claim, docs link and retired term.
 - Docs: MDX files under `content/docs/` — rendered via Fumadocs. `<CapabilityStatusTable />` renders the status table on the docs home.
 

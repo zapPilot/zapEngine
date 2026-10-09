@@ -13,7 +13,7 @@ import {
   parseYouTubePrivacyOption,
   requireEpisodeArgument,
 } from './cli-args.js';
-import { composeSocialContent } from './compose.js';
+import { composeSocialContent, resolveTransportTitle } from './compose.js';
 import { generateSocialCopy, parseGeneratedSocialCopy } from './copy.js';
 import {
   type PackagingAssignment,
@@ -402,6 +402,10 @@ function printPreview(
   // never show wording a platform will not receive.
   const compose = (platform: SocialPlatform) =>
     composeSocialContent(platform, { copy, episode });
+  const titleLine = (platform: 'rednote' | 'youtube') => {
+    const resolved = resolveTransportTitle(episode, platform);
+    return resolved.title ?? `⛔ title unavailable — ${resolved.reason}`;
+  };
   console.log(`\nTopic: ${copy.topic}`);
   if (copy.x) {
     console.log(`\n${divider}\nX · ${copy.x.hookType}\n${divider}`);
@@ -420,7 +424,7 @@ function printPreview(
   if (copy.youtube) {
     console.log(`${divider}\nYOUTUBE · ${copy.youtube.hookType}\n${divider}`);
     const youtube = compose('youtube');
-    console.log(youtube.title);
+    console.log(titleLine('youtube'));
     console.log(youtube.body);
     if (youtubePrivacy) console.log(`🔒 privacy override: ${youtubePrivacy}`);
     console.log(formatVideoPreview(video, episode.videoDurationSeconds));
@@ -428,7 +432,7 @@ function printPreview(
   if (copy.rednote) {
     console.log(`${divider}\nREDNOTE · ${copy.rednote.hookType}\n${divider}`);
     const rednote = compose('rednote');
-    console.log(`標題：${rednote.title!}`);
+    console.log(`標題：${titleLine('rednote')}`);
     console.log(rednote.hashtags.map((tag) => `#${tag}`).join(' '));
     console.log('（正文不會發布，僅供內部比對用）');
     console.log(formatVideoPreview(video, episode.videoDurationSeconds));

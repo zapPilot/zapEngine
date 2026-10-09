@@ -855,6 +855,7 @@ type LLMCompletionOperation =
   | 'generateLanguageClassrooms'
   | 'writeConceptCard'
   | 'generateEditorialTitle'
+  | 'verifyEditorialTitle'
   | 'compressEditorialTitle';
 
 export async function createCompletionWithRetry(

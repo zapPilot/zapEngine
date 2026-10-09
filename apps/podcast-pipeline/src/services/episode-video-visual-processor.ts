@@ -305,17 +305,12 @@ export function createEpisodeVideoVisualProcessor(
           model: intents.model,
           cues: intents.sceneCueCount,
         });
-        for (const droppedSubject of intents.subjectCatalog.droppedSubjects ??
-          []) {
-          logVisualProgress(dependencies.logger, 'visual:intents', {
-            run: context.runId,
-            episode: source.episodeId,
-            phase: 'dropped-subject',
-            subject: droppedSubject.id,
-            reason: droppedSubject.reason,
-            names: JSON.stringify(droppedSubject.names.join(' / ')),
-          });
-        }
+        logSubjectCatalogDecisions(
+          dependencies.logger,
+          context.runId,
+          source.episodeId,
+          intents.subjectCatalog,
+        );
         return {
           storyboard: { ...generated, draft: intents.draft },
           searchIntentModel: intents.model,
@@ -940,6 +935,41 @@ function logVisualProgress(
   fields: Record<string, string | number | undefined>,
 ): void {
   logVideoWorkerEvent(logger, event, { ...fields, language: 'shared' });
+}
+
+/**
+ * One line per subject the catalog layer dropped or repaired. A repaired subject
+ * stayed in the catalog without an LLM retry, so its line says both.
+ */
+function logSubjectCatalogDecisions(
+  logger: Pick<Console, 'info'>,
+  runId: string,
+  episodeId: string,
+  catalog: VisualSubjectCatalog,
+): void {
+  for (const dropped of catalog.droppedSubjects ?? []) {
+    logVisualProgress(logger, 'visual:intents', {
+      run: runId,
+      episode: episodeId,
+      phase: 'dropped-subject',
+      subject: dropped.id,
+      reason: dropped.reason,
+      names: JSON.stringify(dropped.names.join(' / ')),
+    });
+  }
+  for (const repair of catalog.repairedSubjects ?? []) {
+    logVisualProgress(logger, 'visual:intents', {
+      run: runId,
+      episode: episodeId,
+      phase: 'repaired-subject',
+      subject: repair.id,
+      field: repair.field,
+      kind: repair.kind,
+      value: JSON.stringify(repair.value),
+      retained: 'true',
+      llmRetry: 'avoided',
+    });
+  }
 }
 /* jscpd:ignore-end */
 

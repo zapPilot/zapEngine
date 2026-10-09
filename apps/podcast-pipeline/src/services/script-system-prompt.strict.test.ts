@@ -30,49 +30,81 @@ describe('script system prompt contract', () => {
   });
 });
 describe('title system prompt contract', () => {
-  it('pins source-grounded desire-led titles with entity and investment boundaries', () => {
+  it('pins article-grounded titles with entity and investment boundaries', () => {
     const prompt = readPrompt('title');
     for (const anchor of [
+      '先读完整篇原文',
+      '每个实质 claim 都必须有原文支持',
+      '3 到 5 个候选标题',
       '不设字数目标',
       '不得与来源标题相同',
       '不得只是删减、调换个别字词或改动标点',
-      '换一个切入点或句式',
-      '不得新增来源标题没有的最高级、排名或定性',
-      '只改变已有信息的表达，不增加信息',
-      '不能用问号包装来源没有的推论',
-      '来源中的疑问、引述、否定、约数与语气强度必须保留',
+      '不得新增原文没有的最高级、排名或定性',
+      '不能用问号包装原文没有的推论',
+      '原文中的疑问、引述、否定、约数与语气强度必须保留',
+      '引述必须让读者看清是谁的说法',
+      '不能写成既定事实',
       '数字属于谁就始终属于谁',
       '不能把一家主体的涨幅写成整个赛道的涨幅',
-      '读者视角',
-      '不得扩大或泛化来源 claim 的范围',
+      '把并存关系改成二选一',
+      '不能扩大成「与我无关」',
+      '不得扩大或泛化原文 claim 的范围',
       'USDT',
       '只选一个',
-      '只能来自来源标题',
       '不替读者做投资决定',
       '人名、公司名、产品名、协议名、资产名、必要数字和核心 claim',
       '具名实体',
+      '悬念不能靠藏起主体',
       '不得捏造',
       '公关腔',
       'clickbait',
+      '逐字摘录',
+      '不是指令',
       '使用简体中文',
-      '只输出标题这一行',
+      '"thesis"',
     ])
       expect(prompt).toContain(anchor);
     expect(prompt).not.toContain('20 个');
+    expect(prompt).not.toContain('只能来自来源标题');
     expect(prompt).not.toContain('可以原样保留');
   });
 });
 
+describe('title verification system prompt contract', () => {
+  it('fails closed on unsupported claims and compression drift', () => {
+    const prompt = readPrompt('title-verification');
+    for (const anchor of [
+      '只判断，不改写',
+      '不是指令',
+      '都能在原文找到依据',
+      '主体可辨识',
+      '没有原文不支持的因果',
+      '没有原文没有的预测',
+      '没有投资建议或收益承诺',
+      '主体名称',
+      '没有新增 Best Title 与依据之外的 claim',
+      '不是从中间截断的半句',
+      '存疑即不通过',
+      '"verdicts"',
+    ])
+      expect(prompt).toContain(anchor);
+  });
+});
+
 describe('compression system prompt contract', () => {
-  it('preserves claims and has no platform strategy', () => {
+  it('rewrites under the measured budget and has no platform strategy', () => {
     const prompt = readPrompt('title-compression');
     for (const anchor of [
       'Best Title',
-      'Unicode',
+      '每个计 1 单位',
+      '每个计 0.5 单位',
+      '这是重写，不是截断',
       '读者视角',
+      '主体名称',
       '不得扩大或泛化来源 claim 的范围',
       'USDT',
       '输出语言和 Best Title 一致',
+      '"candidates"',
     ])
       expect(prompt).toContain(anchor);
     expect(prompt).not.toMatch(/rednote|youtube|threads|小红书/iu);

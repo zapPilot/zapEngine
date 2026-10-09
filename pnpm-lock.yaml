@@ -934,6 +934,9 @@ importers:
       '@zapengine/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@zapengine/zap-pilot-story':
+        specifier: workspace:*
+        version: link:../../packages/zap-pilot-story
       fluent-ffmpeg:
         specifier: ^2.1.3
         version: 2.1.3

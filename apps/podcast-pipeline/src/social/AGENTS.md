@@ -82,7 +82,9 @@ The contract separates pre-scheduling readiness from lane creation:
    one language alone — Rednote lexicon validation runs on `zh-Hant` only — so
    generating it inside the publish loop can ship `ja` and `en` before the
    rejection on `zh-Hant` is known. A rejected note holds that whole article the same way
-   missing media does.
+   missing media does. A zh-Hant title with no valid Rednote variant holds the
+   cohort the same way (`resolveTransportTitle` never throws; it spends an
+   attempt, max 8, and other episodes continue).
 
 `social_waiting_media` is an episode-language readiness signal, not a future
 platform-lane assignment table. Once an episode has any durable publish job or
@@ -148,8 +150,12 @@ insert against a legacy cohort.
   Semantically equivalent compression variants are generated in ingest by character
   budget and persisted atomically in `title_variants`; they are never recomputed
   by social or after resume. Social never generates titles or calls a title LLM.
-  Transport reads a stored budget variant, otherwise deterministic fitting at word
-  or clause boundaries (Rednote 20, YouTube 100); X and Threads have no title field.
+  Transport reads a stored, revalidated budget variant (Rednote measure in
+  `policy.ts`, limit 20; YouTube is a 100-code-point check only); when none fits,
+  `resolveTransportTitle` returns null and the release barrier holds the cohort
+  fail-closed instead of fitting or truncating. Operator repair
+  (`titles:repair`) only fills missing/invalid variants and never changes the Best
+  Title. X and Threads have no title field.
   Platform audience, per-platform hook, thesis, and learned headline strategies
   are forbidden. Never add a title field to `GeneratedSocialCopy`.
 - `social_publish_jobs.legacy_title_override` is migration-only for the finite
@@ -183,3 +189,7 @@ eligibility owns the version policy.
 - The only implementation location is Control Center's shared growth read model (`/api/growth` + `ops_growth`, 15-minute cache). `ops_social` owns daemon/queue only. Packaging never becomes an `ops_status` signal or priority.
 - Future packaging experiments randomize by article, with the same variant across every lane, and require a design recorded here first. `packaging-experiments.ts` remains disabled.
 - History: the per-platform learner was removed on 2026-10-03. Preserve `social_strategy_versions`, historical rows and nullable `social_publish_jobs.strategy_version_id` (ON DELETE SET NULL). New jobs leave the field null. Never drop the table or resurrect the learner under another name.
+
+## Brand sign-off is universal packaging
+
+The publisher appends the canonical English slogan and attributed website URL to X, Threads and YouTube. Never put the slogan in titles or generate it in body copy. Reserve its actual transport budget before generation: X Japanese body is at most 202 weighted units; Threads body is at most 320 characters and must also fit the actual UTM URL. Rednote remains `ctaMode: 'none'` because of moderation. Frozen snapshots are not regenerated or truncated: use the original website CTA when the full sign-off cannot fit, and fail if even that exceeds the transport limit. Text signatures have no status badge. The video outro card displays Planned, and the spoken outro says “is building” on full episodes. An X teaser for an episode longer than 140 seconds keeps 130 seconds of content plus the final 2.8 seconds, which does not reliably include the spoken outro, so that card is its only status cue. UTM attribution is unchanged.

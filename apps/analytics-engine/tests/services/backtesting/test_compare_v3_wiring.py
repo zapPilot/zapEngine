@@ -233,8 +233,6 @@ def test_run_compare_v3_on_data_writes_decision_log(tmp_path: Path) -> None:
             start_date=date(2025, 1, 1),
             end_date=date(2025, 1, 2),
             total_capital=10_000.0,
-            emit_decision_log=True,
-            decision_log_dir=str(tmp_path),
             configs=[
                 BacktestCompareConfigV3(
                     config_id="portfolio_rules_runtime",
@@ -257,9 +255,9 @@ def test_run_compare_v3_on_data_writes_decision_log(tmp_path: Path) -> None:
         request=request,
         user_start_date=date(2025, 1, 1),
         config=RegimeConfig.default(),
+        decision_log_dir=tmp_path,
     )
 
-    assert result.decision_log_path == f"{tmp_path}/decisions.jsonl"
     lines = (tmp_path / "decisions.jsonl").read_text().splitlines()
     assert len(lines) == len(result.timeline)
     first = json.loads(lines[0])

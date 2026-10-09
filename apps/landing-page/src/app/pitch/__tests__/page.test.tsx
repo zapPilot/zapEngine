@@ -1,3 +1,5 @@
+import { SLOGAN } from '@zapengine/zap-pilot-story/brand';
+import { HERO } from '@zapengine/zap-pilot-story/copy';
 import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
 import { MESSAGES } from '@/config/messages';
@@ -35,15 +37,21 @@ describe('PitchPage', () => {
   });
 
   it('reuses the hero eyebrow, brand line and subtitle on the cover', () => {
-    render(<PitchPage />);
+    const { container } = render(<PitchPage />);
+    expect(
+      container.querySelector('#pitch-cover-title [data-style="o"]'),
+    ).toHaveTextContent('machine.');
+    expect(
+      container.querySelector('#pitch-cover-title [data-style="s"]'),
+    ).toHaveTextContent('wallet.');
     expect(
       screen.getByRole('heading', {
         level: 1,
-        name: MESSAGES.common.brandLine,
+        name: SLOGAN,
       }),
     ).toBeInTheDocument();
-    expect(screen.getByText(MESSAGES.hero.eyebrow)).toBeInTheDocument();
-    expect(screen.getByText(MESSAGES.hero.subtitle)).toBeInTheDocument();
+    expect(screen.getByText(HERO.eyebrow)).toBeInTheDocument();
+    expect(screen.getByText(HERO.body)).toBeInTheDocument();
   });
 
   it('shows the ownership, runtime and wallet headlines', () => {

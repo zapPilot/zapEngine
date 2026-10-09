@@ -141,7 +141,9 @@ describe('subject catalog coverage edges', () => {
         subject({
           canonicalName: 'Ambiguous Product',
           negativeHints: ['other product'],
-          identityHints: [' x '],
+          // Valid for the schema, but longer than the 24-character bound that
+          // disambiguation accepts, so no hint is usable for renaming.
+          identityHints: ['a long hint beyond the disambiguation bound'],
         }),
       ],
     });

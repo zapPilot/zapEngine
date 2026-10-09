@@ -63,6 +63,7 @@ type LocalizationStatusUpdates = Partial<
     NewEpisodeLocalization,
     | 'title'
     | 'titleVariants'
+    | 'titleProvenance'
     | 'script'
     | 'scriptBody'
     | 'packagingVersion'
@@ -84,6 +85,7 @@ const LOCALIZATION_UPDATE_COLUMNS: Record<
 > = {
   title: 'title',
   titleVariants: 'title_variants',
+  titleProvenance: 'title_provenance',
   script: 'script',
   scriptBody: 'script_body',
   packagingVersion: 'packaging_version',
@@ -883,6 +885,7 @@ export async function updateEpisodeLocalizationArticleContent(
   return updateLocalizationFields(id, {
     title: article.title,
     title_variants: {},
+    title_provenance: null,
     raw_text: article.text,
   });
 }

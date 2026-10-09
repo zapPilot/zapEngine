@@ -1,3 +1,4 @@
+import { BRAND_NAME } from '@zapengine/zap-pilot-story/brand';
 import { StatusNote } from '@/components/StatusBadge';
 import { LINKS } from '@/config/links';
 import { MESSAGES } from '@/config/messages';
@@ -5,7 +6,7 @@ import { MESSAGES } from '@/config/messages';
 import { DiscordLink } from './DiscordLink';
 
 export function Footer() {
-  const { footer, trustBadges, common } = MESSAGES;
+  const { footer, trustBadges } = MESSAGES;
   return (
     <footer className="zp-footer">
       <div className="zp-footer-inner">
@@ -42,7 +43,7 @@ export function Footer() {
           ))}
           <DiscordLink location="footer">{footer.discord}</DiscordLink>
         </nav>
-        <span className="zp-footer-brand">{common.brandName}</span>
+        <span className="zp-footer-brand">{BRAND_NAME}</span>
       </div>
     </footer>
   );

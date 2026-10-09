@@ -48,7 +48,9 @@ const mocks = vi.hoisted(() => ({
   updateSocialPostIdentity: vi.fn(),
   updateSocialPostReviewStatus: vi.fn(),
   publishSocialBatch: vi.fn(),
-  prepareSocialBatchCopy: vi.fn().mockResolvedValue({}),
+  prepareSocialBatchCopy: vi
+    .fn()
+    .mockResolvedValue({ episode: { title: '市場更新' } }),
   createMetricCollectors: vi.fn().mockReturnValue({
     x: vi.fn(),
     threads: vi.fn(),
@@ -218,7 +220,9 @@ function resetReleaseMocks(): void {
   mocks.listSocialPostIdentitiesByEpisodes.mockReset().mockResolvedValue([]);
   mocks.listSocialPostsByEpisode.mockReset().mockResolvedValue([]);
   mocks.publishSocialBatch.mockReset().mockResolvedValue([]);
-  mocks.prepareSocialBatchCopy.mockReset().mockResolvedValue({});
+  mocks.prepareSocialBatchCopy
+    .mockReset()
+    .mockResolvedValue({ episode: { title: '市場更新' } });
   mocks.buildSocialExperimentReports.mockReset().mockReturnValue([]);
   mocks.getAllowedTelegramUserIds.mockReset().mockReturnValue([]);
   mocks.sendTelegramNotification.mockReset().mockResolvedValue(undefined);

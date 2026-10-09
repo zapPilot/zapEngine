@@ -13,3 +13,9 @@ SHA-256 hashes. Verify without changing files:
 pnpm --filter @zapengine/zap-pilot-story pin:replay --check
 pnpm turbo run build type-check lint test:coverage deadcode format:check --filter=@zapengine/zap-pilot-story
 ```
+
+## Brand and story copy
+
+`@zapengine/zap-pilot-story/brand` is browser-free and imports only capability facts. It owns the brand name, English slogan, punchline and status-bound one-liner. `./copy` owns the hero, stage beats, chapter copy and capability chips; `./scenes` renders those facts and words. Hosts supply routing, forms and measurement.
+
+When self-hosting becomes Live, flip `SELF_HOSTING_STATUS` in design-tokens `scripts/brand.mjs` and `SELF_HOSTING_LABEL` in `scripts/fonts.py`, review typed planned claims, regenerate design-token glyphs and brand outputs, update the hand-written one-liners in the root README and the docs index, rebuild home/pitch OG images, and create a new frozen podcast packaging version with updated localized sign-offs. Existing audio and social snapshots remain unchanged.

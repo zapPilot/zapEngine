@@ -41,7 +41,7 @@ vi.mock('../db.js', () => ({
 }));
 
 vi.mock('../editorial-title.js', () => ({
-  generateEditorialTitleWithLLM: vi.fn(),
+  generateEditorialTitle: vi.fn(),
 }));
 
 vi.mock('../llm.js', () => ({
