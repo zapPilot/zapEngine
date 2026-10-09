@@ -131,12 +131,13 @@ def test_exporter_replays_real_strategy_with_synthetic_test_inputs(
 ):
     from scripts.pinned_strategy import export_landing_examples as exporter
     from scripts.pinned_strategy.benchmark import run_compare
-    from tests.test_validation_events import EVENTS, _synthetic_market_history
+    from tests.services.backtesting.support.event_histories import (
+        synthetic_event_history,
+    )
+    from tests.test_validation_events import EVENTS
 
-    prices, sentiments, start, end = _synthetic_market_history(
-        event=next(
-            e for e in EVENTS if e.id == "btc_cross_down_preserve_spy_2025_10_18"
-        )
+    prices, sentiments, start, end = synthetic_event_history(
+        next(e for e in EVENTS if e.id == "btc_cross_down_preserve_spy_2025_10_18")
     )
     # The exit is decided on the last synthetic day and fills on the next bar, so
     # the history runs one day past it for the target to show up in the portfolio.

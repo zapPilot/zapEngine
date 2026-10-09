@@ -35,18 +35,21 @@ from src.services.strategy.backtesting_service import BacktestingService
 from src.services.strategy.strategy_daily_suggestion_service import (
     StrategyDailySuggestionService,
 )
+
+# The validation-event histories are the repo's behavioral fixtures: each one
+# is shaped so a specific rule must fire on its last day. Their builders live in
+# the shared support module and are reused rather than copied.
+from tests.services.backtesting.support.event_histories import (
+    synthetic_event_history,
+)
 from tests.services.backtesting.support.synthetic_services import (
     SyntheticMarketServices,
 )
 from tests.services.strategy.support import USER_ID, Clock, UserPortfolios
 
-# The validation-event histories are the repo's behavioral fixtures: each one
-# is shaped so a specific rule must fire on its last day. Their builders live in
-# the validation test module and are reused rather than copied.
 from tests.test_validation_events import (  # isort: skip
     EVENTS,
     _run_validation_compare,
-    _synthetic_market_history,
 )
 
 CONFIG_ID = "dma_fgi_portfolio_rules_default"
@@ -341,7 +344,7 @@ def test_live_matches_the_compare_engine_on_every_validation_event(
     event: ValidationEvent,
 ) -> None:
     """On each behavioral fixture, live says what the backtest says on that day."""
-    prices, sentiments, start, end = _synthetic_market_history(event=event)
+    prices, sentiments, start, end = synthetic_event_history(event)
     market = SyntheticMarket(
         seed=0,
         scenario="regimes",

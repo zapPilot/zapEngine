@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date
 from typing import Any, Literal, cast
 
@@ -28,6 +28,9 @@ from src.services.backtesting.features import (
     SPY_DMA_200_FEATURE,
     MarketDataRequirements,
 )
+from src.services.backtesting.portfolio_rules.components import (
+    PortfolioRuleComponents,
+)
 from src.services.backtesting.public_params import (
     DmaGatedFgiPublicParams,
     public_params_to_runtime_params,
@@ -35,6 +38,7 @@ from src.services.backtesting.public_params import (
 from src.services.backtesting.signals.flat_minimum import (
     build_initial_flat_minimum_asset_allocation,
 )
+from src.services.backtesting.spec import StrategySpec, compile_spec
 from src.services.backtesting.strategies.base import BaseStrategy
 from src.services.backtesting.strategies.dca_classic import DcaClassicStrategy
 from src.services.backtesting.strategies.rule_based_portfolio import (
@@ -142,6 +146,8 @@ def _build_compare_price_row_initial_asset_allocation(
 
 def _build_portfolio_rules_strategy(
     request: StrategyBuildRequest,
+    *,
+    components: PortfolioRuleComponents | None = None,
 ) -> BaseStrategy:
     params = DmaGatedFgiParams.from_public_params(request.params)
     strategy_id = request.resolved_config_id or STRATEGY_DMA_FGI_PORTFOLIO_RULES
@@ -151,6 +157,7 @@ def _build_portfolio_rules_strategy(
     )
     return RuleBasedPortfolioStrategy(
         total_capital=request.total_capital,
+        components=components,
         params=params,
         strategy_id=strategy_id,
         display_name=strategy_id,
@@ -325,4 +332,35 @@ def resolve_inline_strategy_config(
         primary_asset=recipe.primary_asset,
         supports_daily_suggestion=recipe.supports_daily_suggestion,
         public_params=dict(params),
+    )
+
+
+def resolve_spec_strategy_config(
+    spec: StrategySpec,
+    *,
+    config_id: str,
+) -> ResolvedSavedStrategyConfig:
+    """Bind a strategy spec to the rule-based recipe, ready for the compare engine.
+
+    The spec decides the rules, guards and signal settings; the recipe supplies
+    the market data and bucket mapping. Each strategy build compiles the spec
+    afresh, so runs never share rule state.
+    """
+    recipe = get_strategy_recipe(STRATEGY_DMA_FGI_PORTFOLIO_RULES)
+    resolved = _resolve_recipe_config(
+        replace(recipe, warmup_lookback_days=spec.signals.warmup_days),
+        saved_config_id=config_id,
+        request_config_id=config_id,
+        display_name=config_id,
+        description=spec.description,
+        primary_asset=recipe.primary_asset,
+        supports_daily_suggestion=False,
+        public_params={},
+    )
+    return replace(
+        resolved,
+        build_strategy=lambda request: _build_portfolio_rules_strategy(
+            request,
+            components=compile_spec(spec),
+        ),
     )

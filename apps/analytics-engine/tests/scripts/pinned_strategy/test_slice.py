@@ -19,7 +19,8 @@ from scripts.pinned_strategy.shadow import shadow_compare
 from scripts.pinned_strategy.touch_mode import cross_on_touch_mode
 from src.models.backtesting import BacktestCompareConfigV3, BacktestCompareRequestV3
 from src.services.backtesting.execution.compare import run_compare_v3_on_data
-from tests.test_validation_events import EVENTS, _synthetic_market_history
+from tests.services.backtesting.support.event_histories import synthetic_event_history
+from tests.test_validation_events import EVENTS
 
 
 @pytest.fixture(scope="module")
@@ -48,7 +49,7 @@ def compare(prices, sentiments, start, end, touch):
 @pytest.mark.parametrize("touch", [True, False])
 @pytest.mark.parametrize("event", EVENTS, ids=lambda event: event.id)
 def test_validation_shadow(evm, event, touch):
-    prices, sentiments, start, end = _synthetic_market_history(event=event)
+    prices, sentiments, start, end = synthetic_event_history(event)
     baseline = compare(prices, sentiments, start, end, touch)
     with shadow_compare(evm, strict_distance=True) as metrics:
         actual = compare(prices, sentiments, start, end, touch)

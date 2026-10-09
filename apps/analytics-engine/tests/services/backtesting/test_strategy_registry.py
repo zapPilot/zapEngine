@@ -14,6 +14,7 @@ from src.services.backtesting.features import (
     ETH_DMA_200_FEATURE,
     SPY_DMA_200_FEATURE,
 )
+from src.services.backtesting.spec import load_spec, parse_spec
 from src.services.backtesting.strategies.rule_based_portfolio import (
     RuleBasedPortfolioStrategy,
 )
@@ -22,6 +23,7 @@ from src.services.backtesting.strategy_registry import (
     StrategyBuildRequest,
     get_strategy_recipe,
     list_strategy_recipes,
+    resolve_spec_strategy_config,
 )
 
 
@@ -101,3 +103,65 @@ def test_portfolio_rules_recipe_builds_compare_strategy() -> None:
         "stable": 0.0,
         "alt": 0.0,
     }
+
+
+def _build_request() -> StrategyBuildRequest:
+    return StrategyBuildRequest(
+        config_id="spec-test",
+        total_capital=10_000.0,
+        user_prices=[
+            {
+                "date": date(2025, 1, 1),
+                "price": 100.0,
+                "prices": {"btc": 100.0, "eth": 120.0, "spy": 500.0},
+                "extra_data": {
+                    DMA_200_FEATURE: 90.0,
+                    ETH_DMA_200_FEATURE: 100.0,
+                    SPY_DMA_200_FEATURE: 450.0,
+                },
+            }
+        ],
+        initial_allocation={"spot": 1.0, "stable": 0.0},
+        user_start_date=date(2025, 1, 1),
+    )
+
+
+def test_a_spec_binds_to_the_rule_based_recipe() -> None:
+    spec = load_spec("reference/dma_fgi")
+
+    resolved = resolve_spec_strategy_config(spec, config_id="spec-test")
+
+    recipe = get_strategy_recipe(STRATEGY_DMA_FGI_PORTFOLIO_RULES)
+    assert resolved.strategy_id == STRATEGY_DMA_FGI_PORTFOLIO_RULES
+    assert resolved.saved_config_id == resolved.request_config_id == "spec-test"
+    assert resolved.description == spec.description
+    assert resolved.public_params == {}
+    assert resolved.supports_daily_suggestion is False
+    assert resolved.market_data_requirements == recipe.market_data_requirements
+    assert resolved.portfolio_bucket_mapper is recipe.portfolio_bucket_mapper
+
+
+def test_a_spec_decides_the_warmup_window() -> None:
+    raw = load_spec("reference/dma_fgi").model_dump(mode="json")
+    raw["signals"]["warmup_days"] = 21
+
+    resolved = resolve_spec_strategy_config(parse_spec(raw), config_id="spec-test")
+
+    assert resolved.warmup_lookback_days == 21
+
+
+def test_a_spec_strategy_runs_on_the_compiled_spec_with_fresh_rules() -> None:
+    raw = load_spec("reference/dma_fgi").model_dump(mode="json")
+    raw["overlays"] = [
+        {"kind": "spy_latch", "id": "spy_latch", "follow_through_days": 14}
+    ]
+    resolved = resolve_spec_strategy_config(parse_spec(raw), config_id="spec-test")
+
+    first = resolved.build_strategy(_build_request())
+    second = resolved.build_strategy(_build_request())
+
+    assert isinstance(first, RuleBasedPortfolioStrategy)
+    assert isinstance(second, RuleBasedPortfolioStrategy)
+    assert first.strategy_id == "spec-test"
+    assert [rule.name for rule in first.decision_policy.rules][-1] == "spy_latch"
+    assert first.decision_policy.rules[-1] is not second.decision_policy.rules[-1]

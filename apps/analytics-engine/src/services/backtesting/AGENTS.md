@@ -15,6 +15,12 @@ The non-default technical-indicator research surface is documented in [TECHNICAL
 - A saved config is a recipe id plus validated params; `resolve_saved_strategy_config` in `strategy_registry.py` binds them. There is no component catalog or composition layer, and no staged-execution path (pacing, buy gate, execution plugins): each matched rule executes in full on its bar through `RuleBasedAllocationExecutor`.
 - Keep benchmark/is-default distinctions in the existing registry/config metadata rather than introducing directory taxonomy solely for that distinction.
 
+## Strategy specs
+
+- A strategy spec (`src/config/strategies/**/*.json`, format `strategy-spec/1`) is declarative JSON validated by the models in `spec/`. The models are the single source of truth: `strategy-spec.schema.json` and `VOCABULARY.md` are generated from them (`pnpm strategy-lab schema`; `--check` fails on drift) and must not be edited by hand.
+- Array order in `rules` is precedence. Nothing is defaulted, so a spec states everything the strategy does. A new rule kind, or a new knob on a kind, is Python in `spec/rules.py` and the rule class, with the generated artifacts regenerated in the same change.
+- References (`reference/*.json`) are pinned in `LOCK.json` by version and behavior hash. A behavior change needs a new `version` and `pnpm strategy-lab spec lock <ref>`; the lock refuses to hide a change. A reference compiles to the same rule objects as the Python defaults and must reproduce the default strategy day by day (`tests/services/backtesting/spec/test_reference_parity.py`).
+
 ## One strategy path
 
 - The live daily suggestion is the last bar of `BacktestingService.replay_model`, which runs the saved config through the same compare path as the API and the published snapshot, over the same `MODEL_WINDOW_DAYS` window. A user's holdings only decide how far they are from that bar's target (`plan_transfers_to_target`).

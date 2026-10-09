@@ -29,3 +29,15 @@ pnpm --filter @zapengine/analytics-engine exec uv run pytest \
   tests/test_validation_events.py \
   tests/services/backtesting
 ```
+
+## Strategy lab
+
+Validate, hash and lock strategy specs, and export their schema. No secrets are needed. Every command prints one JSON object; exit codes are 0 done, 1 invalid spec or arguments, 2 usage, 3 a generated artifact or lock is out of date, 4 file not found, 5 refused (a lock that would hide a behavior change).
+
+```bash
+pnpm --filter @zapengine/analytics-engine strategy-lab spec validate reference/dma_fgi
+pnpm --filter @zapengine/analytics-engine strategy-lab spec hash reference/dma_fgi --canonical
+pnpm --filter @zapengine/analytics-engine strategy-lab spec lock reference/dma_fgi
+pnpm --filter @zapengine/analytics-engine strategy-lab schema          # regenerate the schema and VOCABULARY.md
+pnpm --filter @zapengine/analytics-engine strategy-lab schema --check  # fail if they are stale
+```

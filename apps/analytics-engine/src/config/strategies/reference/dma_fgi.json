@@ -1,0 +1,83 @@
+{
+  "spec_format": "strategy-spec/1",
+  "id": "dma_fgi",
+  "version": 1,
+  "description": "The production reference: SPY, BTC and ETH follow their 200-day DMA, BTC and ETH rotate on the ETH/BTC ratio, and strength is sold into on greed.",
+  "signals": {
+    "warmup_days": 14,
+    "dma": {
+      "feature": "dma_200",
+      "cross_cooldown_days": { "SPY": 14, "BTC": 30, "ETH": 30 },
+      "cross_on_touch": true
+    },
+    "ratio": { "cross_cooldown_days": 30 }
+  },
+  "rules": [
+    {
+      "kind": "dma_cross_down_exit",
+      "id": "cross_down_exit",
+      "cooldown_days": 30,
+      "peer_groups": [["SPY"], ["BTC", "ETH"]],
+      "proceeds": { "to": [] }
+    },
+    {
+      "kind": "dma_cross_up_rebalance",
+      "id": "cross_up_equal_weight",
+      "cooldown_days": 30
+    },
+    {
+      "kind": "ratio_cross_rotation",
+      "id": "eth_btc_ratio_rotation",
+      "cooldown_days": 30,
+      "cross_up": { "sources": ["BTC", "STABLE"], "destination": "ETH" },
+      "cross_down": { "sources": ["ETH"], "destination": "BTC" }
+    },
+    {
+      "kind": "ratio_deviation_rotation",
+      "id": "eth_btc_deviation_dca",
+      "tiers": [
+        {
+          "name": "large",
+          "threshold": 0.65,
+          "rotation_fraction": 0.75,
+          "cooldown_days": 60
+        },
+        {
+          "name": "dca",
+          "threshold": 0.5,
+          "rotation_fraction": 0.25,
+          "cooldown_days": 14
+        }
+      ],
+      "below": { "source": "BTC", "destination": "ETH" },
+      "above": { "source": "ETH", "destination": "BTC" }
+    },
+    {
+      "kind": "dma_overextension_trim",
+      "id": "dma_overextension_dca_sell",
+      "cooldown_days": 7,
+      "sell_step": 0.05,
+      "thresholds": { "SPY": 0.1, "BTC": 0.2, "ETH": 0.5 },
+      "fgi_multipliers": {
+        "extreme_fear": 1.0,
+        "fear": 1.0,
+        "neutral": 1.0,
+        "greed": 0.5,
+        "extreme_greed": 0.33
+      },
+      "proceeds": { "to": [{ "asset": "SPY", "share": 0.5 }] }
+    },
+    {
+      "kind": "fgi_downshift_trim",
+      "id": "fgi_downshift_dca_sell",
+      "cooldown_days": 7,
+      "sell_step": 0.05,
+      "from_regimes": ["greed", "extreme_greed"],
+      "to_regimes": ["neutral", "fear", "extreme_fear"],
+      "proceeds": { "to": [] }
+    }
+  ],
+  "guards": [],
+  "overlays": [],
+  "execution": { "mode": "full_target" }
+}

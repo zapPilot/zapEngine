@@ -1,0 +1,120 @@
+"""The strategy spec: a declarative, validated description of a rule strategy."""
+
+from __future__ import annotations
+
+from typing import Literal
+
+from pydantic import Field
+
+from src.services.backtesting.spec.common import AssetCooldowns, Slug, SpecModel
+from src.services.backtesting.spec.rules import OverlaySpec, RuleSpec
+
+SPEC_FORMAT = "strategy-spec/1"
+
+
+class DmaSignal(SpecModel):
+    """The 200-day moving-average signal of each asset."""
+
+    feature: Literal["dma_200"] = Field(
+        description="Moving average that prices are compared with.",
+    )
+    cross_cooldown_days: AssetCooldowns = Field(
+        description=(
+            "Days after a cross during which the opposite cross of the same asset "
+            "is ignored."
+        ),
+    )
+    cross_on_touch: bool = Field(
+        description="Count a price that touches its DMA as a cross.",
+    )
+
+
+class RatioSignal(SpecModel):
+    """The ETH/BTC ratio against its own 200-day moving average."""
+
+    cross_cooldown_days: int = Field(
+        ge=0,
+        le=365,
+        description="Days after a ratio rotation during which the next cross is ignored.",
+    )
+
+
+class Signals(SpecModel):
+    warmup_days: int = Field(
+        ge=0,
+        le=365,
+        description="Days of history replayed before the first decision.",
+    )
+    dma: DmaSignal
+    ratio: RatioSignal
+
+
+class TradeQuotaGuardSpec(SpecModel):
+    """Holds the portfolio instead of trading when a trade-frequency limit is hit."""
+
+    kind: Literal["trade_quota"]
+    min_trade_interval_days: int | None = Field(
+        ge=1,
+        le=365,
+        description="Least days between two trades; null for no limit.",
+    )
+    max_trades_7d: int | None = Field(
+        ge=1,
+        le=365,
+        description="Most trades in any 7 days; null for no limit.",
+    )
+    max_trades_30d: int | None = Field(
+        ge=1,
+        le=365,
+        description="Most trades in any 30 days; null for no limit.",
+    )
+
+
+class Execution(SpecModel):
+    mode: Literal["full_target"] = Field(
+        description="A matched rule moves the portfolio to its target in full.",
+    )
+
+
+class StrategySpec(SpecModel):
+    """A rule strategy over SPY, BTC and ETH against stable."""
+
+    spec_format: Literal["strategy-spec/1"] = Field(
+        description="Version of this format.",
+    )
+    id: Slug = Field(description="Name of the strategy.")
+    version: int = Field(
+        ge=1,
+        description="Bumped whenever the behavior changes; pinned by the lock file.",
+    )
+    description: str = Field(
+        min_length=1,
+        max_length=500,
+        description="What the strategy does, in a sentence or two.",
+    )
+    signals: Signals = Field(description="How the signals the rules read are built.")
+    rules: tuple[RuleSpec, ...] = Field(
+        min_length=1,
+        description=(
+            "Rules in precedence order: the first one that matches and is off "
+            "cooldown decides the day."
+        ),
+    )
+    guards: tuple[TradeQuotaGuardSpec, ...] = Field(
+        description="Limits applied after a rule has decided.",
+    )
+    overlays: tuple[OverlaySpec, ...] = Field(
+        description="Adjustments applied to the decision after the rules and guards.",
+    )
+    execution: Execution = Field(description="How a decision becomes trades.")
+
+
+__all__ = [
+    "DmaSignal",
+    "Execution",
+    "RatioSignal",
+    "SPEC_FORMAT",
+    "Signals",
+    "StrategySpec",
+    "TradeQuotaGuardSpec",
+]
