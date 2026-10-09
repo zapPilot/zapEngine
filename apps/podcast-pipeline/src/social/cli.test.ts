@@ -475,6 +475,28 @@ describe('runSocialCli media preparation', () => {
     expect(console.log).not.toHaveBeenCalledWith(copy.rednote!.body);
   });
 
+  it('previews an unsendable Rednote title as unavailable instead of cutting it', async () => {
+    mocks.getSocialEpisode.mockResolvedValue({
+      ...episode,
+      title: 'Bitget遭3.5億美元駭客攻擊，資金追蹤全解析',
+    });
+
+    await runSocialCli([
+      EPISODE_ID,
+      '--language',
+      'zh-Hant',
+      '--dry-run',
+      '--platform',
+      'rednote',
+    ]);
+
+    expect(console.log).toHaveBeenCalledWith(
+      expect.stringContaining(
+        '標題：⛔ title unavailable — Rednote title measures 21 units',
+      ),
+    );
+  });
+
   it('fails before generation when a required canonical video URL is absent', async () => {
     mocks.getSocialEpisode.mockResolvedValue({ ...episode, videoUrl: '' });
 

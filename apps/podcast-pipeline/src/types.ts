@@ -93,6 +93,7 @@ export interface EpisodeLocalizationRow extends EpisodeLocalizationProjection {
   id: string;
   episode_id: string;
   title_variants?: unknown;
+  title_provenance?: unknown;
   raw_text: string | null;
   script_body?: string | null;
   packaging_version?: string | null;
@@ -244,6 +245,9 @@ export interface NewEpisode {
 
 export interface NewEpisodeLocalization {
   titleVariants?: import('./services/title-variants.js').TitleVariants;
+  titleProvenance?:
+    | import('./services/title-variants.js').TitleProvenance
+    | null;
   id: string;
   episodeId: string;
   languageCode: string;

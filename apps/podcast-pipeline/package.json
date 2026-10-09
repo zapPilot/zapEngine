@@ -14,6 +14,7 @@
     "build": "tsc -p tsconfig.json",
     "dev": "tsx watch src/index.ts",
     "dev:worker": "tsx watch src/worker.ts",
+    "titles:repair": "tsx src/services/title-repair-cli.ts",
     "social:publish": "tsx src/social/cli.ts",
     "social:login": "tsx src/social/login.ts",
     "social:metrics": "tsx src/social/metrics.ts",

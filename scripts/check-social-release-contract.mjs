@@ -284,12 +284,31 @@ function checkSocialTitleImports(directory) {
       forbidMatch(
         path,
         read(path),
-        /generateEditorialTitleWithLLM|compressEditorialTitleWithLLM|title-[\w-]*system-prompt/,
+        /generateEditorialTitle|compressEditorialTitle|editorial-title|title-repair-cli|title-[\w-]*system-prompt/,
       );
     }
   }
 }
 checkSocialTitleImports('apps/podcast-pipeline/src/social');
+
+// Titles are never cut to fit a platform: an over-budget title is held, not
+// truncated. The deleted helpers must not come back under any directory.
+function checkNoTitleTruncation(directory) {
+  for (const entry of readdirSync(resolve(root, directory), {
+    withFileTypes: true,
+  })) {
+    const path = `${directory}/${entry.name}`;
+    if (entry.isDirectory()) checkNoTitleTruncation(path);
+    else if (/\.[cm]?tsx?$/.test(entry.name)) {
+      forbidMatch(
+        path,
+        read(path),
+        /fitTitleToBudget|fitRednoteTitle|fitTransportTitle/,
+      );
+    }
+  }
+}
+checkNoTitleTruncation('apps/podcast-pipeline/src');
 forbidMatch(
   'compression prompt platform names',
   read('apps/podcast-pipeline/prompts/title-compression-system-prompt.txt'),

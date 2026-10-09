@@ -115,8 +115,12 @@ Three Rednote rows carry a title far over the 20-character limit:
 All three are exactly 40 characters and `generated_title` equals
 `published_title`, so a body prefix was written into the title field and
 truncated at 40 by a path that no longer exists. They fall in one three-day
-window in August and nothing since. The current transport caps the title at 20
-characters (`SOCIAL_TITLE_MAX_CHARACTERS.rednote`, `src/social/policy.ts`). It reads ingest-frozen budget variants, with deterministic fitting in `src/services/title-variants.ts` as fallback. No action.
+window in August and nothing since. The current transport measures the title with Rednote's own
+counting (printable ASCII 0.5, other BMP 1, emoji 2, rounded up, limit 20;
+`rednoteTitleUnits` in `src/social/policy.ts`, verified against the live form on
+2026-10-09). It reads only ingest-frozen, revalidated budget variants; when none
+fits, the release barrier holds the cohort fail-closed and nothing truncates the
+title. No action.
 
 ## Not done: creator-backend inspection
 

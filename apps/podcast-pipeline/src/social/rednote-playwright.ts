@@ -1,6 +1,7 @@
 import type { Locator, Page } from 'playwright-core';
 
 import { convertTextToZhCN } from '../services/opencc.js';
+import { rednoteTitleUnits } from './policy.js';
 import { publishStep, SocialPublishError } from './publish-error.js';
 import {
   isPublisherReady,
@@ -365,13 +366,23 @@ async function writeTitle(
   expected: string,
   log: (message: string) => void,
 ): Promise<void> {
-  let last: TitleAcceptance = { accepted: false, value: null, text: null };
+  let last: TitleAcceptance = {
+    accepted: false,
+    overLimit: false,
+    value: null,
+    text: null,
+  };
   for (let attempt = 1; attempt <= TITLE_WRITE_ATTEMPTS; attempt += 1) {
     await field.click();
     await field.fill('');
     await field.fill(expected);
     last = await pollTitleAcceptance(field, expected, log);
     if (last.accepted) return;
+    if (last.overLimit) {
+      throw new Error(
+        `Rednote counted the title "${expected}" over its own limit (${JSON.stringify(last.text)}); the form will not submit it.`,
+      );
+    }
   }
 
   // Line 1 is the human summary: `publicTelegramErrorMessage` forwards only
@@ -388,21 +399,26 @@ async function writeTitle(
 
 interface TitleAcceptance {
   accepted: boolean;
+  overLimit: boolean;
   value: string | null;
   text: string | null;
 }
 
 /**
- * Accepts on "the counter exists and is above zero", never on the counter
- * agreeing with our own character count.
+ * Accepts on "the counter exists, is above zero, and is within the SPA's own
+ * limit", never on the counter agreeing with our own count.
  *
  * Rednote weights half-width characters at half a full-width one: the live form
  * counts `AI代理不等於公鏈繁榮？` -- twelve code points -- as `11 / 20`. Demanding
  * equality therefore made every title containing Latin text or digits fail
  * `fill_title` forever, and that step is fatal to the whole release cohort. The
- * counting model was never something this publisher needed to know: the bug the
- * check exists for shows up as an *absent or zero* counter, never as off-by-one.
- * A count that disagrees is logged so a real contract change stays visible.
+ * bug the check exists for shows up as an *absent or zero* counter, never as
+ * off-by-one. A count that disagrees with `rednoteTitleUnits` is logged so a
+ * real contract change stays visible.
+ *
+ * A counter above its own denominator is the one disagreement that is not
+ * cosmetic: the form then refuses to submit (`标题最多输入20字哦~`, measured
+ * 2026-10-09), so the write fails at once instead of at the publish click.
  *
  * The DOM value is read in the same round trip as the counter, so a re-render
  * cannot tear the pair, and it is what still proves the platform kept the title
@@ -413,23 +429,34 @@ async function pollTitleAcceptance(
   expected: string,
   log: (message: string) => void,
 ): Promise<TitleAcceptance> {
-  const wanted = Array.from(expected).length;
-  let last: TitleAcceptance = { accepted: false, value: null, text: null };
+  const wanted = rednoteTitleUnits(expected);
+  let last: TitleAcceptance = {
+    accepted: false,
+    overLimit: false,
+    value: null,
+    text: null,
+  };
 
   for (let poll = 0; poll < TITLE_ACCEPTED_POLLS; poll += 1) {
     const probe = await field.evaluate(readTitleField, {
       container: TITLE_CONTAINER_SELECTOR,
       counter: TITLE_COUNTER_SELECTOR,
     });
-    const counted = countedTitleCharacters(probe.text);
-    last = { accepted: false, value: probe.value, text: probe.text };
+    const counter = readTitleCounter(probe.text);
+    last = {
+      accepted: false,
+      overLimit: false,
+      value: probe.value,
+      text: probe.text,
+    };
 
-    if (probe.value === expected && counted !== null && counted > 0) {
-      if (counted !== wanted) {
+    if (probe.value === expected && counter !== null && counter.counted > 0) {
+      if (counter.counted !== wanted) {
         log(
-          `[rednote] title_count_mismatch: platform counted ${counted}, this side counted ${wanted} ("${probe.text!}")`,
+          `[rednote] title_count_mismatch: platform counted ${counter.counted}, this side measured ${wanted} ("${probe.text!}")`,
         );
       }
+      if (counter.counted > counter.limit) return { ...last, overLimit: true };
       return { ...last, accepted: true };
     }
     await field.page().waitForTimeout(TITLE_POLL_INTERVAL_MS);
@@ -463,11 +490,15 @@ export function readTitleField(
 // `null` when the counter is absent, which is how the field renders an empty
 // model -- indistinguishable from "0 / 20" for this purpose, and both mean the
 // title did not arrive. Parsed here rather than in the page so the pattern lives
-// beside the code that depends on it.
-export function countedTitleCharacters(text: string | null): number | null {
+// beside the code that depends on it. The denominator is the SPA's own limit.
+export function readTitleCounter(
+  text: string | null,
+): { counted: number; limit: number } | null {
   // Whitespace is stripped first so the pattern stays anchored and linear.
-  const counted = /^(\d+)[/／]\d+$/u.exec((text ?? '').replace(/\s/gu, ''));
-  return counted?.[1] === undefined ? null : Number(counted[1]);
+  const counter = /^(\d+)[/／](\d+)$/u.exec((text ?? '').replace(/\s/gu, ''));
+  return counter
+    ? { counted: Number(counter[1]), limit: Number(counter[2]) }
+    : null;
 }
 
 // Publishing must be confirmed by the page, never by "click did not throw".

@@ -206,6 +206,20 @@ describe('buildSocialPostRecord', () => {
     });
   });
 
+  it('records no published title when the override is over the Rednote budget', () => {
+    expect(
+      buildSocialPostRecord({
+        episodeId: 'episode-1',
+        platform: 'rednote',
+        result: result(),
+        snapshot,
+        episode,
+        titleOverride: '標'.repeat(21),
+        videoDurationSeconds: 321,
+      }),
+    ).toMatchObject({ generatedTitle: '市場更新', publishedTitle: null });
+  });
+
   // A generated hashtag with no matching Rednote topic is skipped rather than
   // typed in as literal text, so the note carries fewer topics than the copy
   // asked for. Recording the requested set would describe a tag that was never on the note.

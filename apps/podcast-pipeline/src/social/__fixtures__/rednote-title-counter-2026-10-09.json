@@ -1,0 +1,96 @@
+{
+  "measuredAt": "2026-10-09",
+  "source": "creator.rednote.com/publish/publish title field `.count-tip`; POST /web_api/sns/v2/note intercepted and aborted, so no note was created",
+  "findings": [
+    "printable ASCII U+0020-U+007E counts 0.5; other BMP characters count 1; astral (emoji) counts 2",
+    "the displayed total rounds up (A比特币 -> 4)",
+    "the field never truncates the DOM value and has no maxlength",
+    "over 20 the SPA sends no request and toasts 标题最多输入20字哦~; at 20 the whole title is sent"
+  ],
+  "rows": [
+    {
+      "title": "AI代理不等於公鏈繁榮？",
+      "counter": "11 / 20"
+    },
+    {
+      "title": "Quant一周暴涨300% 代币化存款赛道为何火了",
+      "counter": "20 / 20"
+    },
+    {
+      "title": "Bitget遭3.5億美元駭客攻擊，資金追蹤全解析",
+      "counter": "21 / 20",
+      "submit": {
+        "sent": false,
+        "toast": "标题最多输入20字哦~"
+      }
+    },
+    {
+      "title": "一二三四五六七八九十一二三四五六七八九十",
+      "counter": "20 / 20",
+      "submit": {
+        "sent": true,
+        "payloadTitle": "一二三四五六七八九十一二三四五六七八九十"
+      }
+    },
+    {
+      "title": "一二三四五六七八九十一二三四五六七八九十一",
+      "counter": "21 / 20",
+      "submit": {
+        "sent": false,
+        "toast": "标题最多输入20字哦~"
+      }
+    },
+    {
+      "title": "A比特币",
+      "counter": "4 / 20"
+    },
+    {
+      "title": "AB比特币",
+      "counter": "4 / 20"
+    },
+    {
+      "title": "比特币 上涨",
+      "counter": "6 / 20"
+    },
+    {
+      "title": "比特币  上涨",
+      "counter": "6 / 20"
+    },
+    {
+      "title": "12345678901234567890",
+      "counter": "10 / 20"
+    },
+    {
+      "title": "1234567890123456789012345678901234567890",
+      "counter": "20 / 20"
+    },
+    {
+      "title": "12345678901234567890123456789012345678901",
+      "counter": "21 / 20"
+    },
+    {
+      "title": "比特币🚀上涨",
+      "counter": "7 / 20"
+    },
+    {
+      "title": "🚀🚀",
+      "counter": "4 / 20"
+    },
+    {
+      "title": "ＡＢ比特币",
+      "counter": "5 / 20"
+    },
+    {
+      "title": "比特币？！",
+      "counter": "5 / 20"
+    },
+    {
+      "title": "Ether.fi为何告别EigenLayer",
+      "counter": "13 / 20"
+    },
+    {
+      "title": "ether.fi为何告别EigenLayer？",
+      "counter": "14 / 20"
+    }
+  ]
+}

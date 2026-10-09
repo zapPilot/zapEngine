@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+
 import { JSDOM } from 'jsdom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -14,8 +16,8 @@ vi.mock('./rednote-browser.js', () => ({
 }));
 
 import {
-  countedTitleCharacters,
   createPlaywrightRednotePublisher,
+  readTitleCounter,
   readTitleField,
 } from './rednote-playwright.js';
 
@@ -36,21 +38,34 @@ const FORM_HTML = `
   </div>`;
 
 /**
- * Rednote's own counting model, defined here independently of the publisher's.
- *
- * A half-width character weighs half a full-width one: the live form counts
- * `AI代理不等於公鏈繁榮？` -- twelve code points -- as 11. Deriving this from
- * `Array.from(value).length` is what made the old fake agree with the publisher
- * by construction and hid a fatal `fill_title` for every title carrying Latin
- * text. The rounding for an odd number of half-width characters was not
- * measured; no test here depends on it.
+ * The creator form's counter text for a title, taken from what the live form
+ * rendered (`__fixtures__/rednote-title-counter-2026-10-09.json`), never from
+ * the publisher's own measure: a fake that computes the number with the same
+ * formula agrees with the code under test by construction and hides a fatal
+ * `fill_title`. `PAYLOAD.title` is seven full-width characters, which the form
+ * counts one apiece.
  */
-function rednoteCount(value: string): number {
-  let weight = 0;
-  for (const character of value) {
-    weight += /[\u0020-\u007e]/u.test(character) ? 0.5 : 1;
+const LIVE_COUNTERS = new Map<string, string>([
+  ['利率真的轉向？', '7 / 20'],
+  ...(
+    JSON.parse(
+      readFileSync(
+        new URL(
+          './__fixtures__/rednote-title-counter-2026-10-09.json',
+          import.meta.url,
+        ),
+        'utf8',
+      ),
+    ) as { rows: { title: string; counter: string }[] }
+  ).rows.map((row) => [row.title, row.counter] as [string, string]),
+]);
+
+function liveCounter(value: string): string {
+  const counter = LIVE_COUNTERS.get(value);
+  if (counter === undefined) {
+    throw new Error(`No live counter measured for "${value}"`);
   }
-  return Math.floor(weight);
+  return counter;
 }
 
 const PAYLOAD = {
@@ -80,6 +95,8 @@ function fakePage(options: {
   titleAcceptsOnWrite?: number;
   declarationOpens?: boolean;
   counter?: 'rendered' | 'absent' | 'stuck-at-zero';
+  /** Overrides the rendered counter text verbatim. */
+  counterText?: string;
   confirmTopics?: boolean;
   url?: string;
   publishConfirmation?: 'text' | 'url' | 'fail';
@@ -109,9 +126,11 @@ function fakePage(options: {
     if (!state.titleModel || counterMode === 'absent') return;
     const tip = document.createElement('div');
     tip.className = 'count-tip';
-    const counted =
-      counterMode === 'stuck-at-zero' ? 0 : rednoteCount(state.titleModel);
-    tip.textContent = `${counted} / 20`;
+    tip.textContent =
+      options.counterText ??
+      (counterMode === 'stuck-at-zero'
+        ? '0 / 20'
+        : liveCounter(state.titleModel));
     suffix.append(tip);
   };
 
@@ -712,9 +731,10 @@ describe('createPlaywrightRednotePublisher', () => {
   });
 
   // The regression that took the whole release cohort down on 2026-08-27:
-  // Rednote counts `AI` as one character, so its counter read 11 for a
-  // twelve-code-point title and an equality check could never be satisfied.
-  it('publishes a title the platform counts differently from this side', async () => {
+  // Rednote counts ASCII as half a character, so an equality check against a
+  // plain code point count could never be satisfied. The live form counted
+  // `AI代理不等於公鏈繁榮？` as 11 / 20.
+  it('publishes a title the live form counted, with no mismatch noise', async () => {
     const { page, state } = fakePage({
       existingTopics: ['宏观经济', '市场结构'],
     });
@@ -729,13 +749,46 @@ describe('createPlaywrightRednotePublisher', () => {
     ).resolves.toMatchObject({ status: 'published' });
 
     expect(state.titleModel).toBe(title);
-    expect(Array.from(title)).toHaveLength(12);
-    expect(rednoteCount(title)).toBe(11);
-    // A disagreement is reported, never fatal: a real contract change has to
-    // stay visible without blocking every episode behind this one.
+    expect(logs.join('\n')).not.toContain('title_count_mismatch');
+  });
+
+  it('reports, but survives, a counter that disagrees with this side', async () => {
+    const { page, state } = fakePage({
+      existingTopics: ['宏观经济', '市场结构'],
+      counterText: '5 / 20',
+    });
+    mocks.page = page;
+    const logs: string[] = [];
+
+    await expect(
+      createPlaywrightRednotePublisher({
+        onLog: (message) => logs.push(message),
+      }).publishRednote(PAYLOAD),
+    ).resolves.toMatchObject({ status: 'published' });
+
+    expect(state.titleModel).toBe(PAYLOAD.title);
     expect(logs).toContainEqual(
-      expect.stringContaining('title_count_mismatch: platform counted 11'),
+      expect.stringContaining(
+        'title_count_mismatch: platform counted 5, this side measured 7',
+      ),
     );
+  });
+
+  it('rejects a title the form counts over its own limit, without retrying', async () => {
+    const title = 'Bitget遭3.5億美元駭客攻擊，資金追蹤全解析';
+    const { page, title: field } = fakePage({
+      existingTopics: ['宏观经济', '市场结构'],
+    });
+    mocks.page = page;
+
+    const error = await createPlaywrightRednotePublisher()
+      .publishRednote({ ...PAYLOAD, title })
+      .catch((thrown: Error) => thrown);
+
+    expect((error as Error).message).toContain('fill_title');
+    expect((error as Error).message).toContain('over its own limit');
+    expect((error as Error).message).toContain('21 / 20');
+    expect(field.fill.mock.calls.filter(([v]) => v === title)).toHaveLength(1);
   });
 
   // Both are the empty-model failure this check exists for, and both stay fatal.
@@ -844,16 +897,17 @@ describe('readTitleField', () => {
   });
 });
 
-describe('countedTitleCharacters', () => {
+describe('readTitleCounter', () => {
   it.each([
-    { text: '11 / 20', expected: 11 },
-    { text: '0 / 20', expected: 0 },
-    { text: '20/20', expected: 20 },
-    { text: '11 ／ 20', expected: 11 },
+    { text: '11 / 20', expected: { counted: 11, limit: 20 } },
+    { text: '0 / 20', expected: { counted: 0, limit: 20 } },
+    { text: '20/20', expected: { counted: 20, limit: 20 } },
+    { text: '21 / 20', expected: { counted: 21, limit: 20 } },
+    { text: '11 ／ 20', expected: { counted: 11, limit: 20 } },
     { text: null, expected: null },
     { text: '', expected: null },
     { text: '11 / 20 字', expected: null },
   ])('reads $text as $expected', ({ text, expected }) => {
-    expect(countedTitleCharacters(text)).toBe(expected);
+    expect(readTitleCounter(text)).toEqual(expected);
   });
 });

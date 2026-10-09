@@ -1,39 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  SOCIAL_LANGUAGE_BY_PLATFORM,
-  socialTitleBudgetsFor,
-} from '../social/policy.js';
-import { fitTitleToBudget, readTitleVariant } from './title-variants.js';
-import { TRANSLATED_TITLE_MAX_CHARACTERS } from './translate.js';
+  isUsableRednoteTitle,
+  readRednoteTitleVariant,
+  REDNOTE_TITLE_VARIANT_KEY,
+} from './title-variants.js';
 
-describe('title budgets', () => {
-  it('derives transport budgets from language policy and translation contract', () => {
-    expect(socialTitleBudgetsFor('zh-Hant')).toEqual([20]);
-    expect(socialTitleBudgetsFor('en')).toEqual([
-      TRANSLATED_TITLE_MAX_CHARACTERS.en,
-    ]);
-    expect(socialTitleBudgetsFor('ja')).toEqual([]);
+describe('Rednote title variants', () => {
+  it('keeps the historical budget key', () => {
+    expect(REDNOTE_TITLE_VARIANT_KEY).toBe('20');
   });
-  it('collects all matching budgets in order when two title transports share a language', () => {
-    const mapping = SOCIAL_LANGUAGE_BY_PLATFORM as Record<string, string>;
-    const previous = mapping['youtube'];
-    try {
-      mapping['youtube'] = 'zh-Hant';
-      expect(socialTitleBudgetsFor('zh-Hant')).toEqual([20, 100]);
-    } finally {
-      mapping['youtube'] = previous!;
-    }
-  });
-  it.each([
-    '😀'.repeat(30),
-    'USDT买美股：你拿到的究竟是什么？凭证还是合约？',
-    'Dan Koe 最新長文：要想成功，你就得活在幻想中',
-    'A'.repeat(101),
-    '「'.repeat(21),
-  ])('fits code points: %s', (title) => {
-    expect([...fitTitleToBudget(title, 20)].length).toBeLessThanOrEqual(20);
-  });
+
   it.each([
     null,
     [],
@@ -44,23 +21,38 @@ describe('title budgets', () => {
     { '20': { title: '有效标题', method: 'other' } },
     { '20': { title: '有效标题', method: ['llm'] } },
     { '20': { title: '標'.repeat(21), method: 'llm' } },
-    { '20': { title: ' ', method: 'truncate' } },
+    { '20': { title: ' ', method: 'llm' } },
     { '20': { title: '标题\n第二行', method: 'llm' } },
-  ])('ignores malformed jsonb: %j', (raw) => {
-    expect(readTitleVariant(raw, 20)).toBeNull();
+    // A mechanically cut legacy variant is never sent, whatever its length.
+    { '20': { title: 'ether.fi为何告别', method: 'truncate' } },
+  ])('rejects an unusable stored variant: %j', (raw) => {
+    expect(readRednoteTitleVariant(raw)).toBeNull();
   });
-  it.each(['llm', 'truncate'])(
-    'reads only the matching budget with method %s',
-    (method) => {
-      expect(
-        readTitleVariant(
-          {
-            '20': { title: ' 简短标题 ', method },
-            '100': { title: '其他标题', method },
-          },
-          20,
-        ),
-      ).toBe('简短标题');
-    },
-  );
+
+  it('accepts a legacy llm variant written under the 20-code-point rule', () => {
+    expect(
+      readRednoteTitleVariant({
+        '20': { title: ' 韩国经港触达全球：RWA如何跑通？ ', method: 'llm' },
+        '100': { title: '其他标题', method: 'llm' },
+      }),
+    ).toBe('韩国经港触达全球：RWA如何跑通？');
+  });
+
+  it('accepts a variant only the platform measure lets through', () => {
+    // 25 code points, 20 Rednote units (live counter 2026-10-09: `20 / 20`).
+    const title = 'Quant一周暴涨300% 代币化存款赛道为何火了';
+    expect([...title].length).toBe(25);
+    expect(readRednoteTitleVariant({ '20': { title, method: 'llm' } })).toBe(
+      title,
+    );
+  });
+
+  it.each([
+    ['', false],
+    ['标题\r', false],
+    ['Bitget遭3.5億美元駭客攻擊，資金追蹤全解析', false],
+    ['ether.fi为何告别EigenLayer？', true],
+  ])('measures usability of %j', (title, usable) => {
+    expect(isUsableRednoteTitle(title)).toBe(usable);
+  });
 });

@@ -220,12 +220,12 @@ describe('translateChineseText', () => {
 
     const promise = translateChineseText('滑鼠和腳踏車市場', 'en');
     promise.catch(() => undefined);
-    await vi.advanceTimersByTimeAsync(500);
+    await vi.advanceTimersByTimeAsync(1_000);
 
     await expect(promise).rejects.toThrow(
       'OpenRouter translation returned empty text',
     );
-    expect(mocks.createOpenRouterChatCompletion).toHaveBeenCalledTimes(2);
+    expect(mocks.createOpenRouterChatCompletion).toHaveBeenCalledTimes(3);
   });
 });
 
@@ -307,11 +307,13 @@ describe('translateCanonicalScript', () => {
     );
   });
 
-  it('fails open on the final overlong English title and retains both attempt costs', async () => {
+  it('fails closed on the final overlong English title instead of cutting it', async () => {
     vi.useFakeTimers();
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
     mocks.createOpenRouterChatCompletion.mockResolvedValue(
       completion(
         JSON.stringify({ title: '😀'.repeat(101), script: 'Translated body' }),
+        0.1,
       ),
     );
     const promise = translateCanonicalScript({
@@ -319,12 +321,15 @@ describe('translateCanonicalScript', () => {
       script: '正文',
       targetLanguageCode: 'en',
     });
-    await vi.advanceTimersByTimeAsync(500);
-    const result = await promise;
-    expect(result.title).toBe('😀'.repeat(100));
-    expect(result.script).toBe('Translated body');
-    expect(result.cost).toHaveLength(2);
-    expect(mocks.createOpenRouterChatCompletion).toHaveBeenCalledTimes(2);
+    promise.catch(() => undefined);
+    await vi.advanceTimersByTimeAsync(1_000);
+    await expect(promise).rejects.toThrow(
+      'OpenRouter translation returned title over 100 characters (101)',
+    );
+    expect(mocks.createOpenRouterChatCompletion).toHaveBeenCalledTimes(3);
+    expect(log.mock.calls.flat().join('\n')).toContain('attempts=3');
+    expect(log.mock.calls.flat().join('\n')).not.toContain('title-truncated');
+    log.mockRestore();
   });
 
   it('keeps a 2,000-character script in one request with its title', async () => {
@@ -490,6 +495,7 @@ describe('translateCanonicalScript', () => {
         ),
       )
       .mockResolvedValueOnce(completion(JSON.stringify({ script: '   ' }), 0.2))
+      .mockResolvedValueOnce(completion(JSON.stringify({ script: '   ' }), 0.2))
       .mockResolvedValueOnce(
         completion(JSON.stringify({ script: '   ' }), 0.2),
       );
@@ -500,14 +506,14 @@ describe('translateCanonicalScript', () => {
       targetLanguageCode: 'ja',
     });
     promise.catch(() => undefined);
-    await vi.advanceTimersByTimeAsync(500);
+    await vi.advanceTimersByTimeAsync(1_000);
 
     await expect(promise).rejects.toThrow(
       'OpenRouter translation returned empty script',
     );
-    expect(mocks.createOpenRouterChatCompletion).toHaveBeenCalledTimes(3);
+    expect(mocks.createOpenRouterChatCompletion).toHaveBeenCalledTimes(4);
     expect(log.mock.calls.flat().join('\n')).toContain(
-      'translate:failed targetLanguageCode=ja model=openrouter/free attempts=2 spentUsd=0.5',
+      'translate:failed targetLanguageCode=ja model=openrouter/free attempts=3 spentUsd=0.7',
     );
     log.mockRestore();
   });

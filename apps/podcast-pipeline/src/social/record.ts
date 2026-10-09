@@ -76,6 +76,7 @@ export function buildSocialPostRecord(input: {
   const published = composeSocialContent(input.platform, {
     copy: input.snapshot.published,
     episode: input.episode,
+    titleOverride: input.titleOverride ?? null,
     ...(input.destinationUrl ? { destinationUrl: input.destinationUrl } : {}),
   });
 
@@ -85,7 +86,8 @@ export function buildSocialPostRecord(input: {
   // reports `body: ''`, and that is what makes `bodyChars` honest.
   const publishedHashtags = input.result.hashtags ?? published.hashtags;
   const publishedBody = input.result.body ?? published.body;
-  const publishedTitle = input.titleOverride?.trim() || published.title;
+  // The same resolution the job builder sent, override included.
+  const publishedTitle = published.title;
 
   return {
     episodeId: input.episodeId,

@@ -104,6 +104,7 @@ import {
   SCHEDULING_HORIZON_DAYS,
   withinPublishWindow,
 } from './slot-policy.js';
+import { findTransportTitleProblems } from './title-barrier.js';
 
 const POLL_INTERVAL_MS = 60_000;
 const METRIC_LOOKBACK_DAYS = 8;
@@ -1100,7 +1101,8 @@ interface PreparedReleaseGroup {
 }
 
 /**
- * Copy generation is the last pre-transport step that can fail for one
+ * Copy generation and the transport-title barrier are the last pre-transport
+ * steps that can fail for one
  * language of an otherwise healthy article, so every claimed group is written
  * before the first group is published. Generating it inside the publish loop
  * instead meant a Rednote note rejected by validation arrived after
@@ -1113,6 +1115,12 @@ interface PreparedReleaseGroup {
  * restart. Fatal there is a loop that never spends an attempt and never lets
  * the next article through, while a hold charges one attempt, applies the
  * retry backoff, and moves the next tick's claim seed on.
+ *
+ * A title the platform cannot receive whole (over Rednote's measured budget,
+ * a truncated legacy variant, an over-long YouTube title, a Rednote risk term)
+ * holds the same way. Letting the job builder throw instead released the
+ * leases untouched, so the next tick claimed and failed the same cohort again
+ * without ever spending an attempt.
  *
  * Everything that is not `SocialCopyGenerationError` is rethrown untouched --
  * a missing episode row or an unreadable prompt file is a deployment fault,
@@ -1134,15 +1142,28 @@ async function holdCohortsMissingCopy(
     if (!firstJob || heldEpisodes.has(firstJob.episode_id)) continue;
     const languageCode = jobLanguage(firstJob);
     try {
-      copyByGroup.set(
-        groupKey(firstJob),
-        await prepareSocialBatchCopy({
-          episodeId: firstJob.episode_id,
-          languageCode,
-          platforms: jobs.map((job) => job.platform),
-          logLlm: verbose,
-        }),
+      const copy = await prepareSocialBatchCopy({
+        episodeId: firstJob.episode_id,
+        languageCode,
+        platforms: jobs.map((job) => job.platform),
+        logLlm: verbose,
+      });
+      copyByGroup.set(groupKey(firstJob), copy);
+      const titleProblems = findTransportTitleProblems(
+        copy.episode,
+        jobs.map((job) => ({
+          platform: job.platform,
+          titleOverride: job.legacy_title_override ?? null,
+        })),
       );
+      if (titleProblems.length > 0) {
+        const reason = titleProblems.join('; ');
+        heldEpisodes.set(firstJob.episode_id, {
+          logDetail: `title unavailable ${languageLabel(languageCode)} · ${truncateHoldReason(reason)}`,
+          lastError: `Release held: ${languageCode} transport title unavailable — ${reason}`,
+        });
+        continue;
+      }
       if (!verbose) {
         log(`   ✓ ${operatorLanguageLabel(languageCode)} copy ready`);
       }

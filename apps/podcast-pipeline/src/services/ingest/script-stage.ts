@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { socialTitleBudgetsFor } from '../../social/policy.js';
+import { languageNeedsRednoteTitle } from '../../social/policy.js';
 import {
   type Article,
   type EpisodeLocalizationRow,
@@ -16,10 +16,7 @@ import {
   updateEpisodeLocalizationArticleContent,
   updateEpisodeLocalizationStatus,
 } from '../db.js';
-import {
-  buildEditorialTitleVariants,
-  generateEditorialTitleWithLLM,
-} from '../editorial-title.js';
+import { generateEditorialTitle } from '../editorial-title.js';
 import { generateScriptWithLLM, type LlmAttemptRecord } from '../llm.js';
 import { convertTextToZhCN } from '../opencc.js';
 import {
@@ -270,24 +267,26 @@ async function ensureLocalizationScript(input: {
         }),
     );
   } else if (needsGeneratedScript(localization)) {
+    // The episode row keeps the scraped headline; the localization title is
+    // overwritten by the Best Title in the same write as the script.
+    const sourceTitle =
+      input.episode?.source_title?.trim() || input.article.title;
     const editorialTitle = await step('generateEditorialTitle', () =>
-      generateEditorialTitleWithLLM(input.article.title),
+      generateEditorialTitle({
+        sourceTitle,
+        articleText: input.article.text,
+        needsRednoteTitle: languageNeedsRednoteTitle(input.languageCode),
+      }),
     );
-    input.costBreakdown.push(buildLlmCostLine('LLM title', editorialTitle));
+    // Spend is recorded before the failure is thrown, so a stopped ingest
+    // still reports what its title attempts cost.
+    input.costBreakdown.push(...editorialTitle.cost);
     if (editorialTitle.title === null) {
       throw new Error(
-        'Editorial title generation failed; the source title will not be used as Best Title',
+        `Editorial title generation failed; the source title will not be used as Best Title (${editorialTitle.reason})`,
       );
     }
     const title = convertTextToZhCN(editorialTitle.title);
-    const variants = await step('buildEditorialTitleVariants', () =>
-      buildEditorialTitleVariants(
-        title,
-        input.article.title,
-        socialTitleBudgetsFor(input.languageCode),
-      ),
-    );
-    input.costBreakdown.push(...variants.cost);
     const attempts = input.telemetry?.attempts;
     const generated = await step('generateScript', async () => {
       const result = await generateScriptWithLLM(
@@ -325,7 +324,8 @@ async function ensureLocalizationScript(input: {
       () =>
         updateEpisodeLocalizationStatus(localization!.id, 'script_generated', {
           title,
-          titleVariants: variants.titleVariants,
+          titleVariants: editorialTitle.titleVariants,
+          titleProvenance: editorialTitle.provenance,
           script: packagedScript,
           scriptBody: generated.script.trim(),
           packagingVersion: PODCAST_PACKAGING_VERSION,
