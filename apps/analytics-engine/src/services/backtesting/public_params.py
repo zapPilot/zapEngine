@@ -24,40 +24,6 @@ if TYPE_CHECKING:
     from src.services.backtesting.strategy_registry import StrategyRecipe
 
 
-class _SignalPublicParams(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    cross_cooldown_days: int = Field(default=30, ge=0, strict=True)
-    cross_on_touch: bool = Field(default=True)
-
-
-class _PacingPublicParams(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    k: float = Field(default=5.0, serialization_alias="pacing_k")
-    r_max: float = Field(default=1.0, serialization_alias="pacing_r_max")
-
-
-class _BuyGatePublicParams(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    window_days: int = Field(
-        default=5,
-        ge=1,
-        strict=True,
-        serialization_alias="buy_sideways_window_days",
-    )
-    sideways_max_range: float = Field(
-        default=0.04,
-        ge=0.0,
-        serialization_alias="buy_sideways_max_range",
-    )
-    leg_caps: list[float] = Field(
-        default_factory=lambda: [0.05, 0.10, 0.20],
-        serialization_alias="buy_leg_caps",
-    )
-
-
 class _TradeQuotaPublicParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -69,7 +35,6 @@ class _TradeQuotaPublicParams(BaseModel):
 class _TopEscapePublicParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    dma_overextension_threshold: float = Field(default=0.30, ge=0.0, le=1.0)
     overextension_threshold_multiplier_greed: float = Field(
         default=0.50,
         ge=0.0,
@@ -80,16 +45,11 @@ class _TopEscapePublicParams(BaseModel):
         ge=0.0,
         le=2.0,
     )
-    fgi_slope_reversal_threshold: float = Field(default=-0.05, le=0.0)
-    fgi_slope_recovery_threshold: float = Field(default=0.05, ge=0.0)
 
 
 class DmaGatedFgiPublicParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    signal: _SignalPublicParams = Field(default_factory=_SignalPublicParams)
-    pacing: _PacingPublicParams = Field(default_factory=_PacingPublicParams)
-    buy_gate: _BuyGatePublicParams = Field(default_factory=_BuyGatePublicParams)
     trade_quota: _TradeQuotaPublicParams = Field(
         default_factory=_TradeQuotaPublicParams
     )

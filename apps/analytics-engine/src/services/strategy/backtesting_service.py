@@ -10,8 +10,6 @@ from dataclasses import dataclass, replace
 from datetime import date, timedelta
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy.orm import Session
-
 from src.core.cache_service import analytics_cache, build_service_cache_key
 from src.models.backtesting import (
     BacktestCompareConfigV3,
@@ -50,10 +48,7 @@ from src.services.backtesting.strategy_registry import (
 )
 from src.services.exceptions import MarketDataUnavailableError
 from src.services.strategy.backtesting_protocol import ModelReplay
-from src.services.strategy.strategy_config_store import (
-    SeedStrategyConfigStore,
-    StrategyConfigStore,
-)
+from src.services.strategy.strategy_config_store import StrategyConfigStore
 
 if TYPE_CHECKING:  # pragma: no cover -- type-only import, never executed
     from src.services.market.macro_fear_greed_service import (
@@ -467,7 +462,6 @@ def _config_fingerprint(saved_config: SavedStrategyConfig) -> str:
 class BacktestingService:
     def __init__(
         self,
-        db: Session,
         token_price_service: TokenPriceService,
         sentiment_service: SentimentDatabaseService,
         strategy_config_store: StrategyConfigStore | None = None,
@@ -481,9 +475,7 @@ class BacktestingService:
             stock_price_service=stock_price_service,
             macro_fear_greed_service=macro_fear_greed_service,
         )
-        self.strategy_config_store = strategy_config_store or (
-            StrategyConfigStore(db) if db is not None else SeedStrategyConfigStore()
-        )
+        self.strategy_config_store = strategy_config_store or StrategyConfigStore()
         self.composition_catalog = (
             composition_catalog or get_default_composition_catalog()
         )

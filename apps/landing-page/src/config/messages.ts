@@ -480,7 +480,7 @@ export const MESSAGES = {
       {
         title: 'DMA/FGI Portfolio Rules',
         tag: 'Reference strategy',
-        text: 'Six rules in priority order; the first that fires sets the day’s target. Signals: 200-day moving averages, crypto and US-equity Fear & Greed, ETH/BTC. Cooldowns and pacing guards limit churn. Its philosophy: buy in fear, defend in greed.',
+        text: 'Six rules in priority order; the first that fires sets the day’s target. Signals: 200-day moving averages, crypto and US-equity Fear & Greed, ETH/BTC. Cooldowns limit churn. Its philosophy: buy in fear, defend in greed.',
         meta: referenceTradeSummary(),
         capability: 'reference-strategy',
         notes: [

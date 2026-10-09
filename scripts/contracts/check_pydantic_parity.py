@@ -30,6 +30,9 @@ from src.models.strategy_config import (  # noqa: E402
     StrategyConfigsResponse,
     StrategyPreset,
 )
+from src.services.backtesting.public_params import (  # noqa: E402
+    DmaGatedFgiPublicParams,
+)
 from src.utils.wallet_validation import ETH_ADDRESS_PATTERN  # noqa: E402
 
 PYDANTIC_MODELS = {
@@ -42,6 +45,7 @@ PYDANTIC_MODELS = {
     "market_dashboard_response": MarketDashboardResponse,
     "portfolio_allocation": Allocation,
     "strategy_configs_response": StrategyConfigsResponse,
+    "strategy_params": DmaGatedFgiPublicParams,
     "strategy_preset": StrategyPreset,
 }
 

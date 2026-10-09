@@ -56,10 +56,7 @@ from src.services.strategy.backtesting_protocol import (
     BacktestingServiceProtocol,
     ModelReplay,
 )
-from src.services.strategy.strategy_config_store import (
-    SeedStrategyConfigStore,
-    StrategyConfigStore,
-)
+from src.services.strategy.strategy_config_store import StrategyConfigStore
 
 if TYPE_CHECKING:
     from src.services.backtesting.execution.portfolio import Portfolio
@@ -94,7 +91,7 @@ class StrategyDailySuggestionService:
     landing_page_service: LandingPageService
     backtesting_service: BacktestingServiceProtocol
     canonical_snapshot_service: CanonicalSnapshotService | None
-    strategy_config_store: StrategyConfigStore | SeedStrategyConfigStore
+    strategy_config_store: StrategyConfigStore
     composition_catalog: CompositionCatalog
 
     def __init__(
@@ -109,7 +106,7 @@ class StrategyDailySuggestionService:
         self.landing_page_service = landing_page_service
         self.backtesting_service = backtesting_service
         self.canonical_snapshot_service = canonical_snapshot_service
-        self.strategy_config_store = strategy_config_store or SeedStrategyConfigStore()
+        self.strategy_config_store = strategy_config_store or StrategyConfigStore()
         self.composition_catalog = (
             composition_catalog or get_default_composition_catalog()
         )

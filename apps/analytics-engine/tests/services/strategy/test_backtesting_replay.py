@@ -21,7 +21,7 @@ from src.services.backtesting.constants import MODEL_TOTAL_CAPITAL, MODEL_WINDOW
 from src.services.backtesting.lab.synthetic import SyntheticMarket, synthetic_market
 from src.services.exceptions import MarketDataUnavailableError
 from src.services.strategy.backtesting_service import BacktestingService
-from src.services.strategy.strategy_config_store import SeedStrategyConfigStore
+from src.services.strategy.strategy_config_store import StrategyConfigStore
 from tests.services.backtesting.support.synthetic_services import (
     SyntheticMarketServices,
 )
@@ -37,7 +37,7 @@ def market() -> SyntheticMarket:
 def _counted_service(
     market: SyntheticMarket,
     *,
-    store: SeedStrategyConfigStore | None = None,
+    store: StrategyConfigStore | None = None,
 ) -> tuple[BacktestingService, list[str]]:
     """A service over the synthetic market plus a log of price-history fetches."""
     services = SyntheticMarketServices(market)
@@ -152,7 +152,7 @@ def test_a_different_end_date_is_a_different_replay(market: SyntheticMarket) -> 
 def test_changing_the_saved_config_invalidates_the_cached_replay(
     market: SyntheticMarket,
 ) -> None:
-    class RelabeledStore(SeedStrategyConfigStore):
+    class RelabeledStore(StrategyConfigStore):
         def resolve_config(self, config_id: str | None) -> SavedStrategyConfig:
             base = get_default_seed_strategy_config()
             return base.model_copy(update={"description": "tuned"})

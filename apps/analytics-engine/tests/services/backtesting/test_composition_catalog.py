@@ -21,11 +21,20 @@ def test_resolve_signal_component_factory_builds_portfolio_rules_signal_componen
         "dma_fgi_portfolio_rules_signal"
     )
 
-    component = factory({"cross_cooldown_days": 7, "cross_on_touch": False})
+    component = factory({})
 
     assert isinstance(component, FlatMinimumSignalComponent)
-    assert component.config.cross_cooldown_days == 7
-    assert component.config.cross_on_touch is False
+    assert component.config.cross_cooldown_days == 30
+    assert component.config.cross_on_touch is True
+
+
+def test_portfolio_rules_signal_component_rejects_removed_params() -> None:
+    factory = build_default_composition_catalog().resolve_signal_component_factory(
+        "dma_fgi_portfolio_rules_signal"
+    )
+
+    with pytest.raises(ValueError, match="does not accept params"):
+        factory({"cross_cooldown_days": 7})
 
 
 def test_resolve_pacing_policy_factory_builds_configured_policy() -> None:

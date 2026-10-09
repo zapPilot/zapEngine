@@ -14,18 +14,9 @@ from src.models.backtesting import (
 
 def _dma_public_params(**overrides: object) -> dict[str, object]:
     params: dict[str, object] = {
-        "signal": {
-            "cross_cooldown_days": 30,
-            "cross_on_touch": True,
-        },
-        "pacing": {
-            "k": 5.0,
-            "r_max": 1.0,
-        },
-        "buy_gate": {
-            "window_days": 5,
-            "sideways_max_range": 0.04,
-            "leg_caps": [0.05, 0.10, 0.20],
+        "top_escape": {
+            "overextension_threshold_multiplier_greed": 0.5,
+            "overextension_threshold_multiplier_extreme_greed": 0.33,
         },
         "trade_quota": {
             "min_trade_interval_days": None,
@@ -128,7 +119,7 @@ def test_compare_config_rejects_invalid_scalar_types() -> None:
         BacktestCompareConfigV3(
             config_id="bad_scalar",
             strategy_id="dma_fgi_portfolio_rules",
-            params={"signal": {"cross_cooldown_days": True}},
+            params={"trade_quota": {"max_trades_7d": True}},
         )
 
 
@@ -137,7 +128,30 @@ def test_compare_config_rejects_invalid_array_types() -> None:
         BacktestCompareConfigV3(
             config_id="bad_array",
             strategy_id="dma_fgi_portfolio_rules",
-            params={"buy_gate": {"leg_caps": 123}},
+            params={"disabled_rules": 123},
+        )
+
+
+@pytest.mark.parametrize(
+    "removed",
+    [
+        {"signal": {"cross_cooldown_days": 30}},
+        {"signal": {"cross_on_touch": False}},
+        {"pacing": {"k": 5.0}},
+        {"buy_gate": {"window_days": 5}},
+        {"top_escape": {"dma_overextension_threshold": 0.3}},
+        {"top_escape": {"fgi_slope_reversal_threshold": -0.05}},
+        {"top_escape": {"fgi_slope_recovery_threshold": 0.05}},
+    ],
+)
+def test_compare_config_rejects_parameters_that_never_changed_a_decision(
+    removed: dict[str, object],
+) -> None:
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        BacktestCompareConfigV3(
+            config_id="removed_param",
+            strategy_id="dma_fgi_portfolio_rules",
+            params=removed,
         )
 
 
@@ -147,15 +161,9 @@ def test_compare_config_rejects_flat_dma_params() -> None:
             config_id="dma_flat",
             strategy_id="dma_fgi_portfolio_rules",
             params={
-                "cross_cooldown_days": 30,
-                "cross_on_touch": True,
-                "pacing_k": 5.0,
-                "pacing_r_max": 1.0,
-                "buy_sideways_window_days": 5,
-                "buy_sideways_max_range": 0.04,
-                "buy_leg_caps": [0.05, 0.10, 0.20],
-                "dma_overextension_threshold": 0.3,
-                "fgi_slope_reversal_threshold": -0.05,
+                "min_trade_interval_days": 3,
+                "max_trades_7d": 2,
+                "overextension_threshold_multiplier_greed": 0.5,
             },
         )
 
@@ -166,8 +174,10 @@ def test_compare_config_accepts_nested_dma_params() -> None:
         strategy_id="dma_fgi_portfolio_rules",
         params=_dma_public_params(),
     )
-    assert config.params["cross_cooldown_days"] == 30
-    assert config.params["buy_leg_caps"] == [0.05, 0.10, 0.20]
+    assert config.params["overextension_threshold_multiplier_greed"] == 0.5
+    assert config.params["overextension_threshold_multiplier_extreme_greed"] == 0.33
+    assert "cross_cooldown_days" not in config.params
+    assert "buy_leg_caps" not in config.params
 
 
 def test_compare_config_accepts_trade_quota_params() -> None:
@@ -203,8 +213,10 @@ def test_compare_config_accepts_dma_fgi_portfolio_rules_empty_params() -> None:
         strategy_id="dma_fgi_portfolio_rules",
         params={},
     )
-    assert config.params["cross_cooldown_days"] == 30
-    assert config.params["buy_leg_caps"] == [0.05, 0.1, 0.2]
+    assert config.params == {
+        "overextension_threshold_multiplier_greed": 0.5,
+        "overextension_threshold_multiplier_extreme_greed": 0.33,
+    }
 
 
 def test_compare_config_accepts_dma_fgi_portfolio_rules_nested_params() -> None:
@@ -212,23 +224,16 @@ def test_compare_config_accepts_dma_fgi_portfolio_rules_nested_params() -> None:
         config_id="portfolio_rules_custom",
         strategy_id="dma_fgi_portfolio_rules",
         params=_dma_public_params(
-            signal={
-                "cross_cooldown_days": 12,
-                "cross_on_touch": False,
+            top_escape={
+                "overextension_threshold_multiplier_greed": 0.4,
+                "overextension_threshold_multiplier_extreme_greed": 0.2,
             },
-            pacing={
-                "k": 4.0,
-                "r_max": 1.2,
-            },
-            buy_gate={
-                "window_days": 7,
-                "sideways_max_range": 0.03,
-                "leg_caps": [0.04, 0.08],
-            },
+            disabled_rules=["fgi_downshift_dca_sell"],
         ),
     )
-    assert config.params["cross_cooldown_days"] == 12
-    assert config.params["buy_leg_caps"] == [0.04, 0.08]
+    assert config.params["overextension_threshold_multiplier_greed"] == 0.4
+    assert config.params["overextension_threshold_multiplier_extreme_greed"] == 0.2
+    assert config.params["disabled_rules"] == ["fgi_downshift_dca_sell"]
 
 
 def test_compare_request_rejects_invalid_date_range() -> None:

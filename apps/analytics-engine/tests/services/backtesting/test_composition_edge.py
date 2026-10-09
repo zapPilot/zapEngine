@@ -26,7 +26,6 @@ def test_resolve_saved_strategy_config_benchmark_missing_builder() -> None:
     family = StrategyFamilySpec(
         strategy_id="test_bench",
         composition_kind="benchmark",
-        mutable_via_admin=False,
         benchmark_strategy_builder_factory=None,
     )
     catalog = get_default_composition_catalog().with_extensions(

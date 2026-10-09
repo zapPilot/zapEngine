@@ -57,18 +57,9 @@ class MockBacktestingService:
 
 def _dma_params() -> dict[str, object]:
     return {
-        "signal": {
-            "cross_cooldown_days": 30,
-            "cross_on_touch": True,
-        },
-        "pacing": {
-            "k": 5.0,
-            "r_max": 1.0,
-        },
-        "buy_gate": {
-            "window_days": 5,
-            "sideways_max_range": 0.04,
-            "leg_caps": [0.05, 0.10, 0.20],
+        "top_escape": {
+            "overextension_threshold_multiplier_greed": 0.50,
+            "overextension_threshold_multiplier_extreme_greed": 0.33,
         },
         "trade_quota": {
             "min_trade_interval_days": None,
@@ -80,18 +71,8 @@ def _dma_params() -> dict[str, object]:
 
 def _dma_runtime_params() -> dict[str, object]:
     return {
-        "cross_cooldown_days": 30,
-        "cross_on_touch": True,
-        "pacing_k": 5.0,
-        "pacing_r_max": 1.0,
-        "buy_sideways_window_days": 5,
-        "buy_sideways_max_range": 0.04,
-        "buy_leg_caps": [0.05, 0.10, 0.20],
-        "dma_overextension_threshold": 0.3,
         "overextension_threshold_multiplier_greed": 0.50,
         "overextension_threshold_multiplier_extreme_greed": 0.33,
-        "fgi_slope_reversal_threshold": -0.05,
-        "fgi_slope_recovery_threshold": 0.05,
     }
 
 
@@ -347,13 +328,16 @@ async def test_backtesting_strategies_v3_returns_recipe_catalog(
         for entry in catalog.strategies
         if entry.strategy_id == "dma_fgi_portfolio_rules"
     )
-    assert (
-        cast(dict[str, object], dma_entry.default_params["signal"])[
-            "cross_cooldown_days"
-        ]
-        == 30
-    )
-    assert "signal" in dma_entry.param_schema["properties"]
+    assert dma_entry.default_params["top_escape"] == {
+        "overextension_threshold_multiplier_greed": 0.5,
+        "overextension_threshold_multiplier_extreme_greed": 0.33,
+    }
+    assert set(dma_entry.param_schema["properties"]) == {
+        "trade_quota",
+        "top_escape",
+        "disabled_rules",
+        "enabled_rules",
+    }
     assert dma_entry.supports_daily_suggestion is True
 
     configs_response = await client.get("/api/v3/strategy/configs")
@@ -460,7 +444,7 @@ async def test_backtesting_compare_v3_rejects_flat_dma_fgi_portfolio_rules_param
                     "config_id": "dma_fgi_portfolio_rules_default",
                     "strategy_id": "dma_fgi_portfolio_rules",
                     "params": {
-                        "cross_cooldown_days": 30,
+                        "max_trades_7d": 3,
                         "rotation_cooldown_days": 7,
                     },
                 }
@@ -535,7 +519,7 @@ async def test_backtesting_compare_v3_returns_400_for_unusable_window(
                 {
                     "config_id": "portfolio_rules_runtime",
                     "strategy_id": "dma_fgi_portfolio_rules",
-                    "params": {"signal": {"cross_cooldown_days": 30}},
+                    "params": {"trade_quota": {"max_trades_7d": 3}},
                 }
             ],
         ),

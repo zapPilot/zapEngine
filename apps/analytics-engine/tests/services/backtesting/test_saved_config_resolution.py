@@ -221,7 +221,6 @@ def test_strategy_family_spec_validates_unsupported_plugins() -> None:
     family = StrategyFamilySpec(
         strategy_id="test_family",
         composition_kind="composed",
-        mutable_via_admin=False,
         supports_plugins=False,
     )
     saved_config = SavedStrategyConfig(

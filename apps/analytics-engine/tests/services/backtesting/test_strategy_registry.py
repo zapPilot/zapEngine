@@ -74,7 +74,7 @@ def test_portfolio_rules_recipe_builds_compare_strategy() -> None:
         StrategyBuildRequest(
             config_id="portfolio-rules-test",
             total_capital=10_000.0,
-            params={"cross_cooldown_days": 30},
+            params={"max_trades_7d": 3},
             user_prices=[
                 {
                     "date": date(2025, 1, 1),

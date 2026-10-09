@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from typing import Any
 
@@ -27,11 +27,21 @@ def run_synthetic_compare(
     market: SyntheticMarket,
     *,
     config_ids: Sequence[str] = (DEFAULT_CONFIG_ID,),
+    params: Mapping[str, Any] | None = None,
 ) -> BacktestResponse:
-    """Run seed saved configs through the same compare path the API uses."""
+    """Run seed saved configs through the same compare path the API uses.
+
+    ``params`` replaces the nested public params of every config, as a saved
+    config edited in code would.
+    """
     saved_configs = [
         resolve_seed_strategy_config(config_id) for config_id in config_ids
     ]
+    if params is not None:
+        saved_configs = [
+            saved.model_copy(update={"params": dict(params)}, deep=True)
+            for saved in saved_configs
+        ]
     resolved = [
         replace(resolve_saved_strategy_config(saved), request_config_id=saved.config_id)
         for saved in saved_configs

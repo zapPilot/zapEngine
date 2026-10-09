@@ -43,7 +43,10 @@ agents' edits as described in the handoff. No commit or GitHub write was attempt
   DMA and touch/direct-cross transitions, cooldown edges, peer exits with absent
   peers, alt recycling, empty holdings, epsilon, codec and five mutations.
 - `benchmark.py`: encode/call/decode latency and three-repeat median full compare
-  with/without shadow. Default and the actual optimized public params are used.
+  with/without shadow. Touch semantics are selected through
+  `scripts/pinned_strategy/touch_mode.py`. (The "Optimized" columns below are
+  historical: they came from the tuned preset removed on 2026-10-09, which the
+  benchmark used to borrow as its non-touch variant.)
   Real history is required unless `--synthetic` is explicitly selected.
 
 The installed runtime is CPython 3.11.15 on macOS 26.6.2 ARM64. `.python-version`
@@ -173,8 +176,8 @@ real-history run; no blanket acceptability claim is made.
   peer exit are retained rather than redesigned.
 - Python currently has execution plugin factory paths distinct from this
   strategy's direct allocation executor. This spike does not wire plugins or
-  change quota/pacing behavior. Optimized params are passed through the real
-  strategy, rather than assuming only cross_on_touch matters.
+  change quota/pacing behavior. The reference strategy runs for real in both
+  touch modes, rather than assuming only cross_on_touch matters.
 - Live reset/warmup and missing persisted state remain outside this work. Pure
   bytecode does not authenticate prior state or market inputs. The supplied
   backend state remains a trust boundary. No production DB saved-config facts

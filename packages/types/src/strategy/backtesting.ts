@@ -9,67 +9,40 @@ import { BucketTransferSchema } from './bucket.js';
 import { JsonObjectSchema, JsonValueSchema, type JsonValue } from './json.js';
 import { MarketDataFreshnessSchema } from '../shared/market-freshness.js';
 
-export const BacktestSignalParamsV3Schema = z
-  .object({
-    cross_cooldown_days: z.number().optional(),
-    cross_on_touch: z.boolean().optional(),
-  })
-  .partial()
-  .strict();
-
-export const BacktestPacingParamsV3Schema = z
-  .object({
-    k: z.number().optional(),
-    r_max: z.number().optional(),
-  })
-  .partial()
-  .strict();
-
-export const BacktestBuyGateParamsV3Schema = z
-  .object({
-    window_days: z.number().optional(),
-    sideways_max_range: z.number().optional(),
-    leg_caps: z.array(z.number()).optional(),
-  })
-  .partial()
-  .strict();
-
+/**
+ * Public strategy params: exactly the knobs that change a decision. The pydantic
+ * `DmaGatedFgiPublicParams` is the source of truth and the contract gate
+ * (`strategy_params`) keeps the two identical.
+ */
 export const BacktestTradeQuotaParamsV3Schema = z
   .object({
-    min_trade_interval_days: z.number().nullable().optional(),
-    max_trades_7d: z.number().nullable().optional(),
-    max_trades_30d: z.number().nullable().optional(),
+    min_trade_interval_days: z.number().int().min(1).nullable().optional(),
+    max_trades_7d: z.number().int().min(1).nullable().optional(),
+    max_trades_30d: z.number().int().min(1).nullable().optional(),
   })
-  .partial()
   .strict();
 
 export const BacktestTopEscapeParamsV3Schema = z
   .object({
-    dma_overextension_threshold: z.number().optional(),
-    fgi_slope_reversal_threshold: z.number().optional(),
-    fgi_slope_recovery_threshold: z.number().optional(),
+    overextension_threshold_multiplier_greed: z
+      .number()
+      .min(0)
+      .max(2)
+      .optional(),
+    overextension_threshold_multiplier_extreme_greed: z
+      .number()
+      .min(0)
+      .max(2)
+      .optional(),
   })
-  .partial()
-  .strict();
-
-export const BacktestExtremeFearParamsV3Schema = z
-  .object({
-    min_consecutive_days: z.number().optional(),
-    buy_step: z.number().optional(),
-  })
-  .partial()
   .strict();
 
 export const BacktestCompareParamsV3Schema = z
   .object({
-    signal: BacktestSignalParamsV3Schema.optional(),
-    pacing: BacktestPacingParamsV3Schema.optional(),
-    buy_gate: BacktestBuyGateParamsV3Schema.optional(),
     trade_quota: BacktestTradeQuotaParamsV3Schema.optional(),
     top_escape: BacktestTopEscapeParamsV3Schema.optional(),
-    extreme_fear: BacktestExtremeFearParamsV3Schema.optional(),
     disabled_rules: z.array(z.string()).optional(),
-    enabled_rules: z.array(z.string()).optional(),
+    enabled_rules: z.array(z.string()).nullable().optional(),
   })
   .strict();
 
@@ -266,20 +239,11 @@ export const BacktestStrategyCatalogResponseV3Schema = z.object({
   strategies: z.array(BacktestStrategyCatalogEntryV3Schema),
 });
 
-export type BacktestSignalParamsV3 = z.infer<
-  typeof BacktestSignalParamsV3Schema
->;
-export type BacktestPacingParamsV3 = z.infer<
-  typeof BacktestPacingParamsV3Schema
->;
-export type BacktestBuyGateParamsV3 = z.infer<
-  typeof BacktestBuyGateParamsV3Schema
->;
 export type BacktestTradeQuotaParamsV3 = z.infer<
   typeof BacktestTradeQuotaParamsV3Schema
 >;
-export type BacktestExtremeFearParamsV3 = z.infer<
-  typeof BacktestExtremeFearParamsV3Schema
+export type BacktestTopEscapeParamsV3 = z.infer<
+  typeof BacktestTopEscapeParamsV3Schema
 >;
 export type BacktestCompareParamsV3 = z.infer<
   typeof BacktestCompareParamsV3Schema

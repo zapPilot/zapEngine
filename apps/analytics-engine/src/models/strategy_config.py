@@ -1,4 +1,4 @@
-"""Strategy configuration models for saved strategy configs and admin APIs."""
+"""Strategy configuration models for saved strategy configs and presets."""
 
 from __future__ import annotations
 
@@ -139,48 +139,3 @@ class StrategyConfigsResponse(BaseModel):
 
 def _normalize_primary_asset(value: str) -> str:
     return normalize_asset_symbol(value, "primary_asset")
-
-
-class SavedStrategyConfigMutationBase(BaseModel):
-    # jscpd:ignore-start
-    # Reason: admin mutation schema intentionally mirrors saved config fields.
-    display_name: str
-    description: str | None = None
-    strategy_id: str
-    primary_asset: str = Field(default="BTC")
-    params: dict[str, JsonValue] = Field(default_factory=dict)
-    composition: StrategyComposition
-    supports_daily_suggestion: bool = False
-
-    @model_validator(mode="after")
-    def validate_mutation(self) -> Self:
-        self.strategy_id = _normalize_strategy_id(self.strategy_id)
-        self.primary_asset = _normalize_primary_asset(self.primary_asset)
-        self.params = normalize_saved_strategy_public_params(
-            self.strategy_id,
-            self.params,
-        )
-        return self
-
-    # jscpd:ignore-end
-
-
-class CreateSavedStrategyConfigRequest(SavedStrategyConfigMutationBase):
-    config_id: str = Field(description="Stable saved config identifier")
-
-    @model_validator(mode="after")
-    def validate_create_request(self) -> Self:
-        validate_config_id(self.config_id)
-        return self
-
-
-class UpdateSavedStrategyConfigRequest(SavedStrategyConfigMutationBase):
-    pass
-
-
-class SavedStrategyConfigResponse(BaseModel):
-    config: SavedStrategyConfig
-
-
-class SavedStrategyConfigListResponse(BaseModel):
-    configs: list[SavedStrategyConfig]

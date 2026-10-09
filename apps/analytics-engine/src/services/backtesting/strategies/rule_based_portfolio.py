@@ -12,18 +12,8 @@ from src.services.backtesting.constants import (
     STRATEGY_DISPLAY_NAMES,
     STRATEGY_DMA_FGI_PORTFOLIO_RULES,
 )
-from src.services.backtesting.execution.dma_buy_gate_plugin import (
-    DmaBuyGateExecutionPlugin,
-)
-from src.services.backtesting.execution.pacing.fgi_exponential import (
-    FgiExponentialPacingPolicy,
-)
-from src.services.backtesting.execution.plugins import ExecutionPlugin
 from src.services.backtesting.execution.rule_based.allocation_executor import (
     RuleBasedAllocationExecutor,
-)
-from src.services.backtesting.execution.trade_quota_guard_plugin import (
-    TradeQuotaGuardExecutionPlugin,
 )
 from src.services.backtesting.portfolio_rules import (
     DEFAULT_PORTFOLIO_RULE_NAMES,
@@ -59,10 +49,7 @@ from src.services.backtesting.signals.flat_minimum import (
 from src.services.backtesting.strategies.base import StrategyContext
 from src.services.backtesting.strategies.composed import ComposedSignalStrategy
 from src.services.backtesting.utils import (
-    coerce_bool,
     coerce_float,
-    coerce_float_list,
-    coerce_int,
     coerce_nullable_int,
     coerce_params,
 )
@@ -71,42 +58,22 @@ _RuleT = TypeVar("_RuleT", bound=PortfolioRule)
 
 DMA_GATED_FGI_PUBLIC_PARAM_KEYS = frozenset(
     {
-        "cross_cooldown_days",
-        "cross_on_touch",
-        "pacing_k",
-        "pacing_r_max",
-        "buy_sideways_window_days",
-        "buy_sideways_max_range",
-        "buy_leg_caps",
         "min_trade_interval_days",
         "max_trades_7d",
         "max_trades_30d",
-        "dma_overextension_threshold",
         "overextension_threshold_multiplier_greed",
         "overextension_threshold_multiplier_extreme_greed",
-        "fgi_slope_reversal_threshold",
-        "fgi_slope_recovery_threshold",
         "disabled_rules",
         "enabled_rules",
     }
 )
 
 _DMA_COERCION_SPEC: dict[str, Any] = {
-    "cross_cooldown_days": coerce_int,
-    "cross_on_touch": coerce_bool,
-    "pacing_k": coerce_float,
-    "pacing_r_max": coerce_float,
-    "buy_sideways_window_days": coerce_int,
-    "buy_sideways_max_range": coerce_float,
-    "buy_leg_caps": coerce_float_list,
     "min_trade_interval_days": coerce_nullable_int,
     "max_trades_7d": coerce_nullable_int,
     "max_trades_30d": coerce_nullable_int,
-    "dma_overextension_threshold": coerce_float,
     "overextension_threshold_multiplier_greed": coerce_float,
     "overextension_threshold_multiplier_extreme_greed": coerce_float,
-    "fgi_slope_reversal_threshold": coerce_float,
-    "fgi_slope_recovery_threshold": coerce_float,
 }
 
 
@@ -141,37 +108,6 @@ class DmaGatedFgiParams(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    cross_cooldown_days: int = Field(
-        default=30,
-        ge=0,
-        description="Days to suppress repeat DMA cross actions after an actionable cross.",
-    )
-    cross_on_touch: bool = Field(
-        default=True,
-        description="Treat touching the DMA threshold as a cross trigger.",
-    )
-    pacing_k: float = Field(
-        default=5.0,
-        description="Steepness parameter for the shared fgi_exponential pacing curve.",
-    )
-    pacing_r_max: float = Field(
-        default=1.0,
-        description="Upper multiplier cap for the shared fgi_exponential pacing curve.",
-    )
-    buy_sideways_window_days: int = Field(
-        default=5,
-        ge=1,
-        description="Observation window for the DMA sideways buy-gate plugin.",
-    )
-    buy_sideways_max_range: float = Field(
-        default=0.04,
-        ge=0.0,
-        description="Maximum sideways range allowed before the DMA buy-gate opens.",
-    )
-    buy_leg_caps: list[float] = Field(
-        default_factory=lambda: [0.05, 0.10, 0.20],
-        description="Per-leg portfolio caps enforced by the DMA buy-gate plugin.",
-    )
     min_trade_interval_days: int | None = Field(
         default=None,
         ge=1,
@@ -187,12 +123,6 @@ class DmaGatedFgiParams(BaseModel):
         ge=1,
         description="Maximum executed trades allowed within a rolling 30-day window.",
     )
-    dma_overextension_threshold: float = Field(
-        default=0.30,
-        ge=0.0,
-        le=1.0,
-        description="DMA distance threshold above which overextension sell triggers.",
-    )
     overextension_threshold_multiplier_greed: float = Field(
         default=0.50,
         ge=0.0,
@@ -206,16 +136,6 @@ class DmaGatedFgiParams(BaseModel):
         description=(
             "Multiplier applied to overextension sell thresholds in extreme greed."
         ),
-    )
-    fgi_slope_reversal_threshold: float = Field(
-        default=-0.05,
-        le=0.0,
-        description="FGI slope threshold below which greed-fading sell triggers.",
-    )
-    fgi_slope_recovery_threshold: float = Field(
-        default=0.05,
-        ge=0.0,
-        description="FGI slope threshold above which fear-recovery buy triggers.",
     )
     disabled_rules: frozenset[str] = Field(
         default_factory=frozenset,
@@ -253,39 +173,6 @@ class DmaGatedFgiParams(BaseModel):
         else:
             params.pop("enabled_rules", None)
         return cast(dict[str, JsonValue], params)
-
-    def build_signal_config(self) -> DmaGatedFgiConfig:
-        return DmaGatedFgiConfig(
-            cross_cooldown_days=self.cross_cooldown_days,
-            cross_on_touch=self.cross_on_touch,
-        )
-
-    def build_pacing_policy(self) -> FgiExponentialPacingPolicy:
-        return FgiExponentialPacingPolicy(k=self.pacing_k, r_max=self.pacing_r_max)
-
-    def build_trade_quota_plugin_params(self) -> dict[str, JsonValue]:
-        params: dict[str, JsonValue] = {}
-        if self.min_trade_interval_days is not None:
-            params["min_trade_interval_days"] = self.min_trade_interval_days
-        if self.max_trades_7d is not None:
-            params["max_trades_7d"] = self.max_trades_7d
-        if self.max_trades_30d is not None:
-            params["max_trades_30d"] = self.max_trades_30d
-        return params
-
-    def build_execution_plugins(self) -> tuple[ExecutionPlugin, ...]:
-        return (
-            DmaBuyGateExecutionPlugin(
-                window_days=self.buy_sideways_window_days,
-                sideways_max_range=self.buy_sideways_max_range,
-                leg_caps=tuple(self.buy_leg_caps),
-            ),
-            TradeQuotaGuardExecutionPlugin(
-                min_trade_interval_days=self.min_trade_interval_days,
-                max_trades_7d=self.max_trades_7d,
-                max_trades_30d=self.max_trades_30d,
-            ),
-        )
 
 
 @dataclass
@@ -352,7 +239,7 @@ class RuleBasedPortfolioStrategy(ComposedSignalStrategy):
         cross_down_rule = required_rule(metadata_rules, CrossDownExitRule)
         ratio_rule = required_rule(metadata_rules, EthBtcRatioRotationRule)
         self.signal_component = FlatMinimumSignalComponent(
-            config=resolved_params.build_signal_config(),
+            config=DmaGatedFgiConfig(),
             signal_id=self.signal_id,
             ratio_cross_cooldown_days=ratio_rule.cooldown_days,
             cross_down_cooldown_days_by_symbol={

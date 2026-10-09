@@ -84,7 +84,7 @@ describe('default strategy backtest mapping', () => {
             display_name: 'Portfolio rules',
             description: null,
             param_schema: {},
-            default_params: { pacing: { k: 0.15 } },
+            default_params: { trade_quota: { max_trades_7d: 3 } },
             supports_daily_suggestion: true,
           },
         ],
@@ -103,7 +103,7 @@ describe('default strategy backtest mapping', () => {
         {
           config_id: 'dma_fgi_portfolio_rules_default',
           strategy_id: 'dma_fgi_portfolio_rules',
-          params: { pacing: { k: 0.15 } },
+          params: { trade_quota: { max_trades_7d: 3 } },
         },
       ],
     });

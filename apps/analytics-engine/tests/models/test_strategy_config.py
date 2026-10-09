@@ -7,15 +7,11 @@ from pydantic import ValidationError
 
 from src.models.strategy_config import (
     BacktestDefaults,
-    CreateSavedStrategyConfigRequest,
     SavedStrategyConfig,
-    SavedStrategyConfigListResponse,
-    SavedStrategyConfigResponse,
     StrategyComponentRef,
     StrategyComposition,
     StrategyConfigsResponse,
     StrategyPreset,
-    UpdateSavedStrategyConfigRequest,
 )
 
 
@@ -30,11 +26,13 @@ def test_strategy_preset_accepts_any_strategy_id() -> None:
         config_id="dma_fgi_portfolio_rules_default",
         display_name="DMA/FGI Portfolio Rules Default",
         strategy_id="dma_fgi_portfolio_rules",
-        params={"signal": {"cross_cooldown_days": 30}},
+        params={"top_escape": {"overextension_threshold_multiplier_greed": 0.4}},
         is_default=True,
     )
     assert preset.strategy_id == "dma_fgi_portfolio_rules"
-    assert preset.params["signal"]["cross_cooldown_days"] == 30
+    assert (
+        preset.params["top_escape"]["overextension_threshold_multiplier_greed"] == 0.4
+    )
 
     # strategy_id is str — any valid string is accepted
     preset2 = StrategyPreset(
@@ -62,7 +60,7 @@ def test_strategy_configs_response_round_trips() -> None:
                 "display_name": "DMA/FGI Portfolio Rules",
                 "description": "ETH/BTC relative-strength rotation",
                 "param_schema": {"type": "object"},
-                "default_params": {"signal": {"cross_cooldown_days": 30}},
+                "default_params": {"trade_quota": {"max_trades_7d": 3}},
                 "supports_daily_suggestion": True,
             }
         ],
@@ -71,7 +69,7 @@ def test_strategy_configs_response_round_trips() -> None:
                 config_id="dma_fgi_portfolio_rules_default",
                 display_name="DMA/FGI Portfolio Rules Default",
                 strategy_id="dma_fgi_portfolio_rules",
-                params={"signal": {"cross_cooldown_days": 30}},
+                params={"trade_quota": {"max_trades_7d": 3}},
                 is_default=True,
             )
         ],
@@ -85,64 +83,20 @@ def test_strategy_configs_response_round_trips() -> None:
     assert restored.backtest_defaults.total_capital == 25000.0
 
 
-def test_saved_strategy_config_admin_requests_validate_full_composition() -> None:
-    request = CreateSavedStrategyConfigRequest(
-        config_id="portfolio_rules_custom",
-        display_name="Portfolio Rules Custom",
-        strategy_id="dma_fgi_portfolio_rules",
-        primary_asset="btc",
-        params={"signal": {"cross_cooldown_days": 12}},
-        composition=StrategyComposition(
-            kind="composed",
-            bucket_mapper_id="spy_eth_btc_stable",
-            signal=StrategyComponentRef(component_id="dma_fgi_portfolio_rules_signal"),
-            decision_policy=StrategyComponentRef(
-                component_id="dma_fgi_portfolio_rules_policy"
-            ),
-            pacing_policy=StrategyComponentRef(component_id="fgi_exponential"),
-            execution_profile=StrategyComponentRef(component_id="two_bucket_rebalance"),
-        ),
-        supports_daily_suggestion=True,
-    )
-
-    assert request.primary_asset == "BTC"
-    assert request.composition.signal is not None
-    assert request.params["signal"]["cross_cooldown_days"] == 12
-
-    update = UpdateSavedStrategyConfigRequest.model_validate(
-        request.model_dump(exclude={"config_id"})
-    )
-    assert update.strategy_id == "dma_fgi_portfolio_rules"
-
-
-def test_saved_strategy_config_admin_responses_round_trip() -> None:
-    config = CreateSavedStrategyConfigRequest(
-        config_id="portfolio_rules_custom",
-        display_name="Portfolio Rules Custom",
-        strategy_id="dma_fgi_portfolio_rules",
-        primary_asset="BTC",
-        composition=StrategyComposition(
-            kind="composed",
-            bucket_mapper_id="spy_eth_btc_stable",
-            signal=StrategyComponentRef(component_id="dma_fgi_portfolio_rules_signal"),
-            decision_policy=StrategyComponentRef(
-                component_id="dma_fgi_portfolio_rules_policy"
-            ),
-            pacing_policy=StrategyComponentRef(component_id="fgi_exponential"),
-            execution_profile=StrategyComponentRef(component_id="two_bucket_rebalance"),
-        ),
-    )
-
-    response = SavedStrategyConfigResponse(
-        config={
-            **config.model_dump(),
-            "is_default": False,
-            "is_benchmark": False,
-        }
-    )
-    list_response = SavedStrategyConfigListResponse(configs=[response.config])
-
-    assert list_response.configs[0].config_id == "portfolio_rules_custom"
+def test_removed_parameters_are_rejected_by_the_saved_config_contract() -> None:
+    for removed in (
+        {"signal": {"cross_cooldown_days": 12}},
+        {"pacing": {"k": 1.0}},
+        {"buy_gate": {"window_days": 3}},
+        {"top_escape": {"dma_overextension_threshold": 0.3}},
+    ):
+        with pytest.raises(ValidationError):
+            StrategyPreset(
+                config_id="dma_fgi_portfolio_rules_default",
+                display_name="Default",
+                strategy_id="dma_fgi_portfolio_rules",
+                params=removed,
+            )
 
 
 # ---------------------------------------------------------------------------

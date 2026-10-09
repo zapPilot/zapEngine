@@ -14,7 +14,6 @@ from src.services.backtesting.strategies.base import (
     StrategyContext,
 )
 from src.services.backtesting.utils.coercion import (
-    coerce_bool,
     coerce_float,
     coerce_float_list,
     coerce_int,
@@ -27,7 +26,6 @@ def test_utils_init():
     """Import utils to cover __init__.py."""
     assert utils.__all__ == [
         "calculate_runtime_allocation",
-        "coerce_bool",
         "coerce_float",
         "coerce_float_list",
         "coerce_int",
@@ -64,11 +62,6 @@ def test_coerce_nullable_float_allows_none() -> None:
 
 def test_coerce_nullable_float_coerces_numbers() -> None:
     assert coerce_nullable_float(1, field_name="x") == 1.0
-
-
-def test_coerce_bool_rejects_non_bool() -> None:
-    with pytest.raises(ValueError, match="must be a boolean"):
-        coerce_bool(1, field_name="x")
 
 
 def test_coerce_to_date_returns_none_for_invalid_inputs() -> None:

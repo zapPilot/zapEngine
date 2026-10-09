@@ -30,16 +30,13 @@ from src.services.backtesting.portfolio_rules.decision_policy import (
     RuleBasedPortfolioDecisionPolicy,
 )
 from src.services.backtesting.signals.contracts import StatefulSignalComponent
+from src.services.backtesting.signals.dma_gated_fgi.config import DmaGatedFgiConfig
 from src.services.backtesting.signals.flat_minimum import (
     FlatMinimumSignalComponent,
 )
 from src.services.backtesting.strategies.base import BaseStrategy
-from src.services.backtesting.strategies.rule_based_portfolio import (
-    DmaGatedFgiParams,
-)
 from src.services.backtesting.strategy_registry import StrategyBuildRequest
 from src.services.backtesting.utils import (
-    coerce_bool,
     coerce_float,
     coerce_float_list,
     coerce_int,
@@ -62,14 +59,11 @@ BenchmarkStrategyBuilderFactory = Callable[
 def _build_portfolio_rules_signal_component(
     params: Mapping[str, Any],
 ) -> FlatMinimumSignalComponent:
-    """Build the portfolio-rule signal component from saved-config params."""
-    normalized = coerce_params(
-        params,
-        {"cross_cooldown_days": coerce_int, "cross_on_touch": coerce_bool},
-        prefix="signal.",
-    )
+    """Build the portfolio-rule signal component; it takes no saved-config params."""
+    if params:
+        raise ValueError(f"{PORTFOLIO_RULES_SIGNAL_ID} does not accept params")
     return FlatMinimumSignalComponent(
-        config=DmaGatedFgiParams(**normalized).build_signal_config(),
+        config=DmaGatedFgiConfig(),
         signal_id=PORTFOLIO_RULES_SIGNAL_ID,
     )
 
@@ -139,7 +133,6 @@ class StrategyFamilySpec:
 
     strategy_id: str
     composition_kind: Literal["benchmark", "composed"]
-    mutable_via_admin: bool
     runtime_portfolio_mode: RuntimePortfolioMode = "aggregate"
     required_slots: frozenset[str] = frozenset()
     supports_plugins: bool = True
@@ -310,7 +303,6 @@ def build_default_composition_catalog() -> CompositionCatalog:
             STRATEGY_DMA_FGI_PORTFOLIO_RULES: StrategyFamilySpec(
                 strategy_id=STRATEGY_DMA_FGI_PORTFOLIO_RULES,
                 composition_kind="composed",
-                mutable_via_admin=True,
                 runtime_portfolio_mode="asset",
                 required_slots=frozenset({"signal", "decision_policy"}),
                 supports_plugins=False,

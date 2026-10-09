@@ -5,7 +5,7 @@ import {
   BacktestMacroFearGreedSnapshotSchema,
   BacktestRequestSchema,
   BacktestRuleGroupSchema,
-  BacktestSignalParamsV3Schema,
+  BacktestTradeQuotaParamsV3Schema,
   BacktestSignalSchema,
   BacktestSpotAssetSymbolSchema,
   BacktestStrategyPortfolioSchema,
@@ -167,21 +167,31 @@ describe('BacktestStrategyPortfolioSchema', () => {
   });
 });
 
-describe('BacktestSignalParamsV3Schema (strict + partial)', () => {
+describe('BacktestTradeQuotaParamsV3Schema (strict + partial)', () => {
   it('accepts an empty params object', () => {
-    expect(BacktestSignalParamsV3Schema.safeParse({}).success).toBe(true);
+    expect(BacktestTradeQuotaParamsV3Schema.safeParse({}).success).toBe(true);
   });
 
-  it('accepts a partial params object', () => {
+  it('accepts a partial params object and explicit nulls', () => {
     expect(
-      BacktestSignalParamsV3Schema.safeParse({ cross_cooldown_days: 7 })
-        .success,
+      BacktestTradeQuotaParamsV3Schema.safeParse({ max_trades_7d: 3 }).success,
     ).toBe(true);
+    expect(
+      BacktestTradeQuotaParamsV3Schema.safeParse({
+        min_trade_interval_days: null,
+      }).success,
+    ).toBe(true);
+  });
+
+  it('rejects limits below one day or one trade', () => {
+    expect(
+      BacktestTradeQuotaParamsV3Schema.safeParse({ max_trades_30d: 0 }).success,
+    ).toBe(false);
   });
 
   it('rejects unknown keys (strict mode)', () => {
     expect(
-      BacktestSignalParamsV3Schema.safeParse({ junk_param: true }).success,
+      BacktestTradeQuotaParamsV3Schema.safeParse({ junk_param: true }).success,
     ).toBe(false);
   });
 });
@@ -190,8 +200,10 @@ describe('BacktestCompareParamsV3Schema', () => {
   it('accepts a nested partial config', () => {
     expect(
       BacktestCompareParamsV3Schema.safeParse({
-        signal: { cross_cooldown_days: 5 },
+        trade_quota: { max_trades_7d: 2 },
+        top_escape: { overextension_threshold_multiplier_greed: 0.4 },
         disabled_rules: ['rule_a'],
+        enabled_rules: null,
       }).success,
     ).toBe(true);
   });
@@ -199,9 +211,21 @@ describe('BacktestCompareParamsV3Schema', () => {
   it('rejects unknown top-level keys (strict)', () => {
     expect(
       BacktestCompareParamsV3Schema.safeParse({
-        signal: {},
+        trade_quota: {},
         new_unknown_section: {},
       }).success,
     ).toBe(false);
+  });
+
+  it.each([
+    { signal: { cross_cooldown_days: 5 } },
+    { pacing: { k: 5 } },
+    { buy_gate: { window_days: 5 } },
+    { extreme_fear: { buy_step: 0.1 } },
+    { top_escape: { dma_overextension_threshold: 0.3 } },
+  ])('rejects parameters that never changed a decision: %j', (removed) => {
+    expect(BacktestCompareParamsV3Schema.safeParse(removed).success).toBe(
+      false,
+    );
   });
 });

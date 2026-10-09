@@ -32,22 +32,50 @@ def test_custom_values() -> None:
     assert cfg.cross_on_touch is False
 
 
-def test_trade_quota_plugin_params_omit_disabled_limits() -> None:
-    assert DmaGatedFgiParams().build_trade_quota_plugin_params() == {}
+def test_trade_quota_limits_default_to_off() -> None:
+    params = DmaGatedFgiParams()
+
+    assert params.min_trade_interval_days is None
+    assert params.max_trades_7d is None
+    assert params.max_trades_30d is None
+    assert params.to_public_params() == {
+        "overextension_threshold_multiplier_greed": 0.5,
+        "overextension_threshold_multiplier_extreme_greed": 0.33,
+    }
 
 
-def test_trade_quota_plugin_params_include_enabled_limits() -> None:
-    params = DmaGatedFgiParams(
-        min_trade_interval_days=2,
-        max_trades_7d=3,
-        max_trades_30d=9,
+def test_trade_quota_limits_are_public_params() -> None:
+    params = DmaGatedFgiParams.from_public_params(
+        {"min_trade_interval_days": 2, "max_trades_7d": 3, "max_trades_30d": 9}
     )
 
-    assert params.build_trade_quota_plugin_params() == {
+    assert params.to_public_params() == {
         "min_trade_interval_days": 2,
         "max_trades_7d": 3,
         "max_trades_30d": 9,
+        "overextension_threshold_multiplier_greed": 0.5,
+        "overextension_threshold_multiplier_extreme_greed": 0.33,
     }
+
+
+@pytest.mark.parametrize(
+    "removed",
+    [
+        "cross_cooldown_days",
+        "cross_on_touch",
+        "pacing_k",
+        "pacing_r_max",
+        "buy_sideways_window_days",
+        "buy_sideways_max_range",
+        "buy_leg_caps",
+        "dma_overextension_threshold",
+        "fgi_slope_reversal_threshold",
+        "fgi_slope_recovery_threshold",
+    ],
+)
+def test_parameters_that_never_changed_a_decision_are_rejected(removed: str) -> None:
+    with pytest.raises(ValueError, match="Unsupported dma_gated_fgi params"):
+        DmaGatedFgiParams.from_public_params({removed: 1})
 
 
 def test_dma_params_reject_unknown_public_param() -> None:

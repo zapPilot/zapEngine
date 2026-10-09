@@ -16,6 +16,7 @@ from scripts.pinned_strategy.codec import (
 from scripts.pinned_strategy.compile import ARTIFACT, compile_source
 from scripts.pinned_strategy.evm import SliceEVM
 from scripts.pinned_strategy.shadow import shadow_compare
+from scripts.pinned_strategy.touch_mode import cross_on_touch_mode
 from src.models.backtesting import BacktestCompareConfigV3, BacktestCompareRequestV3
 from src.services.backtesting.execution.compare import run_compare_v3_on_data
 from tests.test_validation_events import EVENTS, _synthetic_market_history
@@ -36,11 +37,12 @@ def compare(prices, sentiments, start, end, touch):
             BacktestCompareConfigV3(
                 config_id="slice",
                 strategy_id="dma_fgi_portfolio_rules",
-                params={"signal": {"cross_on_touch": touch}},
+                params={},
             )
         ],
     )
-    return run_compare_v3_on_data(prices, sentiments, request, start)
+    with cross_on_touch_mode(touch):
+        return run_compare_v3_on_data(prices, sentiments, request, start)
 
 
 @pytest.mark.parametrize("touch", [True, False])

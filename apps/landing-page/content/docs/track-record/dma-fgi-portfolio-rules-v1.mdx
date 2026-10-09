@@ -78,9 +78,8 @@ When no rule fires, the strategy **holds**. That is the common case.
 
 ## Guards
 
-- **Cross cooldown.** After an actionable cross, repeat cross actions are suppressed for 30 days, tracked per asset.
-- **DMA buy gate.** Gradual buys wait until price has moved sideways relative to its 200-day average for several days, and each buy leg is capped.
-- **FGI pacing.** The size of each gradual step scales with Fear & Greed along a fixed curve.
+- **Cross cooldown.** After an actionable cross, repeat cross actions are suppressed for 30 days (14 for the S&P 500 sleeve), tracked per asset.
+- **Rule cooldowns.** After a rule acts it cannot fire again for a fixed spacing: 7 days for the overextension and FGI-downshift sells, 14 days for ETH/BTC deviation steps (60 for the largest tier), and 30 days for cross-up and ETH/BTC rotation.
 - **Trade quota.** Minimum spacing between trades and rolling 7-day and 30-day caps are available, but off by default.
 
 ## Backtest method

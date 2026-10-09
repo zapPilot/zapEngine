@@ -36,17 +36,9 @@ def test_dma_field_mapping_is_derived_from_public_params_model() -> None:
 
     assert mapped_paths == expected_paths
     assert derived_mapping == (
-        ("cross_cooldown_days", ("signal", "cross_cooldown_days")),
-        ("cross_on_touch", ("signal", "cross_on_touch")),
-        ("pacing_k", ("pacing", "k")),
-        ("pacing_r_max", ("pacing", "r_max")),
-        ("buy_sideways_window_days", ("buy_gate", "window_days")),
-        ("buy_sideways_max_range", ("buy_gate", "sideways_max_range")),
-        ("buy_leg_caps", ("buy_gate", "leg_caps")),
         ("min_trade_interval_days", ("trade_quota", "min_trade_interval_days")),
         ("max_trades_7d", ("trade_quota", "max_trades_7d")),
         ("max_trades_30d", ("trade_quota", "max_trades_30d")),
-        ("dma_overextension_threshold", ("top_escape", "dma_overextension_threshold")),
         (
             "overextension_threshold_multiplier_greed",
             ("top_escape", "overextension_threshold_multiplier_greed"),
@@ -54,14 +46,6 @@ def test_dma_field_mapping_is_derived_from_public_params_model() -> None:
         (
             "overextension_threshold_multiplier_extreme_greed",
             ("top_escape", "overextension_threshold_multiplier_extreme_greed"),
-        ),
-        (
-            "fgi_slope_reversal_threshold",
-            ("top_escape", "fgi_slope_reversal_threshold"),
-        ),
-        (
-            "fgi_slope_recovery_threshold",
-            ("top_escape", "fgi_slope_recovery_threshold"),
         ),
         ("disabled_rules", ("disabled_rules",)),
         ("enabled_rules", ("enabled_rules",)),
@@ -83,39 +67,31 @@ def test_dma_runtime_params_to_public_params_groups_sections() -> None:
     nested = public_params.runtime_params_to_public_params(
         STRATEGY_DMA_FGI_PORTFOLIO_RULES,
         {
-            "cross_cooldown_days": 12,
-            "cross_on_touch": False,
-            "pacing_k": 3.0,
-            "pacing_r_max": 0.8,
-            "buy_sideways_window_days": 4,
-            "buy_sideways_max_range": 0.03,
-            "buy_leg_caps": [0.02, 0.04],
             "min_trade_interval_days": 3,
             "max_trades_7d": 2,
             "max_trades_30d": 6,
-            "dma_overextension_threshold": 0.25,
             "overextension_threshold_multiplier_greed": 0.67,
             "overextension_threshold_multiplier_extreme_greed": 0.50,
-            "fgi_slope_reversal_threshold": -0.07,
-            "fgi_slope_recovery_threshold": 0.06,
             "disabled_rules": ["cross_down_exit"],
         },
     )
 
-    assert nested["signal"] == {"cross_cooldown_days": 12, "cross_on_touch": False}
     assert nested["trade_quota"] == {
         "min_trade_interval_days": 3,
         "max_trades_7d": 2,
         "max_trades_30d": 6,
     }
     assert nested["top_escape"] == {
-        "dma_overextension_threshold": 0.25,
         "overextension_threshold_multiplier_greed": 0.67,
         "overextension_threshold_multiplier_extreme_greed": 0.50,
-        "fgi_slope_reversal_threshold": -0.07,
-        "fgi_slope_recovery_threshold": 0.06,
     }
     assert nested["disabled_rules"] == ["cross_down_exit"]
+    assert set(nested) == {
+        "trade_quota",
+        "top_escape",
+        "disabled_rules",
+        "enabled_rules",
+    }
 
 
 def test_dma_public_params_round_trip_overextension_multipliers() -> None:
@@ -138,11 +114,8 @@ def test_dma_public_params_round_trip_overextension_multipliers() -> None:
     )
 
     assert nested["top_escape"] == {
-        "dma_overextension_threshold": 0.30,
         "overextension_threshold_multiplier_greed": 0.67,
         "overextension_threshold_multiplier_extreme_greed": 0.50,
-        "fgi_slope_reversal_threshold": -0.05,
-        "fgi_slope_recovery_threshold": 0.05,
     }
 
 

@@ -377,7 +377,6 @@ class TestRegistryConfigDecisionGaps:
         family = StrategyFamilySpec(
             strategy_id="test_bench",
             composition_kind="benchmark",
-            mutable_via_admin=False,
         )
         bad = SavedStrategyConfig(
             config_id="kind-mismatch",
@@ -460,53 +459,6 @@ class TestRiskValidationEngineGaps:
             )
             is None
         )
-
-    def test_config_management_rejects_benchmark(self) -> None:
-        from unittest.mock import Mock
-
-        import pytest
-
-        from src.models.strategy_config import SavedStrategyConfig, StrategyComposition
-        from src.services.backtesting.composition_catalog import (
-            StrategyFamilySpec,
-            get_default_composition_catalog,
-        )
-        from src.services.strategy.strategy_config_management_service import (
-            StrategyConfigManagementService,
-        )
-
-        # Lines strategy_config_management_service.py:133,141.
-        # Line 133 needs a family with mutable_via_admin=False.
-        readonly_family = StrategyFamilySpec(
-            strategy_id="readonly_bench",
-            composition_kind="benchmark",
-            mutable_via_admin=False,
-        )
-        catalog = get_default_composition_catalog().with_extensions(
-            strategy_families={"readonly_bench": readonly_family}
-        )
-        service = StrategyConfigManagementService(
-            strategy_config_store=Mock(), composition_catalog=catalog
-        )
-        readonly_config = SavedStrategyConfig(
-            config_id="bench-ro",
-            display_name="Bench RO",
-            strategy_id="readonly_bench",
-            composition=StrategyComposition(kind="benchmark"),
-            is_benchmark=True,
-        )
-        with pytest.raises(Exception, match="read-only"):
-            service._validate_mutable_config(readonly_config)
-        # Line 141 triggers on is_benchmark or benchmark kind.
-        bench = SavedStrategyConfig(
-            config_id="bench-1",
-            display_name="Bench",
-            strategy_id="dma_fgi_portfolio_rules",
-            composition=StrategyComposition(kind="benchmark"),
-            is_benchmark=True,
-        )
-        with pytest.raises(Exception, match="read-only"):
-            service._ensure_non_benchmark(bench)
 
     async def test_backtesting_router_emit_log_copies_request(self) -> None:
         from unittest.mock import AsyncMock
@@ -648,20 +600,13 @@ class TestMetricsAndRuleBoundaries:
         assert PerformanceMetricsCalculator._annualized_return(np.array([-1.0])) == -1.0
 
     def test_rule_based_builders_and_defaults(self) -> None:
-        from src.services.backtesting.execution.pacing.fgi_exponential import (
-            FgiExponentialPacingPolicy,
-        )
         from src.services.backtesting.strategies.rule_based_portfolio import (
             DmaGatedFgiParams,
             default_rule_based_portfolio_params,
         )
 
-        # Lines rule_based_portfolio.py:264,277,409.
+        # Line rule_based_portfolio.py:409.
         params = DmaGatedFgiParams()
-        pacing = params.build_pacing_policy()
-        assert isinstance(pacing, FgiExponentialPacingPolicy)
-        plugins = params.build_execution_plugins()
-        assert len(plugins) == 2
         assert default_rule_based_portfolio_params() == params.to_public_params()
 
     def test_backtesting_model_validators(self) -> None:
@@ -825,33 +770,6 @@ class TestBootstrapYieldRouterGaps:
             )
             mock_settings.db_statement_timeout_ms = 1000
             assert YieldReturnService._base_window_wait_timeout() == 6.0
-
-    def test_v3_strategy_conflict_paths(self) -> None:
-        from unittest.mock import Mock
-
-        import pytest
-        from fastapi import HTTPException
-
-        from src.api.routers.v3_strategy import (
-            set_default_saved_strategy_config,
-            update_saved_strategy_config,
-        )
-        from src.services.strategy.strategy_config_management_service import (
-            StrategyConfigConflictError,
-        )
-
-        # Lines v3_strategy.py:130,133,156,161 — admin conflicts map to 409.
-        update_service = Mock()
-        update_service.update_config.side_effect = StrategyConfigConflictError("busy")
-        with pytest.raises(HTTPException) as exc:
-            update_saved_strategy_config("cfg-1", Mock(), update_service)
-        assert exc.value.status_code == 409
-
-        default_service = Mock()
-        default_service.set_default.side_effect = StrategyConfigConflictError("busy")
-        with pytest.raises(HTTPException) as exc2:
-            set_default_saved_strategy_config("cfg-1", default_service)
-        assert exc2.value.status_code == 409
 
     def test_lido_fetch_live_apr(self) -> None:
         import asyncio
@@ -1108,7 +1026,6 @@ class TestCompositionGaps:
         family = StrategyFamilySpec(
             strategy_id=family_id,
             composition_kind="composed",
-            mutable_via_admin=True,
             legacy_saved_config_builder=_builder,
         )
         return family, _builder
@@ -1170,7 +1087,6 @@ class TestCompositionGaps:
         family = StrategyFamilySpec(
             strategy_id="bench_fam",
             composition_kind="benchmark",
-            mutable_via_admin=False,
             benchmark_strategy_builder_factory=lambda cfg: (lambda req: Mock()),
         )
         catalog = Mock()
@@ -1213,7 +1129,6 @@ class TestCompositionGaps:
         family = StrategyFamilySpec(
             strategy_id="bench_fam",
             composition_kind="benchmark",
-            mutable_via_admin=False,
         )
         with pytest.raises(ValueError, match="not recipe-backed"):
             _resolve_recipe_saved_strategy_config(

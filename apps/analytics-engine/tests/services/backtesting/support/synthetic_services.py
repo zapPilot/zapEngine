@@ -53,7 +53,6 @@ class SyntheticMarketServices:
 
     def build_backtesting_service(self) -> BacktestingService:
         return BacktestingService(
-            db=None,  # type: ignore[arg-type]
             token_price_service=self.token_price_service,  # type: ignore[arg-type]
             sentiment_service=self.sentiment_service,  # type: ignore[arg-type]
             stock_price_service=self.stock_price_service,  # type: ignore[arg-type]

@@ -41,7 +41,6 @@ def _patch_compare_runner(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
 @pytest.fixture
 def service() -> BacktestingService:
     return BacktestingService(
-        db=MagicMock(),
         token_price_service=MagicMock(),
         sentiment_service=MagicMock(),
     )
@@ -322,7 +321,6 @@ async def test_run_compare_v3_resolves_saved_config_with_injected_catalog(
     saved_config = build_mock_saved_config(config_id="mock_saved")
     catalog = build_mock_composed_catalog()
     service = BacktestingService(
-        db=MagicMock(),
         token_price_service=MagicMock(),
         sentiment_service=MagicMock(),
         strategy_config_store=MagicMock(resolve_config=lambda _config_id: saved_config),
@@ -365,7 +363,6 @@ async def test_run_compare_v3_does_not_auto_inject_baseline_for_saved_configs(
 ) -> None:
     requested_saved = resolve_seed_strategy_config("dma_fgi_portfolio_rules_default")
     service = BacktestingService(
-        db=MagicMock(),
         token_price_service=MagicMock(),
         sentiment_service=MagicMock(),
         strategy_config_store=MagicMock(
@@ -408,7 +405,6 @@ async def test_run_compare_v3_accepts_builtin_strategy_id_as_saved_config_alias(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     service = BacktestingService(
-        db=MagicMock(),
         token_price_service=MagicMock(),
         sentiment_service=MagicMock(),
         strategy_config_store=MagicMock(

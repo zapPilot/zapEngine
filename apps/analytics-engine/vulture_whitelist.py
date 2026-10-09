@@ -306,7 +306,7 @@ fgi_ema_current  # unused variable (src/services/backtesting/signals/dma_gated_f
 outer_dma_asset  # unused variable (src/services/backtesting/domain.py:22) - used via dataclasses.replace()
 
 # ============================================================================
-# Saved Strategy Config - composition framework & admin API
+# Saved Strategy Config - composition framework
 # ============================================================================
 
 # Strategy presets - used in tests and strategy_config_store.py
@@ -319,13 +319,6 @@ from src.config.strategy_presets import (
 _ = STRATEGY_PRESETS  # noqa: F841
 _ = get_default_strategy_preset  # noqa: F841
 _ = resolve_strategy_preset  # noqa: F841
-
-# Config store methods - used via management service and tests
-from src.services.strategy.strategy_config_store import (
-    StrategyConfigStore as _StrategyConfigStore,
-)
-
-_ = _StrategyConfigStore.upsert_config  # noqa: F841
 
 # Pydantic validators - called by framework
 from src.models.strategy_config import (

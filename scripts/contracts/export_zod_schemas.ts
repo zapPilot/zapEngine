@@ -8,6 +8,7 @@ import { MarketDashboardResponseSchema } from '../../packages/types/src/api/mark
 import { WALLET_ADDRESS_REGEX } from '../../packages/types/src/shared/wallet.js';
 import {
   AssetAllocationSchema,
+  BacktestCompareParamsV3Schema,
   BacktestRequestSchema,
   BacktestResponseSchema,
   BacktestStrategyCatalogResponseV3Schema,
@@ -28,6 +29,7 @@ const SNAPSHOT_SCHEMAS = {
   market_dashboard_response: MarketDashboardResponseSchema,
   portfolio_allocation: PortfolioAllocationSchema,
   strategy_configs_response: StrategyConfigsResponseSchema,
+  strategy_params: BacktestCompareParamsV3Schema,
   strategy_preset: StrategyPresetSchema,
 } as const satisfies Record<string, z.ZodType>;
 

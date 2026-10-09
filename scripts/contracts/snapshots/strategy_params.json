@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "disabled_rules": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "enabled_rules": {
+      "anyOf": [
+        {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "top_escape": {
+      "additionalProperties": false,
+      "properties": {
+        "overextension_threshold_multiplier_extreme_greed": {
+          "maximum": 2,
+          "minimum": 0,
+          "type": "number"
+        },
+        "overextension_threshold_multiplier_greed": {
+          "maximum": 2,
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "type": "object"
+    },
+    "trade_quota": {
+      "additionalProperties": false,
+      "properties": {
+        "max_trades_30d": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "max_trades_7d": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "min_trade_interval_days": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "type": "object"
+    }
+  },
+  "type": "object"
+}

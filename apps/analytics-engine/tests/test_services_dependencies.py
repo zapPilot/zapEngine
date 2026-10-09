@@ -211,7 +211,6 @@ class TestServiceDependencies:
         mock_canonical = Mock()
 
         service = get_strategy_daily_suggestion_service(
-            db=Mock(),
             landing_page_service=mock_landing,
             backtesting_service=mock_backtesting,
             canonical_snapshot_service=mock_canonical,

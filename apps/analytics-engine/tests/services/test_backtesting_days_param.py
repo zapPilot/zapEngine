@@ -40,7 +40,6 @@ def _portfolio_rules_price_series(start: date, days: int) -> list[dict[str, obje
 @pytest.fixture
 def mock_deps() -> dict[str, MagicMock]:
     return {
-        "db": MagicMock(),
         "token_price_service": MagicMock(),
         "sentiment_service": MagicMock(),
     }

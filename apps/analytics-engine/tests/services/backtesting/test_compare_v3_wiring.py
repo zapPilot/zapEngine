@@ -31,31 +31,11 @@ from tests.services.backtesting.support import register_mock_recipe
 
 def _dma_public_params(
     *,
-    cross_cooldown_days: int = 30,
-    cross_on_touch: bool = True,
-    pacing_k: float = 5.0,
-    pacing_r_max: float = 1.0,
-    buy_sideways_window_days: int = 5,
-    buy_sideways_max_range: float = 0.04,
-    buy_leg_caps: list[float] | None = None,
     min_trade_interval_days: int | None = None,
     max_trades_7d: int | None = None,
     max_trades_30d: int | None = None,
 ) -> dict[str, object]:
     return {
-        "signal": {
-            "cross_cooldown_days": cross_cooldown_days,
-            "cross_on_touch": cross_on_touch,
-        },
-        "pacing": {
-            "k": pacing_k,
-            "r_max": pacing_r_max,
-        },
-        "buy_gate": {
-            "window_days": buy_sideways_window_days,
-            "sideways_max_range": buy_sideways_max_range,
-            "leg_caps": [0.05, 0.10, 0.20] if buy_leg_caps is None else buy_leg_caps,
-        },
         "trade_quota": {
             "min_trade_interval_days": min_trade_interval_days,
             "max_trades_7d": max_trades_7d,
@@ -291,15 +271,12 @@ def test_run_compare_v3_on_data_trade_quota_reduces_trade_count() -> None:
                 BacktestCompareConfigV3(
                     config_id="dma_unbounded",
                     strategy_id="dma_fgi_portfolio_rules",
-                    params=_dma_public_params(cross_cooldown_days=0),
+                    params=_dma_public_params(),
                 ),
                 BacktestCompareConfigV3(
                     config_id="dma_quota",
                     strategy_id="dma_fgi_portfolio_rules",
-                    params=_dma_public_params(
-                        cross_cooldown_days=0,
-                        min_trade_interval_days=7,
-                    ),
+                    params=_dma_public_params(min_trade_interval_days=7),
                 ),
             ],
         )
@@ -525,7 +502,7 @@ def _build_parabolic_rise_inputs() -> tuple[
             BacktestCompareConfigV3(
                 config_id="dma_overextension_test",
                 strategy_id="dma_fgi_portfolio_rules",
-                params=_dma_public_params(cross_cooldown_days=0),
+                params=_dma_public_params(),
             )
         ],
     )
@@ -609,7 +586,7 @@ def _build_greed_fading_inputs() -> tuple[
             BacktestCompareConfigV3(
                 config_id="dma_greed_fading_test",
                 strategy_id="dma_fgi_portfolio_rules",
-                params=_dma_public_params(cross_cooldown_days=0),
+                params=_dma_public_params(),
             )
         ],
     )

@@ -192,7 +192,6 @@ def build_mock_composed_catalog() -> CompositionCatalog:
             MOCK_COMPOSED_STRATEGY_ID: StrategyFamilySpec(
                 strategy_id=MOCK_COMPOSED_STRATEGY_ID,
                 composition_kind="composed",
-                mutable_via_admin=True,
                 required_slots=frozenset(
                     {"signal", "decision_policy", "pacing_policy", "execution_profile"}
                 ),

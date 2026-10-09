@@ -14,6 +14,7 @@ from scripts.pinned_strategy.codec import EMPTY_STATES, WAD
 from scripts.pinned_strategy.evm import SliceEVM
 from scripts.pinned_strategy.record_market_history import HISTORY, read_history
 from scripts.pinned_strategy.shadow import shadow_compare
+from scripts.pinned_strategy.touch_mode import cross_on_touch_mode
 from src.models.backtesting import BacktestCompareConfigV3, BacktestCompareRequestV3
 from src.services.backtesting.execution.compare import run_compare_v3_on_data
 
@@ -57,13 +58,6 @@ def synthetic_history(days=500):
 
 def run_compare(history, touch):
     prices, sentiments, start, end = history
-    from src.config.strategy_presets import _DMA_FGI_PORTFOLIO_RULES_OPTIMIZED_PARAMS
-
-    params = (
-        {"signal": {"cross_on_touch": True}}
-        if touch
-        else _DMA_FGI_PORTFOLIO_RULES_OPTIMIZED_PARAMS
-    )
     request = BacktestCompareRequestV3(
         token_symbol="BTC",
         start_date=start,
@@ -71,11 +65,12 @@ def run_compare(history, touch):
         total_capital=10000,
         configs=[
             BacktestCompareConfigV3(
-                config_id="slice", strategy_id="dma_fgi_portfolio_rules", params=params
+                config_id="slice", strategy_id="dma_fgi_portfolio_rules", params={}
             )
         ],
     )
-    return run_compare_v3_on_data(prices, sentiments, request, start)
+    with cross_on_touch_mode(touch):
+        return run_compare_v3_on_data(prices, sentiments, request, start)
 
 
 class PyEVMHost:
