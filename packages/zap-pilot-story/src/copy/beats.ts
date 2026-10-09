@@ -146,6 +146,7 @@ export const CHAPTER_COPY = [
     title: 'Start',
     capability: planned('tokenized-equities'),
     rule: 'Starting split',
+    capability: planned('tokenized-equities'),
     body: startSplitBody(),
   },
   {
