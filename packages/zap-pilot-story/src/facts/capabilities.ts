@@ -191,6 +191,11 @@ export type CapabilityRef<S extends CapabilityStatus = CapabilityStatus> =
   | CapabilityIdWithStatus<S>
   | readonly [CapabilityIdWithStatus<S>, ...CapabilityIdWithStatus<S>[]];
 
+/** A shared badge must reference capabilities with the same recorded status. */
+export type SharedCapabilityRef = {
+  [S in CapabilityStatus]: CapabilityRef<S>;
+}[CapabilityStatus];
+
 export function capabilityIds(ref: CapabilityRef): readonly CapabilityId[] {
   return typeof ref === 'string' ? [ref] : ref;
 }

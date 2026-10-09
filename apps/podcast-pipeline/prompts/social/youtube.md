@@ -5,3 +5,5 @@ shorten, or optimize a YouTube-specific title. The publisher uses the ingest-fro
 
 Return only the hook classification requested by the JSON schema. The
 description is assembled from the episode separately.
+
+Brand sign-off is universal packaging appended by the program. Never write “Your strategy. Your machine. Your wallet.”, a paraphrase of the brand slogan, or promotional copy. Never add the slogan to a title.

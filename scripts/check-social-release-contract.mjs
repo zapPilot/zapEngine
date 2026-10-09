@@ -29,6 +29,33 @@ const languageRecoveryMigration = read(
 const claimMigration = read(
   'supabase/migrations/20260826120000_claim_social_publish_batch_episode_scope.sql',
 );
+const brandCta = read('apps/podcast-pipeline/src/brand/cta.ts');
+const platforms = read('apps/podcast-pipeline/src/social/platforms.ts');
+requireMatch(
+  'canonical brand slogan import',
+  brandCta,
+  /import\s*\{[^}]*SLOGAN[^}]*\}\s*from\s*['"]@zapengine\/zap-pilot-story\/brand['"]/,
+);
+forbidMatch(
+  'no per-platform slogan table',
+  brandCta,
+  /(?:SLOGAN|BRAND_CTA)_BY_(?:PLATFORM|LANGUAGE)/,
+);
+forbidMatch(
+  'no hard-coded slogan in the brand CTA',
+  brandCta,
+  /your\s+strategy\W+your\s+machine/i,
+);
+requireMatch(
+  'Rednote excludes brand sign-off',
+  platforms,
+  /rednote:\s*\{[^}]*ctaMode:\s*'none'/s,
+);
+requireMatch(
+  'brand packaging contract',
+  socialAgents,
+  /Brand sign-off is universal packaging/,
+);
 const contractTest =
   'apps/podcast-pipeline/src/social/daemon-release-cohort-contract.test.ts';
 const languageContractTest = 'apps/podcast-pipeline/src/social/cohort.test.ts';

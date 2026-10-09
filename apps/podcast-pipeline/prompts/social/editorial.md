@@ -33,3 +33,5 @@ The copy may be opinionated only when that opinion is grounded in the episode. P
 ## Classification
 
 Classify the single primary subject of the published angle as `topic`, not every subject mentioned in the episode. Inside every requested platform block, classify that block's rhetorical opening as `hookType`. Use exactly one allowed value for each field from the list supplied in the system prompt. These labels describe the copy you actually return and must change when editor feedback changes its primary angle or hook.
+
+Brand sign-off is universal packaging appended by the program. Never write “Your strategy. Your machine. Your wallet.”, a paraphrase of the brand slogan, or promotional copy. Never add the slogan to a title.

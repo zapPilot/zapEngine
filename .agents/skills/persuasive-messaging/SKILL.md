@@ -7,10 +7,12 @@ description: Use for ZapEngine marketing copy, positioning, /pitch decks, promo 
 
 ## Where the copy already lives
 
-- Landing: `apps/landing-page/src/config/messages.ts` (`MESSAGES`) holds every home-page string.
+- Brand identity: `packages/zap-pilot-story/src/brand/index.ts` is the browser-free canonical source.
+- Story copy: `packages/zap-pilot-story/src/copy/beats.ts` owns HERO, stages, chapters and capability chips. Landing scenes render this copy.
+- Landing host copy: `apps/landing-page/src/config/messages.ts` (`MESSAGES`) owns metadata, forms, download and retained host surfaces.
 - Capability claims: `packages/zap-pilot-story/src/facts/capabilities.ts` (`CAPABILITIES`) records each capability as Live, Research, In development or Planned. Copy references a capability id and pages render its status badge; liveness is never written in prose.
 - `apps/landing-page/src/config/__tests__/positioning.test.tsx` fences landing, pitch and docs claims, retired terms and docs links; when it fails, change the copy.
-- Pitch: `apps/landing-page/src/config/pitch.ts` and `apps/landing-page/src/app/pitch/`; the cover reuses `MESSAGES.hero`.
+- Pitch: `apps/landing-page/src/config/pitch.ts` and `apps/landing-page/src/app/pitch/`; the cover reuses story `HERO`.
 - Promo video: `apps/video/src/videos/<id>/storyboard.ts`; numbers come only from `facts.ts`.
 - Kokode (separate medical product): `packages/kokode-story/src/` is the only copy source for its landing, `/pitch/`, `/pitch/partner/` and the `kokode-clinic` film. `packages/kokode-story/src/story.test.ts` fences claims (no absolute, regulatory or medical-device wording outside disclaimers, one price, no revenue-share figures, demos keep their disclaimers); when it fails, change the copy.
 - Titles: `apps/podcast-pipeline/prompts/title-system-prompt.txt`. Runtime reads that prompt, never this skill; deliberately synchronize packaging changes.
@@ -56,7 +58,7 @@ never invent them or hide the subject to manufacture suspense.
 
 ### Landing
 
-Edit shared `MESSAGES`. Lead with a supported outcome, then the mechanism and
+Edit story copy for product claims and shared `MESSAGES` for host copy. Lead with a supported outcome, then the mechanism and
 proof; the CTA must describe the next real step.
 
 ### Product
@@ -66,13 +68,21 @@ Functional UI strings remain outside the scope; controls must stay clear.
 
 ### Pitch
 
-Use `src/config/pitch.ts` and `/pitch`; preserve the shared `MESSAGES.hero` cover.
+Use `src/config/pitch.ts` and `/pitch`; preserve the shared story `HERO` cover.
 Connect the audience's job to the mechanism and proof without stacking desires.
 
 ### Video
 
 Edit the selected storyboard and source every number from `facts.ts`.
 Keep cover, title and opening coherent with one thesis across platform lanes.
+
+## Brand identity
+
+- Canonical English slogan: “Your strategy. Your machine. Your wallet.” It headlines the landing hero and pitch cover, home/pitch OG cards, brand lockups and podcast visual/spoken sign-offs. Every slogan screen displays the self-hosting capability marker; `machine.` stays outlined until Live. Never rewrite or translate the slogan; the only other form is the comma-joined spoken sign-off in podcast outros.
+- Punchline: “Rules decide. You sign.” It belongs in hero supporting copy and the Sign beat, not the primary headline or exported lockup.
+- One-liner comes from `oneLiner()` in the brand module: “Zap Pilot is building a self-hosted runtime for programmable portfolios.” until self-hosting is Live, then “Zap Pilot is a self-hosted runtime for programmable portfolios.” It also leads the hero body, page metadata, pitch description, root README, docs index and YouTube descriptions. Do not turn planned capabilities into present claims.
+- Podcast spoken strings are exact versioned literals; parity tests compare their identity with BRAND. Add a new packaging version for a future change, preserving existing audio.
+- Social signatures are universal program-owned packaging: X, Threads and YouTube append the English slogan and attributed website URL. Never put it in titles, generate it in editorial bodies, or add it to Rednote. Reserve the real transport budget first; frozen snapshots retain their body and use the original CTA when needed. Spoken “is building” and the visual Planned marker provide the development context for text signatures.
 
 ## Financial-promotion boundary
 
@@ -86,6 +96,8 @@ Keep cover, title and opening coherent with one thesis across platform lanes.
 
 | Shortcut                                    | Required correction                                                                                        |
 | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Rewrite the one-liner freely.               | Use the status-bound `oneLiner()`; preserve the exact canonical wording.                                   |
+| Remove the self-hosting marker.             | Keep it on every slogan screen and outline `machine.` until Live.                                          |
 | Zero views prove a weak title.              | Distribution gates are separate; hook_first and direct did not break the observed ceiling.                 |
 | Generic entities make room for hooks.       | Preserve the named subject and core claim first.                                                           |
 | Mechanically check proper nouns.            | That approach was tried and reverted; assess fidelity against the source without resurrecting a noun gate. |

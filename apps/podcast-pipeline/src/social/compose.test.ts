@@ -27,13 +27,13 @@ describe('composeSocialContent', () => {
   it('uses native X and Threads copy with their own hook taxonomy', () => {
     expect(composeSocialContent('x', { copy, episode })).toEqual({
       title: null,
-      body: '利率轉向了嗎？\n\n官網 https://www.zap-pilot.org',
+      body: '利率轉向了嗎？\n\nYour strategy. Your machine. Your wallet.\n官網 https://www.zap-pilot.org',
       hashtags: [],
       hookType: 'question',
     });
     expect(composeSocialContent('threads', { copy, episode })).toEqual({
       title: null,
-      body: '利率轉向，真的開始了嗎？\n\n官網 https://www.zap-pilot.org',
+      body: '利率轉向，真的開始了嗎？\n\nYour strategy. Your machine. Your wallet.\n官網 https://www.zap-pilot.org',
       hashtags: [],
       hookType: 'contrarian',
     });
@@ -143,7 +143,7 @@ describe('composeSocialContent', () => {
   it('assembles YouTube metadata from the episode, preferring the article description', () => {
     expect(composeSocialContent('youtube', { copy, episode })).toEqual({
       title: '聯準會的下一步',
-      body: '來源文章描述。\n\n更多市场洞察与工具：https://www.zap-pilot.org',
+      body: '來源文章描述。\n\nZap Pilot is building a self-hosted runtime for programmable portfolios.\nYour strategy. Your machine. Your wallet.\nWebsite: https://www.zap-pilot.org',
       hashtags: [],
       hookType: 'explainer',
     });
@@ -153,7 +153,9 @@ describe('composeSocialContent', () => {
         copy,
         episode: { ...episode, description: '   ' },
       }).body,
-    ).toBe('本集摘要。\n\n更多市场洞察与工具：https://www.zap-pilot.org');
+    ).toBe(
+      '本集摘要。\n\nZap Pilot is building a self-hosted runtime for programmable portfolios.\nYour strategy. Your machine. Your wallet.\nWebsite: https://www.zap-pilot.org',
+    );
   });
 
   it('fits overlong canonical titles to YouTube limits and truncates the description to 4500', () => {
@@ -222,6 +224,6 @@ describe('composeSocialContent', () => {
     const oversizedUrl = `https://example.test/${'a'.repeat(600)}`;
     expect(() =>
       applyPlatformCta('threads', '正文', 'zh-Hant', oversizedUrl),
-    ).toThrow('Threads CTA exceeds the post length limit');
+    ).toThrow('threads legacy body and CTA exceed the post length limit');
   });
 });

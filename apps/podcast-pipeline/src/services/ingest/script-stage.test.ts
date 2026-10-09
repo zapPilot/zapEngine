@@ -238,6 +238,29 @@ describe('ensureEpisodeLocalizationScript editorial title persistence', () => {
     expect(mocks.updateEpisodeLocalizationStatus).not.toHaveBeenCalled();
   });
 
+  it.each(['audio_generated', 'completed'] as const)(
+    'preserves %s audio when old packaging has a persisted body',
+    async (status) => {
+      const existing = localizationRow({
+        status,
+        script: '旧讲稿。',
+        script_body: '旧正文。',
+        packaging_version: 'podcast-script.v1',
+        hls_url: 'https://example.com/main.m3u8',
+        r2_prefix: 'existing/audio',
+      });
+      const result = await ensureEpisodeLocalizationScript(
+        'https://example.com/article',
+        'zh-Hant',
+        [],
+        { episode: episodeRow(), localization: existing },
+      );
+      expect(result.localization).toBe(existing);
+      expect(mocks.generateScriptWithLLM).not.toHaveBeenCalled();
+      expect(mocks.updateEpisodeLocalizationStatus).not.toHaveBeenCalled();
+    },
+  );
+
   it('persists a valid editorial title with the generated script atomically', async () => {
     const existing = localizationRow({ status: 'scraped', script: '' });
     const editorialTitle = '市场流动性正在重新定价';

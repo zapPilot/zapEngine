@@ -9,3 +9,5 @@ See @../AGENTS.md for shared package guidelines.
 - CSS emits mode/sleeve/material roles, radii, lines, spaces, typography, font families, overlay shadows, easing and durations. Host Fumadocs aliases belong in landing globals. Do not emit Tailwind namespaces (`--color-*`, `--text-*`, `--ease-*`, `--spacing*`, container/breakpoint); `--font-mono` is the intentional exception.
 - Fonts and brand assets are generated from pinned sources and tokens. Keep all host copies together; no legacy aliases. Static family names must match font name tables.
 - Token renames migrate all consumers in the same change. Do not reintroduce `bg-2`, `error`, `.v2-root`, duplicate pillar aliases, or Flutter output.
+
+Verbal identity is owned by `@zapengine/zap-pilot-story/brand`; the glyph generator mirrors its English strings. Use `fonts --glyphs` to regenerate brand outlines without rewriting static font instances. Slogan assets include the self-hosting status and outline `machine.` until Live.

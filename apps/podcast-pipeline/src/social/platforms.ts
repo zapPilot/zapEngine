@@ -1,5 +1,6 @@
-import { appendBrandCta } from '../brand/cta.js';
+import { appendBrandCta, socialSignOff } from '../brand/cta.js';
 import type { PrimaryLanguageCode } from '../types.js';
+import { weightedTweetLength, X_TOTAL_MAX_WEIGHTED_LENGTH } from './x-text.js';
 
 export const THREADS_TOTAL_MAX_CHARACTERS = 500;
 
@@ -75,16 +76,22 @@ export function applyPlatformCta(
   destinationUrl?: string,
 ): string {
   if (SOCIAL_PLATFORM_CONFIG[platform].ctaMode !== 'brand') return body.trim();
-  if (platform === 'threads') {
-    const suffix = appendBrandCta('', languageCode, destinationUrl);
-    const available =
-      THREADS_TOTAL_MAX_CHARACTERS - Array.from(suffix).length - 2;
-    if (available < 0)
-      throw new Error('Threads CTA exceeds the post length limit');
-    // Reserve the actual attributed URL before trimming, so transport and stored copy agree.
-    body = Array.from(body.trim()).slice(0, available).join('').trimEnd();
-  }
-  return appendBrandCta(body, languageCode, destinationUrl);
+  const text = body.trim();
+  const signed = `${text}${text ? '\n\n' : ''}${socialSignOff(languageCode, destinationUrl)}`;
+  const fits = (value: string) =>
+    platform === 'x'
+      ? weightedTweetLength(value) <= X_TOTAL_MAX_WEIGHTED_LENGTH
+      : platform !== 'threads' ||
+        Array.from(value).length <= THREADS_TOTAL_MAX_CHARACTERS;
+  if (fits(signed)) return signed;
+  // Frozen snapshots keep their body. Fall back to the original website CTA;
+  // an already oversized legacy snapshot fails visibly rather than truncating.
+  const legacy = appendBrandCta(text, languageCode, destinationUrl);
+  if (!fits(legacy))
+    throw new Error(
+      `${platform} legacy body and CTA exceed the post length limit`,
+    );
+  return legacy;
 }
 
 export function requiresLocalVideo(

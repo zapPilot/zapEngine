@@ -69,7 +69,8 @@
     "react": "catalog:",
     "satori": "0.28.0",
     "sharp": "0.35.5",
-    "zod": "catalog:"
+    "zod": "catalog:",
+    "@zapengine/zap-pilot-story": "workspace:*"
   },
   "devDependencies": {
     "@types/fluent-ffmpeg": "^2.1.27",

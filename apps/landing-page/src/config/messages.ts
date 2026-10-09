@@ -1,4 +1,4 @@
-import { LINKS } from './links';
+import { BRAND_NAME, SLOGAN, oneLiner } from '@zapengine/zap-pilot-story/brand';
 import type {
   CapabilityRef,
   CapabilityStatus,
@@ -9,7 +9,6 @@ import {
   backtestSubtitle,
   buildBacktestStats,
   buildComparisonRows,
-  referenceTradeSummary,
   type BacktestComparisonRow,
   type BacktestStat,
 } from '@/data/backtest-stats';
@@ -42,43 +41,11 @@ interface Note<S extends CapabilityStatus = CapabilityStatus> {
   readonly capability?: CapabilityRef<S>;
 }
 
-interface TraceRow extends StatusLine {
-  readonly stage: string;
-  readonly href?: string;
-  readonly note?: StatusLine;
-}
-
 interface OwnershipCard {
   readonly title: string;
   readonly promise: string;
   readonly today: readonly Note<TodayStatus>[];
   readonly next: StatusLine<'planned'>;
-}
-
-interface RuntimeStep extends StatusLine {
-  readonly title: string;
-  readonly notes?: readonly Note[];
-}
-
-interface StrategyCard extends StatusLine {
-  readonly title: string;
-  readonly tag: string;
-  readonly meta?: string;
-  readonly notes?: readonly StatusLine[];
-  readonly link: Link;
-}
-
-export type AdapterKey =
-  | 'morpho'
-  | 'gmx-v2'
-  | 'hyperliquid'
-  | 'lifi'
-  | 'tokenized-sp500';
-
-interface AdapterCard extends StatusLine {
-  readonly key: AdapterKey;
-  readonly name: string;
-  readonly tag: string;
 }
 
 interface Guarantee extends StatusLine {
@@ -93,22 +60,10 @@ interface TrustBadge {
 }
 
 interface MessagesContract {
-  readonly common: {
-    readonly brandName: string;
-    readonly tagline: string;
-    readonly brandLine: string;
-    readonly brandLineParts: readonly string[];
-  };
   readonly meta: {
     readonly title: string;
     readonly description: string;
     readonly keywords: string;
-    readonly imageAlt: string;
-  };
-  readonly nav: {
-    readonly ariaLabel: string;
-    readonly links: readonly Link[];
-    readonly cta: string;
   };
   readonly download: {
     readonly mac: string;
@@ -119,43 +74,12 @@ interface MessagesContract {
     readonly all: string;
     readonly waitlist: string;
   };
-  readonly hero: {
-    readonly eyebrow: string;
-    readonly subtitle: string;
-    readonly chips: readonly StatusLine[];
-    readonly actionsLabel: string;
-    readonly secondaryCta: Link;
-  };
-  readonly trace: {
-    readonly ariaLabel: string;
-    readonly title: string;
-    readonly replay: string;
-    readonly strategy: string;
-    readonly rows: readonly TraceRow[];
-    readonly footnote: string;
-  };
   readonly ownership: {
     readonly kicker: string;
     readonly title: string;
     readonly todayLabel: string;
     readonly nextLabel: string;
     readonly cards: readonly OwnershipCard[];
-  };
-  readonly runtime: {
-    readonly kicker: string;
-    readonly title: string;
-    readonly lede: string;
-    readonly steps: readonly RuntimeStep[];
-    readonly footnote: {
-      readonly lead: string;
-      readonly items: readonly StatusLine<'planned'>[];
-    };
-  };
-  readonly strategies: {
-    readonly kicker: string;
-    readonly title: string;
-    readonly lede: string;
-    readonly cards: readonly StrategyCard[];
   };
   readonly backtest: {
     readonly kicker: string;
@@ -180,13 +104,6 @@ interface MessagesContract {
       readonly comparisonLabel: string;
     };
   };
-  readonly adapters: {
-    readonly kicker: string;
-    readonly title: string;
-    readonly lede: string;
-    readonly note: string;
-    readonly cards: readonly AdapterCard[];
-  };
   readonly trust: {
     readonly kicker: string;
     readonly title: string;
@@ -206,9 +123,6 @@ interface MessagesContract {
   };
   readonly closing: {
     readonly quote: string;
-    readonly lines: readonly StatusLine[];
-    readonly primaryCta: string;
-    readonly secondaryCta: string;
   };
   readonly ctaExperiment: {
     readonly cta: string;
@@ -238,45 +152,16 @@ interface MessagesContract {
   };
   readonly trustBadges: readonly TrustBadge[];
 }
-
-const BRAND_LINE_PARTS = [
-  'Your strategy.',
-  'Your machine.',
-  'Your wallet.',
-] as const;
-const BRAND_LINE = BRAND_LINE_PARTS.join(' ');
 const TRACE = engineDecision();
 const CALCULATOR_HREF = `/track-record/calculator/?date=${TRACE.date}`;
 const REFERENCE_SPEC_HREF = '/docs/track-record/dma-fgi-portfolio-rules-v1';
 
 export const MESSAGES = {
-  common: {
-    brandName: 'Zap Pilot',
-    tagline: 'portfolio runtime',
-    brandLine: BRAND_LINE,
-    brandLineParts: BRAND_LINE_PARTS,
-  },
-
   meta: {
-    title: `Zap Pilot — ${BRAND_LINE}`,
-    description:
-      'Zap Pilot is building a runtime for programmable portfolios: a reference strategy you can read, deposits into positions at your own address, and checks before you sign.',
+    title: `${BRAND_NAME} — ${SLOGAN}`,
+    description: `${oneLiner()} A reference strategy you can read, deposits into positions at your own address, and checks before you sign.`,
     keywords:
       'programmable portfolio, portfolio runtime, self-custody, rules-based allocation, reference strategy, strategy backtest, DCA benchmark, 200-day moving average, Fear and Greed Index, ETH/BTC ratio, EIP-7702, EIP-5792, Morpho, GMX v2, Hyperliquid HLP, LI.FI, open source',
-    imageAlt: 'Zap Pilot logo',
-  },
-
-  nav: {
-    ariaLabel: 'Primary',
-    links: [
-      { label: 'Runtime', href: '#runtime' },
-      { label: 'Strategies', href: '#strategy' },
-      { label: 'Backtest', href: '#proof' },
-      { label: 'Track record', href: '/track-record' },
-      { label: 'Wallet', href: '#trust' },
-      { label: 'Docs', href: '/docs' },
-    ],
-    cta: 'Join waitlist',
   },
 
   download: {
@@ -287,70 +172,6 @@ export const MESSAGES = {
     googlePlay: 'Get it on Google Play',
     all: 'All available downloads',
     waitlist: 'Join waitlist',
-  },
-
-  // Desire: Protection.
-  hero: {
-    eyebrow: 'A runtime for programmable portfolios',
-    subtitle:
-      'Zap Pilot is building a runtime that turns rules you can read into transactions only your wallet can sign — with no Zap Pilot vault in between.',
-    chips: [
-      { text: 'Open-source reference strategy', capability: 'open-source' },
-      {
-        text: 'Positions at your own address',
-        capability: 'no-zap-pilot-vault',
-      },
-      { text: 'Checked before you sign', capability: 'pre-sign-checks' },
-      { text: 'Runs on your machine', capability: 'self-hosting' },
-    ],
-    actionsLabel: 'Primary actions',
-    secondaryCta: { label: 'See what runs today', href: '#runtime' },
-  },
-
-  trace: {
-    ariaLabel: 'Runtime trace of a recorded backtest decision',
-    title: 'Runtime trace',
-    replay: `Backtest replay · ${TRACE.date}`,
-    strategy: 'DMA/FGI Portfolio Rules · reference strategy',
-    rows: [
-      {
-        stage: 'Observe',
-        text: TRACE.observation,
-        capability: 'market-signals',
-      },
-      {
-        stage: 'Evaluate',
-        text: 'Rule 1 of 6 fired: cross-down exit',
-        capability: 'reference-strategy',
-      },
-      {
-        stage: 'Target',
-        text: `→ ${TRACE.stablePercent}% stables · ${TRACE.spyPercent}% S&P 500 (advisory)`,
-        capability: 'reference-strategy',
-        note: {
-          text: 'The S&P 500 sleeve has no adapter yet',
-          capability: 'tokenized-equities',
-        },
-      },
-      {
-        stage: 'Plan',
-        text: 'Turn the target into transactions',
-        capability: 'rebalance-plans',
-      },
-      {
-        stage: 'Check & sign',
-        text: 'Simulate, cap approvals, you sign',
-        capability: 'pre-sign-checks',
-      },
-      {
-        stage: 'Verify',
-        text: 'Recompute this exit on-chain',
-        href: CALCULATOR_HREF,
-        capability: 'verifiable-rule',
-      },
-    ],
-    footnote:
-      'Replay of a recorded backtest decision. Not a real account; nothing was signed.',
   },
 
   ownership: {
@@ -405,125 +226,6 @@ export const MESSAGES = {
     ],
   },
 
-  // Desire: Curiosity.
-  runtime: {
-    kicker: 'The runtime',
-    title: 'Six steps from signal to signature. Not all of them run yet.',
-    lede: 'Each step does one job and can be checked. Rules decide; your signature is the last step before money moves.',
-    steps: [
-      {
-        title: 'Observe',
-        text: 'Collect prices, sentiment and your current positions.',
-        capability: 'market-signals',
-        qualifier: 'hosted',
-      },
-      {
-        title: 'Evaluate',
-        text: 'Run the strategy: a target allocation and the rule that fired.',
-        capability: 'reference-strategy',
-      },
-      {
-        title: 'Plan',
-        text: 'Turn the gap between target and positions into transactions.',
-        capability: 'rebalance-plans',
-        notes: [
-          {
-            text: 'Today: plans are built only for deposits you request.',
-            capability: 'deposit-plans',
-          },
-        ],
-      },
-      {
-        title: 'Check',
-        text: 'Cap approvals, enforce minimum received, simulate the batch.',
-        capability: 'pre-sign-checks',
-        notes: [{ text: 'Your own policy rules', capability: 'policy-engine' }],
-      },
-      {
-        title: 'Sign',
-        text: 'One atomic batch where your wallet supports it, step by step otherwise.',
-        capability: 'wallet-signing',
-      },
-      {
-        title: 'Verify',
-        text: 'Check the outcome and keep a public record.',
-        capability: 'snapshot-chain',
-        notes: [
-          { text: 'Today: unsigned daily snapshots of one reference address.' },
-          {
-            text: 'One rule recomputable on-chain',
-            capability: 'verifiable-rule',
-          },
-        ],
-      },
-    ],
-    footnote: {
-      lead: 'Deterministic first: no model decides your allocation.',
-      items: [
-        {
-          text: 'An optional AI layer for exceptions, bounded by your policy, comes later.',
-          capability: 'ai-exception-layer',
-        },
-        {
-          text: 'Unattended execution waits for scoped on-chain permissions you can revoke.',
-          capability: 'unattended-runs',
-        },
-      ],
-    },
-  },
-
-  strategies: {
-    kicker: 'Strategies',
-    title: 'Strategy is the primitive. Start from a reference.',
-    lede: 'A strategy turns signals into a target allocation and explains each decision. Today there is one reference strategy and one benchmark.',
-    cards: [
-      {
-        title: 'DMA/FGI Portfolio Rules',
-        tag: 'Reference strategy',
-        text: 'Six rules in priority order; the first that fires sets the day’s target. Signals: 200-day moving averages, crypto and US-equity Fear & Greed, ETH/BTC. Cooldowns and pacing guards limit churn. Its philosophy: buy in fear, defend in greed.',
-        meta: referenceTradeSummary(),
-        capability: 'reference-strategy',
-        notes: [
-          {
-            text: 'Its target includes an S&P 500 sleeve that can’t be executed yet.',
-            capability: 'tokenized-equities',
-          },
-        ],
-        link: { label: 'Read the spec', href: REFERENCE_SPEC_HREF },
-      },
-      {
-        title: 'DCA Classic',
-        tag: 'Benchmark',
-        text: 'Starts half in BTC and moves the other half into BTC in equal daily amounts. Every reference-strategy backtest is measured against it.',
-        capability: 'dca-benchmark',
-        link: {
-          label: 'Read the spec',
-          href: '/docs/track-record/dca-classic-v1',
-        },
-      },
-      {
-        title: 'Cross-down exit, on-chain',
-        tag: 'Verifiable rule',
-        text: 'One of the six rules compiled to public Vyper bytecode on Arbitrum Sepolia with a pinned codehash. Recompute a recorded exit yourself.',
-        capability: 'verifiable-rule',
-        link: { label: 'Open the calculator', href: CALCULATOR_HREF },
-      },
-      {
-        title: 'Bring your own rules',
-        tag: 'Strategy lab',
-        text: 'Write your own rules and backtest them against DCA Classic.',
-        capability: 'strategy-lab',
-        notes: [
-          {
-            text: 'Versioning, pinning and publishing come later.',
-            capability: ['strategy-versioning', 'strategy-publishing'],
-          },
-        ],
-        link: { label: 'Follow on GitHub', href: LINKS.social.github },
-      },
-    ],
-  },
-
   backtest: {
     kicker: 'Backtest · reference strategy',
     title: backtestHeadline(),
@@ -558,51 +260,6 @@ export const MESSAGES = {
         'Indexed to 100. Shaded band marks the observed max-drawdown range across the backtest window.',
       comparisonLabel: 'Reference strategy versus DCA',
     },
-  },
-
-  // Desire: Protection.
-  adapters: {
-    kicker: 'Adapters',
-    title: 'Strategies speak allocation. Adapters speak protocols.',
-    lede: 'A strategy decides weights. An adapter only encodes an action that’s already been decided — it never picks strategy. We add adapters when a strategy needs an exposure, not to lengthen a list.',
-    note: 'Returns come from durable sources — lending demand, trading fees, market making — not incentive programs. All of them can lose money.',
-    cards: [
-      {
-        key: 'morpho',
-        name: 'Morpho',
-        tag: 'Lending',
-        text: 'Spark USDC vault on Base. Borrowers pay interest to the vault. Risks: curator, oracle and smart-contract risk.',
-        capability: 'adapter-boundary',
-      },
-      {
-        key: 'gmx-v2',
-        name: 'GMX v2',
-        tag: 'Liquidity provision',
-        text: 'BTC/USD and ETH/USD GM pools on Arbitrum. Traders pay fees to the pool. You also carry their PnL and BTC/ETH price exposure.',
-        capability: 'adapter-boundary',
-      },
-      {
-        key: 'hyperliquid',
-        name: 'Hyperliquid',
-        tag: 'Market making',
-        text: 'The HLP vault market-makes and takes on liquidations. Returns can be negative, and deposits are locked for a period set by Hyperliquid.',
-        capability: 'adapter-boundary',
-      },
-      {
-        key: 'lifi',
-        name: 'LI.FI',
-        tag: 'Routing',
-        text: 'Swaps and bridges into those positions. Every route must meet a minimum received.',
-        capability: 'adapter-boundary',
-      },
-      {
-        key: 'tokenized-sp500',
-        name: 'Tokenized S&P 500',
-        tag: 'Equities',
-        text: 'The reference strategy models an S&P 500 sleeve. No adapter can execute it yet, so deposits keep it at 0%.',
-        capability: 'tokenized-equities',
-      },
-    ],
   },
 
   trust: {
@@ -658,18 +315,6 @@ export const MESSAGES = {
   // Desire: Belonging.
   closing: {
     quote: 'Self-custody shouldn’t stop at the keys.',
-    lines: [
-      {
-        text: 'A reference strategy you can read, deposits into positions you hold, and checks before every signature.',
-        capability: ['reference-strategy', 'deposit-plans', 'pre-sign-checks'],
-      },
-      {
-        text: 'Your own strategies, your own policy, your own machine.',
-        capability: ['strategy-lab', 'policy-engine', 'self-hosting'],
-      },
-    ],
-    primaryCta: 'Join waitlist',
-    secondaryCta: 'Join the Discord',
   },
 
   ctaExperiment: {
@@ -680,7 +325,7 @@ export const MESSAGES = {
   waitlist: {
     title: 'Join the waitlist',
     close: 'Close waitlist',
-    body: 'Zap Pilot is building a portfolio runtime you can run yourself. Leave your email for launch updates.',
+    body: `${oneLiner()} Leave your email for launch updates.`,
     emailLabel: 'Email',
     emailPlaceholder: 'you@example.com',
     honeypotLabel: 'Company',

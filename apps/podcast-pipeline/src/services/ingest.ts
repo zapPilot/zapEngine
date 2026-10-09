@@ -38,6 +38,11 @@ import {
 } from './ingest/step.js';
 import type { LlmAttemptRecord } from './llm.js';
 import {
+  packagePodcastScript,
+  PODCAST_PACKAGING_VERSION,
+  stripKnownPodcastPackaging,
+} from './podcast-packaging.js';
+import {
   type SecondaryLanguageCode,
   translateCanonicalScript,
 } from './translate.js';
@@ -273,17 +278,25 @@ async function performSecondaryIngest(
     localization,
   );
 
+  const hasAudio =
+    Boolean(localization.hls_url || localization.r2_prefix) ||
+    localization.status === 'audio_generated' ||
+    localization.status === 'completed';
+  const hasOutdatedPreAudioPackaging =
+    !hasAudio && localization.packaging_version !== PODCAST_PACKAGING_VERSION;
   if (
-    needsGeneratedScript(localization) ||
-    hasCorruptedSecondaryScript(
-      localization.script!,
-      canonicalLocalization.script!,
-    )
+    !hasAudio &&
+    (needsGeneratedScript(localization) ||
+      hasOutdatedPreAudioPackaging ||
+      hasCorruptedSecondaryScript(
+        localization.script!,
+        canonicalLocalization.script!,
+      ))
   ) {
     const translated = await step('translateCanonicalScript', () =>
       translateCanonicalScript({
         title: canonicalLocalization.title,
-        script: canonicalLocalization.script ?? '',
+        script: stripKnownPodcastPackaging(canonicalLocalization.script ?? ''),
         targetLanguageCode: languageCode,
       }),
     );
@@ -299,7 +312,9 @@ async function performSecondaryIngest(
       'updateEpisodeLocalizationStatus:script_generated',
       () =>
         updateEpisodeLocalizationStatus(localization!.id, 'script_generated', {
-          script: translated.script,
+          script: packagePodcastScript(translated.script, languageCode),
+          scriptBody: stripKnownPodcastPackaging(translated.script),
+          packagingVersion: PODCAST_PACKAGING_VERSION,
           llmModel: canonicalLocalization.llm_model ?? '',
           llmThinkingModel: canonicalLocalization.llm_thinking_model,
           llmProvider: canonicalLocalization.llm_provider ?? '',

@@ -251,8 +251,7 @@ async function ensureLocalizationScript(input: {
   const persistedBody = localization.script_body?.trim();
   const canRepackage =
     persistedBody &&
-    localization.status !== 'pending' &&
-    localization.status !== 'scraped' &&
+    localization.status === 'script_generated' &&
     (!localization.script ||
       localization.packaging_version !== PODCAST_PACKAGING_VERSION);
 

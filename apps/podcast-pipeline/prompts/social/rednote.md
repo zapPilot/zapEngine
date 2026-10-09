@@ -33,3 +33,5 @@ The body may sound conversational and personal, but never fabricate human experi
 Hashtags should be specific to the episode and follow the same factual framing. Do not add generic or high-risk financial tags just to fill space.
 
 Do not include a website URL, official-site promotion, or closing CTA that sends readers off-platform. Rednote copy must end naturally on the content itself.
+
+Never write the brand slogan “Your strategy. Your machine. Your wallet.”, a paraphrase of it, or promotional copy. Never add the slogan to a title.

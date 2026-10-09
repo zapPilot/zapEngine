@@ -116,7 +116,8 @@ const copy: GeneratedSocialCopy = {
   },
   youtube: { hookType: 'explainer' },
 };
-const CTA = '官網 https://www.zap-pilot.org';
+const CTA =
+  'Your strategy. Your machine. Your wallet.\n官網 https://www.zap-pilot.org';
 const originalExitCode = process.exitCode;
 const originalStdinTty = Object.getOwnPropertyDescriptor(
   process.stdin,

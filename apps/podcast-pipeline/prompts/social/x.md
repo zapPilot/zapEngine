@@ -20,3 +20,7 @@ Never use announcement-style phrases such as:
 - 以下是今天值得關注的四件事情...
 
 Do not write a closing CTA such as `完整脈絡整理在節目裡。`; the publisher owns the fixed ending and destination.
+
+Brand sign-off is universal packaging appended by the program. Never write “Your strategy. Your machine. Your wallet.”, a paraphrase of the brand slogan, or promotional copy. Never add the slogan to a title.
+
+The generated Japanese body must fit 202 weighted X units; the publisher reserves the remaining space for its signature and URL.

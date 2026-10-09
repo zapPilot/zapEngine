@@ -1,4 +1,12 @@
 import {
+  LEGACY_PODCAST_INTROS,
+  LEGACY_PODCAST_OUTROS,
+  PODCAST_PACKAGING_VERSION,
+  PODCAST_SIGN_OFF,
+} from '../brand/podcast-sign-off.js';
+import type { LanguageClassroomLanguageCode } from '../types.js';
+export { PODCAST_PACKAGING_VERSION };
+import {
   MAX_STORYBOARD_SLIDES,
   type StoryboardDraft,
   type StoryboardDraftScene,
@@ -32,24 +40,20 @@ function clampContentSceneRange(
   return { min, max };
 }
 
-export const PODCAST_INTRO = '欢迎收听 Zap Podcast。';
-export const PODCAST_PACKAGING_VERSION = 'podcast-script.v1';
-export const ZAP_PILOT_OUTRO =
-  '如果你也在管理多个钱包、DeFi 仓位和投资组合，可以到 Zap Pilot 官网，让投资组合管理更简单、更清楚。';
-
+export const PODCAST_INTRO = PODCAST_SIGN_OFF['zh-Hant'].intro;
+export const ZAP_PILOT_OUTRO = PODCAST_SIGN_OFF['zh-Hant'].outro;
 export const PODCAST_INTRO_VISUAL_INTENT = 'brand:zap-podcast-intro';
 export const PODCAST_OUTRO_VISUAL_INTENT = 'brand:zap-pilot-outro';
-
 const STRIPPABLE_PODCAST_INTROS: readonly string[] = [
-  '各位觀眾朋友，歡迎收聽今天的 Zap Podcast。',
-  '歡迎收聽 Zap Podcast。',
-  PODCAST_INTRO,
-] as const;
-
-const STRIPPABLE_PODCAST_OUTROS: readonly string[] = [
-  ZAP_PILOT_OUTRO,
-  '如果你也在管理多個錢包、DeFi 部位和投資組合，可以到 Zap Pilot 官網，讓投資組合管理更簡單、更清楚。',
+  ...LEGACY_PODCAST_INTROS,
+  ...Object.values(PODCAST_SIGN_OFF).map((copy) => copy.intro),
 ];
+const STRIPPABLE_PODCAST_OUTROS: readonly string[] = [
+  ...LEGACY_PODCAST_OUTROS,
+  ...Object.values(PODCAST_SIGN_OFF).map((copy) => copy.outro),
+];
+export const isKnownPodcastIntro = (text: string): boolean =>
+  STRIPPABLE_PODCAST_INTROS.includes(text);
 
 export type PodcastBrandVisualKind = 'intro' | 'outro';
 
@@ -123,12 +127,16 @@ export function getPodcastEditorialSentences(
   }));
 }
 
-export function packagePodcastScript(rawBody: string): string {
+export function packagePodcastScript(
+  rawBody: string,
+  languageCode: LanguageClassroomLanguageCode = 'zh-Hant',
+): string {
   const body = stripKnownPodcastPackaging(rawBody);
   if (!body) {
     throw new Error('Podcast body is empty after removing generated packaging');
   }
-  return [PODCAST_INTRO, body, ZAP_PILOT_OUTRO].join('\n\n');
+  const copy = PODCAST_SIGN_OFF[languageCode];
+  return [copy.intro, body, copy.outro].join('\n\n');
 }
 
 export function podcastBrandVisualKind(

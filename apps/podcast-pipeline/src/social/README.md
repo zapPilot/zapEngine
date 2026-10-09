@@ -615,3 +615,9 @@ kill before tick completion can leave that in-flight tick without a terminal
 record. Retain the independent per-minute DB/host monitor evidence as well.
 
 Optimization contract: [one universal packaging strategy](AGENTS.md#social-optimization-contract). Owner interest controls topic selection. Cover → title → video opening; observed associations never prove causation or justify topic selection.
+
+## Canonical brand sign-off
+
+The publisher appends “Your strategy. Your machine. Your wallet.” and the attributed website URL to X, Threads and YouTube. The generated body and all titles exclude it; Rednote has no off-platform signature. X Japanese copy reserves 78 weighted units for the suffix, leaving 202 for the body. Threads body is at most 320 characters and is checked against the actual UTM URL before generation. YouTube descriptions include the status-bound one-liner, English slogan and website.
+
+Frozen copy snapshots remain unchanged. If a body cannot fit the full signature, publication uses the original website CTA without truncating the body. If the body plus original attributed CTA still exceeds the platform limit, publication fails before transport; that snapshot requires operator attention. UTM attribution remains unchanged.

@@ -96,7 +96,7 @@ describe('createSocialPublishJobs', () => {
       const localized = { ...episode, languageCode: 'en' as const };
       const attributedCopy = {
         ...copy,
-        threads: { hookType: 'question' as const, text: '市場🙂'.repeat(150) },
+        threads: { hookType: 'question' as const, text: '市場🙂'.repeat(110) },
       };
       const [job] = createSocialPublishJobs({
         platforms: [platform],
@@ -164,11 +164,11 @@ describe('createSocialPublishJobs', () => {
     await jobs[1]?.publish();
 
     expect(mocks.publishThreads).toHaveBeenCalledWith({
-      text: `${copy.threads!.text}\n\n官網 https://www.zap-pilot.org`,
+      text: `${copy.threads!.text}\n\nYour strategy. Your machine. Your wallet.\n官網 https://www.zap-pilot.org`,
       videoUrl: VIDEO_URL,
     });
     expect(mocks.publishX).toHaveBeenCalledWith({
-      text: `${copy.x!.text}\n\n官網 https://www.zap-pilot.org`,
+      text: `${copy.x!.text}\n\nYour strategy. Your machine. Your wallet.\n官網 https://www.zap-pilot.org`,
       videoPath: X_VIDEO_PATH,
     });
   });
@@ -266,7 +266,8 @@ describe('createSocialPublishJobs', () => {
     await job?.publish();
     expect(mocks.publishYouTube).toHaveBeenCalledWith({
       title: '市場更新',
-      description: '完整說明\n\n更多市场洞察与工具：https://www.zap-pilot.org',
+      description:
+        '完整說明\n\nZap Pilot is building a self-hosted runtime for programmable portfolios.\nYour strategy. Your machine. Your wallet.\nWebsite: https://www.zap-pilot.org',
       videoPath: VIDEO_PATH,
       thumbnailUrl: THUMBNAIL_URL,
       languageCode: 'zh-Hant',

@@ -122,3 +122,9 @@ Optimization also obeys the [universal packaging contract](src/social/AGENTS.md#
 - **Scene density must respect translation alignment.** New plans target 2.5–6 seconds with at most 150 scenes including outro. Publisher image slots raise the content floor only within the time and sentence ceilings; content count must fit English and available Japanese sentence counts, reserving one translated sentence for packaged outro. Completed visuals keep their stored storyboard; force replan to apply new density.
 
 - **Identity queries and quality gating are mandatory.** Never reintroduce deterministic or descriptive content-scene queries. Catalog-derived identity queries alone reach Brave; visualCue only ranks candidates. Checkpoints persist compact selections so resumed scenes participate in the same pre-upload quality gate as fresh scenes.
+
+## Frozen brand packaging
+
+`src/brand/podcast-sign-off.ts` holds exact released literals for podcast-script.v2 and legacy stripping. Do not assemble spoken packaging from runtime brand strings: parity tests bind the frozen English identity to the shared brand module. A future identity change requires a new version. Repackage only `script_generated` canonical rows; translate only stripped bodies and package each language deterministically before audio. Existing audio-generated/completed rows never receive replacement scripts because a packaging version changes. Rendering provenance is satori-resvg-v5; this does not trigger historical rerenders.
+
+The brand subpath resolves to built story output. For the local social daemon, install dependencies and build `pnpm turbo run build --filter=@zapengine/podcast-pipeline^...` before starting `pnpm ops --social`.
