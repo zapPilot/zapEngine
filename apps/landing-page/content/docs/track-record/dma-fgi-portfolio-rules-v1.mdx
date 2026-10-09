@@ -86,8 +86,10 @@ When no rule fires, the strategy **holds**. That is the common case.
 
 The published backtest is hypothetical. It is recomputed daily over a rolling 500-day window, starting from $10,000, and compared with DCA Classic over the same window.
 
+- **Fills.** Signals are read from a day's closing prices, so a simulated trade is filled the next day at that day's prices. A trade decided on the last day of the window is never filled.
 - **Costs.** Every simulated trade pays a fixed 0.3% slippage. There is no separate gas or protocol-fee model.
-- **Assumed yield.** Balances earn an assumed annual rate that depends on the market regime: 5% to 25% APR on stablecoins and 1% to 5% on BTC and ETH, from extreme fear to extreme greed. DCA Classic receives the same assumption.
+- **Assumed yield.** Stablecoins earn an assumed fixed 3% APR. BTC, ETH and the S&P 500 sleeve earn nothing. DCA Classic receives the same assumption.
+- **Risk-adjusted ratios.** Sharpe and Sortino measure returns above that 3%, not above zero.
 - **S&P 500 sleeve.** The backtest holds an S&P 500 sleeve that Zap Pilot cannot execute today.
 - **Trades.** Trade counts are simulated trades, not executed ones.
 

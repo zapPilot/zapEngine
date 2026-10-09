@@ -148,7 +148,8 @@ export default function TrackRecordPage() {
         <p>
           The backtest covers {BACKTEST_WINDOW.days} days (
           {BACKTEST_WINDOW.start} → {BACKTEST_WINDOW.end}) and is hypothetical:
-          it assumes a yield on balances and models costs with fixed slippage.
+          it fills each trade the day after its signal, assumes a yield on
+          stablecoin balances only, and models costs with fixed slippage.
           Snapshots record the positions of one reference address each day since
           the first IPFS snapshot. They are linked by CID but unsigned today.
         </p>

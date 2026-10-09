@@ -92,7 +92,7 @@ const CHART_SKELETON =
   '[data-skeleton][class="h-[138px] w-full rounded-panel"]';
 const UNAVAILABLE = 'Backtest unavailable right now.';
 const DISCLAIMER =
-  "Hypothetical backtest. It assumes a yield on stablecoin and crypto balances and includes an S&P 500 sleeve that can't be executed yet. Past performance does not guarantee future results.";
+  "Hypothetical backtest. It fills each trade the day after its signal, assumes a yield on stablecoin balances only, and includes an S&P 500 sleeve that can't be executed yet. Past performance does not guarantee future results.";
 
 function strategyResult(
   options: {

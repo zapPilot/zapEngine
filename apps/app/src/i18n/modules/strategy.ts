@@ -9,7 +9,7 @@ export const en = {
     'Reference strategy: {name}. Evaluated daily. Advisory only — nothing executes automatically.',
   'strategy.backtestLabel': 'Reference strategy · backtest ROI',
   'strategy.backtestDisclaimer':
-    "Hypothetical backtest. It assumes a yield on stablecoin and crypto balances and includes an S&P 500 sleeve that can't be executed yet. Past performance does not guarantee future results.",
+    "Hypothetical backtest. It fills each trade the day after its signal, assumes a yield on stablecoin balances only, and includes an S&P 500 sleeve that can't be executed yet. Past performance does not guarantee future results.",
   'strategy.backtestUnavailable': 'Backtest unavailable right now.',
   'strategy.todaysDecision': "Today's decision",
   'strategy.action': 'Action',
@@ -66,7 +66,7 @@ export const zhHant = {
     '參考策略：{name}。每日評估，僅供參考，不會自動執行任何交易。',
   'strategy.backtestLabel': '參考策略 · 回測報酬率',
   'strategy.backtestDisclaimer':
-    '假設性回測：假設穩定幣與加密資產部位可獲得收益，並包含目前尚無法執行的 S&P 500 部位。過往績效不代表未來結果。',
+    '假設性回測：每筆交易在訊號出現後一天成交，僅假設穩定幣部位可獲得收益，並包含目前尚無法執行的 S&P 500 部位。過往績效不代表未來結果。',
   'strategy.backtestUnavailable': '目前無法取得回測。',
   'strategy.todaysDecision': '今日決策',
   'strategy.action': '操作',
@@ -124,7 +124,7 @@ export const ja = {
     'リファレンス・ストラテジー：{name}。毎日評価されます。参考情報のみで、自動では何も実行されません。',
   'strategy.backtestLabel': 'リファレンス・ストラテジー · バックテストROI',
   'strategy.backtestDisclaimer':
-    '仮想のバックテストです。ステーブルコインと暗号資産の残高に利回りを仮定し、現時点で執行できないS&P 500の配分を含みます。過去の実績は将来の結果を保証しません。',
+    '仮想のバックテストです。各取引はシグナルの翌日に約定するものとし、利回りはステーブルコインの残高にのみ仮定し、現時点で執行できないS&P 500の配分を含みます。過去の実績は将来の結果を保証しません。',
   'strategy.backtestUnavailable': '現在バックテストを取得できません。',
   'strategy.todaysDecision': '今日の判断',
   'strategy.action': 'アクション',

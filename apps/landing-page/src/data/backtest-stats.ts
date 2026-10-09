@@ -102,9 +102,10 @@ export function referenceTradeSummary(): string {
 
 /**
  * Discloses the backtest's modelling assumptions before the usual caveat: it
- * credits an assumed yield on stablecoin and crypto balances and holds an
+ * fills each trade the day after its signal, credits an assumed yield on
+ * stablecoin balances only, and holds an
  * S&P 500 sleeve that no adapter can execute yet.
  */
 export function backtestDisclaimer(): string {
-  return `Hypothetical backtest: it assumes a yield on stablecoin and crypto balances and includes an S&P 500 sleeve Zap Pilot can't execute yet. Past performance does not guarantee future results. Backtest window: ${SNAPSHOT.windowStart} to ${SNAPSHOT.windowEnd}, as of ${SNAPSHOT.referenceDate}.`;
+  return `Hypothetical backtest: it fills each trade the day after its signal, assumes a yield on stablecoin balances only, and includes an S&P 500 sleeve Zap Pilot can't execute yet. Past performance does not guarantee future results. Backtest window: ${SNAPSHOT.windowStart} to ${SNAPSHOT.windowEnd}, as of ${SNAPSHOT.referenceDate}.`;
 }

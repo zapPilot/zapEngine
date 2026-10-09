@@ -77,12 +77,11 @@ describe('backtest copy', () => {
     expect(backtestSubtitle()).not.toMatch(/executed/);
   });
 
-  it('discloses the assumed yield and the S&P 500 sleeve before the caveat', () => {
+  it('discloses the fill timing, the assumed yield and the S&P 500 sleeve before the caveat', () => {
     const disclaimer = backtestDisclaimer();
     expect(disclaimer).toMatch(/^Hypothetical backtest/);
-    expect(disclaimer).toContain(
-      'assumes a yield on stablecoin and crypto balances',
-    );
+    expect(disclaimer).toContain('fills each trade the day after its signal');
+    expect(disclaimer).toContain('assumes a yield on stablecoin balances only');
     expect(disclaimer).toContain('S&P 500 sleeve');
     expect(disclaimer).toContain(
       'Past performance does not guarantee future results.',
