@@ -92,7 +92,9 @@ export function VerdictSection({
           accessibilityLabel={t('today.openDecision')}
           className="self-start py-2"
         >
-          <Text variant="action">{t('today.openDecision')}</Text>
+          <Text variant="action" tone="sign">
+            {t('today.openDecision')}
+          </Text>
         </Tap>
       </Link>
     </View>

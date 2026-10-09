@@ -123,8 +123,8 @@ describe('runtime model colours', () => {
       { k: 'mix', a: role('rule-2'), pct: 50, b: { k: 'transparent' } },
       0.5,
     );
-    expect(rule[0]).toBeCloseTo(238 / 255);
-    expect(rule[3]).toBeCloseTo(0.34 * 0.5 * 0.5);
+    expect(rule[0]).toBeCloseTo(235 / 255);
+    expect(rule[3]).toBeCloseTo(0.28 * 0.5 * 0.5);
     expect(Array.from(skiaColor({ k: 'shade', alpha: 0.22 }))).toEqual([
       0,
       0,

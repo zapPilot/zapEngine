@@ -1,5 +1,6 @@
 import { View } from 'react-native';
 import { tokens } from '@zapengine/design-tokens/tokens';
+import { palette } from '@/lib/palette';
 import type { CapabilityStatus } from '@zapengine/zap-pilot-story/status';
 export function SegmentRail({
   statuses,
@@ -20,13 +21,9 @@ export function SegmentRail({
           className="flex-1"
           style={{
             borderTopWidth: tokens.line.rail,
-            borderTopColor:
-              status === 'live'
-                ? tokens.mode.night.ink
-                : tokens.mode.night['ink-3'],
+            borderTopColor: status === 'live' ? palette.ink : palette['rule-2'],
             borderStyle:
               tokens.status[status].line === 'dashed' ? 'dashed' : 'solid',
-            opacity: status === 'planned' ? 0.5 : 1,
           }}
         />
       ))}

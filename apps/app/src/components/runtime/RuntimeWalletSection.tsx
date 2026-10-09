@@ -101,7 +101,9 @@ export function RuntimeWalletSection() {
       <View className="flex-row flex-wrap gap-3">
         <Link href="/portfolio" asChild>
           <Tap accessibilityRole="link" className="min-h-hit justify-center">
-            <Text variant="action">{t('home.viewPortfolio')}</Text>
+            <Text variant="action" tone="sign">
+              {t('home.viewPortfolio')}
+            </Text>
           </Tap>
         </Link>
         <Button
@@ -120,7 +122,9 @@ export function RuntimeWalletSection() {
       ))}
       <Link href="/wallets" asChild>
         <Tap accessibilityRole="link" className="min-h-hit justify-center">
-          <Text variant="action">{t('account.manageWallets')}</Text>
+          <Text variant="action" tone="sign">
+            {t('account.manageWallets')}
+          </Text>
         </Tap>
       </Link>
     </View>

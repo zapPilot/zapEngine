@@ -138,3 +138,19 @@ it('separates all sleeves in normal vision and three CVD simulations with ordere
     }
   }
 });
+it('keeps sign and sign-ink distinguishable from every sleeve in the same mode', () => {
+  const tokens = loadTokens();
+  const toLab = (hex: string) =>
+    lab(
+      [1, 3, 5]
+        .map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+        .map((v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)),
+    );
+  for (const mode of MODES)
+    for (const role of ['sign', 'sign-ink'] as const)
+      for (const [sleeve, hex] of Object.entries(tokens.sleeve[mode]))
+        expect(
+          delta(toLab(tokens.mode[mode][role]), toLab(hex)),
+          `${mode}.${role} vs ${sleeve}`,
+        ).toBeGreaterThanOrEqual(12);
+});

@@ -3,6 +3,7 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import { memo, useCallback, useLayoutEffect, useMemo, useRef } from 'react';
 import { ActivityIndicator, Image, StyleSheet, View } from 'react-native';
 
+import { palette } from '@/lib/palette';
 import { isVideoHandoffSeekConfirmed } from '@/integration/episodeMediaSync';
 import type { PodcastEpisodeVideo } from '@/integration/podcastFeed';
 import { useVideoPlaybackCoordinator } from '@/providers/VideoPlaybackCoordinatorProvider';
@@ -179,7 +180,7 @@ export const EpisodeVideoPlayer = memo(function EpisodeVideoPlayer({
   return (
     <View
       accessibilityLabel={`Video player: ${title}`}
-      className="overflow-hidden bg-on-sign"
+      className="overflow-hidden bg-ground"
       style={styles.frame}
     >
       <VideoView
@@ -192,7 +193,7 @@ export const EpisodeVideoPlayer = memo(function EpisodeVideoPlayer({
       {status === 'readyToPlay' ? null : (
         <View
           pointerEvents="none"
-          className="absolute inset-0 items-center justify-center bg-on-sign"
+          className="absolute inset-0 items-center justify-center bg-ground"
         >
           <Image
             accessibilityIgnoresInvertColors
@@ -203,7 +204,7 @@ export const EpisodeVideoPlayer = memo(function EpisodeVideoPlayer({
           <View className="absolute inset-0 bg-well" />
           <ActivityIndicator
             accessibilityLabel="Loading video"
-            color="#f5f1e8"
+            color={palette.ink}
           />
         </View>
       )}

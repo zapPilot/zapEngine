@@ -70,7 +70,9 @@ export function KineticHeadline() {
           {t('firstRun.machine')}
         </SvgText>
       </Svg>
-      <Text variant="headline">{t('firstRun.yourWallet')}</Text>
+      <Text variant="headline" tone="sign">
+        {t('firstRun.yourWallet')}
+      </Text>
       <Svg
         viewBox={UNDERLINE_BOX}
         width={tokens.size.control.lg * 5}

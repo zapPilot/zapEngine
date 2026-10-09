@@ -82,7 +82,6 @@ export default {
     'zap-ui/no-direct-icon:327934afe09e0f054862': 1,
     'zap-ui/no-direct-icon:5d3186ca97a9cc0fca76': 1,
     'zap-ui/no-direct-icon:59748a64819fa8ad47c7': 1,
-    'zap-ui/no-raw-design-values:481c2417e8cffb7b56c3': 1,
   },
   'src/components/invest/QuickAmountChips.tsx': {
     'zap-ui/no-raw-text:71988c4d8e0803ba4519': 1,

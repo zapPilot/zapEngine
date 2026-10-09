@@ -24,18 +24,18 @@ Regenerate glyphs without rewriting static font instances using `pnpm --filter @
 
 | Role         | Paper   | Night   |
 | ------------ | ------- | ------- |
-| ground       | #f4f4f1 | #0e0f11 |
-| sheet        | #ffffff | #16171a |
-| well         | #eaeae5 | #1c1d21 |
-| ink          | #111111 | #eeeeea |
-| ink-2        | #45453f | #b9b9b3 |
-| ink-3        | #5f5f59 | #989892 |
-| sign         | #2540f5 | #4058ff |
-| sign-ink     | #2540f5 | #9aa6ff |
+| ground       | #f4f4f1 | #0c0b09 |
+| sheet        | #ffffff | #141310 |
+| well         | #eaeae5 | #1b1915 |
+| ink          | #111111 | #ebe4d2 |
+| ink-2        | #45453f | #b9b3a7 |
+| ink-3        | #5f5f59 | #9d9789 |
+| sign         | #2540f5 | #c8ab72 |
+| sign-ink     | #2540f5 | #d9c398 |
 | up           | #0f6d41 | #5bd18b |
 | down / alert | #a83119 | #ff7a66 |
 
-Text uses ink roles or sign-ink. Sign pigment is reserved for each page's primary action, wallet identity/connection, signing, focus, selection and the needle. User charts use ink; sleeve colors identify assets. Never use sign as a text color.
+Text uses ink roles or sign-ink. Sign pigment is reserved for each page's primary action, wallet identity/connection, signing, focus, selection and the needle. User charts use ink; sleeve colors identify assets. Never use sign as a text color. Paper's sign is blue, night's sign is antique gold; the needle follows sign-ink. Selection includes the active tab, chip and segmented control; unfinished status rails use a rule-2 dash.
 
 Paper/night sleeves identify SPY, stable, ETH, BTC and ALT. Their labels and positions accompany colors. Materials use top/front/left faces with separate edges, face inks, floor and shadow. Neutral scene materials retain their own roles; asset models combine sleeve pigments with these material roles for face highlights and edges.
 
@@ -59,6 +59,6 @@ pnpm turbo run build test:coverage --filter=@zapengine/design-tokens
 
 ## Retired system
 
-The v2 champagne pigment #d4c5a3, Instrument Serif, Geist, JetBrains Mono, pillar/USD aliases, success/warning pigments, pill radius and springs are retired. Do not reintroduce legacy role names or compatibility aliases. The isolated KOKODE composition preserves its own established visual/motion contract. Control-center operational health colors are a documented host exception, with healthy/degraded labels and icons accompanying color.
+The v2 `accent` role and champagne pigment #d4c5a3 remain retired; night gold exists only as `sign` and `sign-ink`. The Instrument Serif, Geist, JetBrains Mono, pillar/USD aliases, success/warning pigments, pill radius and springs are retired. Do not reintroduce legacy role names or compatibility aliases. The isolated KOKODE composition preserves its own established visual/motion contract. Control-center operational health colors are a documented host exception, with healthy/degraded labels and icons accompanying color.
 
 Stablecoin marks (USDC and USDT) map to `sleeve.stable`; the sleeve represents stablecoins collectively, not a promise of a specific holding.

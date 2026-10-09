@@ -29,7 +29,9 @@ export function TodaysBriefCard() {
           accessibilityLabel={t('today.openListen')}
           className="py-2"
         >
-          <Text variant="action">{t('today.openListen')}</Text>
+          <Text variant="action" tone="sign">
+            {t('today.openListen')}
+          </Text>
         </Tap>
       </Link>
     </Card>

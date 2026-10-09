@@ -34,7 +34,7 @@ export function SideNav() {
               <TabGlyph name={tab.name} active={active === tab.name} />
               <Text
                 variant="label"
-                tone={active === tab.name ? 'default' : 'secondary'}
+                tone={active === tab.name ? 'sign' : 'secondary'}
                 className="flex-1"
               >
                 {tab.label}
@@ -43,7 +43,7 @@ export function SideNav() {
           );
           const classes = cn(
             'min-h-hit flex-row items-center gap-3 rounded-control px-3 py-3',
-            active === tab.name && 'bg-well',
+            active === tab.name && 'bg-sign-wash',
           );
           return (
             <Link key={tab.name} href={tab.href} asChild>

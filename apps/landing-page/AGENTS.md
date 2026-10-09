@@ -7,6 +7,7 @@ See @README.md for project overview.
 - Documentation content lives in MDX files under `content/docs/`
 - Deployed to Vercel as static export (`output: 'export'` in next.config.ts)
 - `pnpm dev` starts on port 3000 — pass `--port` if another dev server already holds it
+- `predev` builds the internal packages landing-page consumes through Turbo (`--filter=@zapengine/landing-page^...`) before `next dev`, so `pnpm dev` and `pnpm --filter @zapengine/landing-page dev` need no separate build step. Keep `--env-mode=loose` so the nested build hash matches `scripts/dev.sh` and hits the cache.
 
 ## Track-record invariants
 

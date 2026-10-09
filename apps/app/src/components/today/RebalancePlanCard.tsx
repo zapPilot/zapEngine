@@ -28,7 +28,9 @@ export function RebalancePlanCard({
           accessibilityLabel={t('today.openDecision')}
           className="py-2"
         >
-          <Text variant="action">{t('today.openDecision')}</Text>
+          <Text variant="action" tone="sign">
+            {t('today.openDecision')}
+          </Text>
         </Tap>
       </Link>
     </Card>

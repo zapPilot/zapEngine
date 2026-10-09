@@ -57,11 +57,11 @@ export function BottomTabBar({ state, navigation }: BottomTabBarProps) {
               <View
                 className={cn(
                   'absolute inset-x-0 top-0 h-0.5',
-                  active ? 'bg-ink' : 'bg-transparent',
+                  active ? 'bg-sign' : 'bg-transparent',
                 )}
               />
               <TabGlyph name={tab.name} active={active} />
-              <Text variant="label" tone={active ? 'default' : 'muted'}>
+              <Text variant="label" tone={active ? 'sign' : 'muted'}>
                 {tab.label}
               </Text>
             </Tap>

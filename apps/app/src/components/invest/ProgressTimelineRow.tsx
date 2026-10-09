@@ -112,7 +112,7 @@ export function ProgressTimelineRow({
             <Text
               className="min-w-0 flex-1 font-text-semibold text-body-sm"
               style={{
-                color: tone === 'waiting' ? palette['ink-3'] : '#f4f4f5',
+                color: tone === 'waiting' ? palette['ink-3'] : palette.ink,
               }}
             >
               {label}

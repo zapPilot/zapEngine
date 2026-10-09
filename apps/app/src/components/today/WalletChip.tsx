@@ -18,9 +18,11 @@ export function WalletChip() {
       <Tap
         accessibilityRole="link"
         accessibilityLabel={t('account.manageWallets')}
-        className="rounded-round border border-rule px-3 py-2"
+        className="rounded-round border border-sign-ink px-3 py-2"
       >
-        <Text variant="label">{label}</Text>
+        <Text variant="label" tone="sign">
+          {label}
+        </Text>
       </Tap>
     </Link>
   );

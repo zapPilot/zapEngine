@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 
+import { tokens } from '@zapengine/design-tokens/tokens';
 import sharp from 'sharp';
 
 function configureSharp(): void {
@@ -97,7 +98,7 @@ export async function runSharpCropStage(
     .resize(input.width, input.height, {
       fit: 'contain',
       position: 'centre',
-      background: '#101014',
+      background: tokens.mode.night.ground,
       kernel: sharp.kernel.lanczos3,
     })
     .png({

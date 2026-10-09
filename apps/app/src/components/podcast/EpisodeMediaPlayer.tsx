@@ -290,7 +290,7 @@ function EpisodeVideoStatusPanel({
             progress === null ? (
               <ActivityIndicator
                 accessibilityLabel={t('podcast.generatingVideo')}
-                color="#f5f1e8"
+                color={palette.ink}
               />
             ) : (
               <EpisodeVideoProgressAccessory

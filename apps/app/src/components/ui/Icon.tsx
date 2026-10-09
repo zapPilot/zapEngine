@@ -30,7 +30,7 @@ export function Icon({
     default: tokens.mode.night.ink,
     secondary: tokens.mode.night['ink-2'],
     muted: tokens.mode.night['ink-3'],
-    inverse: tokens.mode.night['on-sign'],
+    inverse: tokens.mode.night.ground,
     sign: tokens.mode.night['sign-ink'],
     alert: tokens.mode.night.alert,
     up: tokens.mode.night.up,

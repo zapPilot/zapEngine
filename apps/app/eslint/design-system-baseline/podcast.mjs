@@ -13,7 +13,6 @@ export default {
     'react/jsx-no-literals:19a5a6a9b541aa94c8ec': 1,
     'react/jsx-no-literals:57ed7886fce6ac104198': 2,
     'react/jsx-no-literals:a682cb7b291c1acd06cf': 1,
-    'zap-ui/no-raw-design-values:a02869b4aff1f840868b': 1,
     'react/jsx-no-literals:aaf5b2664fe8866703e8': 2,
     'react/jsx-no-literals:7f706d0f0d9d52edf5ef': 1,
     'react/jsx-no-literals:8cfcf05c808005d5e8ae': 1,
@@ -49,7 +48,6 @@ export default {
     'react/jsx-no-literals:eb530a19a859f780ddc9': 1,
     'react/jsx-no-literals:606ff9c9b0c30a8e670b': 1,
     'react/jsx-no-literals:a682cb7b291c1acd06cf': 1,
-    'zap-ui/no-raw-design-values:a02869b4aff1f840868b': 1,
   },
   'src/components/podcast/ExpandableSection.tsx': {
     'react/jsx-no-literals:78ee1440a80fa4f6c502': 1,

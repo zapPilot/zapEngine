@@ -50,7 +50,7 @@ function SignBarRequest({
       feedback="highlight"
       onPress={open}
       className={cn(
-        'min-h-control-lg flex-row items-center gap-3 border border-rule bg-ground px-4 py-3',
+        'min-h-control-lg flex-row items-center gap-3 border border-sign bg-ground px-4 py-3',
         layout === 'card' ? 'rounded-panel' : 'border-x-0',
       )}
     >
@@ -67,7 +67,9 @@ function SignBarRequest({
               : t('dock.recheck')}
         </Text>
       </View>
-      <Text variant="label">{t('dock.open')}</Text>
+      <Text variant="label" tone="sign">
+        {t('dock.open')}
+      </Text>
     </Tap>
   );
 }

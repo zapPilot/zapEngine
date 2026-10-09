@@ -18,7 +18,7 @@ export function TabGlyph({
   name: AppTabName;
   active?: boolean;
 }) {
-  const color = active ? palette.ink : palette['ink-3'];
+  const color = active ? palette['sign-ink'] : palette['ink-3'];
   return (
     <Svg
       width={tokens.size.icon.lg}

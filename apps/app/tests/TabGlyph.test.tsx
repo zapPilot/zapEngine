@@ -13,7 +13,7 @@ it('renders a monochrome glyph for each place with the active token color', () =
       palette['ink-3'],
     );
     expect(renderToStaticMarkup(<TabGlyph name={name} active />)).toContain(
-      palette.ink,
+      palette['sign-ink'],
     );
   }
 });

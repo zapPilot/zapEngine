@@ -11,7 +11,7 @@ interface SparklineProps {
 }
 
 /**
- * Portfolio-value sparkline (gold line + soft area fill), hand-rolled with
+ * Portfolio-value sparkline (ink line + soft area fill), hand-rolled with
  * react-native-svg. The y-domain is pinned to [dataMin, dataMax] and the area
  * baseline to dataMin so the trend uses the full height — matching the POC's
  * minimal, axis-less look.
@@ -55,7 +55,7 @@ export const Sparkline = memo(function Sparkline({
         <Svg width={width} height={height}>
           <Defs>
             <LinearGradient id={id} x1="0" y1="0" x2="0" y2="1">
-              <Stop offset="0" stopColor={palette.ink} stopOpacity={0.38} />
+              <Stop offset="0" stopColor={palette.ink} stopOpacity={0.12} />
               <Stop offset="1" stopColor={palette.ink} stopOpacity={0} />
             </LinearGradient>
           </Defs>
