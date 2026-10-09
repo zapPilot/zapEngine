@@ -53,6 +53,20 @@ import PitchOpenGraphImage, {
   revalidate,
   size,
 } from '../pitch/opengraph-image';
+import TwitterImage, {
+  alt as homeTwitterAlt,
+  contentType as homeTwitterContentType,
+  dynamic as homeTwitterDynamic,
+  revalidate as homeTwitterRevalidate,
+  size as homeTwitterSize,
+} from '../twitter-image';
+import PitchTwitterImage, {
+  alt as pitchTwitterAlt,
+  contentType as pitchTwitterContentType,
+  dynamic as pitchTwitterDynamic,
+  revalidate as pitchTwitterRevalidate,
+  size as pitchTwitterSize,
+} from '../pitch/twitter-image';
 
 afterEach(() => {
   delete process.env['NEXT_PUBLIC_GA_ID'];
@@ -125,6 +139,50 @@ describe('app entrypoints', () => {
       expect(screen.getByText(chip.text)).toBeInTheDocument();
     }
     expect({ alt, contentType, dynamic, revalidate }).toEqual({
+      alt: 'Zap Pilot — Investor Pitch',
+      contentType: 'image/png',
+      dynamic: 'force-static',
+      revalidate: false,
+    });
+  });
+
+  it('mirrors the home social card for twitter:image', () => {
+    const result = TwitterImage();
+    expect(imageResponse).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining(homeTwitterSize),
+    );
+    expect(result).toMatchObject({
+      options: expect.objectContaining(homeTwitterSize),
+    });
+    expect({
+      alt: homeTwitterAlt,
+      contentType: homeTwitterContentType,
+      dynamic: homeTwitterDynamic,
+      revalidate: homeTwitterRevalidate,
+    }).toEqual({
+      alt: 'Zap Pilot — Your strategy. Your machine. Your wallet.',
+      contentType: 'image/png',
+      dynamic: 'force-static',
+      revalidate: false,
+    });
+  });
+
+  it('mirrors the pitch social card for twitter:image', () => {
+    const result = PitchTwitterImage();
+    expect(imageResponse).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining(pitchTwitterSize),
+    );
+    expect(result).toMatchObject({
+      options: expect.objectContaining(pitchTwitterSize),
+    });
+    expect({
+      alt: pitchTwitterAlt,
+      contentType: pitchTwitterContentType,
+      dynamic: pitchTwitterDynamic,
+      revalidate: pitchTwitterRevalidate,
+    }).toEqual({
       alt: 'Zap Pilot — Investor Pitch',
       contentType: 'image/png',
       dynamic: 'force-static',
