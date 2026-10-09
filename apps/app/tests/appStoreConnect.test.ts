@@ -108,6 +108,29 @@ describe('credentials', () => {
     ).not.toThrow(/TOP-SECRET/u);
   });
 
+  it('never echoes the configured key path in errors', () => {
+    const missingPath = '/nope/sentinel-k-12345.p8';
+    let message = '';
+    try {
+      takeAppStoreConnectCredentials(env({ APPLE_API_KEY: missingPath }));
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error);
+    }
+    expect(message).toMatch(/not a readable PEM/u);
+    expect(message).not.toContain(missingPath);
+    expect(message).not.toContain('/nope/');
+
+    const bad = writeKey('TOP-SECRET-not-a-key');
+    let badMessage = '';
+    try {
+      takeAppStoreConnectCredentials(env({ APPLE_API_KEY: bad }));
+    } catch (error) {
+      badMessage = error instanceof Error ? error.message : String(error);
+    }
+    expect(badMessage).toMatch(/not a readable PEM/u);
+    expect(badMessage).not.toContain(bad);
+  });
+
   it('removes the variables from env after reading them', () => {
     const source: Record<string, string | undefined> = env({ KEEP: 'yes' });
     const taken = takeAppStoreConnectCredentials(source);
