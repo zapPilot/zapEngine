@@ -297,10 +297,10 @@ def test_python_dash_m_runs_the_cli_on_the_committed_strategies(
 
 def _bundle_run(
     capsys: pytest.CaptureFixture[str],
-    bundles: Path,
+    lab: Path,
     *argv: str,
 ) -> tuple[int, dict[str, Any]]:
-    code = main(["--bundles-dir", str(bundles), *argv])
+    code = main(["--lab-dir", str(lab), *argv])
     return code, json.loads(capsys.readouterr().out)
 
 
@@ -366,7 +366,8 @@ def test_a_dry_run_reports_without_writing(
     assert code == 0
     assert out["result"]["dry_run"] is True
     assert out["result"]["path"] is None
-    assert (out["artifacts"], list(tmp_path.iterdir())) == ([], [])
+    assert out["artifacts"] == []
+    assert not (tmp_path / "bundles").exists()
     assert out["result"]["coverage"]["complete_window"]
 
 
@@ -564,3 +565,357 @@ def test_the_default_end_is_yesterday(
     )
 
     assert seen["end"] == datetime.now(UTC).date() - timedelta(days=1)
+
+
+def _spec_args(*extra: str) -> tuple[str, ...]:
+    return (
+        "--spec",
+        REFERENCE_REF,
+        "--bundle",
+        "synthetic:regimes?seed=1&days=300",
+        *extra,
+    )
+
+
+def test_eval_writes_a_report_and_a_summary(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    code, out = _bundle_run(capsys, tmp_path, "eval", *_spec_args("--no-leave-one-out"))
+
+    assert (code, out["command"], out["ok"]) == (0, "eval", True)
+    result = out["result"]
+    report_path, summary_path = (Path(item) for item in out["artifacts"])
+    assert report_path.name == "report.json" and summary_path.name == "summary.txt"
+    assert report_path.parent.name == result["report_hash"].split(":")[1][:16]
+    saved = json.loads(report_path.read_text())
+    assert saved["report_hash"] == result["report_hash"]
+    assert "trace" in saved and "trace" not in result
+    assert summary_path.read_text().splitlines() == result["summary"]
+    assert len(result["summary"]) <= 15
+    assert result["strategies"]["strategy"]["trade_count"] > 0
+    assert result["attribution"]["leave_one_out"] == {}
+
+
+def test_eval_takes_the_assumptions_and_the_window(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    code, out = _bundle_run(
+        capsys,
+        tmp_path,
+        "eval",
+        *_spec_args(
+            "--no-leave-one-out",
+            "--fill-lag",
+            "0",
+            "--slippage",
+            "0",
+            "--stable-apr",
+            "0.05",
+            "--capital",
+            "5000",
+            "--start",
+            "2025-02-01",
+            "--end",
+            "2025-08-01",
+        ),
+    )
+
+    assert code == 0
+    result = out["result"]
+    assert result["assumptions"] == {
+        "fill_lag_days": 0,
+        "slippage_rate": 0.0,
+        "stable_apr": 0.05,
+    }
+    assert result["total_capital"] == 5000
+    assert (result["window"]["start"], result["window"]["end"]) == (
+        "2025-02-01",
+        "2025-08-01",
+    )
+    assert result["strategies"]["strategy"]["total_invested"] == 5000
+
+
+@pytest.mark.parametrize(
+    "option",
+    [("--slippage", "0.5"), ("--fill-lag", "2"), ("--stable-apr", "-1")],
+)
+def test_eval_refuses_assumptions_the_engine_would_not_accept(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    option: tuple[str, str],
+) -> None:
+    code, out = _bundle_run(capsys, tmp_path, "eval", *_spec_args(*option))
+
+    assert code == 2
+    assert out["result"]["code"] == "invalid_assumptions"
+
+
+def test_eval_of_a_missing_spec_exits_3(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    code, out = _bundle_run(
+        capsys,
+        tmp_path,
+        "eval",
+        "--spec",
+        "reference/nope",
+        "--bundle",
+        "synthetic:regimes",
+    )
+
+    assert code == 3
+    assert out["result"]["code"] == "spec_not_found"
+
+
+def test_eval_of_a_missing_bundle_exits_4(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    code, out = _bundle_run(
+        capsys, tmp_path, "eval", "--spec", REFERENCE_REF, "--bundle", "prod:latest"
+    )
+
+    assert code == 4
+    assert out["result"]["code"] == "bundle_not_found"
+
+
+def test_a_broken_hard_invariant_fails_the_gate_but_still_reports(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from types import SimpleNamespace
+
+    from src.services.backtesting.lab import evaluation_commands
+
+    body = {"invariants": [{"name": "weights_valid", "hard": True, "count": 2}]}
+    fake = SimpleNamespace(
+        body=body,
+        report_hash="sha256:" + "a" * 64,
+        as_dict=lambda: {**body, "report_hash": "sha256:" + "a" * 64},
+        summary_lines=lambda: ["report sha256:" + "a" * 64],
+    )
+    monkeypatch.setattr(evaluation_commands, "evaluate", lambda *_, **__: fake)
+
+    code, out = _bundle_run(capsys, tmp_path, "eval", *_spec_args())
+
+    assert (code, out["ok"], out["exit_code"]) == (1, False, 1)
+    assert out["warnings"] == ["Hard invariant broken: weights_valid"]
+    assert out["result"]["report_hash"] == "sha256:" + "a" * 64
+
+
+def test_ablate_reports_what_each_rule_adds(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    code, out = _bundle_run(capsys, tmp_path, "ablate", *_spec_args())
+
+    assert code == 0
+    result = out["result"]
+    assert "rule:cross_down_exit" in result["leave_one_out"]
+    assert result["rules"]["cross_down_exit"]["trades"] > 0
+    assert result["strategy"]["trade_count"] > 0
+    assert set(result["fingerprint"]) >= {"spec", "bundle", "git"}
+    assert out["artifacts"] == []
+
+
+def test_spec_new_starts_a_candidate_that_validates(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    code, out = _bundle_run(
+        capsys, tmp_path, "spec", "new", "--from", REFERENCE_REF, "--id", "my_candidate"
+    )
+    candidate = Path(out["result"]["path"])
+    validate_code, validated = _bundle_run(
+        capsys, tmp_path, "spec", "validate", str(candidate)
+    )
+
+    assert code == 0
+    assert candidate == tmp_path / "candidates" / "my_candidate.json"
+    assert out["artifacts"] == [str(candidate)]
+    assert out["result"]["derived_from"]["id"] == "dma_fgi"
+    saved = json.loads(candidate.read_text())
+    assert (saved["id"], saved["version"]) == ("my_candidate", 1)
+    assert "Candidate derived from dma_fgi" in saved["description"]
+    assert validate_code == 0
+    assert validated["result"]["locked"] is False
+    assert (
+        validated["result"]["behavior_hash"]
+        == out["result"]["derived_from"]["behavior_hash"]
+    )
+
+
+def test_spec_new_never_overwrites(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    arguments = ("spec", "new", "--from", REFERENCE_REF, "--id", "my_candidate")
+    _bundle_run(capsys, tmp_path, *arguments)
+
+    code, out = _bundle_run(capsys, tmp_path, *arguments)
+
+    assert code == 1
+    assert out["result"]["code"] == "candidate_exists"
+
+
+def test_spec_new_can_write_elsewhere(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "elsewhere" / "idea.json"
+
+    code, out = _bundle_run(
+        capsys,
+        tmp_path,
+        "spec",
+        "new",
+        "--from",
+        REFERENCE_REF,
+        "--id",
+        "my_candidate",
+        "--out",
+        str(target),
+    )
+
+    assert code == 0
+    assert target.is_file()
+    assert out["result"]["path"] == str(target)
+
+
+def test_spec_new_refuses_a_bad_name_and_a_missing_source(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    bad_code, bad = _bundle_run(
+        capsys, tmp_path, "spec", "new", "--from", REFERENCE_REF, "--id", "Bad Name"
+    )
+    missing_code, missing = _bundle_run(
+        capsys, tmp_path, "spec", "new", "--from", "reference/nope", "--id", "fine_name"
+    )
+
+    assert bad_code == 3
+    assert bad["result"]["issues"][0]["pointer"] == "/id"
+    assert missing_code == 3
+    assert missing["result"]["code"] == "spec_not_found"
+
+
+def test_diff_names_the_changes_and_follows_them_on_a_bundle(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    _, created = _bundle_run(
+        capsys, tmp_path, "spec", "new", "--from", REFERENCE_REF, "--id", "my_candidate"
+    )
+    candidate = Path(created["result"]["path"])
+    raw = json.loads(candidate.read_text())
+    raw["rules"] = [rule for rule in raw["rules"] if rule["id"] != "cross_down_exit"]
+    candidate.write_text(json.dumps(raw))
+
+    plain_code, plain = _bundle_run(
+        capsys, tmp_path, "diff", "--base", REFERENCE_REF, "--candidate", str(candidate)
+    )
+    code, out = _bundle_run(
+        capsys,
+        tmp_path,
+        "diff",
+        "--base",
+        REFERENCE_REF,
+        "--candidate",
+        str(candidate),
+        "--bundle",
+        "synthetic:stress?seed=2&days=300",
+    )
+
+    assert plain_code == code == 0
+    assert plain["result"]["behavior_changed"] is True
+    assert plain["result"]["comparison"] is None
+    assert [(item["pointer"], item["kind"]) for item in plain["result"]["changes"]] == [
+        ("/description", "changed"),
+        ("/id", "changed"),
+        ("/rules[cross_down_exit]", "removed"),
+    ]
+    comparison = out["result"]["comparison"]
+    assert comparison["first_divergence"]["base"]["rule"] == "cross_down_exit"
+    assert comparison["days_differing"] > 0
+
+
+def test_diff_of_a_spec_with_itself_is_empty(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    code, out = _bundle_run(
+        capsys, tmp_path, "diff", "--base", REFERENCE_REF, "--candidate", REFERENCE_REF
+    )
+
+    assert code == 0
+    assert out["result"]["behavior_changed"] is False
+    assert out["result"]["changes"] == []
+
+
+def test_bundle_synth_keeps_a_synthetic_history_and_never_overwrites(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    code, out = _bundle_run(
+        capsys, tmp_path, "bundle", "synth", "--scenario", "stress", "--days", "300"
+    )
+    again_code, again = _bundle_run(
+        capsys, tmp_path, "bundle", "synth", "--scenario", "stress", "--days", "300"
+    )
+    covered_code, covered = _bundle_run(
+        capsys, tmp_path, "bundle", "coverage", "synthetic-stress-1-300:latest"
+    )
+
+    assert code == 0
+    assert out["result"]["bundle"]["source"] == "synthetic"
+    assert Path(out["result"]["bundle"]["path"]).is_file()
+    assert out["artifacts"] == [out["result"]["bundle"]["path"]]
+    assert (again_code, again["result"]["code"]) == (1, "bundle_exists")
+    assert covered_code == 0
+    assert (
+        covered["result"]["bundle"]["content_sha256"]
+        == (out["result"]["bundle"]["content_sha256"])
+    )
+
+
+def test_bundle_synth_refuses_a_history_with_no_days(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    code, out = _bundle_run(capsys, tmp_path, "bundle", "synth", "--days", "0")
+
+    assert code == 2
+    assert out["result"]["code"] == "invalid_bundle_reference"
+
+
+def test_the_report_hash_does_not_depend_on_the_hash_seed(tmp_path: Path) -> None:
+    import os
+    import subprocess
+
+    from src.services.backtesting.lab.bundle import APP_ROOT
+
+    hashes = []
+    for seed in ("1", "2"):
+        done = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "src.services.backtesting.lab",
+                "--lab-dir",
+                str(tmp_path / seed),
+                "eval",
+                *_spec_args("--no-leave-one-out"),
+            ],
+            cwd=APP_ROOT,
+            env={**os.environ, "PYTHONHASHSEED": seed},
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        hashes.append(json.loads(done.stdout)["result"]["report_hash"])
+
+    assert hashes[0] == hashes[1]

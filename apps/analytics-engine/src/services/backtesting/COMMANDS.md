@@ -63,3 +63,20 @@ pnpm --filter @zapengine/analytics-engine strategy-lab bundle coverage "syntheti
 ```
 
 Coverage lists, per series, where it starts and ends and its longest gap; the longest stretch where every series the strategy needs is present; and what that stretch can support (a holdout, walk-forward folds, or only a descriptive run). It does not assume history exists: the production database's complete-feature history starts in 2025-04.
+
+### Evaluating a spec
+
+`eval` runs a spec on a bundle through the same simulation the compare API uses, together with its leave-one-out variants and the benchmarks (`dca_classic`, `buy_hold_btc`, `buy_hold_equal_weight`), over the same bars and assumptions. It writes `report.json` and a 15-line `summary.txt` to `.lab/runs/<hash>/` and prints the report (without the trace) in the envelope. Exit code 1 means a hard invariant is broken, which is an engine fault, not a strategy finding. Candidates live in `.lab/candidates/`; nothing under `.lab/` is committed.
+
+```bash
+pnpm --filter @zapengine/analytics-engine strategy-lab spec new --from reference/dma_fgi --id my_candidate
+pnpm --filter @zapengine/analytics-engine strategy-lab spec validate .lab/candidates/my_candidate.json
+pnpm --filter @zapengine/analytics-engine strategy-lab diff --base reference/dma_fgi --candidate .lab/candidates/my_candidate.json --bundle prod:latest
+pnpm --filter @zapengine/analytics-engine strategy-lab eval --spec .lab/candidates/my_candidate.json --bundle prod:latest
+pnpm --filter @zapengine/analytics-engine strategy-lab ablate --spec .lab/candidates/my_candidate.json --bundle prod:latest
+pnpm --filter @zapengine/analytics-engine strategy-lab bundle synth --scenario stress --seed 2 --days 400
+```
+
+`eval`, `ablate` and `diff --bundle` take the assumptions and the window: `--fill-lag 0|1`, `--slippage`, `--stable-apr`, `--capital`, `--start`, `--end`. The defaults are the honest assumptions every published number uses; overrides exist to measure what an assumption costs, never to pick a strategy. A report's `fingerprint` names the spec (`id@version#hash12`), the bundle's content hash, the evaluation settings and the code revision, and `report_hash` is the hash of its canonical JSON: the same inputs on the same revision give the same hash.
+
+A report holds: the metrics the engine itself reports (ROI, drawdown, Sharpe over the stable APR, PnL split into price, yield and cost) plus exposure and turnover; per-rule `matches`, `wins`, `trades`, `shadowed` and `cooldown_skips`; the leave-one-out contribution of every rule, overlay and guard; the invariants with example days (`held_below_dma_days`, `buys_below_dma`, `proceeds_into_downtrend`, `cooldown_blocked_exits`, `stuck_in_stable`, and the hard `weights_valid`); a sparse decision trace; and warnings (synthetic data is not evidence, a window too short for walk-forward). The agent skill `.agents/skills/strategy-lab/SKILL.md` explains how to read it.

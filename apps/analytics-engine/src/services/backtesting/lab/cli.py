@@ -13,8 +13,8 @@ pointer. ``artifacts`` lists the files a command wrote.
 Exit codes:
 
 - 0: done;
-- 1: a gate failed (a generated artifact or a lock is out of date, or a lock
-  would hide a behavior change);
+- 1: a gate failed (a generated artifact or a lock is out of date, a lock would
+  hide a behavior change, or a hard invariant is broken);
 - 2: the command does not apply to what it was given (argparse usage errors
   use it too);
 - 3: the spec is missing or invalid;
@@ -29,28 +29,41 @@ import argparse
 import json
 import sys
 from collections.abc import Sequence
-from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from src.services.backtesting.lab import evaluation_commands
 from src.services.backtesting.lab.bundle import (
-    BUNDLES_DIR,
+    LAB_DIR,
     Bundle,
-    BundleCorruptError,
     BundleError,
-    BundleExistsError,
-    BundleReferenceError,
     check_bundle_name,
-    load_bundle,
+    synthetic_bundle,
+    write_bundle,
 )
 from src.services.backtesting.lab.coverage import coverage_of
+from src.services.backtesting.lab.envelope import (
+    EXIT_DATA,
+    EXIT_GATE,
+    EXIT_NOT_APPLICABLE,
+    EXIT_OK,
+    EXIT_SPEC,
+    CliError,
+    Context,
+    Outcome,
+    bundle_failure,
+    load_bundle_or_fail,
+    load_spec_or_fail,
+)
 from src.services.backtesting.lab.record import (
     RecordRefused,
     database_service,
     ensure_read_only,
     record_bundle,
 )
+from src.services.backtesting.lab.synthetic import SCENARIOS
+from src.services.backtesting.spec import StrategySpec, parse_spec
 from src.services.backtesting.spec.canonical import (
     LockEntry,
     behavior_hash,
@@ -63,9 +76,7 @@ from src.services.backtesting.spec.canonical import (
 from src.services.backtesting.spec.loader import (
     LOCK_FILENAME,
     STRATEGIES_DIR,
-    load_spec,
     lock_key,
-    resolve_spec_path,
 )
 from src.services.backtesting.spec.schema_export import (
     SCHEMA_FILENAME,
@@ -73,39 +84,18 @@ from src.services.backtesting.spec.schema_export import (
     render_schema,
     render_vocabulary,
 )
-from src.services.backtesting.spec.validation import SpecError, SpecIssue
+from src.services.backtesting.spec.validation import SpecError
 from src.services.exceptions import MarketDataUnavailableError
 
-EXIT_OK = 0
-EXIT_GATE = 1
-EXIT_NOT_APPLICABLE = 2
-EXIT_SPEC = 3
-EXIT_DATA = 4
-
-
-@dataclass
-class Outcome:
-    """What a successful command reports."""
-
-    result: dict[str, Any]
-    artifacts: list[str] = field(default_factory=list)
-    warnings: list[str] = field(default_factory=list)
-
-
-@dataclass
-class CliError(Exception):
-    exit_code: int
-    code: str
-    message: str
-    issues: tuple[SpecIssue, ...] = ()
+SPEC_REF_HELP = "A reference such as reference/dma_fgi, or a path to a .json file."
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    directory = Path(args.strategies_dir)
+    context = Context(Path(args.strategies_dir), Path(args.lab_dir))
     command = " ".join(args.command_path)
     try:
-        outcome = args.handler(args, directory)
+        outcome: Outcome = args.handler(args, context)
     except CliError as error:
         _emit(
             command,
@@ -119,12 +109,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         return error.exit_code
     _emit(
         command,
-        exit_code=EXIT_OK,
+        exit_code=outcome.exit_code,
         result=outcome.result,
         warnings=outcome.warnings,
         artifacts=outcome.artifacts,
     )
-    return EXIT_OK
+    return outcome.exit_code
 
 
 def _emit(
@@ -149,18 +139,17 @@ def _emit(
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="strategy-lab",
-        description="Validate, hash and lock strategy specs; export their schema.",
+        description=(
+            "Validate, hash, lock and evaluate strategy specs; manage the "
+            "market data bundles they are evaluated on."
+        ),
     )
     parser.add_argument(
         "--strategies-dir",
         default=str(STRATEGIES_DIR),
         help=argparse.SUPPRESS,
     )
-    parser.add_argument(
-        "--bundles-dir",
-        default=str(BUNDLES_DIR),
-        help=argparse.SUPPRESS,
-    )
+    parser.add_argument("--lab-dir", default=str(LAB_DIR), help=argparse.SUPPRESS)
     commands = parser.add_subparsers(dest="command", required=True)
 
     schema = commands.add_parser(
@@ -183,10 +172,7 @@ def _parser() -> argparse.ArgumentParser:
         ("lock", _lock, "Pin a reference spec's behavior in the lock file."),
     ):
         command = spec_commands.add_parser(name, help=help_text)
-        command.add_argument(
-            "ref",
-            help="A reference such as reference/dma_fgi, or a path to a .json file.",
-        )
+        command.add_argument("ref", help=SPEC_REF_HELP)
         if name == "hash":
             command.add_argument(
                 "--canonical",
@@ -194,6 +180,13 @@ def _parser() -> argparse.ArgumentParser:
                 help="Also print the canonical JSON the hash is taken over.",
             )
         command.set_defaults(handler=handler, command_path=["spec", name])
+    new = spec_commands.add_parser(
+        "new", help="Start a candidate spec as a copy of another."
+    )
+    new.add_argument("--from", dest="source", required=True, help=SPEC_REF_HELP)
+    new.add_argument("--id", required=True, help="Name of the candidate.")
+    new.add_argument("--out", help="Where to write it (default: .lab/candidates/).")
+    new.set_defaults(handler=_spec_new, command_path=["spec", "new"])
 
     bundle_commands = commands.add_parser(
         "bundle", help="Work with market data bundles."
@@ -224,10 +217,20 @@ def _parser() -> argparse.ArgumentParser:
         "ref", help="name:latest, name:<id>, a bundle path or synthetic:<scenario>."
     )
     coverage.set_defaults(handler=_bundle_coverage, command_path=["bundle", "coverage"])
+    synth = bundle_commands.add_parser(
+        "synth", help="Keep a deterministic synthetic history as a bundle."
+    )
+    synth.add_argument("--scenario", choices=SCENARIOS, default="regimes")
+    synth.add_argument("--seed", type=int, default=1)
+    synth.add_argument("--days", type=int, default=400)
+    synth.set_defaults(handler=_bundle_synth, command_path=["bundle", "synth"])
+
+    evaluation_commands.add_commands(commands)
     return parser
 
 
-def _schema(args: argparse.Namespace, directory: Path) -> Outcome:
+def _schema(args: argparse.Namespace, context: Context) -> Outcome:
+    directory = context.strategies_dir
     rendered = {
         SCHEMA_FILENAME: render_schema("llm"),
         VOCABULARY_FILENAME: render_vocabulary(),
@@ -253,27 +256,15 @@ def _schema(args: argparse.Namespace, directory: Path) -> Outcome:
     )
 
 
-def _load(ref: str, directory: Path) -> tuple[Path, Any]:
-    path = resolve_spec_path(ref, directory)
-    try:
-        return path, load_spec(ref, directory)
-    except FileNotFoundError as error:
-        raise CliError(EXIT_SPEC, "spec_not_found", f"No spec at {path}") from error
-    except SpecError as error:
-        raise CliError(
-            EXIT_SPEC, "invalid_spec", "The spec is invalid", error.issues
-        ) from error
+def _lock_path(context: Context) -> Path:
+    return context.strategies_dir / LOCK_FILENAME
 
 
-def _lock_path(directory: Path) -> Path:
-    return directory / LOCK_FILENAME
-
-
-def _validate(args: argparse.Namespace, directory: Path) -> Outcome:
-    path, spec = _load(args.ref, directory)
-    key = lock_key(path, directory)
+def _validate(args: argparse.Namespace, context: Context) -> Outcome:
+    path, spec = load_spec_or_fail(args.ref, context)
+    key = lock_key(path, context.strategies_dir)
     if key is not None:
-        issues = lock_issues(key, spec, read_lock(_lock_path(directory)))
+        issues = lock_issues(key, spec, read_lock(_lock_path(context)))
         if issues:
             raise CliError(
                 EXIT_GATE,
@@ -292,8 +283,8 @@ def _validate(args: argparse.Namespace, directory: Path) -> Outcome:
     )
 
 
-def _hash(args: argparse.Namespace, directory: Path) -> Outcome:
-    _, spec = _load(args.ref, directory)
+def _hash(args: argparse.Namespace, context: Context) -> Outcome:
+    _, spec = load_spec_or_fail(args.ref, context)
     result: dict[str, Any] = {
         "id": spec.id,
         "version": spec.version,
@@ -304,16 +295,16 @@ def _hash(args: argparse.Namespace, directory: Path) -> Outcome:
     return Outcome(result)
 
 
-def _lock(args: argparse.Namespace, directory: Path) -> Outcome:
-    path, spec = _load(args.ref, directory)
-    key = lock_key(path, directory)
+def _lock(args: argparse.Namespace, context: Context) -> Outcome:
+    path, spec = load_spec_or_fail(args.ref, context)
+    key = lock_key(path, context.strategies_dir)
     if key is None:
         raise CliError(
             EXIT_NOT_APPLICABLE,
             "not_lockable",
             "Only specs under reference/ are locked",
         )
-    lock_path = _lock_path(directory)
+    lock_path = _lock_path(context)
     entries: dict[str, LockEntry] = read_lock(lock_path) if lock_path.is_file() else {}
     try:
         updated = lock_spec(key, spec, entries)
@@ -333,14 +324,41 @@ def _lock(args: argparse.Namespace, directory: Path) -> Outcome:
     )
 
 
-def _bundle_error(error: BundleError) -> CliError:
-    if isinstance(error, BundleReferenceError):
-        return CliError(EXIT_NOT_APPLICABLE, "invalid_bundle_reference", str(error))
-    if isinstance(error, BundleExistsError):
-        return CliError(EXIT_GATE, "bundle_exists", str(error))
-    if isinstance(error, BundleCorruptError):
-        return CliError(EXIT_DATA, "bundle_corrupt", str(error))
-    return CliError(EXIT_DATA, "bundle_not_found", str(error))
+def _spec_new(args: argparse.Namespace, context: Context) -> Outcome:
+    path, source = load_spec_or_fail(args.source, context)
+    raw = source.model_dump(mode="json")
+    raw["id"] = args.id
+    raw["version"] = 1
+    raw["description"] = (
+        f"Candidate derived from {source.id} version {source.version}. "
+        "Describe what it changes."
+    )
+    try:
+        candidate: StrategySpec = parse_spec(raw)
+    except SpecError as error:
+        raise CliError(
+            EXIT_SPEC, "invalid_spec", "The candidate is invalid", error.issues
+        ) from error
+    target = (
+        Path(args.out) if args.out else context.candidates_dir / f"{candidate.id}.json"
+    )
+    if target.exists():
+        raise CliError(EXIT_GATE, "candidate_exists", f"{target} already exists")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps(candidate.model_dump(mode="json"), indent=2) + "\n")
+    return Outcome(
+        {
+            "path": str(target),
+            "id": candidate.id,
+            "derived_from": {
+                "ref": args.source,
+                "id": source.id,
+                "version": source.version,
+                "behavior_hash": behavior_hash(source),
+            },
+        },
+        artifacts=[str(target)],
+    )
 
 
 def _bundle_summary(bundle: Bundle) -> dict[str, Any]:
@@ -358,14 +376,13 @@ def _bundle_summary(bundle: Bundle) -> dict[str, Any]:
     }
 
 
-def _bundle_record(args: argparse.Namespace, directory: Path) -> Outcome:
-    del directory
+def _bundle_record(args: argparse.Namespace, context: Context) -> Outcome:
     end = args.end or datetime.now(UTC).date() - timedelta(days=1)
     try:
         check_bundle_name(args.name)
         ensure_read_only()
     except BundleError as error:
-        raise _bundle_error(error) from error
+        raise bundle_failure(error) from error
     except RecordRefused as error:
         raise CliError(EXIT_GATE, "recording_refused", str(error)) from error
     try:
@@ -375,13 +392,13 @@ def _bundle_record(args: argparse.Namespace, directory: Path) -> Outcome:
                 name=args.name,
                 start=args.start,
                 end=end,
-                bundles_dir=Path(args.bundles_dir),
+                bundles_dir=context.bundles_dir,
                 dry_run=args.dry_run,
             )
     except MarketDataUnavailableError as error:
         raise CliError(EXIT_DATA, "data_unavailable", str(error)) from error
     except BundleError as error:
-        raise _bundle_error(error) from error
+        raise bundle_failure(error) from error
     manifest = recording.manifest
     return Outcome(
         {
@@ -401,17 +418,32 @@ def _bundle_record(args: argparse.Namespace, directory: Path) -> Outcome:
     )
 
 
-def _bundle_coverage(args: argparse.Namespace, directory: Path) -> Outcome:
-    del directory
-    try:
-        bundle = load_bundle(args.ref, Path(args.bundles_dir))
-    except BundleError as error:
-        raise _bundle_error(error) from error
+def _bundle_coverage(args: argparse.Namespace, context: Context) -> Outcome:
+    bundle = load_bundle_or_fail(args.ref, context)
     return Outcome(
         {
             "bundle": _bundle_summary(bundle),
             "coverage": coverage_of(bundle.prices, bundle.sentiments).as_dict(),
         }
+    )
+
+
+def _bundle_synth(args: argparse.Namespace, context: Context) -> Outcome:
+    try:
+        bundle = synthetic_bundle(
+            f"synthetic:{args.scenario}?seed={args.seed}&days={args.days}"
+        )
+        path = write_bundle(
+            context.bundles_dir,
+            manifest=bundle.manifest,
+            prices=bundle.prices,
+            sentiments=bundle.sentiments,
+        )
+    except BundleError as error:
+        raise bundle_failure(error) from error
+    return Outcome(
+        {"bundle": {**_bundle_summary(bundle), "path": str(path)}},
+        artifacts=[str(path)],
     )
 
 

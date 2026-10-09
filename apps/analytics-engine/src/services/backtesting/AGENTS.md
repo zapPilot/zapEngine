@@ -21,6 +21,10 @@ The non-default technical-indicator research surface is documented in [TECHNICAL
 - Array order in `rules` is precedence. Nothing is defaulted, so a spec states everything the strategy does. A new rule kind, or a new knob on a kind, is Python in `spec/rules.py` and the rule class, with the generated artifacts regenerated in the same change.
 - References (`reference/*.json`) are pinned in `LOCK.json` by version and behavior hash. A behavior change needs a new `version` and `pnpm strategy-lab spec lock <ref>`; the lock refuses to hide a change. A reference compiles to the same rule objects as the Python defaults and must reproduce the default strategy day by day (`tests/services/backtesting/spec/test_reference_parity.py`).
 
+## Evaluating a strategy
+
+Use `strategy-lab` (`COMMANDS.md`) and the agent skill `.agents/skills/strategy-lab/SKILL.md` to evaluate a candidate spec: `eval`, `ablate` and `diff` run it on a bundle and report what it did. Candidates live in the git-ignored `.lab/candidates/`; a reference is never edited in place. The numbers come from `execution/compare.py::simulate`, the one simulation path the API uses too; do not add a second.
+
 ## Lab data
 
 - Production market data never enters the repo. An operator records it into the git-ignored `.lab/bundles/` with `strategy-lab bundle record`, and a bundle is identified by its `content_sha256`; a result that depends on data names the bundle it ran on.

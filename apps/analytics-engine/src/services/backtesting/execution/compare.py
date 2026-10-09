@@ -55,6 +55,38 @@ def build_compare_strategies_from_resolved_configs(
     return strategies
 
 
+def neutral_initial_allocation() -> dict[str, float]:
+    """The two-bucket allocation every compare run starts from."""
+    return dict(ALLOCATION_STATES["neutral_start"])
+
+
+def simulate(
+    strategies: list[BaseStrategy],
+    *,
+    prices: list[dict[str, Any]],
+    sentiments: dict[date, dict[str, Any]],
+    user_start_date: date,
+    total_capital: float,
+    token_symbol: str,
+    assumptions: BacktestAssumptions | None = None,
+    initial_allocation: dict[str, float] | None = None,
+) -> BacktestResponse:
+    """Run built strategies over prepared market data under the given assumptions.
+
+    The one place a simulation is started: the compare API and the strategy lab
+    both go through it, so a number the lab reports is a number the API reports.
+    """
+    return StrategyEngine(assumptions or BacktestAssumptions()).run(
+        prices=prices,
+        sentiments=sentiments,
+        strategies=strategies,
+        initial_allocation=initial_allocation or neutral_initial_allocation(),
+        total_capital=total_capital,
+        token_symbol=token_symbol,
+        user_start_date=user_start_date,
+    )
+
+
 def run_compare_v3_on_data(
     prices: list[dict[str, Any]],
     sentiments: dict[date, dict[str, Any]],
@@ -63,7 +95,7 @@ def run_compare_v3_on_data(
     resolved_configs: list[ResolvedSavedStrategyConfig] | None = None,
     window: BacktestWindowInfo | None = None,
 ) -> BacktestResponse:
-    initial_allocation = dict(ALLOCATION_STATES["neutral_start"])
+    initial_allocation = neutral_initial_allocation()
     user_prices = [price for price in prices if price["date"] >= user_start_date]
     if resolved_configs is not None:
         strategies = build_compare_strategies_from_resolved_configs(
@@ -91,15 +123,15 @@ def run_compare_v3_on_data(
             )
             strategy.summary_signal_id = recipe.signal_id
             strategies.append(strategy)
-    engine = StrategyEngine(request.assumptions or BacktestAssumptions())
-    result = engine.run(
+    result = simulate(
+        strategies,
         prices=prices,
         sentiments=sentiments,
-        strategies=strategies,
-        initial_allocation=initial_allocation,
+        user_start_date=user_start_date,
         total_capital=request.total_capital,
         token_symbol=request.token_symbol,
-        user_start_date=user_start_date,
+        assumptions=request.assumptions,
+        initial_allocation=initial_allocation,
     )
     result.window = window
     if request.emit_decision_log:
