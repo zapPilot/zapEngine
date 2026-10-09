@@ -2,12 +2,14 @@
 import { spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parseArgs } from 'node:util';
 
 import { assertIosSignedCapabilities } from './assert-ios-signed-capabilities.mjs';
 import {
   loadIosArchiveEnv,
   writeIosArchiveXcodeEnv,
 } from './ios-archive-env.mjs';
+import { prepareArchiveAppVersion } from './ios-release.mjs';
 import { syncIosNative } from './sync-ios-native.mjs';
 
 const appRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
@@ -30,7 +32,7 @@ function run(command, args, cwd, env = {}) {
   }
 }
 
-try {
+async function main() {
   if (process.platform !== 'darwin') {
     throw new Error('Opening the iOS archive workspace requires macOS.');
   }
@@ -40,6 +42,15 @@ try {
   // client values into the native build. Missing required mobile Privy config
   // fails here, before Xcode can create an installable-but-broken archive.
   const archiveEnv = loadIosArchiveEnv();
+  const { values } = parseArgs({
+    args: process.argv.slice(2),
+    options: { policy: { type: 'string', default: 'auto' } },
+  });
+
+  // Pin the App Version against App Store Connect before prebuild writes it
+  // into Info.plist. EAS is the party this fallback exists to bypass, so it is
+  // not consulted; the pin stays until the operator restores app.config.ts.
+  await prepareArchiveAppVersion({ policy: values.policy });
 
   run(
     pnpmCommand,
@@ -59,7 +70,9 @@ try {
   console.log(
     `Opened the synchronized ZapPilot.xcworkspace with production Expo env in ${xcodeEnvPath}. Use Product → Archive.`,
   );
-} catch (error) {
+}
+
+main().catch((error) => {
   console.error(error instanceof Error ? error.message : error);
   process.exit(1);
-}
+});

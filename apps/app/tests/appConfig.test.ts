@@ -2,7 +2,7 @@ import path from 'node:path';
 import { readFileSync } from 'node:fs';
 
 import { getConfig } from 'expo/config';
-import { compileModsAsync } from 'expo/config-plugins';
+import { compileModsAsync, IOSConfig } from 'expo/config-plugins';
 import { describe, expect, it, vi } from 'vitest';
 
 import { projectEnv } from '../../../scripts/env/lib.mjs';
@@ -56,6 +56,40 @@ describe('store identity', () => {
   it('outranks the version the Flutter app left on the App Store', () => {
     expect(appConfig.version).toBe('3.0.1');
     expect(appConfig.android?.versionCode).toBeUndefined();
+  });
+
+  // scripts/ios-release.mjs rewrites this literal in the release checkout. The
+  // EAS worker re-evaluates the file and EAS records the CLI-side value, so the
+  // version must stay one literal line and never move to `ios.version`.
+  it('keeps the App Version a single rewritable literal', () => {
+    const source = readFileSync(
+      path.resolve(__dirname, '../app.config.ts'),
+      'utf8',
+    );
+    const literals = [...source.matchAll(/^ {2}version: '([^']+)',$/gmu)];
+
+    expect(literals).toHaveLength(1);
+    expect(literals[0]![1]).toBe(appConfig.version);
+    expect(appConfig.ios?.version).toBeUndefined();
+    expect(appConfig.ios?.buildNumber).toBeUndefined();
+  });
+
+  it('evaluates to the same version inside an EAS production build', async () => {
+    vi.resetModules();
+    vi.stubEnv('EAS_BUILD', 'true');
+    vi.stubEnv('EAS_BUILD_PROFILE', 'production');
+    vi.stubEnv('ZAP_ENV_CLIENT_TARGET', 'expo');
+
+    try {
+      const evaluated = (await import('../app.config')).default;
+
+      expect(evaluated.version).toBe(appConfig.version);
+      expect(evaluated.ios?.version).toBeUndefined();
+      expect(evaluated.ios?.buildNumber).toBeUndefined();
+    } finally {
+      vi.unstubAllEnvs();
+      vi.resetModules();
+    }
   });
 
   it('launches development clients against the shared Metro server', () => {
@@ -210,6 +244,9 @@ describe('evaluated native config (plugin end-state)', () => {
       assertMissingModProviders: false,
     });
     expect(modded.ios?.infoPlist?.UIBackgroundModes).toContain('audio');
+    // Prebuild's built-in withVersion plugin (not part of the introspect mod
+    // set) writes CFBundleShortVersionString from exactly this function.
+    expect(IOSConfig.Version.getVersion(exp)).toBe(appConfig.version);
     // `ios.associatedDomains` is mapped to the
     // `com.apple.developer.associated-domains` entitlement by Expo's built-in
     // `withAssociatedDomains` during prebuild. `compileModsAsync` with

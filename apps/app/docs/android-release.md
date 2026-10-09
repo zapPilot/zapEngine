@@ -202,18 +202,23 @@ command publish directly to all users.
 workflow. The iOS-only prerequisites and build-number guard are documented in
 [ios-release.md](./ios-release.md).
 
-It needs one repository secret, `EXPO_TOKEN` — an Expo **robot** access token.
-The keystore, Play service-account key, App Store Connect key, and production
-environment variables remain on EAS.
+Android needs one repository secret, `EXPO_TOKEN` — an Expo **robot** access
+token. iOS additionally needs the `ios-release` GitHub environment secrets
+(`APPLE_API_KEY_P8`, `APPLE_API_KEY_ID`, `APPLE_API_ISSUER`) used to resolve the
+App Version from App Store Connect; see
+[ios-release.md](./ios-release.md#app-version-policy). The keystore, Play
+service-account key, App Store Connect submit key, and production environment
+variables remain on EAS.
 
 Trigger it from the repository's **Actions** tab with these inputs:
 
-| Input              | Values / usage                                                 |
-| ------------------ | -------------------------------------------------------------- |
-| `platform`         | `android`, `ios`, `both`                                       |
-| `mode`             | `build-and-submit`, `build-only`, `submit-only`                |
-| `android_build_id` | Exact EAS Android build ID; required for Android `submit-only` |
-| `ios_build_id`     | Exact EAS iOS build ID; required for iOS `submit-only`         |
+| Input                | Values / usage                                                 |
+| -------------------- | -------------------------------------------------------------- |
+| `platform`           | `android`, `ios`, `both`                                       |
+| `mode`               | `build-and-submit`, `build-only`, `submit-only`                |
+| `android_build_id`   | Exact EAS Android build ID; required for Android `submit-only` |
+| `ios_build_id`       | Exact EAS iOS build ID; required for iOS `submit-only`         |
+| `ios_version_policy` | `auto` (default), `keep`, `bump-patch`; iOS App Version policy |
 
 Build and submit are separate jobs. Each build job writes the EAS build ID to a
 job output, and its submit job consumes that exact value. A failed submission can
