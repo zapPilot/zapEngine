@@ -144,6 +144,7 @@ const activity = defendActivity();
 export const CHAPTER_COPY = [
   {
     title: 'Start',
+    capability: planned('tokenized-equities'),
     rule: 'Starting split',
     body: startSplitBody(),
   },
