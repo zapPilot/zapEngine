@@ -82,6 +82,8 @@ def _bounded(instance: Any, schema: dict[str, Any], path: str) -> list[str]:
             problems.append(f"{path}: not above {schema['exclusiveMinimum']}")
         if "maximum" in schema and instance > schema["maximum"]:
             problems.append(f"{path}: above {schema['maximum']}")
+        if "exclusiveMaximum" in schema and instance >= schema["exclusiveMaximum"]:
+            problems.append(f"{path}: not below {schema['exclusiveMaximum']}")
     if isinstance(instance, str):
         if "minLength" in schema and len(instance) < schema["minLength"]:
             problems.append(f"{path}: shorter than {schema['minLength']}")

@@ -16,6 +16,7 @@ from pydantic import ValidationError
 from src.services.backtesting.spec.common import ProceedsSpec
 from src.services.backtesting.spec.model import StrategySpec
 from src.services.backtesting.spec.rules import (
+    RULE_KINDS,
     DmaCrossDownExit,
     DmaOverextensionTrim,
     FgiDownshiftTrim,
@@ -23,19 +24,11 @@ from src.services.backtesting.spec.rules import (
     RatioDeviationRotation,
     RotationLeg,
     RuleModel,
+    TechnicalTrim,
 )
+from src.services.backtesting.spec.triggers import TRIGGER_SIGNALS
 
 _SHARE_TOLERANCE = 1e-9
-_RULE_KINDS = frozenset(
-    {
-        "dma_cross_down_exit",
-        "dma_cross_up_rebalance",
-        "ratio_cross_rotation",
-        "ratio_deviation_rotation",
-        "dma_overextension_trim",
-        "fgi_downshift_trim",
-    }
-)
 
 
 @dataclass(frozen=True)
@@ -86,10 +79,12 @@ def _structural_issues(error: ValidationError) -> list[SpecIssue]:
 
 
 def _without_kind_tags(location: tuple[int | str, ...]) -> list[int | str]:
-    """Drop the union tag pydantic inserts after a list index."""
+    """Drop the union tags pydantic inserts: after a list index and after a trigger."""
     kept: list[int | str] = []
     for part in location:
-        if kept and isinstance(kept[-1], int) and part in _RULE_KINDS:
+        if kept and isinstance(kept[-1], int) and part in RULE_KINDS:
+            continue
+        if kept and kept[-1] == "trigger" and part in TRIGGER_SIGNALS:
             continue
         kept.append(part)
     return kept
@@ -136,7 +131,7 @@ def _rule_issues(pointer: str, rule: RuleModel) -> Iterator[SpecIssue]:
         yield from _rotation_leg_issues(f"{pointer}/cross_down", rule.cross_down)
     elif isinstance(rule, RatioDeviationRotation):
         yield from _deviation_issues(pointer, rule)
-    elif isinstance(rule, DmaOverextensionTrim):
+    elif isinstance(rule, DmaOverextensionTrim | TechnicalTrim):
         yield from _proceeds_issues(f"{pointer}/proceeds", rule.proceeds)
     elif isinstance(rule, FgiDownshiftTrim):
         yield from _fgi_downshift_issues(pointer, rule)

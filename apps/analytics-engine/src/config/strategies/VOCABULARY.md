@@ -139,6 +139,152 @@ Fires when an asset's fear/greed regime was in `from_regimes` the day before and
 | `proceeds.to[].asset` | `"SPY"` \| `"BTC"` \| `"ETH"` | Asset that receives part of the proceeds. |
 | `proceeds.to[].share` | number (> 0.0, <= 1.0) | Fraction of the proceeds that goes to the asset. *(tunable)* |
 
+### `technical_trim`
+
+Sells a slice of an asset above its DMA when a technical signal fires.
+
+A research kind: the reference uses none. Fires when `trigger` holds for an asset that is above its DMA, and sells `sell_step` of the portfolio from each such asset, routing the proceeds as `proceeds` says.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | string `^[a-z][a-z0-9_]{2,47}$` | Name of the rule in decision traces. |
+| `cooldown_days` | integer (>= 0, <= 365) | Days the rule stays off after it trades. *(tunable)* |
+| `sell_step` | number (> 0.0, <= 1.0) | Share of the portfolio sold per matching asset. *(tunable)* |
+| `trigger` | object, one of the triggers below | The technical signal, read for each asset that is above its DMA. |
+| `proceeds` | object | Where the cash from the sales goes. |
+| `proceeds.to` | array of object | Assets that receive a share of the proceeds, in order. |
+| `proceeds.to[].asset` | `"SPY"` \| `"BTC"` \| `"ETH"` | Asset that receives part of the proceeds. |
+| `proceeds.to[].share` | number (> 0.0, <= 1.0) | Fraction of the proceeds that goes to the asset. *(tunable)* |
+
+### `technical_add`
+
+Buys into an asset above its DMA, out of stable, when a technical signal fires.
+
+A research kind: the reference uses none. Fires when `trigger` holds for an asset that is above its DMA, and buys `buy_step` of the portfolio into each such asset out of stable (scaled down together when stable is short).
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | string `^[a-z][a-z0-9_]{2,47}$` | Name of the rule in decision traces. |
+| `cooldown_days` | integer (>= 0, <= 365) | Days the rule stays off after it trades. *(tunable)* |
+| `buy_step` | number (> 0.0, <= 1.0) | Share of the portfolio bought per matching asset, out of stable. *(tunable)* |
+| `trigger` | object, one of the triggers below | The technical signal, read for each asset that is above its DMA. |
+
+## Triggers
+
+A `trigger` names a technical signal by its `signal` and gives the level it fires at. A rule reads it for each asset that is above its DMA, from that asset's own close history.
+
+### `rsi_bearish_divergence`
+
+Price makes a newer high while the trailing RSI fails to confirm it.
+
+The last 28 closes are split into an older and a newer 14-day segment. The newer high is at least 1% above the older one while the RSI(14) at it is at least 3 points lower. Both segments are already observed, so it never looks ahead.
+
+It has no fields.
+
+### `rsi_bullish_divergence`
+
+Price makes a newer low while the trailing RSI refuses to follow it down.
+
+The mirror image: the newer low is at least 1% below the older one while the RSI(14) at it is at least 3 points higher.
+
+It has no fields.
+
+### `rsi_overbought_turning_down`
+
+RSI(14) is overbought and its five-day slope has turned down.
+
+RSI(14) is at or above `rsi_at_least` and has fallen over the last five days.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `rsi_at_least` | number (> 0.0, < 100.0) | RSI(14) level at or above which the asset counts as overbought. *(tunable)* |
+
+### `rsi_oversold_recovering`
+
+RSI(14) is oversold and its five-day slope has turned up.
+
+RSI(14) is at or below `rsi_at_most` and has risen over the last five days.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `rsi_at_most` | number (> 0.0, < 100.0) | RSI(14) level at or below which the asset counts as oversold. *(tunable)* |
+
+### `macd_bearish_cross`
+
+The MACD(12, 26, 9) histogram crosses below zero today.
+
+The MACD(12, 26, 9) histogram was at or above zero yesterday and is below it today. Needs 35 closes of history.
+
+It has no fields.
+
+### `macd_bullish_cross`
+
+The MACD(12, 26, 9) histogram crosses above zero today.
+
+The MACD(12, 26, 9) histogram was at or below zero yesterday and is above it today. Needs 35 closes of history.
+
+It has no fields.
+
+### `momentum_breakdown`
+
+Short-term momentum has turned down while the longer trend still stands.
+
+The 30-day price change is below `short_momentum_below` while the 90-day price change is above `long_momentum_above`: a short-term reversal inside a longer trend. Needs 91 closes of history.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `short_momentum_below` | number (>= -1.0, <= 5.0) | 30-day price change must be below this (a fraction, 0.1 is 10%). *(tunable)* |
+| `long_momentum_above` | number (>= -1.0, <= 5.0) | 90-day price change must be above this (a fraction). *(tunable)* |
+
+### `volatility_spike`
+
+Annualized 20-day realized volatility is at or above the asset's level.
+
+The annualized volatility of the last 20 daily log returns is at or above the asset's level in `thresholds`.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `thresholds` | object | Annualized volatility per asset (0.8 is 80%). |
+| `thresholds.SPY` | number (> 0.0, <= 10.0) | Volatility at which SPY counts as spiking. *(tunable)* |
+| `thresholds.BTC` | number (> 0.0, <= 10.0) | Volatility at which BTC counts as spiking. *(tunable)* |
+| `thresholds.ETH` | number (> 0.0, <= 10.0) | Volatility at which ETH counts as spiking. *(tunable)* |
+
+### `bollinger_upper_band`
+
+The 20-day Bollinger z-score has reached the upper band.
+
+The 20-day Bollinger z-score (the close's distance from its 20-day mean, in standard deviations) is at or above `zscore_at_least`.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `zscore_at_least` | number (> 0.0, <= 10.0) | Standard deviations above the 20-day mean at which it fires. *(tunable)* |
+
+### `bollinger_lower_band`
+
+The 20-day Bollinger z-score has reached the lower band.
+
+The 20-day Bollinger z-score is at or below `zscore_at_most`, which is negative.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `zscore_at_most` | number (>= -10.0, < 0.0) | Standard deviations below the 20-day mean at which it fires. *(tunable)* |
+
+### `breakout_20d`
+
+Today's close is above the highest close of the 20 days before it.
+
+Today's close is above every close of the 20 days before it.
+
+It has no fields.
+
+### `breakdown_20d`
+
+Today's close is below the lowest close of the 20 days before it.
+
+Today's close is below every close of the 20 days before it.
+
+It has no fields.
+
 ## Guards
 
 `trade_quota` turns the day into a hold when a trade-frequency limit is reached, whichever rule decided.

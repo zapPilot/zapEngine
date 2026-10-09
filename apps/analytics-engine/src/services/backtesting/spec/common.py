@@ -36,6 +36,15 @@ SellStep = Annotated[
         json_schema_extra=TUNABLE,
     ),
 ]
+BuyStep = Annotated[
+    float,
+    Field(
+        gt=0.0,
+        le=1.0,
+        description="Share of the portfolio bought per matching asset, out of stable.",
+        json_schema_extra=TUNABLE,
+    ),
+]
 
 
 class SpecModel(BaseModel):
@@ -150,6 +159,7 @@ __all__ = [
     "Asset",
     "AssetCooldowns",
     "AssetThresholds",
+    "BuyStep",
     "Holding",
     "ProceedsShare",
     "ProceedsSpec",

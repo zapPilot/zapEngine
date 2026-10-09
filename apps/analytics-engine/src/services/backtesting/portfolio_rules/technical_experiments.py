@@ -6,14 +6,15 @@ canonical default rule set. Their priorities stay below the existing default
 rules in precedence (numerically above them), so default + experiment runs keep
 canonical decisions first and use technical rules as an additive fallback layer.
 
-Every experiment differs from its siblings only in the predicate that selects
-matching assets, so the rules are declared as one table over two shared
-buy/sell shapes rather than as one class per indicator.
+Every experiment differs from its siblings only in the trigger that selects
+matching assets (``portfolio_rules/technical_triggers.py``), so the rules are
+declared as one table over two shared buy/sell shapes rather than as one class
+per indicator. A strategy spec writes the same pair as ``technical_trim`` and
+``technical_add``.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import asdict, dataclass, field, replace
 from typing import TYPE_CHECKING
 
@@ -23,102 +24,29 @@ from src.services.backtesting.portfolio_rules.base import (
     DcaSellRuleBase,
     PortfolioRule,
     PortfolioSnapshot,
+    ProceedsRouting,
+    ProceedsRoutingMixin,
     above_dma_symbols,
-    add_split_proceeds,
 )
-from src.services.backtesting.signals.technical import TechnicalSignalSnapshot
+from src.services.backtesting.portfolio_rules.technical_triggers import (
+    BollingerLowerBand,
+    BollingerUpperBand,
+    Breakdown20d,
+    Breakout20d,
+    MacdBearishCross,
+    MacdBullishCross,
+    MomentumBreakdown,
+    RsiBearishDivergence,
+    RsiBullishDivergence,
+    RsiOverboughtTurningDown,
+    RsiOversoldRecovering,
+    TechnicalTrigger,
+    VolatilitySpike,
+)
 from src.services.backtesting.sizing.flat import FlatSizing
 
 if TYPE_CHECKING:
     from src.services.backtesting.sizing.base import SizingStrategy
-
-TechnicalPredicate = Callable[[str, TechnicalSignalSnapshot], bool]
-
-_RSI_OVERBOUGHT = 70.0
-_RSI_OVERSOLD = 35.0
-_BOLLINGER_ZSCORE = 2.0
-_VOLATILITY_THRESHOLDS: dict[str, float] = {"SPY": 0.30, "BTC": 0.80, "ETH": 1.00}
-
-
-def _bearish_rsi_divergence(symbol: str, technical: TechnicalSignalSnapshot) -> bool:
-    del symbol
-    return technical.bearish_rsi_divergence
-
-
-def _bullish_rsi_divergence(symbol: str, technical: TechnicalSignalSnapshot) -> bool:
-    del symbol
-    return technical.bullish_rsi_divergence
-
-
-def _macd_bearish_cross(symbol: str, technical: TechnicalSignalSnapshot) -> bool:
-    del symbol
-    return technical.macd_bearish_cross
-
-
-def _macd_bullish_cross(symbol: str, technical: TechnicalSignalSnapshot) -> bool:
-    del symbol
-    return technical.macd_bullish_cross
-
-
-def _breakout_20d(symbol: str, technical: TechnicalSignalSnapshot) -> bool:
-    del symbol
-    return technical.breakout_20d
-
-
-def _breakdown_20d(symbol: str, technical: TechnicalSignalSnapshot) -> bool:
-    del symbol
-    return technical.breakdown_20d
-
-
-def _rsi_overbought_turning_down(
-    symbol: str,
-    technical: TechnicalSignalSnapshot,
-) -> bool:
-    del symbol
-    return (
-        technical.rsi_14 is not None
-        and technical.rsi_slope_5d is not None
-        and technical.rsi_14 >= _RSI_OVERBOUGHT
-        and technical.rsi_slope_5d < 0.0
-    )
-
-
-def _rsi_oversold_recovering(symbol: str, technical: TechnicalSignalSnapshot) -> bool:
-    del symbol
-    return (
-        technical.rsi_14 is not None
-        and technical.rsi_slope_5d is not None
-        and technical.rsi_14 <= _RSI_OVERSOLD
-        and technical.rsi_slope_5d > 0.0
-    )
-
-
-def _momentum_breakdown(symbol: str, technical: TechnicalSignalSnapshot) -> bool:
-    del symbol
-    return (
-        technical.momentum_30d is not None
-        and technical.momentum_90d is not None
-        and technical.momentum_30d < 0.0
-        and technical.momentum_90d > 0.0
-    )
-
-
-def _volatility_spike(symbol: str, technical: TechnicalSignalSnapshot) -> bool:
-    volatility = technical.realized_volatility_20d
-    threshold = _VOLATILITY_THRESHOLDS.get(symbol)
-    return volatility is not None and threshold is not None and volatility >= threshold
-
-
-def _bollinger_upper_band(symbol: str, technical: TechnicalSignalSnapshot) -> bool:
-    del symbol
-    zscore = technical.bollinger_zscore_20
-    return zscore is not None and zscore >= _BOLLINGER_ZSCORE
-
-
-def _bollinger_lower_band(symbol: str, technical: TechnicalSignalSnapshot) -> bool:
-    del symbol
-    zscore = technical.bollinger_zscore_20
-    return zscore is not None and zscore <= -_BOLLINGER_ZSCORE
 
 
 @dataclass(frozen=True)
@@ -128,7 +56,7 @@ class _TechnicalRuleFields:
     name: str
     priority: int
     description: str
-    predicate: TechnicalPredicate
+    predicate: TechnicalTrigger
     cooldown_days: int = 7
     rule_group: RuleGroup = "dma_fgi"
     sizing: SizingStrategy = field(default_factory=FlatSizing)
@@ -160,14 +88,11 @@ class _TechnicalRuleFields:
 
 
 @dataclass(frozen=True)
-class TechnicalDcaSellRule(_TechnicalRuleFields, DcaSellRuleBase):
-    """Trim matching assets and split the proceeds between SPY and stable."""
+class TechnicalDcaSellRule(_TechnicalRuleFields, ProceedsRoutingMixin, DcaSellRuleBase):
+    """Trim matching assets and route the proceeds (half to SPY, the rest stable)."""
 
     sell_step: float = 0.05
-    spy_share: float = 0.5
-
-    def proceeds_handler(self, target: dict[str, float], sold: float) -> None:
-        add_split_proceeds(target, sold, spy_share=self.spy_share)
+    proceeds: ProceedsRouting = ProceedsRouting(to=(("SPY", 0.5),))
 
 
 @dataclass(frozen=True)
@@ -185,7 +110,7 @@ TECHNICAL_EXPERIMENT_RULES: tuple[PortfolioRule, ...] = (
             "Research-only trim when price makes a newer high while trailing RSI "
             "fails to confirm it."
         ),
-        predicate=_bearish_rsi_divergence,
+        predicate=RsiBearishDivergence(),
     ),
     TechnicalDcaSellRule(
         name="rsi_overbought_dca_sell",
@@ -194,7 +119,7 @@ TECHNICAL_EXPERIMENT_RULES: tuple[PortfolioRule, ...] = (
             "Research-only trim when RSI is overbought and its five-day slope "
             "turns down."
         ),
-        predicate=_rsi_overbought_turning_down,
+        predicate=RsiOverboughtTurningDown(),
     ),
     TechnicalDcaSellRule(
         name="momentum_breakdown_dca_sell",
@@ -203,7 +128,7 @@ TECHNICAL_EXPERIMENT_RULES: tuple[PortfolioRule, ...] = (
             "Research-only trim when 30-day momentum turns negative while 90-day "
             "momentum remains positive."
         ),
-        predicate=_momentum_breakdown,
+        predicate=MomentumBreakdown(),
     ),
     TechnicalDcaSellRule(
         name="volatility_spike_dca_sell",
@@ -212,7 +137,7 @@ TECHNICAL_EXPERIMENT_RULES: tuple[PortfolioRule, ...] = (
             "Research-only trim when annualized 20-day realized volatility exceeds "
             "an asset-specific threshold."
         ),
-        predicate=_volatility_spike,
+        predicate=VolatilitySpike(),
     ),
     TechnicalDcaBuyRule(
         name="rsi_bullish_divergence_dca_buy",
@@ -221,7 +146,7 @@ TECHNICAL_EXPERIMENT_RULES: tuple[PortfolioRule, ...] = (
             "Research-only buy-the-dip rule for bullish RSI divergence while the "
             "asset remains above its long-term trend."
         ),
-        predicate=_bullish_rsi_divergence,
+        predicate=RsiBullishDivergence(),
     ),
     TechnicalDcaBuyRule(
         name="rsi_oversold_recovery_dca_buy",
@@ -230,43 +155,43 @@ TECHNICAL_EXPERIMENT_RULES: tuple[PortfolioRule, ...] = (
             "Research-only buy-the-dip rule when RSI is oversold and starts "
             "recovering without breaking the long-term trend."
         ),
-        predicate=_rsi_oversold_recovering,
+        predicate=RsiOversoldRecovering(),
     ),
     TechnicalDcaSellRule(
         name="macd_bearish_cross_dca_sell",
         priority=66,
         description="Research-only trim on a bearish MACD histogram zero cross.",
-        predicate=_macd_bearish_cross,
+        predicate=MacdBearishCross(),
     ),
     TechnicalDcaBuyRule(
         name="macd_bullish_cross_dca_buy",
         priority=67,
         description="Research-only buy on a bullish MACD histogram zero cross.",
-        predicate=_macd_bullish_cross,
+        predicate=MacdBullishCross(),
     ),
     TechnicalDcaSellRule(
         name="bollinger_upper_band_dca_sell",
         priority=68,
         description="Research-only trim when the 20-day Bollinger z-score reaches +2.",
-        predicate=_bollinger_upper_band,
+        predicate=BollingerUpperBand(),
     ),
     TechnicalDcaBuyRule(
         name="bollinger_lower_band_dca_buy",
         priority=69,
         description="Research-only buy when the 20-day Bollinger z-score reaches -2.",
-        predicate=_bollinger_lower_band,
+        predicate=BollingerLowerBand(),
     ),
     TechnicalDcaBuyRule(
         name="breakout_20d_dca_buy",
         priority=70,
         description="Research-only buy when price closes above the prior 20-day high.",
-        predicate=_breakout_20d,
+        predicate=Breakout20d(),
     ),
     TechnicalDcaSellRule(
         name="breakdown_20d_dca_sell",
         priority=71,
         description="Research-only trim when price closes below the prior 20-day low.",
-        predicate=_breakdown_20d,
+        predicate=Breakdown20d(),
     ),
 )
 

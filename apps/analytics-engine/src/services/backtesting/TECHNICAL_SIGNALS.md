@@ -99,6 +99,43 @@ Use `enabled_rules` to isolate one rule or compose it with selected existing
 rules. Compare ROI, Sharpe, Calmar, max drawdown, trade count, and behavior-event
 traces; do not promote a signal based on ROI alone.
 
+## In a strategy spec
+
+A strategy spec (`src/config/strategies/`, see `VOCABULARY.md`) writes the same
+twelve rules as two kinds, `technical_trim` and `technical_add`, each with a
+`trigger` that names the signal and states the level it fires at. Nothing is
+defaulted, so a spec that uses `rsi_overbought_turning_down` says `rsi_at_least`
+(the old rule used 70). The triggers are the conditions in
+`portfolio_rules/technical_triggers.py`; the table below is the old rule names
+written as spec rules (with the old default levels, a 7-day cooldown, a 0.05 step
+and, for a trim, half of the proceeds into SPY):
+
+| Old rule                          | Kind             | `trigger.signal`              | Levels                                            |
+| --------------------------------- | ---------------- | ----------------------------- | ------------------------------------------------- |
+| `rsi_bearish_divergence_dca_sell` | `technical_trim` | `rsi_bearish_divergence`      |                                                   |
+| `rsi_overbought_dca_sell`         | `technical_trim` | `rsi_overbought_turning_down` | `rsi_at_least` 70                                 |
+| `momentum_breakdown_dca_sell`     | `technical_trim` | `momentum_breakdown`          | `short_momentum_below` 0, `long_momentum_above` 0 |
+| `volatility_spike_dca_sell`       | `technical_trim` | `volatility_spike`            | `thresholds` SPY 0.30, BTC 0.80, ETH 1.00         |
+| `rsi_bullish_divergence_dca_buy`  | `technical_add`  | `rsi_bullish_divergence`      |                                                   |
+| `rsi_oversold_recovery_dca_buy`   | `technical_add`  | `rsi_oversold_recovering`     | `rsi_at_most` 35                                  |
+| `macd_bearish_cross_dca_sell`     | `technical_trim` | `macd_bearish_cross`          |                                                   |
+| `macd_bullish_cross_dca_buy`      | `technical_add`  | `macd_bullish_cross`          |                                                   |
+| `bollinger_upper_band_dca_sell`   | `technical_trim` | `bollinger_upper_band`        | `zscore_at_least` 2                               |
+| `bollinger_lower_band_dca_buy`    | `technical_add`  | `bollinger_lower_band`        | `zscore_at_most` -2                               |
+| `breakout_20d_dca_buy`            | `technical_add`  | `breakout_20d`                |                                                   |
+| `breakdown_20d_dca_sell`          | `technical_trim` | `breakdown_20d`               |                                                   |
+
+A rule listed after the default rules decides only on days they do not, exactly as
+the old priorities ranked it. `tests/services/backtesting/spec/test_legacy_composition_parity.py`
+builds the old `enabled_rules` combinations (each research rule on top of the
+defaults and alone, the SPY latch, the trade quota guard, the greed multipliers)
+and the equivalent specs, and requires the same strategy day by day. The levels are
+tunable leaves, so `strategy-lab liveness` and `sweep` can move them; on the
+synthetic histories every level of the rules that decide there changes some
+decision. The `volatility_spike` levels the old rule shipped with are never
+reached on them, so that rule's other fields show as dead until the levels are
+lowered: that is the check doing its job.
+
 ## Local validation
 
 The focused behavioral suite for these signals and rules:

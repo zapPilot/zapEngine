@@ -122,6 +122,10 @@ def _leaf(value, **bounds) -> Leaf:
         (_leaf(5.0, high=6.0, high_open=True), {"down": 2.5, "up": 5.5}),
         (_leaf(5, high=6.0, high_open=True), {"down": 2}),
         (_leaf(5, low=4.0), {"down": 4, "up": 10}),
+        # A float at zero has nothing to scale: it moves by a tenth of its span.
+        (_leaf(0.0, low=-1.0, high=5.0), {"down": -0.6, "up": 0.6}),
+        (_leaf(0.0), {"down": -0.1, "up": 0.1}),
+        (_leaf(0.0, low=0.0, high=2.0), {"up": 0.2}),
     ],
 )
 def test_perturbations_stay_inside_the_bounds(leaf: Leaf, expected: dict) -> None:
@@ -265,15 +269,13 @@ def test_the_report_names_its_evidence(spec, bundles) -> None:
     assert probe["days_differing"] == {"regimes": 0, "stress": 108}
 
 
-def test_a_knob_that_cannot_be_perturbed_is_listed_unprobed(spec, bundles) -> None:
-    raw = reference_raw()
-    for rule in raw["rules"]:
-        if rule["kind"] == "dma_overextension_trim":
-            rule["fgi_multipliers"]["extreme_fear"] = 0.0
-    pinned = parse_spec(raw)
+def test_a_knob_with_no_perturbation_is_still_listed_as_unprobed(
+    spec, bundles, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(liveness_module, "perturbations", lambda leaf: {})
 
     report = liveness(
-        pinned,
+        spec,
         {"regimes": bundles["regimes"]},
         {"regimes"},
         only=["/rules[dma_overextension_dca_sell]/fgi_multipliers/extreme_fear"],

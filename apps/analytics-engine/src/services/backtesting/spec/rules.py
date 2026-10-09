@@ -7,7 +7,7 @@ rule that matches decides.
 
 from __future__ import annotations
 
-from typing import Annotated, Literal
+from typing import Annotated, Literal, get_args
 
 from pydantic import Field, field_validator
 
@@ -31,10 +31,15 @@ from src.services.backtesting.portfolio_rules.fgi_downshift_dca_sell import (
     FgiDownshiftDcaSellRule,
 )
 from src.services.backtesting.portfolio_rules.spy_latch import SpyLatchRule
+from src.services.backtesting.portfolio_rules.technical_experiments import (
+    TechnicalDcaBuyRule,
+    TechnicalDcaSellRule,
+)
 from src.services.backtesting.spec.common import (
     TUNABLE,
     Asset,
     AssetThresholds,
+    BuyStep,
     Holding,
     ProceedsSpec,
     Regime,
@@ -45,6 +50,7 @@ from src.services.backtesting.spec.common import (
     Slug,
     SpecModel,
 )
+from src.services.backtesting.spec.triggers import TriggerSpec
 
 REGIME_ORDER: tuple[Regime, ...] = (
     "extreme_fear",
@@ -263,6 +269,52 @@ class FgiDownshiftTrim(SpecModel):
         )
 
 
+class TechnicalTrim(SpecModel):
+    """Sells a slice of an asset above its DMA when a technical signal fires."""
+
+    kind: Literal["technical_trim"]
+    id: RuleId
+    cooldown_days: RuleCooldown
+    sell_step: SellStep
+    trigger: TriggerSpec = Field(
+        description="The technical signal, read for each asset that is above its DMA.",
+    )
+    proceeds: ProceedsSpec = Field(description="Where the cash from the sales goes.")
+
+    def to_rule(self, priority: int) -> PortfolioRule:
+        return TechnicalDcaSellRule(
+            name=self.id,
+            priority=priority,
+            description=_research_description("trim", self.trigger.signal),
+            predicate=self.trigger.to_trigger(),
+            cooldown_days=self.cooldown_days,
+            sell_step=self.sell_step,
+            proceeds=self.proceeds.to_routing(),
+        )
+
+
+class TechnicalAdd(SpecModel):
+    """Buys into an asset above its DMA, out of stable, when a technical signal fires."""
+
+    kind: Literal["technical_add"]
+    id: RuleId
+    cooldown_days: RuleCooldown
+    buy_step: BuyStep
+    trigger: TriggerSpec = Field(
+        description="The technical signal, read for each asset that is above its DMA.",
+    )
+
+    def to_rule(self, priority: int) -> PortfolioRule:
+        return TechnicalDcaBuyRule(
+            name=self.id,
+            priority=priority,
+            description=_research_description("buy", self.trigger.signal),
+            predicate=self.trigger.to_trigger(),
+            cooldown_days=self.cooldown_days,
+            buy_step=self.buy_step,
+        )
+
+
 RuleModel = (
     DmaCrossDownExit
     | DmaCrossUpRebalance
@@ -270,8 +322,14 @@ RuleModel = (
     | RatioDeviationRotation
     | DmaOverextensionTrim
     | FgiDownshiftTrim
+    | TechnicalTrim
+    | TechnicalAdd
 )
 RuleSpec = Annotated[RuleModel, Field(discriminator="kind")]
+# The tag each model carries, as pydantic reports it in an error location.
+RULE_KINDS: frozenset[str] = frozenset(
+    get_args(model.model_fields["kind"].annotation)[0] for model in get_args(RuleModel)
+)
 
 
 class SpyLatchOverlay(SpecModel):
@@ -297,6 +355,10 @@ class SpyLatchOverlay(SpecModel):
 OverlaySpec = SpyLatchOverlay
 
 
+def _research_description(verb: str, signal: str) -> str:
+    return f"Research-only {verb} on the {signal} signal."
+
+
 def _keys(holdings: tuple[Holding, ...]) -> tuple[str, ...]:
     return tuple(holding.lower() for holding in holdings)
 
@@ -314,9 +376,12 @@ __all__ = [
     "FgiDownshiftTrim",
     "OverlaySpec",
     "REGIME_ORDER",
+    "RULE_KINDS",
     "RatioCrossRotation",
     "RatioDeviationRotation",
     "RuleModel",
     "RuleSpec",
     "SpyLatchOverlay",
+    "TechnicalAdd",
+    "TechnicalTrim",
 ]

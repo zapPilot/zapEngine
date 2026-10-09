@@ -9,12 +9,15 @@ from src.services.backtesting.spec.loader import STRATEGIES_DIR
 from src.services.backtesting.spec.schema_export import (
     KIND_SEMANTICS,
     SCHEMA_FILENAME,
+    TRIGGER_SEMANTICS,
     VOCABULARY_FILENAME,
     render_schema,
     render_vocabulary,
     spec_json_schema,
 )
 from tests.services.backtesting.spec.helpers import (
+    SPY_LATCH,
+    TECHNICAL_RULES,
     reference_raw,
     rule_index,
     with_value,
@@ -85,6 +88,59 @@ def test_a_null_leg_satisfies_the_schema() -> None:
     assert violations(raw, spec_json_schema("llm")) == []
 
 
+def _with_research_rules() -> dict[str, Any]:
+    raw = reference_raw()
+    raw["rules"] = [*raw["rules"], *TECHNICAL_RULES.values()]
+    raw["overlays"] = [dict(SPY_LATCH)]
+    raw["guards"] = [
+        {
+            "kind": "trade_quota",
+            "min_trade_interval_days": None,
+            "max_trades_7d": 3,
+            "max_trades_30d": None,
+        }
+    ]
+    return raw
+
+
+def test_a_spec_with_every_research_rule_satisfies_the_schema() -> None:
+    assert violations(_with_research_rules(), spec_json_schema("llm")) == []
+
+
+@pytest.mark.parametrize(
+    ("mutate", "fragment"),
+    [
+        (
+            lambda raw: with_value(raw, ("rules", 6, "trigger", "rsi_at_least"), 100.0),
+            "/rules/6: matches 0 of oneOf",
+        ),
+        (
+            lambda raw: with_value(raw, ("rules", 6, "trigger", "signal"), "astrology"),
+            "/rules/6: matches 0 of oneOf",
+        ),
+        (
+            lambda raw: with_value(raw, ("rules", 6, "trigger", "extra"), 1),
+            "/rules/6: matches 0 of oneOf",
+        ),
+        (
+            lambda raw: without(raw, ("rules", 6, "trigger")),
+            "/rules/6: matches 0 of oneOf",
+        ),
+    ],
+    ids=["level-out-of-range", "unknown-signal", "unknown-key", "missing-trigger"],
+)
+def test_the_schema_rejects_a_bad_trigger(mutate: Any, fragment: str) -> None:
+    raw = _with_research_rules()
+    assert raw["rules"][6]["id"] == "rsi_bearish_divergence_dca_sell"
+    raw["rules"][6]["trigger"] = dict(
+        TECHNICAL_RULES["rsi_overbought_dca_sell"]["trigger"]
+    )
+
+    problems = violations(mutate(raw), spec_json_schema("llm"))
+
+    assert any(fragment in problem for problem in problems), problems
+
+
 @pytest.mark.parametrize(
     ("mutate", "fragment"),
     [
@@ -142,3 +198,21 @@ def test_every_rule_kind_is_explained() -> None:
 
     assert set(KIND_SEMANTICS) == kinds
     assert all(f"### `{kind}`" in vocabulary for kind in kinds)
+
+
+def test_every_trigger_signal_is_explained() -> None:
+    schema = spec_json_schema("llm")
+    trim = next(
+        branch
+        for branch in schema["properties"]["rules"]["items"]["oneOf"]
+        if branch["properties"]["kind"]["const"] == "technical_trim"
+    )
+    signals = {
+        branch["properties"]["signal"]["const"]
+        for branch in trim["properties"]["trigger"]["oneOf"]
+    }
+    vocabulary = render_vocabulary()
+
+    assert set(TRIGGER_SEMANTICS) == signals
+    assert all(f"### `{signal}`" in vocabulary for signal in signals)
+    assert "It has no fields." in vocabulary

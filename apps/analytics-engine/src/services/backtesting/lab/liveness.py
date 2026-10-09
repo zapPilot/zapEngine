@@ -40,6 +40,8 @@ UNPROBED = "unprobed"
 # Lists whose elements are named by their ``id`` (or ``kind``) in a pointer.
 _KEYED_LISTS = frozenset({"rules", "overlays", "guards"})
 _DECIMALS = 6
+# How far a float at zero moves, as a share of the span its bounds allow (or of 1).
+_ZERO_STEP_SHARE = 0.1
 
 
 @dataclass(frozen=True)
@@ -102,13 +104,20 @@ def _leaf(path: str, value: Any, info: FieldInfo) -> Leaf:
 
 
 def perturbations(leaf: Leaf) -> dict[str, Any]:
-    """The values worth trying instead of ``leaf.value``, by direction."""
+    """The values worth trying instead of ``leaf.value``, by direction.
+
+    Numbers move by half and by half again as much; a float at zero has nothing
+    to scale, so it moves by a tenth of the span its bounds allow.
+    """
     value = leaf.value
     if isinstance(value, bool):
         return {"flip": not value}
     candidates: dict[str, Any]
     if isinstance(value, int):
         candidates = {"down": value // 2, "up": value * 2 if value else 1}
+    elif value == 0.0:
+        step = _zero_step(leaf)
+        candidates = {"down": -step, "up": step}
     else:
         candidates = {"down": value * 0.5, "up": value * 1.5}
     fitted = {
@@ -120,6 +129,12 @@ def perturbations(leaf: Leaf) -> dict[str, Any]:
         for direction, candidate in fitted.items()
         if candidate is not None and candidate != value
     }
+
+
+def _zero_step(leaf: Leaf) -> float:
+    if leaf.low is None or leaf.high is None:
+        return _ZERO_STEP_SHARE
+    return _ZERO_STEP_SHARE * (leaf.high - leaf.low)
 
 
 def _fit(candidate: float, leaf: Leaf, *, integer: bool) -> float | None:
