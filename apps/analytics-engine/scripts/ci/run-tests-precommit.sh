@@ -96,10 +96,17 @@ parse_args() {
     done
 }
 
+# postgres:15-alpine declares VOLUME /var/lib/postgresql/data, so every container this
+# runner creates owns an anonymous volume. Remove that volume together with the
+# container, or each run leaves one dangling volume behind.
+remove_managed_container() {
+    docker rm -f -v "$POSTGRES_CONTAINER" > /dev/null 2>&1 || true
+}
+
 cleanup_postgres() {
     if [[ "${CREATED_NEW_CONTAINER:-false}" == "true" ]]; then
         printf '%b\n' "${YELLOW}[Pre-commit Tests] Cleaning up ephemeral container...${NC}"
-        docker rm -f "$POSTGRES_CONTAINER" > /dev/null 2>&1 || true
+        remove_managed_container
     fi
     if [[ "${STARTED_LOCAL_POSTGRES:-false}" == "true" ]]; then
         printf '%b\n' "${YELLOW}[Pre-commit Tests] Stopping local PostgreSQL...${NC}"
@@ -244,7 +251,7 @@ container_publishes_expected_port() {
 
 remove_stale_managed_container() {
     printf '%b\n' "${YELLOW}[Pre-commit Tests] Removing stale PostgreSQL container '${POSTGRES_CONTAINER}' because it is not published on port ${POSTGRES_PORT}${NC}"
-    docker rm -f "$POSTGRES_CONTAINER" > /dev/null 2>&1 || true
+    remove_managed_container
     CREATED_NEW_CONTAINER=true
 }
 
@@ -255,6 +262,9 @@ start_postgres() {
             remove_stale_managed_container
         else
             printf '%b\n' "${GREEN}[Pre-commit Tests] Using existing PostgreSQL container${NC}"
+            # Another runner may have created it after our existence pre-check;
+            # never remove (or drop the volume of) a container this run did not create.
+            CREATED_NEW_CONTAINER=false
             return 0
         fi
     fi
@@ -300,7 +310,7 @@ start_postgres() {
         > /dev/null 2>&1; then
         # Container creation failed — likely port conflict; check for existing postgres on this port
         printf '%b\n' "${YELLOW}[Pre-commit Tests] Container creation failed (port ${POSTGRES_PORT} may be in use). Checking for existing PostgreSQL...${NC}"
-        docker rm -f "$POSTGRES_CONTAINER" > /dev/null 2>&1 || true
+        remove_managed_container
         CREATED_NEW_CONTAINER=false
         local existing
         existing=$(find_container_on_port "$POSTGRES_PORT")
