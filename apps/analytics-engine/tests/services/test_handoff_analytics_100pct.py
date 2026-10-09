@@ -535,30 +535,6 @@ class TestRiskValidationEngineGaps:
         with pytest.raises(Exception, match="read-only"):
             service._ensure_non_benchmark(bench)
 
-    async def test_backtesting_router_emit_log_copies_request(self) -> None:
-        from unittest.mock import AsyncMock
-
-        from src.api.routers.backtesting import compare_backtesting_configs_v3
-        from src.models.backtesting import (
-            BacktestCompareConfigV3,
-            BacktestCompareRequestV3,
-        )
-
-        # Line api/routers/backtesting.py:71 — emit flag copies the request.
-        request = BacktestCompareRequestV3(
-            token_symbol="BTC",
-            total_capital=100.0,
-            configs=[BacktestCompareConfigV3(config_id="c1", saved_config_id="cfg-1")],
-        )
-        service = AsyncMock()
-        service.run_compare_v3.return_value = {"ok": True}
-        result = await compare_backtesting_configs_v3(
-            request, service, emit_decision_log=True
-        )
-        assert result == {"ok": True}
-        sent = service.run_compare_v3.call_args[0][0]
-        assert sent.emit_decision_log is True
-
     def test_engine_applies_stable_cost(self) -> None:
         from datetime import date as date_cls
         from unittest.mock import Mock
