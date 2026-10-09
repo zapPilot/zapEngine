@@ -86,7 +86,6 @@ export type DailySuggestionActionStatus = z.infer<
 >;
 export type DailySuggestionAction = z.infer<typeof DailySuggestionActionSchema>;
 export type DailySuggestionTarget = z.infer<typeof DailySuggestionTargetSchema>;
-export type DailySuggestionModel = z.infer<typeof DailySuggestionModelSchema>;
 export type DailySuggestionStrategyContext = z.infer<
   typeof DailySuggestionStrategyContextSchema
 >;
