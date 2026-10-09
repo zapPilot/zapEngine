@@ -73,6 +73,7 @@ export const DailySuggestionResponseSchema = z.object({
   config_id: z.string(),
   config_display_name: z.string(),
   strategy_id: z.string(),
+  spec_ref: z.string(),
   action: DailySuggestionActionSchema,
   context: DailySuggestionContextSchema,
   data_freshness: MarketDataFreshnessSchema.nullable().optional(),

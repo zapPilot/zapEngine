@@ -15,10 +15,10 @@ from typing import Any
 
 from src.models.backtesting import BacktestResponse
 from src.services.backtesting.lab.bundle import Bundle
-from src.services.backtesting.lab.evaluate import spec_ref, strategy_metrics
+from src.services.backtesting.lab.evaluate import strategy_metrics
 from src.services.backtesting.lab.report import normalize
 from src.services.backtesting.lab.runner import EvalConfig, prepare, run_specs
-from src.services.backtesting.spec import StrategySpec, behavior_hash
+from src.services.backtesting.spec import StrategySpec, behavior_hash, spec_ref
 
 # Lists of objects that are addressed by a field, not by position.
 _KEYED_LISTS = {"rules": "id", "overlays": "id", "guards": "kind"}

@@ -9,43 +9,6 @@ import { BucketTransferSchema } from './bucket.js';
 import { JsonObjectSchema, JsonValueSchema, type JsonValue } from './json.js';
 import { MarketDataFreshnessSchema } from '../shared/market-freshness.js';
 
-/**
- * Public strategy params: exactly the knobs that change a decision. The pydantic
- * `DmaGatedFgiPublicParams` is the source of truth and the contract gate
- * (`strategy_params`) keeps the two identical.
- */
-export const BacktestTradeQuotaParamsV3Schema = z
-  .object({
-    min_trade_interval_days: z.number().int().min(1).nullable().optional(),
-    max_trades_7d: z.number().int().min(1).nullable().optional(),
-    max_trades_30d: z.number().int().min(1).nullable().optional(),
-  })
-  .strict();
-
-export const BacktestTopEscapeParamsV3Schema = z
-  .object({
-    overextension_threshold_multiplier_greed: z
-      .number()
-      .min(0)
-      .max(2)
-      .optional(),
-    overextension_threshold_multiplier_extreme_greed: z
-      .number()
-      .min(0)
-      .max(2)
-      .optional(),
-  })
-  .strict();
-
-export const BacktestCompareParamsV3Schema = z
-  .object({
-    trade_quota: BacktestTradeQuotaParamsV3Schema.optional(),
-    top_escape: BacktestTopEscapeParamsV3Schema.optional(),
-    disabled_rules: z.array(z.string()).optional(),
-    enabled_rules: z.array(z.string()).nullable().optional(),
-  })
-  .strict();
-
 export const BacktestAssumptionsSchema = z
   .object({
     fill_lag_days: z.number().int().min(0).max(1),
@@ -248,15 +211,6 @@ export const BacktestStrategyCatalogResponseV3Schema = z.object({
   strategies: z.array(BacktestStrategyCatalogEntryV3Schema),
 });
 
-export type BacktestTradeQuotaParamsV3 = z.infer<
-  typeof BacktestTradeQuotaParamsV3Schema
->;
-export type BacktestTopEscapeParamsV3 = z.infer<
-  typeof BacktestTopEscapeParamsV3Schema
->;
-export type BacktestCompareParamsV3 = z.infer<
-  typeof BacktestCompareParamsV3Schema
->;
 export type BacktestCompareConfigV3 = z.infer<
   typeof BacktestCompareConfigV3Schema
 >;

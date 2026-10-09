@@ -36,6 +36,15 @@ def behavior_hash(spec: StrategySpec) -> str:
     return "sha256:" + sha256(canonical_json(spec).encode()).hexdigest()
 
 
+def spec_ref(spec: StrategySpec, name: str | None = None) -> str:
+    """``name@version#hash12``: how a report, a ledger and a response name a spec.
+
+    ``name`` is the spec's own id unless the caller knows a better one, such as
+    the reference a production strategy was loaded from.
+    """
+    return f"{name or spec.id}@{spec.version}#{behavior_hash(spec).split(':')[1][:12]}"
+
+
 @dataclass(frozen=True)
 class LockEntry:
     version: int

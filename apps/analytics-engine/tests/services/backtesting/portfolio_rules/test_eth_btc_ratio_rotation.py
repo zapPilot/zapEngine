@@ -5,9 +5,6 @@ from typing import cast
 import pytest
 
 from src.services.backtesting.portfolio_rules.base import PortfolioRuleConfig
-from src.services.backtesting.portfolio_rules.eth_btc_ratio_rotation import (
-    EthBtcRatioRotationRule,
-)
 from src.services.backtesting.signals.dma_gated_fgi.types import (
     CrossEvent,
     DmaCooldownState,
@@ -15,6 +12,7 @@ from src.services.backtesting.signals.dma_gated_fgi.types import (
 )
 from src.services.backtesting.signals.ratio_state import EthBtcRatioState
 from tests.services.backtesting.portfolio_rules.helpers import snapshot
+from tests.services.backtesting.support.reference_rules import reference_rule
 
 
 def _ratio_state(
@@ -43,7 +41,7 @@ def test_rotation_cross_up_absorbs_btc_and_stable_to_eth() -> None:
         eth_btc_ratio_state=_ratio_state(actionable_cross_event="cross_up"),
     )
 
-    intent = EthBtcRatioRotationRule().build_intent(
+    intent = reference_rule("eth_btc_ratio_rotation").build_intent(
         rule_snapshot,
         config=PortfolioRuleConfig(),
     )
@@ -65,7 +63,7 @@ def test_rotation_cross_down_swaps_eth_to_btc() -> None:
         eth_btc_ratio_state=_ratio_state(actionable_cross_event="cross_down"),
     )
 
-    intent = EthBtcRatioRotationRule().build_intent(
+    intent = reference_rule("eth_btc_ratio_rotation").build_intent(
         rule_snapshot,
         config=PortfolioRuleConfig(),
     )
@@ -87,7 +85,7 @@ def test_rotation_does_not_match_without_actionable_cross() -> None:
     )
 
     assert (
-        EthBtcRatioRotationRule().matches(
+        reference_rule("eth_btc_ratio_rotation").matches(
             rule_snapshot,
             config=PortfolioRuleConfig(),
         )
@@ -96,7 +94,8 @@ def test_rotation_does_not_match_without_actionable_cross() -> None:
 
 
 def test_the_legs_of_a_rotation_are_configurable() -> None:
-    rule = EthBtcRatioRotationRule(
+    rule = reference_rule(
+        "eth_btc_ratio_rotation",
         up_sources=("btc",),
         down_sources=("eth", "stable"),
         down_destination="btc",

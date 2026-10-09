@@ -29,9 +29,6 @@ from src.models.strategy import (
     DailySuggestionStrategyContextState,
     DailySuggestionTargetState,
 )
-from src.services.backtesting.portfolio_rules import (
-    TECHNICAL_EXPERIMENT_RULE_NAMES,
-)
 from src.services.backtesting.strategy_registry import list_strategy_recipes
 from src.services.dependencies import (
     get_strategy_config_store,
@@ -96,6 +93,7 @@ def _daily_response() -> DailySuggestionResponse:
         config_id="dma_fgi_portfolio_rules_default",
         config_display_name="DMA/FGI Portfolio Rules",
         strategy_id="dma_fgi_portfolio_rules",
+        spec_ref="reference/dma_fgi@1#a22bccfabb4b",
         action=DailySuggestionActionState(
             status="blocked",
             required=False,
@@ -203,51 +201,28 @@ async def test_get_strategy_configs_returns_nested_recipe_presets(
     )
     assert default_preset["strategy_id"] == "dma_fgi_portfolio_rules"
     assert default_preset["is_default"] is True
-    assert set(cast(dict[str, object], default_preset["params"])) == {
-        "trade_quota",
-        "top_escape",
-        "disabled_rules",
-        "enabled_rules",
-    }
-    rule_names = [cast(str, rule["name"]) for rule in portfolio_rules]
-    assert rule_names == [
-        "cross_down_exit",
-        "cross_up_equal_weight",
-        "eth_btc_ratio_rotation",
-        "eth_btc_deviation_dca",
-        "spy_latch",
-        "dma_overextension_dca_sell",
-        "fgi_downshift_dca_sell",
-        "rsi_bearish_divergence_dca_sell",
-        "rsi_overbought_dca_sell",
-        "momentum_breakdown_dca_sell",
-        "volatility_spike_dca_sell",
-        "rsi_bullish_divergence_dca_buy",
-        "rsi_oversold_recovery_dca_buy",
-        "macd_bearish_cross_dca_sell",
-        "macd_bullish_cross_dca_buy",
-        "bollinger_upper_band_dca_sell",
-        "bollinger_lower_band_dca_buy",
-        "breakout_20d_dca_buy",
-        "breakdown_20d_dca_sell",
-    ]
-    technical_rules = [
-        rule
+    assert default_preset["spec_ref"] == "reference/dma_fgi"
+    assert "params" not in default_preset
+    for strategy in strategies:
+        assert strategy["default_params"] == {}
+        assert strategy["param_schema"] == {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": False,
+        }
+    # The rules the default config's spec lists, in precedence order: nothing the
+    # spec does not name is addressable.
+    assert [
+        (rule["name"], rule["priority"], isinstance(rule["description"], str))
         for rule in portfolio_rules
-        if rule["name"] in TECHNICAL_EXPERIMENT_RULE_NAMES
+    ] == [
+        ("cross_down_exit", 10, True),
+        ("cross_up_equal_weight", 20, True),
+        ("eth_btc_ratio_rotation", 30, True),
+        ("eth_btc_deviation_dca", 40, True),
+        ("dma_overextension_dca_sell", 50, True),
+        ("fgi_downshift_dca_sell", 60, True),
     ]
-    assert len(technical_rules) == len(TECHNICAL_EXPERIMENT_RULE_NAMES)
-    assert all(rule["default_enabled"] is False for rule in technical_rules)
-    spy_latch_rule = next(
-        rule for rule in portfolio_rules if rule["name"] == "spy_latch"
-    )
-    eth_btc_deviation_rule = next(
-        rule for rule in portfolio_rules if rule["name"] == "eth_btc_deviation_dca"
-    )
-    assert eth_btc_deviation_rule["default_enabled"] is True
-    assert spy_latch_rule["priority"] == 25
-    assert spy_latch_rule["default_enabled"] is False
-    assert isinstance(spy_latch_rule["description"], str)
     assert body["backtest_defaults"] == {"days": 500, "total_capital": 10000}
 
 
@@ -373,6 +348,7 @@ async def test_get_daily_suggestion_returns_shared_snapshot_shape(
 
     parsed = DailySuggestionResponse.model_validate(response.json())
     assert parsed.strategy_id == "dma_fgi_portfolio_rules"
+    assert parsed.spec_ref == "reference/dma_fgi@1#a22bccfabb4b"
     assert parsed.config_display_name == "DMA/FGI Portfolio Rules"
     assert parsed.context.signal.id == "dma_fgi_portfolio_rules_signal"
     assert parsed.context.signal.details["ath_event"] == "token_ath"

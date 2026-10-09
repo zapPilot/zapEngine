@@ -6,9 +6,6 @@ from datetime import date
 import pytest
 
 from src.services.backtesting.decision import RuleGroup
-from src.services.backtesting.portfolio_rules import (
-    DEFAULT_PORTFOLIO_RULES,
-)
 from src.services.backtesting.portfolio_rules.base import (
     DIAG_SIGNALS_CONSULTED,
     DcaBuyRuleBase,
@@ -18,8 +15,6 @@ from src.services.backtesting.portfolio_rules.base import (
     PortfolioSnapshot,
     ProceedsRouting,
     _DcaRuleBase,
-    add_split_proceeds,
-    add_stable,
     allocation_key_for_symbol,
     build_dca_buy_intent,
     current_fgi_regime_for_symbol,
@@ -31,6 +26,7 @@ from src.services.backtesting.portfolio_rules.base import (
 from src.services.backtesting.risk import TradeQuotaGuard
 from src.services.backtesting.signals.ratio_state import EthBtcRatioState
 from tests.services.backtesting.portfolio_rules.helpers import snapshot, state
+from tests.services.backtesting.support.reference_rules import reference_rules
 
 
 class _FlatSizing:
@@ -71,17 +67,17 @@ class _ConcreteDcaSellRule(DcaSellRuleBase):
         return ["BTC"] if "BTC" in snapshot.assets else []
 
     def proceeds_handler(self, target: dict[str, float], sold: float) -> None:
-        add_stable(target, sold)
+        ProceedsRouting().apply(target, sold)
 
 
-def test_default_rule_priorities_leave_room_for_new_rule_layers() -> None:
-    assert [(rule.name, rule.priority) for rule in DEFAULT_PORTFOLIO_RULES] == [
+def test_the_reference_rules_are_ranked_by_their_position_in_the_spec() -> None:
+    assert [(rule.name, rule.priority) for rule in reference_rules()] == [
         ("cross_down_exit", 10),
         ("cross_up_equal_weight", 20),
-        ("eth_btc_ratio_rotation", 21),
-        ("eth_btc_deviation_dca", 22),
-        ("dma_overextension_dca_sell", 30),
-        ("fgi_downshift_dca_sell", 50),
+        ("eth_btc_ratio_rotation", 30),
+        ("eth_btc_deviation_dca", 40),
+        ("dma_overextension_dca_sell", 50),
+        ("fgi_downshift_dca_sell", 60),
     ]
 
 
@@ -89,39 +85,29 @@ def test_trade_quota_guard_runs_before_every_rule() -> None:
     assert TradeQuotaGuard().priority == 0
 
 
-def test_add_split_proceeds_default_50_50() -> None:
+def test_proceeds_routing_splits_the_proceeds_between_its_shares_and_stable() -> None:
     target = {"spy": 0.10, "stable": 0.20}
 
-    add_split_proceeds(target, 0.10)
+    ProceedsRouting(to=(("SPY", 0.5),)).apply(target, 0.10)
 
     assert target["spy"] == pytest.approx(0.15)
     assert target["stable"] == pytest.approx(0.25)
 
 
-def test_add_split_proceeds_custom_share() -> None:
+def test_proceeds_routing_without_shares_keeps_everything_in_stable() -> None:
     target = {"spy": 0.0, "stable": 0.0}
 
-    add_split_proceeds(target, 0.10, spy_share=0.25)
+    ProceedsRouting().apply(target, 0.10)
 
-    assert target["spy"] == pytest.approx(0.025)
-    assert target["stable"] == pytest.approx(0.075)
+    assert target == {"spy": 0.0, "stable": pytest.approx(0.10)}
 
 
-def test_add_split_proceeds_skips_zero_amount() -> None:
+def test_proceeds_routing_skips_zero_amount() -> None:
     target = {"spy": 0.10, "stable": 0.20}
 
-    add_split_proceeds(target, 0.0)
+    ProceedsRouting(to=(("SPY", 0.25),)).apply(target, 0.0)
 
-    assert target["spy"] == pytest.approx(0.10)
-    assert target["stable"] == pytest.approx(0.20)
-
-
-def test_add_stable_skips_zero_amount() -> None:
-    target = {"stable": 0.20}
-
-    add_stable(target, 0.0)
-
-    assert target == {"stable": 0.20}
+    assert target == {"spy": 0.10, "stable": 0.20}
 
 
 def test_portfolio_rule_config_only_contains_cross_cutting_diagnostics_flag() -> None:

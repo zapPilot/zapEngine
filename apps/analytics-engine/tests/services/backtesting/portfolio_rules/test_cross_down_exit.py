@@ -6,12 +6,12 @@ from src.services.backtesting.portfolio_rules.base import (
     PortfolioRuleConfig,
     ProceedsRouting,
 )
-from src.services.backtesting.portfolio_rules.cross_down_exit import CrossDownExitRule
 from tests.services.backtesting.portfolio_rules.helpers import snapshot, state
+from tests.services.backtesting.support.reference_rules import reference_rule
 
 
 def test_btc_cross_down_liquidates_crypto_peers_to_stable() -> None:
-    rule = CrossDownExitRule()
+    rule = reference_rule("cross_down_exit")
     rule_snapshot = snapshot(
         assets={
             "SPY": state(symbol="SPY"),
@@ -43,7 +43,7 @@ def test_btc_cross_down_liquidates_crypto_peers_to_stable() -> None:
 def test_btc_cross_down_marks_crypto_group_for_cooldown_even_without_btc_position() -> (
     None
 ):
-    rule = CrossDownExitRule()
+    rule = reference_rule("cross_down_exit")
     rule_snapshot = snapshot(
         assets={
             "SPY": state(symbol="SPY"),
@@ -74,7 +74,7 @@ def test_btc_cross_down_marks_crypto_group_for_cooldown_even_without_btc_positio
 
 
 def test_eth_cross_down_liquidates_crypto_peers_to_stable() -> None:
-    rule = CrossDownExitRule()
+    rule = reference_rule("cross_down_exit")
     rule_snapshot = snapshot(
         assets={
             "SPY": state(symbol="SPY"),
@@ -102,7 +102,7 @@ def test_eth_cross_down_liquidates_crypto_peers_to_stable() -> None:
 def test_eth_cross_down_marks_crypto_group_for_cooldown_even_without_eth_position() -> (
     None
 ):
-    rule = CrossDownExitRule()
+    rule = reference_rule("cross_down_exit")
     rule_snapshot = snapshot(
         assets={
             "SPY": state(symbol="SPY"),
@@ -133,7 +133,7 @@ def test_eth_cross_down_marks_crypto_group_for_cooldown_even_without_eth_positio
 
 
 def test_spy_cross_down_liquidates_only_spy_to_stable() -> None:
-    rule = CrossDownExitRule()
+    rule = reference_rule("cross_down_exit")
     rule_snapshot = snapshot(
         assets={
             "SPY": state(
@@ -164,13 +164,13 @@ def test_spy_cross_down_liquidates_only_spy_to_stable() -> None:
 
 
 def test_cross_down_exit_ignores_non_cross_down_days() -> None:
-    rule = CrossDownExitRule()
+    rule = reference_rule("cross_down_exit")
 
     assert not rule.matches(snapshot(), config=PortfolioRuleConfig())
 
 
 def test_cross_down_exit_does_not_fire_when_actionable_cross_is_suppressed() -> None:
-    rule = CrossDownExitRule()
+    rule = reference_rule("cross_down_exit")
     rule_snapshot = snapshot(
         assets={
             "SPY": state(symbol="SPY"),
@@ -188,7 +188,7 @@ def test_cross_down_exit_does_not_fire_when_actionable_cross_is_suppressed() -> 
 
 
 def test_peer_groups_decide_who_leaves_together() -> None:
-    rule = CrossDownExitRule(peer_groups=(("SPY", "BTC", "ETH"),))
+    rule = reference_rule("cross_down_exit", peer_groups=(("SPY", "BTC", "ETH"),))
     rule_snapshot = snapshot(
         assets={
             "SPY": state(
@@ -212,7 +212,7 @@ def test_peer_groups_decide_who_leaves_together() -> None:
 
 
 def test_an_asset_in_no_peer_group_leaves_alone() -> None:
-    rule = CrossDownExitRule(peer_groups=())
+    rule = reference_rule("cross_down_exit", peer_groups=())
     rule_snapshot = snapshot(
         assets={
             "SPY": state(symbol="SPY"),
@@ -234,7 +234,9 @@ def test_an_asset_in_no_peer_group_leaves_alone() -> None:
 
 
 def test_proceeds_can_be_routed_instead_of_kept_in_stable() -> None:
-    rule = CrossDownExitRule(proceeds=ProceedsRouting(to=(("SPY", 0.5),)))
+    rule = reference_rule(
+        "cross_down_exit", proceeds=ProceedsRouting(to=(("SPY", 0.5),))
+    )
     rule_snapshot = snapshot(
         assets={
             "SPY": state(symbol="SPY"),

@@ -8,19 +8,6 @@ DEFAULT_START = date(2025, 1, 1)
 DEFAULT_END = date(2025, 1, 5)
 
 
-def dma_public_params(
-    *,
-    cross_cooldown_days: int = 30,
-    cross_on_touch: bool = True,
-) -> dict[str, object]:
-    return {
-        "signal": {
-            "cross_cooldown_days": cross_cooldown_days,
-            "cross_on_touch": cross_on_touch,
-        }
-    }
-
-
 def price_row(
     snapshot_date: date,
     *,

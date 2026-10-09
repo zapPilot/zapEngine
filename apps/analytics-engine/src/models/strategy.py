@@ -81,6 +81,10 @@ class DailySuggestionResponse(BaseModel):
     config_id: str
     config_display_name: str
     strategy_id: StrategyId
+    spec_ref: str = Field(
+        description="The spec the strategy ran, as ref@version#hash: what the "
+        "decision was made by.",
+    )
     action: DailySuggestionActionState
     context: DailySuggestionContextState
     data_freshness: MarketDataFreshness | None = None

@@ -15,15 +15,16 @@ from src.services.backtesting.target_allocation import normalize_target_allocati
 _EPSILON = 1e-9
 
 
-@dataclass
+@dataclass(kw_only=True)
 class SpyLatchRule:
-    name: str = "spy_latch"
-    priority: int = 25
+    name: str
+    priority: int
+    follow_through_days: int
     cooldown_days: int = 0
-    follow_through_days: int = 14
     rule_group: RuleGroup = "cross"
     description: str = (
-        "Redeploy stable to SPY on cross-up; absorb fresh stable for 14 days."
+        "Redeploy stable to SPY on cross-up; absorb fresh stable while the "
+        "follow-through window lasts."
     )
     _activated_on: date | None = field(default=None, init=False)
     _pre_existing_stable_share: float = field(default=0.0, init=False)

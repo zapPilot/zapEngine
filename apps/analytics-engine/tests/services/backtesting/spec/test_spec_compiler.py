@@ -8,28 +8,15 @@ from src.services.backtesting.portfolio_rules.base import (
     ProceedsRouting,
 )
 from src.services.backtesting.portfolio_rules.components import SignalSettings
-from src.services.backtesting.portfolio_rules.cross_down_exit import CrossDownExitRule
-from src.services.backtesting.portfolio_rules.cross_up_equal_weight import (
-    CrossUpEqualWeightRule,
-)
-from src.services.backtesting.portfolio_rules.dma_overextension_dca_sell import (
-    DmaOverextensionDcaSellRule,
-)
 from src.services.backtesting.portfolio_rules.eth_btc_deviation_dca import (
     DeviationLeg,
     DeviationTier,
-    EthBtcDeviationDcaRule,
-)
-from src.services.backtesting.portfolio_rules.eth_btc_ratio_rotation import (
-    EthBtcRatioRotationRule,
-)
-from src.services.backtesting.portfolio_rules.fgi_downshift_dca_sell import (
-    FgiDownshiftDcaSellRule,
 )
 from src.services.backtesting.portfolio_rules.spy_latch import SpyLatchRule
 from src.services.backtesting.risk import TradeQuotaGuard
 from src.services.backtesting.spec import compile_spec, parse_spec
 from tests.services.backtesting.spec.helpers import reference_raw, rule_index
+from tests.services.backtesting.support.reference_rules import reference_rule
 
 
 def _compiled(raw: dict[str, Any]) -> tuple[PortfolioRule, ...]:
@@ -117,13 +104,6 @@ def test_signals_compile_to_signal_settings() -> None:
     )
 
 
-def test_a_compiled_spec_has_no_rule_filters() -> None:
-    components = compile_spec(parse_spec(reference_raw()))
-
-    assert components.disabled_rules == frozenset()
-    assert components.enabled_rules is None
-
-
 def test_cross_down_exit_kind() -> None:
     raw = reference_raw()
     index = rule_index(raw, "dma_cross_down_exit")
@@ -133,7 +113,8 @@ def test_cross_down_exit_kind() -> None:
         proceeds={"to": [{"asset": "SPY", "share": 0.25}]},
     )
 
-    assert _compiled(raw)[index] == CrossDownExitRule(
+    assert _compiled(raw)[index] == reference_rule(
+        "cross_down_exit",
         priority=10 * (index + 1),
         cooldown_days=12,
         peer_groups=(("SPY", "BTC", "ETH"),),
@@ -146,9 +127,8 @@ def test_cross_up_rebalance_kind() -> None:
     index = rule_index(raw, "dma_cross_up_rebalance")
     raw["rules"][index]["cooldown_days"] = 9
 
-    assert _compiled(raw)[index] == CrossUpEqualWeightRule(
-        priority=10 * (index + 1),
-        cooldown_days=9,
+    assert _compiled(raw)[index] == reference_rule(
+        "cross_up_equal_weight", priority=10 * (index + 1), cooldown_days=9
     )
 
 
@@ -161,7 +141,8 @@ def test_ratio_cross_rotation_kind() -> None:
         cross_down={"sources": ["ETH", "STABLE"], "destination": "BTC"},
     )
 
-    assert _compiled(raw)[index] == EthBtcRatioRotationRule(
+    assert _compiled(raw)[index] == reference_rule(
+        "eth_btc_ratio_rotation",
         priority=10 * (index + 1),
         cooldown_days=15,
         up_sources=("btc",),
@@ -187,7 +168,8 @@ def test_ratio_deviation_rotation_kind() -> None:
         above={"source": "ETH", "destination": "BTC"},
     )
 
-    assert _compiled(raw)[index] == EthBtcDeviationDcaRule(
+    assert _compiled(raw)[index] == reference_rule(
+        "eth_btc_deviation_dca",
         priority=10 * (index + 1),
         tiers=(
             DeviationTier(
@@ -219,7 +201,8 @@ def test_overextension_trim_kind() -> None:
         proceeds={"to": [{"asset": "BTC", "share": 0.3}]},
     )
 
-    assert _compiled(raw)[index] == DmaOverextensionDcaSellRule(
+    assert _compiled(raw)[index] == reference_rule(
+        "dma_overextension_dca_sell",
         priority=10 * (index + 1),
         cooldown_days=5,
         sell_step=0.1,
@@ -246,7 +229,8 @@ def test_fgi_downshift_trim_kind() -> None:
         proceeds={"to": [{"asset": "SPY", "share": 1.0}]},
     )
 
-    assert _compiled(raw)[index] == FgiDownshiftDcaSellRule(
+    assert _compiled(raw)[index] == reference_rule(
+        "fgi_downshift_dca_sell",
         priority=10 * (index + 1),
         cooldown_days=3,
         sell_step=0.02,

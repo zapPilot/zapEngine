@@ -22,26 +22,22 @@ if TYPE_CHECKING:
     from src.services.backtesting.sizing.base import SizingStrategy
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class FgiDownshiftDcaSellRule(ProceedsRoutingMixin, DcaSellRuleBase):
-    name: str = "fgi_downshift_dca_sell"
-    priority: int = 50
-    cooldown_days: int = 7
+    name: str
+    priority: int
+    cooldown_days: int
     rule_group: RuleGroup = "dma_fgi"
     description: str = "DCA sell assets when relevant FGI transitions out of greed."
     allocation_name: str = "portfolio_fgi_downshift_dca_sell"
     reason: str = "portfolio_fgi_downshift_dca_sell"
-    sell_step: float = 0.05
+    sell_step: float
     sizing: SizingStrategy = field(default_factory=FlatSizing)
     # A downshift is the previous regime being in ``from_regimes`` and the
     # current one in ``to_regimes``.
-    from_regimes: frozenset[FgiRegime] = frozenset(
-        {FgiRegime.GREED, FgiRegime.EXTREME_GREED}
-    )
-    to_regimes: frozenset[FgiRegime] = frozenset(
-        {FgiRegime.NEUTRAL, FgiRegime.FEAR, FgiRegime.EXTREME_FEAR}
-    )
-    proceeds: ProceedsRouting = ProceedsRouting()
+    from_regimes: frozenset[FgiRegime]
+    to_regimes: frozenset[FgiRegime]
+    proceeds: ProceedsRouting
 
     def _matching_symbols(self, snapshot: PortfolioSnapshot) -> list[str]:
         return [

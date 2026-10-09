@@ -13,7 +13,7 @@ describe('StrategyPresetSchema', () => {
     display_name: 'Balanced',
     description: 'A balanced strategy',
     strategy_id: 'balanced',
-    params: { lookback: 30 },
+    spec_ref: 'reference/dma_fgi',
     is_default: true,
     is_benchmark: false,
   };
@@ -33,9 +33,15 @@ describe('StrategyPresetSchema', () => {
     expect(StrategyPresetSchema.safeParse(withoutDefault).success).toBe(false);
   });
 
-  it('rejects a preset with params as a non-object', () => {
+  it('accepts a benchmark preset that runs no spec', () => {
     expect(
-      StrategyPresetSchema.safeParse({ ...valid, params: 'not-an-object' })
+      StrategyPresetSchema.safeParse({ ...valid, spec_ref: null }).success,
+    ).toBe(true);
+  });
+
+  it('rejects a preset whose spec_ref is not a string', () => {
+    expect(
+      StrategyPresetSchema.safeParse({ ...valid, spec_ref: { name: 'x' } })
         .success,
     ).toBe(false);
   });
@@ -64,7 +70,6 @@ describe('PortfolioRuleMetadataSchema', () => {
         name: 'no_oversize',
         priority: 1,
         description: 'Cap single asset exposure',
-        default_enabled: true,
       }).success,
     ).toBe(true);
   });
@@ -75,7 +80,6 @@ describe('PortfolioRuleMetadataSchema', () => {
         name: 'rule',
         priority: 1.5,
         description: '',
-        default_enabled: false,
       }).success,
     ).toBe(false);
   });
@@ -103,7 +107,6 @@ describe('StrategyConfigsResponseSchema', () => {
             name: 'rule_a',
             priority: 1,
             description: 'd',
-            default_enabled: true,
           },
         ],
       }).success,

@@ -9,10 +9,10 @@ The non-default technical-indicator research surface is documented in [TECHNICAL
 ## Strategy isolation
 
 - `RuleBasedPortfolioStrategy` uses the stable wire id `dma_fgi_portfolio_rules`; code identity and wire identity intentionally differ.
-- Rule experiments (`enabled_rules`, `disabled_rules`, rule thresholds/priorities) belong only to the rule-based strategy.
-- `dca_classic` is a frozen benchmark and must not start accepting rule-engine params.
-- `StrategyRecipe` in `strategy_registry.py` is the public params source of truth. Do not create parallel strategy-id/params allowlists elsewhere.
-- A saved config is a recipe id plus validated params; `resolve_saved_strategy_config` in `strategy_registry.py` binds them. There is no component catalog or composition layer, and no staged-execution path (pacing, buy gate, execution plugins): each matched rule executes in full on its bar through `RuleBasedAllocationExecutor`.
+- What the rule-based strategy does is stated by its spec (`src/config/strategies/`) and only there: the rule classes have no defaults and no strategy takes params on the wire. A rule experiment is a candidate spec (`strategy-lab`), not a flag on the strategy; there is no `enabled_rules`/`disabled_rules`.
+- `dca_classic` is a frozen benchmark and is not spec-backed.
+- `StrategyRecipe` in `strategy_registry.py` is the registry of wire strategies. Do not create parallel strategy-id allowlists elsewhere.
+- A saved config is a recipe id plus a `spec_ref` (a reference name pinned in `LOCK.json`); `resolve_saved_strategy_config` in `strategy_registry.py` binds them, and the registry checks every reference against the lock at import, so a behavior change without a version bump stops the service from starting. Responses and decision packets carry the identity `<name>@<version>#<hash12>` (`spec_ref()` in `spec/canonical.py`). There is no component catalog or composition layer, and no staged-execution path (pacing, buy gate, execution plugins): each matched rule executes in full on its bar through `RuleBasedAllocationExecutor`.
 - Keep benchmark/is-default distinctions in the existing registry/config metadata rather than introducing directory taxonomy solely for that distinction.
 
 ## Strategy specs
@@ -21,7 +21,7 @@ The non-default technical-indicator research surface is documented in [TECHNICAL
 - Array order in `rules` is precedence. Nothing is defaulted, so a spec states everything the strategy does. A new rule kind, or a new knob on a kind, is Python in `spec/rules.py` and the rule class, with the generated artifacts regenerated in the same change.
 - Research rules are spec kinds too: `technical_trim` and `technical_add` take a `trigger` (a technical signal and the level it fires at; `TECHNICAL_SIGNALS.md`). A new signal is a trigger in `portfolio_rules/technical_triggers.py` and `spec/triggers.py`, with the generated artifacts regenerated in the same change.
 - Behavior is also pinned DSN-free: `tests/fixtures/strategy_specs/golden_traces.json` holds digests of the reference and of a spec that uses every other kind on six synthetic histories (`pnpm strategy-lab golden --check`). A refactor must leave it untouched; an intentional change regenerates it in the same commit, with the version bump and the reason, never to silence a refactor.
-- References (`reference/*.json`) are pinned in `LOCK.json` by version and behavior hash. A behavior change needs a new `version` and `pnpm strategy-lab spec lock <ref>`; the lock refuses to hide a change. A reference compiles to the same rule objects as the Python defaults and must reproduce the default strategy day by day (`tests/services/backtesting/spec/test_reference_parity.py`).
+- References (`reference/*.json`) are pinned in `LOCK.json` by version and behavior hash. A behavior change needs a new `version` and `pnpm strategy-lab spec lock <ref>`; the lock refuses to hide a change. The registry builds the rule-based strategy from the reference itself (`strategy_registry.reference_spec`), so the reference is what production runs; `golden --check` and `tests/services/backtesting/test_engine_golden.py` pin its decisions day by day.
 
 ## Evaluating a strategy
 

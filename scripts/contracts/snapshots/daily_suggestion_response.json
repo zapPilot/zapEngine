@@ -797,6 +797,9 @@
         }
       ]
     },
+    "spec_ref": {
+      "type": "string"
+    },
     "strategy_id": {
       "type": "string"
     }
@@ -806,6 +809,7 @@
     "config_id",
     "config_display_name",
     "strategy_id",
+    "spec_ref",
     "action",
     "context"
   ],

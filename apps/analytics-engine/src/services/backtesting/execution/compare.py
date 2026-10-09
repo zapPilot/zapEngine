@@ -20,7 +20,7 @@ from src.services.backtesting.strategies.base import BaseStrategy
 from src.services.backtesting.strategy_registry import (
     ResolvedSavedStrategyConfig,
     StrategyBuildRequest,
-    get_strategy_recipe,
+    resolve_inline_strategy_config,
 )
 
 
@@ -43,7 +43,6 @@ def build_compare_strategies_from_resolved_configs(
         strategy = config.build_strategy(
             StrategyBuildRequest(
                 total_capital=total_capital,
-                params=dict(config.public_params),
                 config_id=config.request_config_id,
                 user_prices=user_prices,
                 initial_allocation=initial_allocation,
@@ -87,6 +86,23 @@ def simulate(
     )
 
 
+def _resolve_inline_configs(
+    request: BacktestCompareRequestV3,
+) -> list[ResolvedSavedStrategyConfig]:
+    """The strategies a request names directly, when nothing resolved them first."""
+    configs = []
+    for item in request.configs:
+        assert item.strategy_id is not None
+        configs.append(
+            resolve_inline_strategy_config(
+                config_id=item.config_id,
+                strategy_id=item.strategy_id,
+                params=item.params,
+            )
+        )
+    return configs
+
+
 def run_compare_v3_on_data(
     prices: list[dict[str, Any]],
     sentiments: dict[date, dict[str, Any]],
@@ -97,32 +113,15 @@ def run_compare_v3_on_data(
 ) -> BacktestResponse:
     initial_allocation = neutral_initial_allocation()
     user_prices = [price for price in prices if price["date"] >= user_start_date]
-    if resolved_configs is not None:
-        strategies = build_compare_strategies_from_resolved_configs(
-            resolved_configs,
-            user_prices=user_prices,
-            total_capital=request.total_capital,
-            initial_allocation=initial_allocation,
-            user_start_date=user_start_date,
-        )
-    else:
-        # Legacy path: build directly from request.configs
-        strategies = []
-        for config_item in request.configs:
-            assert config_item.strategy_id is not None
-            recipe = get_strategy_recipe(config_item.strategy_id)
-            strategy = recipe.build_strategy(
-                StrategyBuildRequest(
-                    total_capital=request.total_capital,
-                    params=dict(config_item.params),
-                    config_id=config_item.config_id,
-                    user_prices=user_prices,
-                    initial_allocation=initial_allocation,
-                    user_start_date=user_start_date,
-                )
-            )
-            strategy.summary_signal_id = recipe.signal_id
-            strategies.append(strategy)
+    strategies = build_compare_strategies_from_resolved_configs(
+        resolved_configs
+        if resolved_configs is not None
+        else _resolve_inline_configs(request),
+        user_prices=user_prices,
+        total_capital=request.total_capital,
+        initial_allocation=initial_allocation,
+        user_start_date=user_start_date,
+    )
     result = simulate(
         strategies,
         prices=prices,

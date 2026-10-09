@@ -21,6 +21,7 @@ from src.services.backtesting.strategies.rule_based_portfolio import (
 )
 from src.services.backtesting.strategy_registry import (
     StrategyBuildRequest,
+    reference_identity,
     resolve_inline_strategy_config,
     resolve_saved_strategy_config,
 )
@@ -37,6 +38,7 @@ def test_resolve_seed_saved_config_builds_portfolio_rules_runtime() -> None:
     assert resolved.summary_signal_id == "dma_fgi_portfolio_rules_signal"
     assert resolved.primary_asset == "BTC"
     assert resolved.supports_daily_suggestion is True
+    assert resolved.spec_ref == reference_identity("reference/dma_fgi")
     assert resolved.market_data_requirements.requires_sentiment is True
     assert DMA_200_FEATURE in resolved.market_data_requirements.required_price_features
 
@@ -79,9 +81,28 @@ def test_the_benchmark_seed_resolves_through_its_recipe() -> None:
     assert resolved.saved_config_id == STRATEGY_DCA_CLASSIC
     assert resolved.strategy_id == STRATEGY_DCA_CLASSIC
     assert resolved.summary_signal_id is None
-    assert resolved.public_params == {}
+    assert resolved.spec_ref is None
     assert resolved.supports_daily_suggestion is False
     assert resolved.runtime_portfolio_mode == "aggregate"
+
+
+def test_a_saved_config_without_a_spec_ref_runs_the_recipes_own_reference() -> None:
+    saved_config = resolve_seed_strategy_config(
+        DMA_FGI_PORTFOLIO_RULES_CONFIG_ID
+    ).model_copy(update={"spec_ref": None})
+
+    resolved = resolve_saved_strategy_config(saved_config)
+
+    assert resolved.spec_ref == reference_identity("reference/dma_fgi")
+
+
+def test_a_benchmark_has_no_spec_to_name() -> None:
+    saved_config = resolve_seed_strategy_config(STRATEGY_DCA_CLASSIC).model_copy(
+        update={"spec_ref": "reference/dma_fgi"}
+    )
+
+    with pytest.raises(ValueError, match="dca_classic is not spec-backed"):
+        resolve_saved_strategy_config(saved_config)
 
 
 def test_a_saved_config_naming_an_unknown_strategy_cannot_be_resolved() -> None:

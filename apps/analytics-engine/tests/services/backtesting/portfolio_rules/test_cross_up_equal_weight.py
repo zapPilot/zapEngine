@@ -3,15 +3,13 @@ from __future__ import annotations
 import pytest
 
 from src.services.backtesting.portfolio_rules.base import PortfolioRuleConfig
-from src.services.backtesting.portfolio_rules.cross_up_equal_weight import (
-    CrossUpEqualWeightRule,
-)
 from src.services.backtesting.signals.dma_gated_fgi.types import DmaCooldownState
 from tests.services.backtesting.portfolio_rules.helpers import snapshot, state
+from tests.services.backtesting.support.reference_rules import reference_rule
 
 
 def test_first_cross_up_deploys_all_stable_to_the_crossing_asset() -> None:
-    rule = CrossUpEqualWeightRule()
+    rule = reference_rule("cross_up_equal_weight")
     rule_snapshot = snapshot(
         assets={
             "SPY": state(symbol="SPY", zone="below", dma_distance=-0.05),
@@ -43,7 +41,7 @@ def test_first_cross_up_deploys_all_stable_to_the_crossing_asset() -> None:
 
 
 def test_second_cross_up_rebalances_to_equal_weight() -> None:
-    rule = CrossUpEqualWeightRule()
+    rule = reference_rule("cross_up_equal_weight")
     rule_snapshot = snapshot(
         assets={
             "SPY": state(symbol="SPY", zone="below", dma_distance=-0.05),
@@ -71,7 +69,7 @@ def test_second_cross_up_rebalances_to_equal_weight() -> None:
 
 
 def test_third_cross_up_rebalances_all_three_eligible_assets() -> None:
-    rule = CrossUpEqualWeightRule()
+    rule = reference_rule("cross_up_equal_weight")
     rule_snapshot = snapshot(
         assets={
             "SPY": state(
@@ -105,7 +103,7 @@ def test_third_cross_up_rebalances_all_three_eligible_assets() -> None:
 
 
 def test_cross_up_excludes_assets_not_above_dma() -> None:
-    rule = CrossUpEqualWeightRule()
+    rule = reference_rule("cross_up_equal_weight")
     rule_snapshot = snapshot(
         assets={
             "SPY": state(symbol="SPY", zone="below", dma_distance=-0.05),
@@ -129,7 +127,7 @@ def test_cross_up_excludes_assets_not_above_dma() -> None:
 
 
 def test_cross_up_equal_weight_does_not_fire_during_cooldown() -> None:
-    rule = CrossUpEqualWeightRule()
+    rule = reference_rule("cross_up_equal_weight")
     rule_snapshot = snapshot(
         assets={
             "SPY": state(symbol="SPY", zone="below", dma_distance=-0.05),
@@ -154,7 +152,7 @@ def test_cross_up_equal_weight_does_not_fire_during_cooldown() -> None:
 
 
 def test_cross_up_equal_weight_excludes_assets_in_reentry_cooldown() -> None:
-    rule = CrossUpEqualWeightRule()
+    rule = reference_rule("cross_up_equal_weight")
     rule_snapshot = snapshot(
         assets={
             "SPY": state(
@@ -191,7 +189,7 @@ def test_cross_up_equal_weight_excludes_assets_in_reentry_cooldown() -> None:
 
 
 def test_actionable_cross_up_bypasses_reentry_cooldown() -> None:
-    rule = CrossUpEqualWeightRule()
+    rule = reference_rule("cross_up_equal_weight")
     rule_snapshot = snapshot(
         assets={
             "SPY": state(
@@ -225,7 +223,7 @@ def test_actionable_cross_up_bypasses_reentry_cooldown() -> None:
 
 
 def test_cross_up_equal_weight_fires_when_actionable_cross_resumes() -> None:
-    rule = CrossUpEqualWeightRule()
+    rule = reference_rule("cross_up_equal_weight")
     rule_snapshot = snapshot(
         assets={
             "SPY": state(symbol="SPY", zone="below", dma_distance=-0.05),
@@ -257,7 +255,7 @@ def test_cross_up_equal_weight_fires_when_actionable_cross_resumes() -> None:
 
 
 def test_cross_up_equal_weight_emits_trigger_assets_diagnostic() -> None:
-    rule = CrossUpEqualWeightRule()
+    rule = reference_rule("cross_up_equal_weight")
     rule_snapshot = snapshot(
         assets={
             "SPY": state(symbol="SPY", zone="above", dma_distance=0.02),

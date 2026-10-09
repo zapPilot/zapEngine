@@ -1,14 +1,13 @@
 import { z } from 'zod';
 
 import { BacktestStrategyCatalogEntryV3Schema } from './backtesting.js';
-import { JsonObjectSchema } from './json.js';
 
 export const StrategyPresetSchema = z.object({
   config_id: z.string(),
   display_name: z.string(),
   description: z.string().nullable(),
   strategy_id: z.string(),
-  params: JsonObjectSchema,
+  spec_ref: z.string().nullable(),
   is_default: z.boolean(),
   is_benchmark: z.boolean(),
 });
@@ -22,7 +21,6 @@ export const PortfolioRuleMetadataSchema = z.object({
   name: z.string(),
   priority: z.number().int(),
   description: z.string(),
-  default_enabled: z.boolean(),
 });
 
 export const StrategyConfigsResponseSchema = z.object({

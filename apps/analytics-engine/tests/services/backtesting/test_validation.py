@@ -11,23 +11,6 @@ from src.models.backtesting import (
     BacktestCompareRequestV3,
 )
 
-
-def _dma_public_params(**overrides: object) -> dict[str, object]:
-    params: dict[str, object] = {
-        "top_escape": {
-            "overextension_threshold_multiplier_greed": 0.5,
-            "overextension_threshold_multiplier_extreme_greed": 0.33,
-        },
-        "trade_quota": {
-            "min_trade_interval_days": None,
-            "max_trades_7d": None,
-            "max_trades_30d": None,
-        },
-    }
-    params.update(overrides)
-    return params
-
-
 # ---------------------------------------------------------------------------
 # BacktestCompareConfigV3 saved_config_id branch coverage (lines 166, 168, 173)
 # ---------------------------------------------------------------------------
@@ -53,7 +36,7 @@ def test_compare_config_rejects_saved_config_id_combined_with_params() -> None:
         BacktestCompareConfigV3(
             config_id="combo_params",
             saved_config_id="dma_fgi_portfolio_rules_default",
-            params=_dma_public_params(),
+            params={"anything": 1},
         )
 
 
@@ -76,25 +59,7 @@ def test_compare_config_rejects_unknown_strategy_id() -> None:
         BacktestCompareConfigV3(
             config_id="unknown_with_params",
             strategy_id="unknown_strategy",
-            params=_dma_public_params(),
-        )
-
-
-def test_compare_config_rejects_legacy_simple_regime_params() -> None:
-    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
-        BacktestCompareConfigV3(
-            config_id="legacy",
-            strategy_id="dma_fgi_portfolio_rules",
-            params={"pacing_policy": "fgi_exponential"},
-        )
-
-
-def test_compare_config_rejects_unknown_dma_param() -> None:
-    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
-        BacktestCompareConfigV3(
-            config_id="bad_param",
-            strategy_id="dma_fgi_portfolio_rules",
-            params={"signal_id": "mayer"},
+            params={"anything": 1},
         )
 
 
@@ -114,126 +79,37 @@ def test_compare_request_requires_unique_config_ids() -> None:
         )
 
 
-def test_compare_config_rejects_invalid_scalar_types() -> None:
-    with pytest.raises(ValidationError, match="Input should be a valid integer"):
-        BacktestCompareConfigV3(
-            config_id="bad_scalar",
-            strategy_id="dma_fgi_portfolio_rules",
-            params={"trade_quota": {"max_trades_7d": True}},
-        )
-
-
-def test_compare_config_rejects_invalid_array_types() -> None:
-    with pytest.raises(ValidationError, match="Input should be a valid list"):
-        BacktestCompareConfigV3(
-            config_id="bad_array",
-            strategy_id="dma_fgi_portfolio_rules",
-            params={"disabled_rules": 123},
-        )
-
-
+@pytest.mark.parametrize("strategy_id", ["dma_fgi_portfolio_rules", "dca_classic"])
 @pytest.mark.parametrize(
-    "removed",
+    "params",
     [
-        {"signal": {"cross_cooldown_days": 30}},
-        {"signal": {"cross_on_touch": False}},
-        {"pacing": {"k": 5.0}},
-        {"buy_gate": {"window_days": 5}},
-        {"top_escape": {"dma_overextension_threshold": 0.3}},
-        {"top_escape": {"fgi_slope_reversal_threshold": -0.05}},
-        {"top_escape": {"fgi_slope_recovery_threshold": 0.05}},
+        {"anything": 1},
+        {"trade_quota": {"max_trades_7d": 2}},
+        {"top_escape": {"overextension_threshold_multiplier_greed": 0.4}},
+        {"disabled_rules": ["fgi_downshift_dca_sell"]},
+        {"enabled_rules": ["cross_down_exit"]},
+        {"min_trade_interval_days": 3},
     ],
+    ids=["unknown", "trade-quota", "greed", "disabled", "enabled", "flat"],
 )
-def test_compare_config_rejects_parameters_that_never_changed_a_decision(
-    removed: dict[str, object],
+def test_a_strategy_takes_no_params(
+    strategy_id: str, params: dict[str, object]
 ) -> None:
-    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+    """What a strategy does is stated by its spec, so there is nothing to tune."""
+    with pytest.raises(ValidationError, match=f"{strategy_id} does not accept params"):
         BacktestCompareConfigV3(
-            config_id="removed_param",
-            strategy_id="dma_fgi_portfolio_rules",
-            params=removed,
+            config_id="with_params", strategy_id=strategy_id, params=params
         )
 
 
-def test_compare_config_rejects_flat_dma_params() -> None:
-    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
-        BacktestCompareConfigV3(
-            config_id="dma_flat",
-            strategy_id="dma_fgi_portfolio_rules",
-            params={
-                "min_trade_interval_days": 3,
-                "max_trades_7d": 2,
-                "overextension_threshold_multiplier_greed": 0.5,
-            },
-        )
-
-
-def test_compare_config_accepts_nested_dma_params() -> None:
-    config = BacktestCompareConfigV3(
-        config_id="dma_nested",
-        strategy_id="dma_fgi_portfolio_rules",
-        params=_dma_public_params(),
+@pytest.mark.parametrize("strategy_id", ["dma_fgi_portfolio_rules", "dca_classic"])
+def test_a_strategy_accepts_empty_or_omitted_params(strategy_id: str) -> None:
+    given = BacktestCompareConfigV3(
+        config_id="empty", strategy_id=strategy_id, params={}
     )
-    assert config.params["overextension_threshold_multiplier_greed"] == 0.5
-    assert config.params["overextension_threshold_multiplier_extreme_greed"] == 0.33
-    assert "cross_cooldown_days" not in config.params
-    assert "buy_leg_caps" not in config.params
+    omitted = BacktestCompareConfigV3(config_id="omitted", strategy_id=strategy_id)
 
-
-def test_compare_config_accepts_trade_quota_params() -> None:
-    config = BacktestCompareConfigV3(
-        config_id="dma_quota",
-        strategy_id="dma_fgi_portfolio_rules",
-        params=_dma_public_params(
-            trade_quota={
-                "min_trade_interval_days": 3,
-                "max_trades_7d": 2,
-                "max_trades_30d": 8,
-            }
-        ),
-    )
-
-    assert config.params["min_trade_interval_days"] == 3
-    assert config.params["max_trades_7d"] == 2
-    assert config.params["max_trades_30d"] == 8
-
-
-def test_compare_config_rejects_unknown_dma_fgi_portfolio_rules_params() -> None:
-    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
-        BacktestCompareConfigV3(
-            config_id="portfolio_rules_bad",
-            strategy_id="dma_fgi_portfolio_rules",
-            params={"foo": "bar"},
-        )
-
-
-def test_compare_config_accepts_dma_fgi_portfolio_rules_empty_params() -> None:
-    config = BacktestCompareConfigV3(
-        config_id="portfolio_rules_ok",
-        strategy_id="dma_fgi_portfolio_rules",
-        params={},
-    )
-    assert config.params == {
-        "overextension_threshold_multiplier_greed": 0.5,
-        "overextension_threshold_multiplier_extreme_greed": 0.33,
-    }
-
-
-def test_compare_config_accepts_dma_fgi_portfolio_rules_nested_params() -> None:
-    config = BacktestCompareConfigV3(
-        config_id="portfolio_rules_custom",
-        strategy_id="dma_fgi_portfolio_rules",
-        params=_dma_public_params(
-            top_escape={
-                "overextension_threshold_multiplier_greed": 0.4,
-                "overextension_threshold_multiplier_extreme_greed": 0.2,
-            },
-            disabled_rules=["fgi_downshift_dca_sell"],
-        ),
-    )
-    assert config.params["overextension_threshold_multiplier_greed"] == 0.4
-    assert config.params["overextension_threshold_multiplier_extreme_greed"] == 0.2
-    assert config.params["disabled_rules"] == ["fgi_downshift_dca_sell"]
+    assert given.params == {} and omitted.params == {}
 
 
 def test_compare_request_rejects_invalid_date_range() -> None:
@@ -277,7 +153,7 @@ def test_compare_request_accepts_multiple_portfolio_rules_configs() -> None:
             BacktestCompareConfigV3(
                 config_id="portfolio_rules_runtime",
                 strategy_id="dma_fgi_portfolio_rules",
-                params=_dma_public_params(),
+                params={},
             ),
         ],
     )

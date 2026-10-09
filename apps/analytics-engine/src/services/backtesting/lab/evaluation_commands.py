@@ -25,14 +25,10 @@ from src.services.backtesting.lab.envelope import (
     load_bundle_or_fail,
     load_spec_or_fail,
 )
-from src.services.backtesting.lab.evaluate import (
-    EvalConfig,
-    evaluate,
-    spec_ref,
-)
+from src.services.backtesting.lab.evaluate import EvalConfig, evaluate
 from src.services.backtesting.lab.ledger import Ledger
 from src.services.backtesting.lab.report import hash_of, normalize
-from src.services.backtesting.spec import StrategySpec, behavior_hash
+from src.services.backtesting.spec import StrategySpec, behavior_hash, spec_ref
 
 REPORT_FILENAME = "report.json"
 SUMMARY_FILENAME = "summary.txt"

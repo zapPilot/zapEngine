@@ -6,7 +6,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import date
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Protocol, Self, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol
 
 from src.services.backtesting.decision import (
     AllocationIntent,
@@ -110,15 +110,6 @@ class PortfolioRule(Protocol):
 
 
 # jscpd:ignore-end
-
-
-@runtime_checkable
-class HasPublicParams(Protocol):
-    @classmethod
-    def public_params_section(cls) -> str | None: ...
-
-    @classmethod
-    def with_public_params(cls, section: Any) -> Self: ...
 
 
 class DecisionPolicy(Protocol):
@@ -327,20 +318,6 @@ class ProceedsRouting:
             target[key] = max(0.0, float(target.get(key, 0.0))) + part
             remainder = remainder - part
         target["stable"] = max(0.0, float(target.get("stable", 0.0))) + remainder
-
-
-def add_stable(target: dict[str, float], amount: float) -> None:
-    ProceedsRouting().apply(target, amount)
-
-
-def add_split_proceeds(
-    target: dict[str, float],
-    amount: float,
-    *,
-    spy_share: float = 0.5,
-) -> None:
-    """Split sell proceeds between SPY and stable."""
-    ProceedsRouting(to=(("SPY", spy_share),)).apply(target, amount)
 
 
 def _finalize_allocation_intent(
@@ -577,15 +554,12 @@ __all__ = [
     "SYMBOL_BY_ALLOCATION_KEY",
     "DecisionPolicy",
     "FgiRegime",
-    "HasPublicParams",
     "PortfolioRule",
     "PortfolioRuleConfig",
     "PortfolioSnapshot",
     "ProceedsRouting",
     "ProceedsRoutingMixin",
     "above_dma_symbols",
-    "add_split_proceeds",
-    "add_stable",
     "allocation_key_for_symbol",
     "build_dca_buy_intent",
     "build_dca_sell_intent",

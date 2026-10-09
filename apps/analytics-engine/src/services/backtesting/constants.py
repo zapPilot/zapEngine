@@ -22,6 +22,9 @@ ALLOCATION_STATES = {
 STRATEGY_DCA_CLASSIC = "dca_classic"
 STRATEGY_DMA_FGI_PORTFOLIO_RULES = "dma_fgi_portfolio_rules"
 
+# The spec the production strategy runs: a locked reference.
+DMA_FGI_REFERENCE_SPEC = "reference/dma_fgi"
+
 STRATEGY_DISPLAY_NAMES = {
     STRATEGY_DCA_CLASSIC: "DCA Classic",
     STRATEGY_DMA_FGI_PORTFOLIO_RULES: "DMA/FGI Portfolio Rules",

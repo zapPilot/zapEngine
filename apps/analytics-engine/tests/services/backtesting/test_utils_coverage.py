@@ -13,23 +13,13 @@ from src.services.backtesting.strategies.base import (
     BaseStrategy,
     StrategyContext,
 )
-from src.services.backtesting.utils.coercion import (
-    coerce_float,
-    coerce_int,
-    coerce_nullable_float,
-    coerce_to_date,
-)
+from src.services.backtesting.utils.coercion import coerce_to_date
 
 
 def test_utils_init():
     """Import utils to cover __init__.py."""
     assert utils.__all__ == [
         "calculate_runtime_allocation",
-        "coerce_float",
-        "coerce_int",
-        "coerce_nullable_float",
-        "coerce_nullable_int",
-        "coerce_params",
         "coerce_to_date",
         "normalize_regime_label",
         "normalize_runtime_allocation",
@@ -38,28 +28,6 @@ def test_utils_init():
 
 
 # --- targeted coverage tests for coercion.py ---
-
-
-def test_coerce_int_accepts_integer_valued_float() -> None:
-    assert coerce_int(3.0, field_name="x") == 3
-
-
-def test_coerce_int_rejects_non_integer_float() -> None:
-    with pytest.raises(ValueError, match="must be an integer"):
-        coerce_int(3.5, field_name="x")
-
-
-def test_coerce_float_rejects_bool() -> None:
-    with pytest.raises(ValueError, match="must be a number"):
-        coerce_float(True, field_name="x")
-
-
-def test_coerce_nullable_float_allows_none() -> None:
-    assert coerce_nullable_float(None, field_name="x") is None
-
-
-def test_coerce_nullable_float_coerces_numbers() -> None:
-    assert coerce_nullable_float(1, field_name="x") == 1.0
 
 
 def test_coerce_to_date_returns_none_for_invalid_inputs() -> None:
@@ -73,11 +41,6 @@ def test_coerce_to_date_accepts_datetime() -> None:
 
 def test_coerce_to_date_preserves_timestamp_slice() -> None:
     assert coerce_to_date("2025-01-01T12:34:56Z") == date(2025, 1, 1)
-
-
-def test_coerce_int_rejects_bool() -> None:
-    with pytest.raises(ValueError, match="must be an integer"):
-        coerce_int(True, field_name="x")
 
 
 # --- response_utils.py coverage (lines 13, 19) ---

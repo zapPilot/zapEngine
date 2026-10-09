@@ -1,9 +1,9 @@
 """Run the reference strategy under either DMA touch semantics.
 
 The pinned contract takes ``cross_on_touch`` as an argument, so the shadow
-checks must exercise both values. The public strategy params do not expose
-it (no history it was ever tried on made it change a decision), so the spike
-selects it here instead of through saved-config params.
+checks must exercise both values. The reference spec states one value
+(``signals.dma.cross_on_touch``), so the spike selects the other here instead
+of through a spec of its own.
 """
 
 from __future__ import annotations

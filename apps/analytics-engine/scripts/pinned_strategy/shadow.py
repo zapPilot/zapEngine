@@ -60,7 +60,11 @@ class Shadow:
         self.views = None
         self.last_execution = None
         self.tracker = RuleCooldownTracker()
-        self.rule = CrossDownExitRule()
+        self.rule = next(
+            rule
+            for rule in strategy.decision_policy.rules
+            if isinstance(rule, CrossDownExitRule)
+        )
         self.config = PortfolioRuleConfig()
         self.install()
 

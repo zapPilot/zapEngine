@@ -56,25 +56,12 @@ class MockBacktestingService:
         return self.response
 
 
-def _dma_params() -> dict[str, object]:
-    return {
-        "top_escape": {
-            "overextension_threshold_multiplier_greed": 0.50,
-            "overextension_threshold_multiplier_extreme_greed": 0.33,
-        },
-        "trade_quota": {
-            "min_trade_interval_days": None,
-            "max_trades_7d": None,
-            "max_trades_30d": None,
-        },
-    }
+def _strategy_parameters() -> dict[str, object]:
+    """What a spec-backed strategy reports about itself in a summary."""
+    return {"signal_id": "dma_fgi_portfolio_rules_signal", "spec_ref": SPEC_REF}
 
 
-def _dma_runtime_params() -> dict[str, object]:
-    return {
-        "overextension_threshold_multiplier_greed": 0.50,
-        "overextension_threshold_multiplier_extreme_greed": 0.33,
-    }
+SPEC_REF = "reference/dma_fgi@1#a22bccfabb4b"
 
 
 def _compare_payload(**overrides: object) -> dict[str, object]:
@@ -86,7 +73,6 @@ def _compare_payload(**overrides: object) -> dict[str, object]:
             {
                 "config_id": "portfolio_rules_runtime",
                 "strategy_id": "dma_fgi_portfolio_rules",
-                "params": _dma_params(),
             },
         ],
     }
@@ -133,7 +119,7 @@ def _response() -> BacktestResponse:
                     stable=1.0,
                     alt=0.0,
                 ),
-                parameters=_dma_params(),
+                parameters=_strategy_parameters(),
             ),
         },
         timeline=[
@@ -311,15 +297,11 @@ async def test_backtesting_strategies_v3_returns_recipe_catalog(
         for entry in catalog.strategies
         if entry.strategy_id == "dma_fgi_portfolio_rules"
     )
-    assert dma_entry.default_params["top_escape"] == {
-        "overextension_threshold_multiplier_greed": 0.5,
-        "overextension_threshold_multiplier_extreme_greed": 0.33,
-    }
-    assert set(dma_entry.param_schema["properties"]) == {
-        "trade_quota",
-        "top_escape",
-        "disabled_rules",
-        "enabled_rules",
+    assert dma_entry.default_params == {}
+    assert dma_entry.param_schema == {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": False,
     }
     assert dma_entry.supports_daily_suggestion is True
 
@@ -343,7 +325,7 @@ async def test_backtesting_compare_v3_returns_shared_snapshot_response(
     assert response.status_code == 200
     assert service.call_count == 1
     assert service.last_request is not None
-    assert service.last_request.configs[0].params == _dma_runtime_params()
+    assert service.last_request.configs[0].params == {}
 
     parsed = BacktestResponse.model_validate(response.json())
     assert set(parsed.strategies) == {"portfolio_rules_runtime"}
@@ -382,7 +364,7 @@ async def test_backtesting_compare_v3_returns_shared_snapshot_response(
 
 
 @pytest.mark.asyncio
-async def test_backtesting_compare_v3_accepts_nested_dma_fgi_portfolio_rules_params(
+async def test_backtesting_compare_v3_accepts_a_strategy_with_empty_params(
     client: AsyncClient,
 ) -> None:
     service = MockBacktestingService(response=_response())
@@ -396,7 +378,7 @@ async def test_backtesting_compare_v3_accepts_nested_dma_fgi_portfolio_rules_par
                 {
                     "config_id": "dma_fgi_portfolio_rules_default",
                     "strategy_id": "dma_fgi_portfolio_rules",
-                    "params": _dma_params(),
+                    "params": {},
                 }
             ],
         },
@@ -405,13 +387,22 @@ async def test_backtesting_compare_v3_accepts_nested_dma_fgi_portfolio_rules_par
 
     assert response.status_code == 200
     assert service.last_request is not None
-    assert service.last_request.configs[0].params == _dma_runtime_params()
+    assert service.last_request.configs[0].params == {}
 
 
 @pytest.mark.asyncio
-async def test_backtesting_compare_v3_rejects_flat_dma_fgi_portfolio_rules_params(
-    client: AsyncClient,
+@pytest.mark.parametrize(
+    "params",
+    [
+        {"max_trades_7d": 3, "rotation_cooldown_days": 7},
+        {"trade_quota": {"max_trades_7d": 3}},
+        {"enabled_rules": ["cross_down_exit"]},
+    ],
+)
+async def test_backtesting_compare_v3_rejects_any_params(
+    client: AsyncClient, params: dict[str, object]
 ) -> None:
+    """What a strategy does is stated by its spec: the request tunes nothing."""
     response = await _post_compare(
         client,
         payload={
@@ -422,19 +413,14 @@ async def test_backtesting_compare_v3_rejects_flat_dma_fgi_portfolio_rules_param
                 {
                     "config_id": "dma_fgi_portfolio_rules_default",
                     "strategy_id": "dma_fgi_portfolio_rules",
-                    "params": {
-                        "max_trades_7d": 3,
-                        "rotation_cooldown_days": 7,
-                    },
+                    "params": params,
                 }
             ],
         },
     )
 
     assert response.status_code == 422
-    payload = cast(dict[str, object], response.json())
-    detail = cast(list[dict[str, object]], payload["detail"])
-    assert any(item["loc"][-1] == "rotation_cooldown_days" for item in detail)
+    assert "does not accept params" in response.text
 
 
 @pytest.mark.asyncio
@@ -498,7 +484,6 @@ async def test_backtesting_compare_v3_returns_400_for_unusable_window(
                 {
                     "config_id": "portfolio_rules_runtime",
                     "strategy_id": "dma_fgi_portfolio_rules",
-                    "params": {"trade_quota": {"max_trades_7d": 3}},
                 }
             ],
         ),

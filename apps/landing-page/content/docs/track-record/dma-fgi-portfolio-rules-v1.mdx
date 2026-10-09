@@ -48,7 +48,7 @@ Deposits do not follow the strategy's target: the app's default mix is a fixed s
 
 ## Rules, in priority order
 
-On each daily snapshot the strategy walks this list top-down. The first rule whose trigger conditions are met produces that day's target allocation; the rest are skipped. A same-day cross-down always wins over a same-day cross-up. Exact thresholds and weights are code-owned in `apps/analytics-engine` (`portfolio_rules/__init__.py`) rather than duplicated here.
+On each daily snapshot the strategy walks this list top-down. The first rule whose trigger conditions are met produces that day's target allocation; the rest are skipped. A same-day cross-down always wins over a same-day cross-up. Exact thresholds and weights are owned by the strategy spec, `apps/analytics-engine/src/config/strategies/reference/dma_fgi.json`, rather than duplicated here.
 
 ### 1. Cross-down exit
 

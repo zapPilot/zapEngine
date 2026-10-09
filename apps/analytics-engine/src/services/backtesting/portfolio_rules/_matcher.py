@@ -6,8 +6,6 @@ from collections.abc import Mapping
 from dataclasses import dataclass, replace
 
 from src.services.backtesting.decision import AllocationIntent
-from src.services.backtesting.portfolio_rules import DEFAULT_PORTFOLIO_RULES
-from src.services.backtesting.portfolio_rules._builders import _rule_is_active
 from src.services.backtesting.portfolio_rules.base import (
     DIAG_COOLDOWN_SKIPPED_RULES,
     DIAG_MATCHED_RULE_NAME,
@@ -36,10 +34,8 @@ class RuleMatchOutcome:
 def resolve_portfolio_rules_intent(
     snapshot: PortfolioSnapshot,
     *,
-    rules: tuple[PortfolioRule, ...] = DEFAULT_PORTFOLIO_RULES,
+    rules: tuple[PortfolioRule, ...],
     config: PortfolioRuleConfig | None = None,
-    disabled_rules: frozenset[str] = frozenset(),
-    enabled_rules: frozenset[str] | None = None,
     cooldown_tracker: RuleCooldownTracker | None = None,
 ) -> AllocationIntent:
     resolved_config = config or PortfolioRuleConfig()
@@ -64,12 +60,6 @@ def resolve_portfolio_rules_intent(
             )
         )
         if not matched or winning_intent is not None:
-            continue
-        if not _rule_is_active(
-            rule,
-            disabled_rules=disabled_rules,
-            enabled_rules=enabled_rules,
-        ):
             continue
         cooldown = resolved_cooldown_tracker.is_cooled_off(
             rule,

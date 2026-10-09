@@ -13,19 +13,19 @@ from src.services.backtesting.portfolio_rules.base import (
 )
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class EthBtcRatioRotationRule:
-    name: str = "eth_btc_ratio_rotation"
-    priority: int = 21
-    cooldown_days: int = 30
+    name: str
+    priority: int
+    cooldown_days: int
+    # Allocation keys swept into the destination on a cross-up (ETH is the
+    # stronger leg) and on a cross-down.
+    up_sources: tuple[str, ...]
+    up_destination: str
+    down_sources: tuple[str, ...]
+    down_destination: str
     rule_group: RuleGroup = "cross"
     description: str = "Rotate BTC <-> ETH when ETH/BTC ratio crosses its 200-day DMA."
-    # Allocation keys swept into the destination on a cross-up (ETH is the
-    # stronger leg) and on a cross-down. Stable is swept on the way up only.
-    up_sources: tuple[str, ...] = ("btc", "stable")
-    up_destination: str = "eth"
-    down_sources: tuple[str, ...] = ("eth",)
-    down_destination: str = "btc"
 
     def matches(
         self,

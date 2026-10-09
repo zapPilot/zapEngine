@@ -29,7 +29,7 @@ from src.services.backtesting.lab.report import (
     normalize,
 )
 from src.services.backtesting.lab.runner import EvalConfig, prepare, run_specs
-from src.services.backtesting.spec import StrategySpec, behavior_hash
+from src.services.backtesting.spec import StrategySpec, behavior_hash, spec_ref
 
 STRATEGY_KEY = "strategy"
 TRACE_MAX_LINES = 300
@@ -37,11 +37,6 @@ SYNTHETIC_WARNING = (
     "Synthetic data exercises code and pins behavior; it is not evidence about "
     "how a strategy performs on real markets."
 )
-
-
-def spec_ref(spec: StrategySpec) -> str:
-    """``id@version#hash12``: how a report and a ledger name a spec."""
-    return f"{spec.id}@{spec.version}#{behavior_hash(spec).split(':')[1][:12]}"
 
 
 def components(spec: StrategySpec) -> dict[str, StrategySpec]:
@@ -286,6 +281,5 @@ __all__ = [
     "SYNTHETIC_WARNING",
     "components",
     "evaluate",
-    "spec_ref",
     "strategy_metrics",
 ]

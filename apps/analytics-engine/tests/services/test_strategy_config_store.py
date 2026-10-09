@@ -48,8 +48,8 @@ def test_resolve_config_raises_on_unknown_config_id() -> None:
 def test_the_store_serves_copies_so_callers_cannot_mutate_the_seeds() -> None:
     store = StrategyConfigStore()
     first = store.resolve_config(None)
-    first.params["top_escape"]["overextension_threshold_multiplier_greed"] = 99.0
+    first.spec_ref = "reference/somewhere_else"
 
     again = store.resolve_config(None)
 
-    assert again.params["top_escape"]["overextension_threshold_multiplier_greed"] == 0.5
+    assert again.spec_ref == "reference/dma_fgi"

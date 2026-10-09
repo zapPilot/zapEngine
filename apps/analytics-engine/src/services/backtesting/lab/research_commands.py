@@ -22,7 +22,7 @@ from src.services.backtesting.lab.envelope import (
     load_bundle_or_fail,
     load_spec_or_fail,
 )
-from src.services.backtesting.lab.evaluate import STRATEGY_KEY, evaluate, spec_ref
+from src.services.backtesting.lab.evaluate import STRATEGY_KEY, evaluate
 from src.services.backtesting.lab.holdout import (
     HoldoutAlreadyLooked,
     HoldoutError,
@@ -44,7 +44,7 @@ from src.services.backtesting.lab.sweep import (
     load_space,
     sweep,
 )
-from src.services.backtesting.spec import behavior_hash
+from src.services.backtesting.spec import behavior_hash, spec_ref
 
 DEFAULT_STRESS = tuple(f"synthetic:stress?seed={seed}&days=300" for seed in range(1, 7))
 REFERENCE_REF = "reference/dma_fgi"

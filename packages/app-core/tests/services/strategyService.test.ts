@@ -25,6 +25,7 @@ function buildValidSuggestion() {
     config_id: 'dma_fgi_portfolio_rules_default',
     config_display_name: 'DMA + Fear & Greed',
     strategy_id: 'dma_fgi_portfolio_rules',
+    spec_ref: 'reference/dma_fgi@1#a22bccfabb4b',
     action: {
       status: 'no_action',
       required: false,

@@ -20,6 +20,7 @@ from scripts.pinned_strategy.touch_mode import cross_on_touch_mode
 from src.models.backtesting import BacktestCompareConfigV3, BacktestCompareRequestV3
 from src.services.backtesting.execution.compare import run_compare_v3_on_data
 from tests.services.backtesting.support.event_histories import synthetic_event_history
+from tests.services.backtesting.support.reference_rules import reference_rule
 from tests.test_validation_events import EVENTS
 
 
@@ -144,9 +145,6 @@ def test_rule_allocation_against_python(evm, allocation):
         PortfolioRuleConfig,
         PortfolioSnapshot,
     )
-    from src.services.backtesting.portfolio_rules.cross_down_exit import (
-        CrossDownExitRule,
-    )
     from src.services.backtesting.signals.dma_gated_fgi.types import (
         DmaCooldownState,
         DmaMarketState,
@@ -171,7 +169,9 @@ def test_rule_allocation_against_python(evm, allocation):
         current_asset_allocation=dict(zip(KEYS, allocation, strict=True)),
         previous_fgi_regime={},
     )
-    intent = CrossDownExitRule().build_intent(snapshot, config=PortfolioRuleConfig())
+    intent = reference_rule("cross_down_exit").build_intent(
+        snapshot, config=PortfolioRuleConfig()
+    )
     views = [
         (0, 0, 0, False, 0, 0, 0),
         (2, 1, 1, False, 0, 0, -WAD // 10),

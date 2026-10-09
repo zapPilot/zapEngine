@@ -24,21 +24,20 @@ def test_strategy_preset_accepts_any_strategy_id() -> None:
         config_id="dma_fgi_portfolio_rules_default",
         display_name="DMA/FGI Portfolio Rules Default",
         strategy_id="dma_fgi_portfolio_rules",
-        params={"top_escape": {"overextension_threshold_multiplier_greed": 0.4}},
+        spec_ref="reference/dma_fgi",
         is_default=True,
     )
     assert preset.strategy_id == "dma_fgi_portfolio_rules"
-    assert (
-        preset.params["top_escape"]["overextension_threshold_multiplier_greed"] == 0.4
-    )
+    assert preset.spec_ref == "reference/dma_fgi"
 
-    # strategy_id is str — any valid string is accepted
+    # strategy_id is str: any valid string is accepted, and a benchmark runs no spec.
     preset2 = StrategyPreset(
         config_id="legacy_simple_regime",
         display_name="Legacy",
         strategy_id="simple_regime",
     )
     assert preset2.strategy_id == "simple_regime"
+    assert preset2.spec_ref is None
 
 
 def test_strategy_preset_validates_config_id() -> None:
@@ -58,7 +57,7 @@ def test_strategy_configs_response_round_trips() -> None:
                 "display_name": "DMA/FGI Portfolio Rules",
                 "description": "ETH/BTC relative-strength rotation",
                 "param_schema": {"type": "object"},
-                "default_params": {"trade_quota": {"max_trades_7d": 3}},
+                "default_params": {},
                 "supports_daily_suggestion": True,
             }
         ],
@@ -67,7 +66,7 @@ def test_strategy_configs_response_round_trips() -> None:
                 config_id="dma_fgi_portfolio_rules_default",
                 display_name="DMA/FGI Portfolio Rules Default",
                 strategy_id="dma_fgi_portfolio_rules",
-                params={"trade_quota": {"max_trades_7d": 3}},
+                spec_ref="reference/dma_fgi",
                 is_default=True,
             )
         ],
@@ -81,20 +80,30 @@ def test_strategy_configs_response_round_trips() -> None:
     assert restored.backtest_defaults.total_capital == 25000.0
 
 
-def test_removed_parameters_are_rejected_by_the_saved_config_contract() -> None:
-    for removed in (
-        {"signal": {"cross_cooldown_days": 12}},
-        {"pacing": {"k": 1.0}},
-        {"buy_gate": {"window_days": 3}},
-        {"top_escape": {"dma_overextension_threshold": 0.3}},
-    ):
-        with pytest.raises(ValidationError):
-            StrategyPreset(
+def test_a_config_names_a_spec_instead_of_taking_params() -> None:
+    for model in (StrategyPreset, SavedStrategyConfig):
+        with pytest.raises(ValidationError, match="params"):
+            model(
                 config_id="dma_fgi_portfolio_rules_default",
                 display_name="Default",
                 strategy_id="dma_fgi_portfolio_rules",
-                params=removed,
+                params={"trade_quota": {"max_trades_7d": 3}},
             )
+
+
+def test_a_saved_config_projects_its_spec_into_the_public_preset() -> None:
+    saved = SavedStrategyConfig(
+        config_id="dma_fgi_portfolio_rules_default",
+        display_name="Default",
+        strategy_id="dma_fgi_portfolio_rules",
+        spec_ref="reference/dma_fgi",
+        is_default=True,
+    )
+
+    preset = saved.to_public_preset()
+
+    assert preset.spec_ref == "reference/dma_fgi"
+    assert "params" not in preset.model_dump()
 
 
 # ---------------------------------------------------------------------------

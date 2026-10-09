@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from pydantic import ValidationError
+import pytest
 
 from src.services.backtesting.constants import (
     STRATEGY_DCA_CLASSIC,
@@ -14,7 +14,7 @@ from src.services.backtesting.features import (
     ETH_DMA_200_FEATURE,
     SPY_DMA_200_FEATURE,
 )
-from src.services.backtesting.spec import load_spec, parse_spec
+from src.services.backtesting.spec import load_spec, parse_spec, spec_ref
 from src.services.backtesting.strategies.rule_based_portfolio import (
     RuleBasedPortfolioStrategy,
 )
@@ -23,6 +23,7 @@ from src.services.backtesting.strategy_registry import (
     StrategyBuildRequest,
     get_strategy_recipe,
     list_strategy_recipes,
+    resolve_inline_strategy_config,
     resolve_spec_strategy_config,
 )
 
@@ -53,20 +54,19 @@ def test_catalog_is_derived_from_strategy_registry() -> None:
     }
 
 
-def test_rule_experiment_params_isolated_to_rule_based_strategy() -> None:
-    """Isolation guard: rule-experiment params (``enabled_rules`` /
-    ``disabled_rules``) are accepted ONLY by the rule-based strategy. Benchmarks
-    such as ``dca_classic`` reject all params, so rule experiments stay isolated to
-    ``RuleBasedPortfolioStrategy`` and ``dca_classic`` remains a frozen benchmark.
-    A future non-rule strategy that silently accepts rule params trips this."""
-    accepting: list[str] = []
+def test_no_recipe_accepts_params() -> None:
+    """What a strategy does is stated by its spec, so no recipe takes params.
+
+    The rule-based strategy used to accept rule filters and thresholds; a future
+    strategy that accepts params again trips this.
+    """
     for recipe in list_strategy_recipes():
-        try:
-            recipe.normalize_public_params({"enabled_rules": ["cross_down_exit"]})
-        except (ValueError, ValidationError):
-            continue
-        accepting.append(recipe.strategy_id)
-    assert accepting == [STRATEGY_DMA_FGI_PORTFOLIO_RULES]
+        with pytest.raises(ValueError, match="does not accept params"):
+            resolve_inline_strategy_config(
+                config_id="adhoc",
+                strategy_id=recipe.strategy_id,
+                params={"enabled_rules": ["cross_down_exit"]},
+            )
 
 
 def test_portfolio_rules_recipe_builds_compare_strategy() -> None:
@@ -76,7 +76,6 @@ def test_portfolio_rules_recipe_builds_compare_strategy() -> None:
         StrategyBuildRequest(
             config_id="portfolio-rules-test",
             total_capital=10_000.0,
-            params={"max_trades_7d": 3},
             user_prices=[
                 {
                     "date": date(2025, 1, 1),
@@ -135,7 +134,7 @@ def test_a_spec_binds_to_the_rule_based_recipe() -> None:
     assert resolved.strategy_id == STRATEGY_DMA_FGI_PORTFOLIO_RULES
     assert resolved.saved_config_id == resolved.request_config_id == "spec-test"
     assert resolved.description == spec.description
-    assert resolved.public_params == {}
+    assert resolved.spec_ref == spec_ref(spec)
     assert resolved.supports_daily_suggestion is False
     assert resolved.market_data_requirements == recipe.market_data_requirements
     assert resolved.portfolio_bucket_mapper is recipe.portfolio_bucket_mapper

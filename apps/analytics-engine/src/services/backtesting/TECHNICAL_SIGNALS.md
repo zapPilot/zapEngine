@@ -13,26 +13,22 @@ of indicators:
 New research signals should normally extend the typed market state and add
 non-default portfolio rules. They should not create a parallel strategy engine.
 
-## Default-parity boundary
+## Reference boundary
 
-The technical indicators and rules in this document are additive research
-capabilities. `DEFAULT_PORTFOLIO_RULES` remains unchanged. The new rules live in
-`ALL_PORTFOLIO_RULES`, so they are addressable through `enabled_rules` without
-changing the canonical default strategy until an experiment is explicitly
-accepted.
+The technical indicators and rules in this document are research capabilities.
+The reference spec (`reference/dma_fgi`) uses none of them, so the production
+strategy does not change until a candidate that uses them is explicitly
+accepted. A research rule is a spec rule (below): a candidate lists it after the
+reference's rules, and because array order is precedence it decides only on the
+days they do not, a lower-precedence additive layer.
 
-Technical experiment priorities are numerically higher than the current default
-rules, so a `default + experiment` run keeps canonical decisions first and lets
-technical rules act as a lower-precedence additive layer.
-
-`GET /api/v3/strategy/configs` lists these rules alongside every other
-addressable rule name, each with `default_enabled: false` — the same treatment
-`spy_latch` already gets. Being listed is what makes a rule addressable through
-`enabled_rules`; it does not enable it.
+A research rule is not addressable through the API. `GET /api/v3/strategy/configs`
+lists the rules of the default spec only, and no strategy takes rule filters on
+the wire.
 
 Do not update the performance snapshot merely because these signals exist. A
-future promotion into the default set is an intentional strategy behavior change
-and must follow `ITERATION_PLAYBOOK.md`.
+future promotion into the reference is an intentional strategy behavior change (a
+new reference `version`, locked) and must follow `ITERATION_PLAYBOOK.md`.
 
 ## Causal technical signal snapshot
 
@@ -75,42 +71,33 @@ Stochastic, OBV, or VWAP faithfully. Add those only after their required high,
 low, and/or volume data is available; do not synthesize fake inputs just to make
 an indicator exist.
 
-## Non-default rule experiments
+## Research rules
 
-- `rsi_bearish_divergence_dca_sell`
-- `rsi_overbought_dca_sell`
-- `momentum_breakdown_dca_sell`
-- `volatility_spike_dca_sell`
-- `rsi_bullish_divergence_dca_buy`
-- `rsi_oversold_recovery_dca_buy`
-- `macd_bearish_cross_dca_sell`
-- `macd_bullish_cross_dca_buy`
-- `bollinger_upper_band_dca_sell`
-- `bollinger_lower_band_dca_buy`
-- `breakout_20d_dca_buy`
-- `breakdown_20d_dca_sell`
+Twelve research rules consume the snapshot, seven that trim and five that add
+(the table under "In a strategy spec" names them).
 
 Every technical-rule intent attaches a `technical_signals` diagnostic payload for
 the triggering assets, including the exact RSI, momentum, volatility, MACD,
 Bollinger, divergence, and channel-break values seen by that decision. This is
 intended to make local attribution and behavior-trace review explainable.
 
-Use `enabled_rules` to isolate one rule or compose it with selected existing
-rules. Compare ROI, Sharpe, Calmar, max drawdown, trade count, and behavior-event
-traces; do not promote a signal based on ROI alone.
+Write a candidate spec that holds one rule, alone or after the reference's rules,
+and run `strategy-lab eval`, `ablate` and `diff` on it (`COMMANDS.md`). Compare
+ROI, Sharpe, Calmar, max drawdown, trade count, and behavior-event traces; do not
+promote a signal based on ROI alone.
 
 ## In a strategy spec
 
-A strategy spec (`src/config/strategies/`, see `VOCABULARY.md`) writes the same
+A strategy spec (`src/config/strategies/`, see `VOCABULARY.md`) writes the
 twelve rules as two kinds, `technical_trim` and `technical_add`, each with a
 `trigger` that names the signal and states the level it fires at. Nothing is
-defaulted, so a spec that uses `rsi_overbought_turning_down` says `rsi_at_least`
-(the old rule used 70). The triggers are the conditions in
-`portfolio_rules/technical_triggers.py`; the table below is the old rule names
-written as spec rules (with the old default levels, a 7-day cooldown, a 0.05 step
-and, for a trim, half of the proceeds into SPY):
+defaulted, so a spec that uses `rsi_overbought_turning_down` says `rsi_at_least`.
+The triggers are the conditions in `portfolio_rules/technical_triggers.py`; the
+table below gives the rules' former names (which the iteration log uses) as spec
+rules, with the levels they shipped with, a 7-day cooldown, a 0.05 step and, for a
+trim, half of the proceeds into SPY:
 
-| Old rule                          | Kind             | `trigger.signal`              | Levels                                            |
+| Former rule name                  | Kind             | `trigger.signal`              | Levels                                            |
 | --------------------------------- | ---------------- | ----------------------------- | ------------------------------------------------- |
 | `rsi_bearish_divergence_dca_sell` | `technical_trim` | `rsi_bearish_divergence`      |                                                   |
 | `rsi_overbought_dca_sell`         | `technical_trim` | `rsi_overbought_turning_down` | `rsi_at_least` 70                                 |
@@ -125,12 +112,14 @@ and, for a trim, half of the proceeds into SPY):
 | `breakout_20d_dca_buy`            | `technical_add`  | `breakout_20d`                |                                                   |
 | `breakdown_20d_dca_sell`          | `technical_trim` | `breakdown_20d`               |                                                   |
 
-A rule listed after the default rules decides only on days they do not, exactly as
-the old priorities ranked it. `tests/services/backtesting/spec/test_legacy_composition_parity.py`
-builds the old `enabled_rules` combinations (each research rule on top of the
-defaults and alone, the SPY latch, the trade quota guard, the greed multipliers)
-and the equivalent specs, and requires the same strategy day by day. The levels are
-tunable leaves, so `strategy-lab liveness` and `sweep` can move them; on the
+A rule listed after the reference's rules decides only on days they do not, exactly
+as the old priorities ranked it. Before the cutover (PR 10) a parity test built
+every old `enabled_rules` combination (each research rule on top of the defaults
+and alone, the SPY latch, the trade quota guard, the greed multipliers) and the
+equivalent specs, and required the same strategy day by day (`ITERATION_LOG.md`).
+What the compiled behavior is now stays pinned by
+`tests/fixtures/strategy_specs/all_research_rules.json`, a spec that uses every
+kind, in `pnpm strategy-lab golden --check`. The levels are tunable leaves, so `strategy-lab liveness` and `sweep` can move them; on the
 synthetic histories every level of the rules that decide there changes some
 decision. The `volatility_spike` levels the old rule shipped with are never
 reached on them, so that rule's other fields show as dead until the levels are
@@ -144,12 +133,14 @@ The focused behavioral suite for these signals and rules:
 pnpm --filter @zapengine/analytics-engine exec uv run pytest \
   tests/services/backtesting/signals/test_technical.py \
   tests/services/backtesting/signals/test_flat_minimum.py \
-  tests/services/backtesting/portfolio_rules/test_technical_experiments.py
+  tests/services/backtesting/portfolio_rules/test_technical_experiments.py \
+  tests/services/backtesting/portfolio_rules/test_technical_triggers.py \
+  tests/services/backtesting/spec/test_technical_kinds.py
 ```
 
 Run the repository-wide backtesting gate and the pinned production-window
 snapshot from [COMMANDS.md](./COMMANDS.md); follow
 [ITERATION_PLAYBOOK.md](./ITERATION_PLAYBOOK.md) before promoting an experiment
-into the default set. While these rules stay non-default the expected result is
-snapshot parity — performance should move only when a technical rule is
-explicitly enabled.
+into the reference. While the reference uses none of these rules the expected
+result is snapshot parity — performance should move only when a candidate spec
+uses a technical rule.

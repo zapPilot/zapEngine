@@ -25,22 +25,10 @@ from src.services.backtesting.features import (
     SPY_DMA_200_FEATURE,
     SPY_PRICE_FEATURE,
 )
+from src.services.backtesting.spec import StrategySpec, parse_spec
+from src.services.backtesting.strategy_registry import resolve_spec_strategy_config
+from tests.services.backtesting.spec.helpers import reference_raw
 from tests.services.backtesting.support import register_mock_recipe
-
-
-def _dma_public_params(
-    *,
-    min_trade_interval_days: int | None = None,
-    max_trades_7d: int | None = None,
-    max_trades_30d: int | None = None,
-) -> dict[str, object]:
-    return {
-        "trade_quota": {
-            "min_trade_interval_days": min_trade_interval_days,
-            "max_trades_7d": max_trades_7d,
-            "max_trades_30d": max_trades_30d,
-        },
-    }
 
 
 def _price_row(
@@ -113,7 +101,6 @@ def _build_dma_long_run_inputs(
             BacktestCompareConfigV3(
                 config_id="portfolio_rules_runtime",
                 strategy_id="dma_fgi_portfolio_rules",
-                params=_dma_public_params(),
             )
         ],
     )
@@ -152,7 +139,6 @@ def test_run_compare_v3_on_data_supports_portfolio_rules_mode() -> None:
                 BacktestCompareConfigV3(
                     config_id="portfolio_rules_runtime",
                     strategy_id="dma_fgi_portfolio_rules",
-                    params=_dma_public_params(),
                 )
             ],
         )
@@ -217,7 +203,6 @@ def test_run_compare_v3_on_data_writes_decision_log(tmp_path: Path) -> None:
                 BacktestCompareConfigV3(
                     config_id="portfolio_rules_runtime",
                     strategy_id="dma_fgi_portfolio_rules",
-                    params=_dma_public_params(),
                 )
             ],
         )
@@ -257,6 +242,20 @@ def test_run_compare_v3_on_data_writes_decision_log(tmp_path: Path) -> None:
     }
 
 
+def _spec_with_min_trade_interval(days: int | None) -> StrategySpec:
+    raw = reference_raw()
+    if days is not None:
+        raw["guards"] = [
+            {
+                "kind": "trade_quota",
+                "min_trade_interval_days": days,
+                "max_trades_7d": None,
+                "max_trades_30d": None,
+            }
+        ]
+    return parse_spec(raw)
+
+
 def test_run_compare_v3_on_data_trade_quota_reduces_trade_count() -> None:
     request = materialize_compare_request(
         BacktestCompareRequestV3(
@@ -268,16 +267,20 @@ def test_run_compare_v3_on_data_trade_quota_reduces_trade_count() -> None:
                 BacktestCompareConfigV3(
                     config_id="dma_unbounded",
                     strategy_id="dma_fgi_portfolio_rules",
-                    params=_dma_public_params(),
                 ),
                 BacktestCompareConfigV3(
                     config_id="dma_quota",
                     strategy_id="dma_fgi_portfolio_rules",
-                    params=_dma_public_params(min_trade_interval_days=7),
                 ),
             ],
         )
     )
+    resolved = [
+        resolve_spec_strategy_config(
+            _spec_with_min_trade_interval(days), config_id=config_id
+        )
+        for config_id, days in (("dma_unbounded", None), ("dma_quota", 7))
+    ]
 
     result = run_compare_v3_on_data(
         prices=[
@@ -304,6 +307,7 @@ def test_run_compare_v3_on_data_trade_quota_reduces_trade_count() -> None:
         },
         request=request,
         user_start_date=date(2025, 1, 1),
+        resolved_configs=resolved,
     )
 
     unbounded_state = result.timeline[2].strategies["dma_unbounded"]
@@ -495,7 +499,6 @@ def _build_parabolic_rise_inputs() -> tuple[
             BacktestCompareConfigV3(
                 config_id="dma_overextension_test",
                 strategy_id="dma_fgi_portfolio_rules",
-                params=_dma_public_params(),
             )
         ],
     )
@@ -578,7 +581,6 @@ def _build_greed_fading_inputs() -> tuple[
             BacktestCompareConfigV3(
                 config_id="dma_greed_fading_test",
                 strategy_id="dma_fgi_portfolio_rules",
-                params=_dma_public_params(),
             )
         ],
     )

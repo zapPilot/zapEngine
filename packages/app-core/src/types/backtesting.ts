@@ -4,7 +4,6 @@ export type {
   BacktestAssumptions,
   BacktestBucket,
   BacktestCompareConfigV3,
-  BacktestCompareParamsV3,
   BacktestDecision,
   BacktestDecisionDetails,
   BacktestDmaSignalDetails,
@@ -26,7 +25,6 @@ export type {
   BacktestStrategySet,
   BacktestStrategySummary,
   BacktestTimelinePoint,
-  BacktestTradeQuotaParamsV3,
   BacktestTransferMetadata,
   BacktestWindowInfo,
 } from '@zapengine/types/strategy';

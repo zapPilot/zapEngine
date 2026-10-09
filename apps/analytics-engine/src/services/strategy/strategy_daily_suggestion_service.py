@@ -221,6 +221,7 @@ class StrategyDailySuggestionService:
             config_id=saved_config.config_id,
             config_display_name=resolved_config.display_name,
             strategy_id=resolved_config.strategy_id,
+            spec_ref=cast(str, resolved_config.spec_ref),
             action=DailySuggestionActionState(
                 status=status,
                 required=bool(transfers),

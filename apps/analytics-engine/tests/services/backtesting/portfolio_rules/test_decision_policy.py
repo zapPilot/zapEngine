@@ -21,7 +21,6 @@ from src.services.backtesting.decision import (
 from src.services.backtesting.portfolio_rules.base import (
     DIAG_MATCHED_RULE_NAME,
     DIAG_SIGNALS_CONSULTED,
-    FgiRegime,
     PortfolioRule,
     PortfolioRuleConfig,
     PortfolioSnapshot,
@@ -35,17 +34,10 @@ from src.services.backtesting.portfolio_rules.decision_policy import (
     RuleExecutionState,
     RulesEvaluator,
     _matched_rule_priority,
-    _rule_with_public_params,
-    build_portfolio_rules_for_params,
     build_portfolio_snapshot,
-    build_risk_guards_for_params,
-    required_rule,
     resolve_portfolio_rules_intent,
 )
 from src.services.backtesting.signals.flat_minimum import FlatMinimumState
-from src.services.backtesting.strategies.rule_based_portfolio import (
-    DmaGatedFgiParams,
-)
 from tests.services.backtesting.portfolio_rules.helpers import snapshot, state
 
 
@@ -226,17 +218,6 @@ class _PostAdjustmentRule(_FakeRule):
         )
 
 
-class _PublicParamsNoSectionRule(_FakeRule):
-    @classmethod
-    def public_params_section(cls) -> str | None:
-        return None
-
-    @classmethod
-    def with_public_params(cls, section: object) -> _PublicParamsNoSectionRule:
-        del section
-        return cls(name="configured")
-
-
 def _as_rules(*fakes: _FakeRule) -> tuple[PortfolioRule, ...]:
     return tuple(cast(PortfolioRule, fake) for fake in fakes)
 
@@ -266,34 +247,6 @@ def test_no_matching_rule_returns_regime_no_signal_hold() -> None:
     assert intent.reason == "regime_no_signal"
     assert intent.diagnostics is not None
     assert intent.diagnostics["matched_rule_name"] == "regime_no_signal_hold"
-
-
-def test_disabled_rule_is_skipped_and_next_eligible_match_wins() -> None:
-    intent = resolve_portfolio_rules_intent(
-        snapshot(),
-        rules=_as_rules(
-            _FakeRule(name="alpha"),
-            _FakeRule(name="beta"),
-        ),
-        disabled_rules=frozenset({"alpha"}),
-    )
-
-    assert intent.diagnostics is not None
-    assert intent.diagnostics["matched_rule_name"] == "beta"
-
-
-def test_enabled_rules_acts_as_allowlist() -> None:
-    intent = resolve_portfolio_rules_intent(
-        snapshot(),
-        rules=_as_rules(
-            _FakeRule(name="alpha"),
-            _FakeRule(name="beta"),
-        ),
-        enabled_rules=frozenset({"beta"}),
-    )
-
-    assert intent.diagnostics is not None
-    assert intent.diagnostics["matched_rule_name"] == "beta"
 
 
 def test_resolver_uses_injected_cooldown_tracker() -> None:
@@ -781,54 +734,6 @@ def test_build_portfolio_snapshot_reports_missing_crypto_summary_as_none() -> No
     assert portfolio_snapshot.macro_fgi_value == pytest.approx(75.0)
     assert portfolio_snapshot.crypto_fgi_regime is None
     assert portfolio_snapshot.crypto_fgi_value is None
-
-
-def test_build_portfolio_rules_applies_public_params_and_include_inactive() -> None:
-    params = DmaGatedFgiParams.from_public_params(
-        {
-            "disabled_rules": ["cross_down_exit"],
-            "overextension_threshold_multiplier_greed": 0.67,
-            "overextension_threshold_multiplier_extreme_greed": 0.50,
-        }
-    )
-
-    active_rules = build_portfolio_rules_for_params(params)
-    all_rules = build_portfolio_rules_for_params(params, include_inactive=True)
-
-    assert "cross_down_exit" not in [rule.name for rule in active_rules]
-    overextension_rule = next(
-        rule for rule in all_rules if rule.name == "dma_overextension_dca_sell"
-    )
-    assert overextension_rule.fgi_threshold_multipliers[FgiRegime.GREED] == 0.67
-    assert overextension_rule.fgi_threshold_multipliers[FgiRegime.EXTREME_GREED] == 0.50
-    assert "spy_latch" in [rule.name for rule in all_rules]
-
-
-def test_public_params_rule_with_no_section_is_returned_unchanged() -> None:
-    rule = _PublicParamsNoSectionRule(name="no_section")
-
-    assert _rule_with_public_params(rule, object()) is rule
-
-
-def test_build_risk_guards_for_params_only_enables_trade_quota_when_configured() -> (
-    None
-):
-    assert build_risk_guards_for_params(DmaGatedFgiParams()) == ()
-
-    guards = build_risk_guards_for_params(DmaGatedFgiParams(min_trade_interval_days=3))
-
-    assert [guard.name for guard in guards] == ["trade_quota"]
-
-
-def test_decision_policy_validation_helpers_raise_for_unknown_names() -> None:
-    found = required_rule(
-        _as_rules(_FakeRule(name="alpha")),
-        _FakeRule,
-    )
-    assert found.name == "alpha"
-
-    with pytest.raises(ValueError, match="Missing required portfolio rule"):
-        required_rule((), type(cast(PortfolioRule, _FakeRule(name="alpha"))))
 
 
 def test_matched_rule_priority_returns_none_without_matched_rule_diagnostic() -> None:

@@ -1,34 +1,29 @@
+"""The research rules, compiled from a spec that lists all twelve."""
+
 from __future__ import annotations
 
 from dataclasses import replace
 from datetime import date
+from functools import cache
 
-from src.services.backtesting.portfolio_rules import (
-    ALL_PORTFOLIO_RULES,
-    DEFAULT_PORTFOLIO_RULE_NAMES,
-    DEFAULT_PORTFOLIO_RULES,
-    RULE_NAMES,
-    TECHNICAL_EXPERIMENT_RULE_NAMES,
-)
 from src.services.backtesting.portfolio_rules.base import (
     PortfolioRule,
     PortfolioRuleConfig,
     PortfolioSnapshot,
 )
-from src.services.backtesting.portfolio_rules.technical_experiments import (
-    TECHNICAL_EXPERIMENT_RULES,
-)
 from src.services.backtesting.signals.dma_gated_fgi.types import DmaMarketState
 from src.services.backtesting.signals.flat_minimum import FlatMinimumState
 from src.services.backtesting.signals.technical import TechnicalSignalSnapshot
+from src.services.backtesting.spec import compile_spec, parse_spec
 from src.services.backtesting.strategies.rule_based_portfolio import (
     RuleBasedPortfolioStrategy,
 )
 from tests.services.backtesting.portfolio_rules.helpers import snapshot, state
+from tests.services.backtesting.spec.helpers import reference_raw, technical_rules
+from tests.services.backtesting.support.reference_rules import reference_components
 
 _CONFIG = PortfolioRuleConfig()
 _CURRENT = {"btc": 0.5, "eth": 0.0, "spy": 0.0, "stable": 0.5, "alt": 0.0}
-_TECHNICAL_REASONS = {f"portfolio_{name}" for name in TECHNICAL_EXPERIMENT_RULE_NAMES}
 _EVERY_SIGNAL_FIRING = TechnicalSignalSnapshot(
     rsi_14=95.0,
     rsi_slope_5d=-10.0,
@@ -48,8 +43,16 @@ _EVERY_SIGNAL_FIRING = TechnicalSignalSnapshot(
 )
 
 
+@cache
+def _research_rules() -> dict[str, PortfolioRule]:
+    raw = reference_raw()
+    raw["rules"] = [*raw["rules"], *technical_rules().values()]
+    components = compile_spec(parse_spec(raw))
+    return {rule.name: rule for rule in components.rules[len(raw["rules"]) - 12 :]}
+
+
 def _rule(name: str) -> PortfolioRule:
-    return next(rule for rule in TECHNICAL_EXPERIMENT_RULES if rule.name == name)
+    return _research_rules()[name]
 
 
 def _btc_state(technical: TechnicalSignalSnapshot) -> DmaMarketState:
@@ -69,22 +72,6 @@ def _flat_state(technical: TechnicalSignalSnapshot) -> FlatMinimumState:
         eth_dma_state=state(symbol="ETH"),
         current_asset_allocation=dict(_CURRENT),
         current_date=date(2025, 3, 13),
-    )
-
-
-def test_technical_experiments_are_known_but_not_default_rules() -> None:
-    assert TECHNICAL_EXPERIMENT_RULE_NAMES <= RULE_NAMES
-    assert TECHNICAL_EXPERIMENT_RULE_NAMES.isdisjoint(DEFAULT_PORTFOLIO_RULE_NAMES)
-
-
-def test_technical_experiments_rank_after_every_default_rule() -> None:
-    priorities = [rule.priority for rule in TECHNICAL_EXPERIMENT_RULES]
-    experiment_names = [rule.name for rule in TECHNICAL_EXPERIMENT_RULES]
-
-    assert len(set(priorities)) == len(priorities)
-    assert min(priorities) > max(rule.priority for rule in DEFAULT_PORTFOLIO_RULES)
-    assert [rule.name for rule in ALL_PORTFOLIO_RULES][-len(priorities) :] == (
-        experiment_names
     )
 
 
@@ -229,15 +216,23 @@ def test_technical_rules_ignore_assets_below_their_long_term_trend() -> None:
     )
 
     assert not any(
-        rule.matches(below_trend, config=_CONFIG) for rule in TECHNICAL_EXPERIMENT_RULES
+        rule.matches(below_trend, config=_CONFIG) for rule in _research_rules().values()
     )
 
 
-def test_enabled_technical_rule_drives_a_strategy_decision() -> None:
-    strategy = RuleBasedPortfolioStrategy(
+def _strategy_with(*names: str) -> RuleBasedPortfolioStrategy:
+    raw = reference_raw()
+    research = technical_rules()
+    raw["rules"] = [research[name] for name in names] if names else raw["rules"]
+    return RuleBasedPortfolioStrategy(
         total_capital=10_000.0,
-        params={"enabled_rules": ["breakout_20d_dca_buy"]},
+        components=compile_spec(parse_spec(raw)),
+        spec_ref="test",
     )
+
+
+def test_a_listed_technical_rule_drives_a_strategy_decision() -> None:
+    strategy = _strategy_with("breakout_20d_dca_buy")
 
     intent = strategy.decision_policy.decide(
         _flat_state(TechnicalSignalSnapshot(breakout_20d=True))
@@ -251,10 +246,14 @@ def test_enabled_technical_rule_drives_a_strategy_decision() -> None:
     assert traced["BTC"]["breakout_20d"] is True
 
 
-def test_default_strategy_never_selects_a_technical_rule() -> None:
-    strategy = RuleBasedPortfolioStrategy(total_capital=10_000.0)
+def test_the_reference_strategy_never_selects_a_technical_rule() -> None:
+    strategy = RuleBasedPortfolioStrategy(
+        total_capital=10_000.0,
+        components=reference_components(),
+        spec_ref="reference",
+    )
 
     intent = strategy.decision_policy.decide(_flat_state(_EVERY_SIGNAL_FIRING))
 
-    assert intent.reason not in _TECHNICAL_REASONS
+    assert intent.reason not in {f"portfolio_{name}" for name in _research_rules()}
     assert "technical_signals" not in (intent.diagnostics or {})

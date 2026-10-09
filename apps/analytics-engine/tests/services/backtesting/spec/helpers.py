@@ -4,11 +4,8 @@ from __future__ import annotations
 
 import copy
 import json
-from collections.abc import Mapping
 from typing import Any
 
-from src.services.backtesting.portfolio_rules import DEFAULT_PORTFOLIO_RULE_NAMES
-from src.services.backtesting.spec import StrategySpec
 from src.services.backtesting.spec.loader import STRATEGIES_DIR
 from src.services.backtesting.spec.validation import (
     SpecError,
@@ -127,31 +124,3 @@ SPY_LATCH = {"kind": "spy_latch", "id": "spy_latch", "follow_through_days": 14}
 def technical_rules() -> dict[str, dict[str, Any]]:
     """The twelve research rules as spec JSON, a fresh copy safe to mutate."""
     return copy.deepcopy(_TECHNICAL_RULES)
-
-
-def spec_for_params(params: Mapping[str, Any]) -> StrategySpec:
-    """The spec equivalent to a saved config's public params.
-
-    The old composition: ``enabled_rules`` (default rules when unset) minus
-    ``disabled_rules`` picks rules out of the default and research universe, the
-    trade quota limits become a guard, and the two greed multipliers become the
-    trim rule's regime multipliers.
-    """
-    raw = reference_raw()
-    enabled = params["enabled_rules"]
-    active = set(DEFAULT_PORTFOLIO_RULE_NAMES if enabled is None else enabled)
-    active -= set(params["disabled_rules"])
-    universe = {rule["id"]: rule for rule in raw["rules"]} | technical_rules()
-    raw["rules"] = [rule for name, rule in universe.items() if name in active]
-    raw["overlays"] = [dict(SPY_LATCH)] if "spy_latch" in active else []
-    quota = params["trade_quota"]
-    if any(limit is not None for limit in quota.values()):
-        raw["guards"] = [{"kind": "trade_quota", **quota}]
-    greed = params["top_escape"]
-    for rule in raw["rules"]:
-        if rule["kind"] == "dma_overextension_trim":
-            rule["fgi_multipliers"].update(
-                greed=greed["overextension_threshold_multiplier_greed"],
-                extreme_greed=greed["overextension_threshold_multiplier_extreme_greed"],
-            )
-    return parse_spec(raw)

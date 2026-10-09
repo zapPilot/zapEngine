@@ -69,22 +69,29 @@ def test_curated_presets_have_single_default_and_single_benchmark() -> None:
     assert len(benchmarks) == 1
 
 
-def test_seed_live_configs_expose_only_the_params_that_change_decisions() -> None:
+def test_the_default_seed_names_the_locked_reference_it_runs() -> None:
     config = resolve_seed_strategy_config(DMA_FGI_PORTFOLIO_RULES_CONFIG_ID)
 
-    assert config.params == {
-        "trade_quota": {
-            "min_trade_interval_days": None,
-            "max_trades_7d": None,
-            "max_trades_30d": None,
-        },
-        "top_escape": {
-            "overextension_threshold_multiplier_greed": 0.5,
-            "overextension_threshold_multiplier_extreme_greed": 0.33,
-        },
-        "disabled_rules": [],
-        "enabled_rules": None,
-    }
+    assert config.spec_ref == "reference/dma_fgi"
+    assert resolve_seed_strategy_config("dca_classic").spec_ref is None
+    assert resolve_strategy_preset(DMA_FGI_PORTFOLIO_RULES_CONFIG_ID).spec_ref == (
+        "reference/dma_fgi"
+    )
+
+
+def test_a_seed_whose_reference_drifted_from_the_lock_stops_the_import(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.config import strategy_presets
+    from src.services.backtesting.spec.loader import SpecLockError
+
+    def drifted(ref: str) -> None:
+        raise SpecLockError(f"{ref} does not match its entry in LOCK.json")
+
+    monkeypatch.setattr(strategy_presets, "reference_spec", drifted)
+
+    with pytest.raises(SpecLockError, match="does not match its entry"):
+        strategy_presets._check_seed_references()
 
 
 def test_seed_configs_name_the_recipe_that_runs_them() -> None:

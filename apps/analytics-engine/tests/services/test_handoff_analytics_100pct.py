@@ -13,6 +13,8 @@ from __future__ import annotations
 from datetime import UTC, date
 from typing import Any
 
+from tests.services.backtesting.support.reference_rules import reference_rule
+
 
 class TestWalletAttributionAggregatorGaps:
     def test_normalize_date_returns_none_for_unsupported_types(self) -> None:
@@ -269,14 +271,6 @@ class TestRegistryConfigDecisionGaps:
             "name": None,
         }
 
-    def test_cross_up_equal_weight_has_no_public_params_section(self) -> None:
-        from src.services.backtesting.portfolio_rules.cross_up_equal_weight import (
-            CrossUpEqualWeightRule,
-        )
-
-        # Line cross_up_equal_weight.py:32 — rule has no tunable public section.
-        assert CrossUpEqualWeightRule.public_params_section() is None
-
     def test_dca_classic_parameters_shape(self) -> None:
         from src.services.backtesting.strategies.dca_classic import DcaClassicStrategy
 
@@ -369,29 +363,6 @@ class TestRiskValidationEngineGaps:
         sent = service.run_compare_v3.call_args[0][0]
         assert sent.emit_decision_log is True
 
-    def test_cross_down_exit_skips_inapplicable_peer(self) -> None:
-        from src.services.backtesting.portfolio_rules.base import PortfolioRuleConfig
-        from src.services.backtesting.portfolio_rules.cross_down_exit import (
-            CrossDownExitRule,
-            _exit_symbols_for_cross_down,
-        )
-        from tests.services.backtesting.helpers import snapshot, state
-
-        # Line cross_down_exit.py:122 — peers outside applicable_symbols skip.
-        rule = CrossDownExitRule(applicable_symbols=frozenset({"BTC"}))
-        symbols = _exit_symbols_for_cross_down(["BTC"], rule=rule)
-        assert symbols == ["BTC"]
-        snap = snapshot(
-            assets={
-                "BTC": state(
-                    symbol="BTC",
-                    cross_event="cross_down",
-                    actionable_cross_event="cross_down",
-                ),
-            }
-        )
-        assert rule.matches(snap, config=PortfolioRuleConfig()) is True
-
     def test_signal_engine_requires_dma(self) -> None:
         from datetime import date as date_cls
 
@@ -448,42 +419,18 @@ class TestMetricsAndRuleBoundaries:
         # Line 251: total loss (prod<=0) annualizes to -1.
         assert PerformanceMetricsCalculator._annualized_return(np.array([-1.0])) == -1.0
 
-    def test_rule_based_builders_and_defaults(self) -> None:
-        from src.services.backtesting.strategies.rule_based_portfolio import (
-            DmaGatedFgiParams,
-            default_rule_based_portfolio_params,
-        )
-
-        # Line rule_based_portfolio.py:409.
-        params = DmaGatedFgiParams()
-        assert default_rule_based_portfolio_params() == params.to_public_params()
-
     def test_backtesting_model_validators(self) -> None:
-        from unittest.mock import Mock, patch
-
         from src.models.backtesting import BacktestCompareConfigV3
 
-        # Lines models/backtesting.py:243,246,281.
+        # An already-built config and a non-mapping pass through untouched.
         existing = BacktestCompareConfigV3(config_id="c1", saved_config_id="cfg-1")
         assert BacktestCompareConfigV3.validate_config(existing) is existing
         assert BacktestCompareConfigV3.validate_config("not-a-dict") == "not-a-dict"
-        # Line 281: fallback when nested params unsupported (mocked).
-        mock_recipe = Mock()
-        mock_recipe.normalize_public_params.return_value = {"flat": 1}
-        with (
-            patch(
-                "src.services.backtesting.strategy_registry.get_strategy_recipe",
-                return_value=mock_recipe,
-            ),
-            patch(
-                "src.models.backtesting.supports_nested_public_params",
-                return_value=False,
-            ),
-        ):
-            out = BacktestCompareConfigV3.validate_config(
-                {"config_id": "c2", "strategy_id": "dca_classic", "params": {}}
-            )
-            assert out["params"] == {"flat": 1}
+        # A strategy takes no params: the inline config is normalized to none.
+        out = BacktestCompareConfigV3.validate_config(
+            {"config_id": "c2", "strategy_id": "dca_classic", "params": {}}
+        )
+        assert out["params"] == {}
 
 
 class TestBootstrapYieldRouterGaps:
@@ -695,7 +642,6 @@ class TestEthBtcRuleGaps:
         import pytest
 
         from src.services.backtesting.portfolio_rules.eth_btc_deviation_dca import (
-            EthBtcDeviationDcaRule,
             _match_for_snapshot,
             _ratio_deviation,
             _require_match,
@@ -707,12 +653,12 @@ class TestEthBtcRuleGaps:
         from tests.services.backtesting.helpers import snapshot
 
         # An intent without a matching tier fails closed.
-        rule = EthBtcDeviationDcaRule()
+        rule = reference_rule("eth_btc_deviation_dca")
         empty = snapshot(eth_btc_ratio_state=None)
         with pytest.raises(ValueError, match="without a match"):
             _require_match(empty, rule=rule)
         # Without an upper leg the mirrored side is ignored.
-        sym_off = EthBtcDeviationDcaRule(above=None)
+        sym_off = reference_rule("eth_btc_deviation_dca", above=None)
         cooldown = DmaCooldownState(active=False, remaining_days=0, blocked_zone=None)
         bullish = EthBtcRatioState(
             ratio=1.6,

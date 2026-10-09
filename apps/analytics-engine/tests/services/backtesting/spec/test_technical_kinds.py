@@ -8,7 +8,6 @@ old rules carried is a field the spec states.
 from __future__ import annotations
 
 import copy
-from dataclasses import replace
 from typing import Any
 
 import pytest
@@ -22,7 +21,6 @@ from src.services.backtesting.lab.liveness import (
     tunable_leaves,
 )
 from src.services.backtesting.portfolio_rules.technical_experiments import (
-    TECHNICAL_EXPERIMENT_RULES,
     TechnicalDcaBuyRule,
     TechnicalDcaSellRule,
 )
@@ -61,22 +59,23 @@ def test_the_research_rule_fixture_is_a_fresh_copy_each_time() -> None:
     }
 
 
-def test_the_helper_lists_the_old_table_in_priority_order() -> None:
-    assert list(technical_rules()) == [rule.name for rule in TECHNICAL_EXPERIMENT_RULES]
-
-
-def test_the_twelve_research_rules_compile_to_the_rules_the_old_table_holds() -> None:
+def test_the_twelve_research_rules_compile_to_rules_that_state_everything() -> None:
     components = compile_spec(_spec_with(*technical_rules()))
 
     compiled = components.rules[FIRST_RESEARCH_RULE:]
-    assert len(compiled) == len(TECHNICAL_EXPERIMENT_RULES) == 12
-    for rule, legacy in zip(compiled, TECHNICAL_EXPERIMENT_RULES, strict=True):
-        # Priority is the position in the spec and the description is generated
-        # from the signal; nothing the rule does differs.
-        assert (
-            replace(rule, priority=legacy.priority, description=legacy.description)
-            == legacy
+    assert [rule.name for rule in compiled] == list(technical_rules())
+    for rule, (name, raw) in zip(compiled, technical_rules().items(), strict=True):
+        assert rule.priority == 10 * (
+            FIRST_RESEARCH_RULE + list(technical_rules()).index(name) + 1
         )
+        assert rule.cooldown_days == 7
+        assert rule.predicate.signal == raw["trigger"]["signal"]
+        assert (rule.allocation_name, rule.reason) == (f"portfolio_{name}",) * 2
+        assert rule.rule_group == "dma_fgi"
+        if raw["kind"] == "technical_trim":
+            assert (rule.sell_step, rule.proceeds.to) == (0.05, (("SPY", 0.5),))
+        else:
+            assert rule.buy_step == 0.05
 
 
 def test_a_trim_becomes_a_sell_rule_and_an_add_becomes_a_buy_rule() -> None:

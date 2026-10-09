@@ -300,11 +300,3 @@ _ = resolve_strategy_preset  # noqa: F841
 from src.models.strategy_config import SavedStrategyConfig as _SavedStrategyConfig
 
 _ = _SavedStrategyConfig.validate_saved_config  # noqa: F841
-
-# Public params Pydantic model fields - accessed dynamically via getattr() in _nested_to_flat()
-from src.services.backtesting.public_params import (
-    DmaGatedFgiPublicParams as _DmaGatedFgiPublicParams,
-)
-
-_ = _DmaGatedFgiPublicParams.trade_quota  # noqa: F841
-_ = _DmaGatedFgiPublicParams.top_escape  # noqa: F841

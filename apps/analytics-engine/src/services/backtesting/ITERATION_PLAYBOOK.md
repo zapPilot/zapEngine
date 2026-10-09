@@ -5,18 +5,29 @@ Use this checklist for any rule, priority, or saved-config behavior change in
 
 ## Gate
 
-1. Edit rules, priorities, sizing, or risk guards.
-2. Update the behavioral validation fixture when expected decisions change,
+1. Edit the reference spec, `src/config/strategies/reference/dma_fgi.json`:
+   rules, their order (precedence), sizing and risk guards. The spec is the only
+   place the strategy's behavior lives. A rule kind or knob the spec cannot yet
+   say is Python in `spec/rules.py` and the rule class, with the generated schema
+   and `VOCABULARY.md` regenerated in the same change. A behavior change needs a
+   new `version`; record it with
+   `pnpm --filter @zapengine/analytics-engine strategy-lab spec lock reference/dma_fgi`
+   (the service refuses to start on a reference that drifted from its lock).
+2. Pin the new behavior DSN-free, with the reason in the commit message:
+   ```bash
+   pnpm --filter @zapengine/analytics-engine strategy-lab golden
+   ```
+3. Update the behavioral validation fixture when expected decisions change,
    then run its gate and the backtesting suite:
    ```bash
    pnpm --filter @zapengine/analytics-engine exec uv run pytest \
      tests/test_validation_events.py tests/services/backtesting
    ```
-3. Check the pinned production-history snapshot:
+4. Check the pinned production-history snapshot:
    ```bash
    pnpm --filter @zapengine/analytics-engine test:strategy-snapshot:fast
    ```
-4. Regenerate the 500-day snapshot only for intentional performance drift:
+5. Regenerate the 500-day snapshot only for intentional performance drift:
    ```bash
    pnpm --filter @zapengine/analytics-engine exec uv run python scripts/attribution/sweep_production_window.py \
      --update-snapshot
@@ -26,7 +37,7 @@ Use this checklist for any rule, priority, or saved-config behavior change in
    `--reference-date` re-cuts at the fixture's current date, so iteration
    diffs stay apples-to-apples. Pass `--reference-date` explicitly only when
    you intend to move the window.
-5. Prepend an `ITERATION_LOG.md` entry using the template below.
+6. Prepend an `ITERATION_LOG.md` entry using the template below.
 
 ## Re-baselining after an assumption change
 

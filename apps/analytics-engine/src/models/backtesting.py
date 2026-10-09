@@ -22,10 +22,6 @@ from src.services.backtesting.constants import (
     DEFAULT_STABLE_APR,
 )
 from src.services.backtesting.decision import RuleGroup
-from src.services.backtesting.public_params import (
-    public_params_to_runtime_params,
-    supports_nested_public_params,
-)
 from src.services.backtesting.target_allocation import normalize_target_allocation
 
 StrategyId = str
@@ -280,8 +276,6 @@ class BacktestCompareConfigV3(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def validate_config(cls, data: Any) -> Any:
-        from src.services.backtesting.strategy_registry import get_strategy_recipe
-
         if isinstance(data, cls):
             return data
 
@@ -314,14 +308,9 @@ class BacktestCompareConfigV3(BaseModel):
 
         normalized_strategy_id = _validate_strategy_id(strategy_id)
         raw["strategy_id"] = normalized_strategy_id
-        recipe = get_strategy_recipe(normalized_strategy_id)
-        if supports_nested_public_params(normalized_strategy_id):
-            raw["params"] = public_params_to_runtime_params(
-                normalized_strategy_id,
-                params,
-            )
-        else:
-            raw["params"] = recipe.normalize_public_params(params)
+        if params:
+            raise ValueError(f"{normalized_strategy_id} does not accept params")
+        raw["params"] = {}
         return raw
 
 

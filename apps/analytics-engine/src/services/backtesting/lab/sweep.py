@@ -37,7 +37,7 @@ from src.services.backtesting.lab.coverage import (
     coverage_of,
     recommend_split,
 )
-from src.services.backtesting.lab.evaluate import SYNTHETIC_WARNING, spec_ref
+from src.services.backtesting.lab.evaluate import SYNTHETIC_WARNING
 from src.services.backtesting.lab.folds import MIN_FOLDS, Fold, folds_for
 from src.services.backtesting.lab.ledger import Ledger
 from src.services.backtesting.lab.liveness import tunable_leaves
@@ -53,7 +53,12 @@ from src.services.backtesting.lab.stats import (
     plateau_retention,
     sharpe,
 )
-from src.services.backtesting.spec import StrategySpec, behavior_hash, parse_spec
+from src.services.backtesting.spec import (
+    StrategySpec,
+    behavior_hash,
+    parse_spec,
+    spec_ref,
+)
 from src.services.backtesting.spec.validation import SpecError
 
 MAX_TRIALS = 200

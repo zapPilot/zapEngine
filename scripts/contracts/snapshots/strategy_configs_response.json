@@ -57,9 +57,6 @@
       "items": {
         "additionalProperties": false,
         "properties": {
-          "default_enabled": {
-            "type": "boolean"
-          },
           "description": {
             "type": "string"
           },
@@ -75,8 +72,7 @@
         "required": [
           "name",
           "priority",
-          "description",
-          "default_enabled"
+          "description"
         ],
         "type": "object"
       },
@@ -108,14 +104,15 @@
           "is_default": {
             "type": "boolean"
           },
-          "params": {
-            "additionalProperties": {
-              "$ref": "#/$defs/__schema0"
-            },
-            "propertyNames": {
-              "type": "string"
-            },
-            "type": "object"
+          "spec_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "strategy_id": {
             "type": "string"
@@ -126,7 +123,7 @@
           "display_name",
           "description",
           "strategy_id",
-          "params",
+          "spec_ref",
           "is_default",
           "is_benchmark"
         ],

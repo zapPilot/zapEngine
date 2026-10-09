@@ -54,34 +54,21 @@ class _TierMatch:
         return f"portfolio_eth_btc_deviation_{self.cooldown_suffix}"
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class EthBtcDeviationDcaRule:
-    name: str = "eth_btc_deviation_dca"
-    priority: int = 22
+    name: str
+    priority: int
+    # Strongest tier first; each tier has its own cooldown, so a mild move that
+    # just fired does not block a stronger one.
+    tiers: tuple[DeviationTier, ...]
+    # Ratio far below its DMA: the leg that moves. ``None`` turns it off.
+    below: DeviationLeg | None
+    # Ratio far above its DMA: the mirror image. ``None`` turns it off.
+    above: DeviationLeg | None
     rule_group: RuleGroup = "cross"
     description: str = (
         "Mean-revert BTC/ETH allocation when ETH/BTC ratio is far from its 200-day DMA."
     )
-    # Strongest tier first; each tier has its own cooldown, so a mild move that
-    # just fired does not block a stronger one.
-    tiers: tuple[DeviationTier, ...] = (
-        DeviationTier(
-            name="large",
-            threshold=0.65,
-            rotation_fraction=0.75,
-            cooldown_days=60,
-        ),
-        DeviationTier(
-            name="dca",
-            threshold=0.50,
-            rotation_fraction=0.25,
-            cooldown_days=14,
-        ),
-    )
-    # Ratio far below its DMA: ETH is cheap against BTC, so BTC moves into ETH.
-    below: DeviationLeg | None = DeviationLeg(source="btc", destination="eth")
-    # Ratio far above its DMA: the mirror image. ``None`` turns the leg off.
-    above: DeviationLeg | None = DeviationLeg(source="eth", destination="btc")
 
     def __post_init__(self) -> None:
         thresholds = [tier.threshold for tier in self.tiers]

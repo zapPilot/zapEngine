@@ -10,12 +10,13 @@ from src.models.strategy_config import (
     StrategyPreset,
 )
 from src.services.backtesting.constants import (
+    DMA_FGI_REFERENCE_SPEC,
     MODEL_TOTAL_CAPITAL,
     MODEL_WINDOW_DAYS,
     STRATEGY_DCA_CLASSIC,
     STRATEGY_DMA_FGI_PORTFOLIO_RULES,
 )
-from src.services.backtesting.public_params import get_default_public_params
+from src.services.backtesting.strategy_registry import reference_spec
 
 DMA_FGI_PORTFOLIO_RULES_CONFIG_ID: Final[str] = "dma_fgi_portfolio_rules_default"
 
@@ -31,7 +32,7 @@ def _build_default_seed_config() -> SavedStrategyConfig:
         ),
         strategy_id=STRATEGY_DMA_FGI_PORTFOLIO_RULES,
         primary_asset="BTC",
-        params=get_default_public_params(STRATEGY_DMA_FGI_PORTFOLIO_RULES),
+        spec_ref=DMA_FGI_REFERENCE_SPEC,
         supports_daily_suggestion=True,
         is_default=True,
         is_benchmark=False,
@@ -46,13 +47,21 @@ SEED_STRATEGY_CONFIGS: Final[list[SavedStrategyConfig]] = [
         description="Simple dollar-cost averaging baseline.",
         strategy_id=STRATEGY_DCA_CLASSIC,
         primary_asset="BTC",
-        params={},
         supports_daily_suggestion=False,
         is_default=False,
         is_benchmark=True,
     ),
 ]
 
+
+def _check_seed_references() -> None:
+    """A seed that names a reference which drifted from the lock stops the import."""
+    for config in SEED_STRATEGY_CONFIGS:
+        if config.spec_ref is not None:
+            reference_spec(config.spec_ref)
+
+
+_check_seed_references()
 
 BACKTEST_DEFAULTS: Final[BacktestDefaults] = BacktestDefaults(
     days=MODEL_WINDOW_DAYS, total_capital=MODEL_TOTAL_CAPITAL
