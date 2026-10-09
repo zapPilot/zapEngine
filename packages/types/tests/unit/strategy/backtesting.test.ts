@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  BacktestAssumptionsSchema,
   BacktestCompareParamsV3Schema,
   BacktestMacroFearGreedSnapshotSchema,
+  BacktestPnlAttributionSchema,
   BacktestRequestSchema,
   BacktestRuleGroupSchema,
   BacktestTradeQuotaParamsV3Schema,
@@ -227,5 +229,55 @@ describe('BacktestCompareParamsV3Schema', () => {
     expect(BacktestCompareParamsV3Schema.safeParse(removed).success).toBe(
       false,
     );
+  });
+});
+
+describe('BacktestAssumptionsSchema (strict)', () => {
+  const defaults = { fill_lag_days: 1, slippage_rate: 0.003, stable_apr: 0.03 };
+
+  it('accepts the default assumptions', () => {
+    expect(BacktestAssumptionsSchema.safeParse(defaults).success).toBe(true);
+  });
+
+  it('accepts them as an optional request field, absent or null', () => {
+    const request = {
+      total_capital: 10_000,
+      configs: [{ config_id: 'a', saved_config_id: 'dma_fgi' }],
+    };
+    for (const assumptions of [undefined, null, defaults]) {
+      expect(
+        BacktestRequestSchema.safeParse({ ...request, assumptions }).success,
+      ).toBe(true);
+    }
+  });
+
+  it('rejects a fill lag beyond one bar, negative rates and unknown keys', () => {
+    for (const bad of [
+      { ...defaults, fill_lag_days: 2 },
+      { ...defaults, slippage_rate: -0.001 },
+      { ...defaults, stable_apr: 0.6 },
+      { ...defaults, spot_apr: 0.05 },
+    ]) {
+      expect(BacktestAssumptionsSchema.safeParse(bad).success).toBe(false);
+    }
+  });
+});
+
+describe('BacktestPnlAttributionSchema', () => {
+  it('accepts signed parts: price can lose, cost is negative', () => {
+    expect(
+      BacktestPnlAttributionSchema.safeParse({
+        price_usd: -120.5,
+        yield_usd: 12.25,
+        cost_usd: -3,
+      }).success,
+    ).toBe(true);
+  });
+
+  it('requires all three parts', () => {
+    expect(
+      BacktestPnlAttributionSchema.safeParse({ price_usd: 1, yield_usd: 2 })
+        .success,
+    ).toBe(false);
   });
 });

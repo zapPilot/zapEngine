@@ -18,6 +18,7 @@ from scripts.pinned_strategy.compile import ARTIFACT, ROOT
 from scripts.pinned_strategy.deploy import DEPLOYMENTS
 from scripts.pinned_strategy.evm import SliceEVM
 from scripts.pinned_strategy.record_market_history import HISTORY, read_history
+from src.services.backtesting.constants import DEFAULT_FILL_LAG_DAYS
 from src.services.backtesting.signals.flat_minimum import (
     _ASSET_SPECS,
     _build_asset_dma_context,
@@ -208,7 +209,11 @@ def validate_publication(examples, published):
             for i, row in enumerate(series["values"])
             if row["date"] == example["date"]
         )
-        target = list(map(str, published["allocations"]["values"][index]))
+        # A decision on day i fills on day i + lag, so the published allocation
+        # that equals the target is the fill day's, not the decision day's.
+        target = list(
+            map(str, published["allocations"]["values"][index + DEFAULT_FILL_LAG_DAYS])
+        )
         assert all(
             abs(Decimal(a) - Decimal(b)) <= Decimal("0.00005")
             for a, b in zip(example["expected"]["pythonTarget"], target, strict=True)

@@ -12,6 +12,7 @@ from src.main import app
 from src.models.backtesting import (
     Allocation,
     AssetAllocation,
+    BacktestAssumptions,
     BacktestCompareRequestV3,
     BacktestPeriodInfo,
     BacktestResponse,
@@ -20,6 +21,7 @@ from src.models.backtesting import (
     DecisionState,
     ExecutionState,
     MarketSnapshot,
+    PnlAttribution,
     PortfolioState,
     SignalState,
     StrategyState,
@@ -108,6 +110,7 @@ async def _post_compare(
 
 def _response() -> BacktestResponse:
     return BacktestResponse(
+        assumptions=BacktestAssumptions(),
         strategies={
             "portfolio_rules_runtime": StrategySummary(
                 strategy_id="dma_fgi_portfolio_rules",
@@ -119,6 +122,9 @@ def _response() -> BacktestResponse:
                 trade_count=4,
                 calmar_ratio=0.78,
                 max_drawdown_percent=-2.5,
+                pnl_attribution=PnlAttribution(
+                    price_usd=520.0, yield_usd=30.0, cost_usd=-50.0
+                ),
                 final_allocation=Allocation(spot=0.0, stable=1.0),
                 final_asset_allocation=AssetAllocation(
                     btc=0.0,

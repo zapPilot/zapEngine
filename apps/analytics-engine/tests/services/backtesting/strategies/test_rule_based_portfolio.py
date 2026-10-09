@@ -155,9 +155,10 @@ def test_strategy_cross_down_exits_crypto_peers_to_stable() -> None:
     assert action.snapshot.decision.target_allocation == pytest.approx(
         {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0, "alt": 0.0}
     )
-    assert action.transfers is not None
-    assert action.transfers[0].from_bucket == "btc"
-    assert action.transfers[0].to_bucket == "stable"
+    assert action.order is not None
+    assert action.order.target_allocation is not None
+    assert action.snapshot.execution.transfers[0].from_bucket == "btc"
+    assert action.snapshot.execution.transfers[0].to_bucket == "stable"
 
 
 def test_strategy_uses_the_atomic_rule_based_executor() -> None:
@@ -231,9 +232,10 @@ def test_strategy_cross_up_equal_weights_currently_above_assets() -> None:
     assert action.snapshot.decision.target_allocation == pytest.approx(
         {"btc": 0.5, "eth": 0.5, "spy": 0.0, "stable": 0.0, "alt": 0.0}
     )
-    assert action.transfers is not None
-    assert action.transfers[0].from_bucket == "btc"
-    assert action.transfers[0].to_bucket == "eth"
+    assert action.order is not None
+    assert action.order.target_allocation is not None
+    assert action.snapshot.execution.transfers[0].from_bucket == "btc"
+    assert action.snapshot.execution.transfers[0].to_bucket == "eth"
 
 
 def test_strategy_cross_down_cooldown_blocks_next_cross_up() -> None:

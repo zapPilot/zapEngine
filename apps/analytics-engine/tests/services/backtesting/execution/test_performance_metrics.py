@@ -64,6 +64,42 @@ class TestCalculateSharpeRatio:
         assert sharpe < 0.0
 
 
+class TestExcessReturnDefinition:
+    """Sharpe and Sortino measure return over the risk-free rate, not over zero."""
+
+    def test_a_strategy_that_only_earns_the_risk_free_rate_has_no_sharpe(self):
+        risk_free_daily = 0.0003
+        returns = np.array([0.0001, 0.0005, 0.0003, 0.0002, 0.0004])
+
+        sharpe = PerformanceMetricsCalculator.calculate_sharpe_ratio(
+            returns, risk_free_daily
+        )
+
+        assert sharpe == pytest.approx(0.0, abs=1e-9)
+
+    def test_the_risk_free_rate_lowers_sharpe(self):
+        returns = np.array([0.01, 0.02, 0.015, 0.018])
+
+        plain = PerformanceMetricsCalculator.calculate_sharpe_ratio(returns)
+        excess = PerformanceMetricsCalculator.calculate_sharpe_ratio(returns, 0.005)
+
+        assert excess < plain
+
+    def test_downside_is_measured_against_the_risk_free_rate(self):
+        # no day loses money, but two days earn less than the risk-free rate
+        returns = np.array([0.0, 0.001, 0.02, 0.0])
+        sharpe = PerformanceMetricsCalculator.calculate_sharpe_ratio(returns, 0.002)
+
+        sortino = PerformanceMetricsCalculator.calculate_sortino_ratio(
+            returns, sharpe, 0.002
+        )
+
+        assert sortino != sharpe
+        assert PerformanceMetricsCalculator.calculate_sortino_ratio(
+            returns, sharpe
+        ) == pytest.approx(sharpe)  # without a risk-free rate there is no downside
+
+
 class TestCalculateSortinoRatio:
     """Tests for Sortino ratio calculation."""
 
@@ -365,7 +401,7 @@ class TestCalculateAllMetrics:
     def test_insufficient_data(self):
         """Less than 2 data points should return all zeros."""
         calc = PerformanceMetricsCalculator()
-        metrics = calc.calculate_all_metrics([100.0], [50.0])
+        metrics = calc.calculate_all_metrics([100.0], [50.0], risk_free_apr=0.03)
 
         assert metrics["sharpe_ratio"] == 0.0
         assert metrics["sortino_ratio"] == 0.0
@@ -383,7 +419,7 @@ class TestCalculateAllMetrics:
         values = [100.0, 110.0, 105.0, 115.0, 120.0]
         prices = [50.0, 55.0, 52.0, 57.0, 60.0]
         calc = PerformanceMetricsCalculator()
-        metrics = calc.calculate_all_metrics(values, prices)
+        metrics = calc.calculate_all_metrics(values, prices, risk_free_apr=0.03)
 
         expected_keys = {
             "sharpe_ratio",
@@ -404,7 +440,7 @@ class TestCalculateAllMetrics:
         values = [100.0, 120.0, 90.0, 110.0]
         prices = [50.0, 60.0, 45.0, 55.0]
         calc = PerformanceMetricsCalculator()
-        metrics = calc.calculate_all_metrics(values, prices)
+        metrics = calc.calculate_all_metrics(values, prices, risk_free_apr=0.03)
 
         # Drawdown from 120 to 90 = -25% = -0.25
         # Should be converted to -25.0 (percentage)
@@ -417,8 +453,12 @@ class TestCalculateAllMetrics:
         values = [100.0, 105.0, 110.0, 108.0, 115.0, 120.0]
         prices = [50.0, 52.0, 54.0, 53.0, 56.0, 58.0]
         calc = PerformanceMetricsCalculator()
-        metrics = calc.calculate_all_metrics(values, prices)
+        risk_free_apr = 0.0365
+        metrics = calc.calculate_all_metrics(
+            values, prices, risk_free_apr=risk_free_apr
+        )
 
+        risk_free_daily = risk_free_apr / 365.0
         strategy = np.diff(values) / np.array(values[:-1])
         benchmark = np.diff(prices) / np.array(prices[:-1])
         mean = np.mean(strategy)
@@ -428,7 +468,7 @@ class TestCalculateAllMetrics:
         )
         assert metrics["volatility"] == pytest.approx(np.sqrt(variance * 365))
         assert metrics["sharpe_ratio"] == pytest.approx(
-            mean / np.sqrt(variance) * np.sqrt(365)
+            (mean - risk_free_daily) / np.sqrt(variance) * np.sqrt(365)
         )
         assert metrics["beta"] == pytest.approx(beta)
         assert metrics["alpha"] == pytest.approx(
@@ -436,5 +476,7 @@ class TestCalculateAllMetrics:
             - beta * (np.prod(1 + benchmark) ** (365 / len(benchmark)) - 1)
         )
         assert metrics["sortino_ratio"] == pytest.approx(
-            mean / np.sqrt(np.mean(np.minimum(strategy, 0) ** 2)) * np.sqrt(365)
+            (mean - risk_free_daily)
+            / np.sqrt(np.mean(np.minimum(strategy - risk_free_daily, 0) ** 2))
+            * np.sqrt(365)
         )

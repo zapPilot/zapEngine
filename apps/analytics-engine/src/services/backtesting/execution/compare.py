@@ -8,14 +8,14 @@ from pathlib import Path
 from typing import Any
 
 from src.models.backtesting import (
+    BacktestAssumptions,
     BacktestCompareRequestV3,
     BacktestResponse,
     BacktestWindowInfo,
 )
 from src.services.backtesting.audit import write_decision_log
 from src.services.backtesting.constants import ALLOCATION_STATES
-from src.services.backtesting.execution.config import RegimeConfig
-from src.services.backtesting.execution.engine import EngineConfig, StrategyEngine
+from src.services.backtesting.execution.engine import StrategyEngine
 from src.services.backtesting.strategies.base import BaseStrategy
 from src.services.backtesting.strategy_registry import (
     ResolvedSavedStrategyConfig,
@@ -62,9 +62,7 @@ def run_compare_v3_on_data(
     user_start_date: date,
     resolved_configs: list[ResolvedSavedStrategyConfig] | None = None,
     window: BacktestWindowInfo | None = None,
-    config: RegimeConfig | None = None,
 ) -> BacktestResponse:
-    runtime_config = config or RegimeConfig.default()
     initial_allocation = dict(ALLOCATION_STATES["neutral_start"])
     user_prices = [price for price in prices if price["date"] >= user_start_date]
     if resolved_configs is not None:
@@ -93,7 +91,7 @@ def run_compare_v3_on_data(
             )
             strategy.summary_signal_id = recipe.signal_id
             strategies.append(strategy)
-    engine = StrategyEngine(EngineConfig.from_regime_config(runtime_config))
+    engine = StrategyEngine(request.assumptions or BacktestAssumptions())
     result = engine.run(
         prices=prices,
         sentiments=sentiments,

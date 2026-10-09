@@ -35,6 +35,32 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
+    "assumptions": {
+      "additionalProperties": false,
+      "properties": {
+        "fill_lag_days": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "slippage_rate": {
+          "maximum": 0.05,
+          "minimum": 0,
+          "type": "number"
+        },
+        "stable_apr": {
+          "maximum": 0.5,
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "fill_lag_days",
+        "slippage_rate",
+        "stable_apr"
+      ],
+      "type": "object"
+    },
     "data_freshness": {
       "anyOf": [
         {
@@ -215,6 +241,26 @@
             },
             "type": "object"
           },
+          "pnl_attribution": {
+            "additionalProperties": false,
+            "properties": {
+              "cost_usd": {
+                "type": "number"
+              },
+              "price_usd": {
+                "type": "number"
+              },
+              "yield_usd": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "price_usd",
+              "yield_usd",
+              "cost_usd"
+            ],
+            "type": "object"
+          },
           "roi_percent": {
             "type": "number"
           },
@@ -270,6 +316,7 @@
           "final_value",
           "roi_percent",
           "trade_count",
+          "pnl_attribution",
           "final_allocation",
           "final_asset_allocation",
           "parameters"
@@ -934,6 +981,7 @@
     }
   },
   "required": [
+    "assumptions",
     "strategies",
     "timeline"
   ],

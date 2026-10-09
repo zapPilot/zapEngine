@@ -21,6 +21,12 @@ The non-default technical-indicator research surface is documented in [TECHNICAL
 - There must be no live-only strategy entrypoint, no per-request strategy rebuild, and no live-only copy of cooldown, quota or rule state. If a decision differs between live and compare, the fix is in the shared path, never in a second one. `tests/services/strategy/test_daily_suggestion_parity.py` is the guard.
 - The user is asked to move only on a day the model itself traded (`action.required`); between signals the model holds, so asking would be noise.
 
+## Honest assumptions
+
+- A backtest number means nothing without its `BacktestAssumptions` (`fill_lag_days`, `slippage_rate`, `stable_apr`): they are an input to every run and are echoed on every response. An order fills `fill_lag_days` bars after the decision, only stablecoins earn yield, and each summary's `pnl_attribution` (price, yield, cost) sums to its total PnL.
+- Tune and evaluate strategies under the defaults. `fill_lag_days=0` and the other overrides exist to measure what an assumption costs, never to pick a strategy.
+- Copy that describes the backtest (landing, app, docs) states these assumptions; change them together, and re-baseline the published artifacts per `ITERATION_PLAYBOOK.md`.
+
 ## Iteration discipline
 
 For intentional strategy behavior changes:

@@ -46,6 +46,20 @@ export const BacktestCompareParamsV3Schema = z
   })
   .strict();
 
+export const BacktestAssumptionsSchema = z
+  .object({
+    fill_lag_days: z.number().int().min(0).max(1),
+    slippage_rate: z.number().min(0).max(0.05),
+    stable_apr: z.number().min(0).max(0.5),
+  })
+  .strict();
+
+export const BacktestPnlAttributionSchema = z.object({
+  price_usd: z.number(),
+  yield_usd: z.number(),
+  cost_usd: z.number(),
+});
+
 export const BacktestCompareConfigV3Schema = z.object({
   config_id: z.string(),
   saved_config_id: z.string().nullable().optional(),
@@ -61,6 +75,7 @@ export const BacktestRequestSchema = z.object({
   total_capital: z.number().positive(),
   emit_decision_log: z.boolean().optional(),
   decision_log_dir: z.string().nullable().optional(),
+  assumptions: BacktestAssumptionsSchema.nullable().optional(),
   configs: z.array(BacktestCompareConfigV3Schema).min(1),
 });
 
@@ -201,6 +216,7 @@ export const BacktestStrategySummarySchema = z.object({
   ulcer_index: z.number().optional(),
   alpha: z.number().optional(),
   information_ratio: z.number().optional(),
+  pnl_attribution: BacktestPnlAttributionSchema,
   win_rate_percent: z.number().nullable().optional(),
   final_allocation: PortfolioAllocationSchema,
   final_asset_allocation: AssetAllocationSchema,
@@ -210,6 +226,7 @@ export const BacktestStrategySummarySchema = z.object({
 });
 
 export const BacktestResponseSchema = z.object({
+  assumptions: BacktestAssumptionsSchema,
   strategies: BacktestStrategySetSchema(BacktestStrategySummarySchema),
   timeline: z.array(BacktestTimelinePointSchema),
   window: BacktestWindowInfoSchema.nullable().optional(),
@@ -242,6 +259,10 @@ export type BacktestCompareParamsV3 = z.infer<
 >;
 export type BacktestCompareConfigV3 = z.infer<
   typeof BacktestCompareConfigV3Schema
+>;
+export type BacktestAssumptions = z.infer<typeof BacktestAssumptionsSchema>;
+export type BacktestPnlAttribution = z.infer<
+  typeof BacktestPnlAttributionSchema
 >;
 export type BacktestRequest = z.infer<typeof BacktestRequestSchema>;
 export type BacktestSpotAssetSymbol = z.infer<

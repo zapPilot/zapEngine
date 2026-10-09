@@ -18,7 +18,6 @@ from src.services.backtesting.execution.compare import (
     materialize_compare_request,
     run_compare_v3_on_data,
 )
-from src.services.backtesting.execution.config import RegimeConfig
 from src.services.backtesting.features import (
     ETH_BTC_RATIO_DMA_200_FEATURE,
     ETH_BTC_RATIO_FEATURE,
@@ -170,7 +169,6 @@ def test_run_compare_v3_on_data_supports_portfolio_rules_mode() -> None:
         },
         request=request,
         user_start_date=date(2025, 1, 1),
-        config=RegimeConfig.default(),
     )
 
     assert set(result.strategies) == {"portfolio_rules_runtime"}
@@ -236,7 +234,6 @@ def test_run_compare_v3_on_data_writes_decision_log(tmp_path: Path) -> None:
         },
         request=request,
         user_start_date=date(2025, 1, 1),
-        config=RegimeConfig.default(),
     )
 
     assert result.decision_log_path == f"{tmp_path}/decisions.jsonl"
@@ -307,7 +304,6 @@ def test_run_compare_v3_on_data_trade_quota_reduces_trade_count() -> None:
         },
         request=request,
         user_start_date=date(2025, 1, 1),
-        config=RegimeConfig.default(),
     )
 
     unbounded_state = result.timeline[2].strategies["dma_unbounded"]
@@ -350,7 +346,6 @@ def test_run_compare_v3_on_data_supports_mock_recipe_without_sentiment(
         sentiments={},
         request=request,
         user_start_date=date(2025, 1, 1),
-        config=RegimeConfig.default(),
     )
 
     assert set(result.strategies) == {"mock_no_sentiment"}
@@ -369,7 +364,6 @@ def test_run_compare_v3_on_data_sanitizes_dma_allocation_residue() -> None:
         sentiments=sentiments,
         request=request,
         user_start_date=date(2025, 1, 1),
-        config=RegimeConfig.default(),
     )
 
     summary = result.strategies["portfolio_rules_runtime"]
@@ -445,7 +439,6 @@ def test_run_compare_v3_on_data_attaches_window_and_respects_effective_start() -
         request=request,
         user_start_date=date(2025, 1, 3),
         window=window,
-        config=RegimeConfig.default(),
     )
 
     assert result.window == window
@@ -518,7 +511,6 @@ def test_run_compare_v3_on_data_triggers_overextension_sell_on_parabolic_rise() 
         sentiments=sentiments,
         request=request,
         user_start_date=date(2025, 6, 1),
-        config=RegimeConfig.default(),
     )
 
     points = {
@@ -602,7 +594,6 @@ def test_run_compare_v3_on_data_triggers_greed_fading_sell_on_declining_fgi() ->
         sentiments=sentiments,
         request=request,
         user_start_date=date(2025, 6, 1),
-        config=RegimeConfig.default(),
     )
 
     points = {

@@ -1,8 +1,11 @@
 """Derive strategy trade events (buy / sell / rotation) from a compare timeline.
 
-The landing-page NAV chart marks the days the strategy actually traded. The
+The landing-page NAV chart marks the days the strategy placed an order. The
 timeline already carries that per day as ``strategies[id].execution.transfers``
-— the bucket-to-bucket USD moves the execution engine applied.
+— the bucket-to-bucket USD moves planned for the order placed that day. The
+order fills on the next bar (``BacktestAssumptions.fill_lag_days``), so a marker
+sits on the day the strategy decided and the allocation changes on the day
+after; the amounts are the decision day's plan, not the fill's.
 
 Two fields that look like better sources are not:
 
@@ -12,17 +15,16 @@ Two fields that look like better sources are not:
 - ``decision.action`` labels a BTC->ETH rotation ``"sell"``
   (``portfolio_rules/base.py::eth_btc_ratio_rotation_intent``).
 
-Non-empty transfers is also what increments the engine's ``trade_count``, so it
-doubles as the de-duplication gate: hold runs, and the 39 days a position sits
-untouched between two rotations, carry no transfers and need no comparison
-against the previous day.
+Non-empty transfers is also what increments the engine's ``trade_count`` (it
+counts orders placed), so it doubles as the de-duplication gate: hold runs, and
+the 39 days a position sits untouched between two rotations, carry no transfers
+and need no comparison against the previous day.
 
-Trap: ``execution/engine.py::_apply_action`` has a second path driven by
-``action.target_allocations`` that moves money *without* recording transfers.
-The production strategy never takes it (``strategies/composed.py`` always
-passes ``transfers=``), but pointing this module at a strategy that does would
-silently yield zero events despite a non-zero ``trade_count``. That is why
-``reconcile`` raises instead of warning.
+Trap: the engine counts an order whenever a strategy returns one, whether or not
+the strategy recorded transfers in its snapshot. A strategy that did not would
+silently yield zero events despite a non-zero ``trade_count``
+(``strategies/rule_based_portfolio.py`` records the executor's plan in both
+places). That is why ``reconcile`` raises instead of warning.
 """
 
 from __future__ import annotations
@@ -210,9 +212,8 @@ def reconcile(*, event_count: int, unclassified_count: int, trade_count: int) ->
     """Assert every engine-recorded trade produced an event or a skip.
 
     Raises rather than warns: a silent shortfall means transfers stopped being
-    the whole story (see the ``target_allocations`` trap in the module
-    docstring), and a chart missing markers looks the same as a chart with
-    nothing to mark.
+    the whole story (see the trap in the module docstring), and a chart missing
+    markers looks the same as a chart with nothing to mark.
     """
     accounted = event_count + unclassified_count
     if accounted != trade_count:

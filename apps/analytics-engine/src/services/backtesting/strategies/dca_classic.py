@@ -14,6 +14,7 @@ from src.services.backtesting.decision import AllocationIntent, DecisionAction
 from src.services.backtesting.domain import ExecutionOutcome, StrategySnapshot
 from src.services.backtesting.strategies.base import (
     BaseStrategy,
+    Order,
     StrategyAction,
     StrategyContext,
     TransferIntent,
@@ -86,7 +87,6 @@ class DcaClassicStrategy(BaseStrategy):
                     reason="pre_start_hold",
                     target_allocation=None,
                 ),
-                apply_yield=True,
             )
 
         if self.days_processed >= self.total_days:
@@ -96,7 +96,6 @@ class DcaClassicStrategy(BaseStrategy):
                     reason="capital_exhausted",
                     target_allocation=None,
                 ),
-                apply_yield=True,
             )
 
         self.days_processed += 1
@@ -116,8 +115,7 @@ class DcaClassicStrategy(BaseStrategy):
                     transfers=[transfer],
                     event="buy",
                 ),
-                transfers=[transfer],
-                apply_yield=True,
+                order=Order(transfers=(transfer,)),
             )
 
         return StrategyAction(
@@ -126,7 +124,6 @@ class DcaClassicStrategy(BaseStrategy):
                 reason="no_cash",
                 target_allocation=None,
             ),
-            apply_yield=True,
         )
 
     def parameters(self) -> dict[str, Any]:

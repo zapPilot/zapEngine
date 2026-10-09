@@ -7,8 +7,10 @@ import pytest
 from src.services.backtesting.execution.portfolio import Portfolio
 from src.services.backtesting.strategies.base import (
     BaseStrategy,
+    Order,
     StrategyAction,
     StrategyContext,
+    TransferIntent,
 )
 
 
@@ -51,8 +53,6 @@ def test_base_strategy_record_day_appends_default_daily_record() -> None:
     strategy.record_day(
         context,
         StrategyAction(snapshot=None),  # type: ignore[arg-type]
-        yield_breakdown={},
-        trade_executed=False,
     )
 
     assert strategy.daily_data == [
@@ -72,9 +72,18 @@ def test_base_strategy_record_day_ignores_objects_without_daily_data_list() -> N
     strategy.record_day(
         _context(),
         StrategyAction(snapshot=None),  # type: ignore[arg-type]
-        yield_breakdown={},
-        trade_executed=False,
     )
 
     assert BaseStrategy._get_daily_data(strategy) is None
     assert BaseStrategy._get_total_deployed(strategy) == 0.0
+
+
+def test_an_order_sets_either_a_target_or_transfers() -> None:
+    transfer = TransferIntent("stable", "btc", 1.0)
+
+    assert Order(target_allocation={"stable": 1.0}).transfers == ()
+    assert Order(transfers=(transfer,)).target_allocation is None
+    with pytest.raises(ValueError, match="either target_allocation or transfers"):
+        Order()
+    with pytest.raises(ValueError, match="either target_allocation or transfers"):
+        Order(target_allocation={"stable": 1.0}, transfers=(transfer,))

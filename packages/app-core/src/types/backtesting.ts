@@ -1,6 +1,7 @@
 export type {
   BacktestAllocationBucket,
   BacktestAssetAllocation,
+  BacktestAssumptions,
   BacktestBucket,
   BacktestCompareConfigV3,
   BacktestCompareParamsV3,
@@ -11,6 +12,7 @@ export type {
   BacktestMacroFearGreedSnapshot,
   BacktestMarketPoint,
   BacktestPeriodInfo,
+  BacktestPnlAttribution,
   BacktestPortfolioAllocation,
   BacktestRequest,
   BacktestResponse,

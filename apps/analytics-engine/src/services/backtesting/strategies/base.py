@@ -29,13 +29,28 @@ class TransferIntent:
 
 
 @dataclass(frozen=True)
+class Order:
+    """Money a strategy asks to move on one bar; the engine fills it later.
+
+    Exactly one of ``target_allocation`` (rebalance to these weights at the fill
+    bar's prices, from the holdings it finds then) or ``transfers`` (move exactly
+    these amounts) is set.
+    """
+
+    target_allocation: dict[str, float] | None = None
+    transfers: tuple[TransferIntent, ...] = ()
+
+    def __post_init__(self) -> None:
+        if (self.target_allocation is None) == (not self.transfers):
+            raise ValueError("an order sets either target_allocation or transfers")
+
+
+@dataclass(frozen=True)
 class StrategyAction:
-    """Action returned by a strategy for the current day."""
+    """What a strategy decided on the current bar."""
 
     snapshot: StrategySnapshot
-    target_allocations: dict[str, float] | None = None
-    transfers: list[TransferIntent] | None = None
-    apply_yield: bool = True
+    order: Order | None = None
 
 
 @dataclass(frozen=True)
@@ -135,14 +150,8 @@ class BaseStrategy:
         return getattr(strategy, "total_deployed", 0.0)
 
     # jscpd:ignore-start - record_day signature is intentionally shared by BaseStrategy subclass overrides
-    def record_day(
-        self,
-        context: StrategyContext,
-        action: StrategyAction,
-        yield_breakdown: dict[str, float],
-        trade_executed: bool,
-    ) -> None:
-        """Hook to record daily results after trades and yield."""
+    def record_day(self, context: StrategyContext, action: StrategyAction) -> None:
+        """Hook to record the day's result after fills and yield."""
         daily_data = self._get_daily_data(self)
         if daily_data is None:
             return

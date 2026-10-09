@@ -11,6 +11,11 @@ An intentional behavior change (a new rule parameter default, honest fill
 timing, ...) must update these values in the same commit, with the reason in
 the commit message. Never edit a digest to silence a refactor.
 
+History: 2026-10-09, honest defaults. Orders fill on the bar after the decision,
+stablecoins earn a fixed 3% and crypto nothing (was the FGI-label table), so
+every digest and final value moved while decisions kept their shape (trade
+counts within 3 of the old ones, every default rule still fires).
+
 To regenerate after an intentional change, run the loop at the bottom of this
 module (``uv run python -m tests.services.backtesting.test_engine_golden``)
 and paste the printed dictionary.
@@ -50,7 +55,7 @@ GOLDEN: dict[tuple[str, int], dict[str, dict[str, Any]]] = {
     ("regimes", 1): {
         RULES: {
             "trade_count": 38,
-            "final_value": 9507.1248,
+            "final_value": 8851.4452,
             "rule_counts": {
                 "cross_down_exit": 2,
                 "cross_up_equal_weight": 7,
@@ -59,19 +64,19 @@ GOLDEN: dict[tuple[str, int], dict[str, dict[str, Any]]] = {
                 "fgi_downshift_dca_sell": 16,
                 "regime_no_signal_hold": 346,
             },
-            "digest": "db40aa0463404a238c7a037fca4dd7bf0e0c39f884f887713d3993bf70bc2499",
+            "digest": "e3ece577090216ddd9523a809e6c3f29d3b2f91bfac00663bc6c6c1d7e1b9afd",
         },
         DCA: {
             "trade_count": 400,
-            "final_value": 8932.3122,
+            "final_value": 8387.9753,
             "rule_counts": {"None": 400},
-            "digest": "0e5c8333f23c59c4fe2a773e20ccb1a82418c486135383a7902f43902aba2d78",
+            "digest": "3d0a53b4e4c7d56f1e25ba2ebacd71d6d0112dd31909cc1cd171b533c1888c43",
         },
     },
     ("regimes", 2): {
         RULES: {
             "trade_count": 60,
-            "final_value": 8940.1224,
+            "final_value": 8396.7621,
             "rule_counts": {
                 "cross_down_exit": 7,
                 "cross_up_equal_weight": 8,
@@ -80,40 +85,40 @@ GOLDEN: dict[tuple[str, int], dict[str, dict[str, Any]]] = {
                 "fgi_downshift_dca_sell": 29,
                 "regime_no_signal_hold": 289,
             },
-            "digest": "795d2e9f6719ec2d29b3addc9c634a8ac8204a7e5e77f6e797d386c28c82143a",
+            "digest": "491a121890186a70762b81e40ba0b28bc81be1f32b0935953d4e09bc66f88af8",
         },
         DCA: {
             "trade_count": 400,
-            "final_value": 5465.1352,
+            "final_value": 5041.7204,
             "rule_counts": {"None": 400},
-            "digest": "a8b29ec341f49f21e9ca0d26e993577f0f6bd9913161387fe737f3e652f67872",
+            "digest": "1ef43e63128072ef9c5461504e4f885c8d402fed40322dd125fe64c430a76846",
         },
     },
     ("regimes", 3): {
         RULES: {
-            "trade_count": 54,
-            "final_value": 14743.3102,
+            "trade_count": 53,
+            "final_value": 13300.7642,
             "rule_counts": {
                 "cross_down_exit": 4,
                 "cross_up_equal_weight": 5,
                 "dma_overextension_dca_sell": 27,
                 "eth_btc_ratio_rotation": 3,
-                "fgi_downshift_dca_sell": 22,
-                "regime_no_signal_hold": 339,
+                "fgi_downshift_dca_sell": 23,
+                "regime_no_signal_hold": 338,
             },
-            "digest": "6a6e58278ba196e3ff5d9ebaf4019b4d71f705a3fed815eb9484986466b64fc1",
+            "digest": "f580bb48a619778af1261342770da1b3a4dd5f2c517251d67c6eeda7b5a144aa",
         },
         DCA: {
             "trade_count": 400,
-            "final_value": 8561.5339,
+            "final_value": 8139.0103,
             "rule_counts": {"None": 400},
-            "digest": "d23e84a20cc929c988a855987afbaafab182294c001726067667b256ce76af0b",
+            "digest": "0d465a460295181a2d8035af250952d1f306ba1dfc651195a3cbd018a2728f91",
         },
     },
     ("stress", 1): {
         RULES: {
             "trade_count": 46,
-            "final_value": 10433.1729,
+            "final_value": 9324.0633,
             "rule_counts": {
                 "cross_down_exit": 2,
                 "cross_up_equal_weight": 7,
@@ -123,41 +128,41 @@ GOLDEN: dict[tuple[str, int], dict[str, dict[str, Any]]] = {
                 "fgi_downshift_dca_sell": 13,
                 "regime_no_signal_hold": 346,
             },
-            "digest": "fc326fe6f55eff0954a2e84ce42facbe1687d7ed0077ff050bfe1c85187ef9e2",
+            "digest": "138943ca3e07723b9c0a7e5d481750144ec603c083a8a70193a024222dd63740",
         },
         DCA: {
             "trade_count": 400,
-            "final_value": 8081.523,
+            "final_value": 7603.2193,
             "rule_counts": {"None": 400},
-            "digest": "830bb18aee130733bc134083805a321ce3335bb1f52a11ffc787800bc99b99fc",
+            "digest": "93c28e2ac97cac7784dcaf925d139952ec98e1ef11f85dc0962e3a022d72f441",
         },
     },
     ("stress", 2): {
         RULES: {
-            "trade_count": 74,
-            "final_value": 13708.6201,
+            "trade_count": 71,
+            "final_value": 12723.2733,
             "rule_counts": {
                 "cross_down_exit": 5,
                 "cross_up_equal_weight": 7,
-                "dma_overextension_dca_sell": 71,
-                "eth_btc_deviation_dca": 16,
+                "dma_overextension_dca_sell": 69,
+                "eth_btc_deviation_dca": 27,
                 "eth_btc_ratio_rotation": 3,
-                "fgi_downshift_dca_sell": 26,
-                "regime_no_signal_hold": 272,
+                "fgi_downshift_dca_sell": 25,
+                "regime_no_signal_hold": 264,
             },
-            "digest": "c013f2a30327ad3197ac376eea9acb4ea48ba5a629b0aa3aa39a5bd2efd4ad1f",
+            "digest": "b5e3382f2ebe3e0adb46bcbe71e98c7c122d5a0db52d780a78aff0b600338918",
         },
         DCA: {
             "trade_count": 400,
-            "final_value": 5030.4434,
+            "final_value": 4611.7927,
             "rule_counts": {"None": 400},
-            "digest": "9cec120eb8e5f72a396c8881d43e0f7edb27e9b69c621ba79b49db466b429736",
+            "digest": "431fff92faed6afb5de25a41e910203deca3552256777db7566eec5caa4b9f51",
         },
     },
     ("stress", 3): {
         RULES: {
             "trade_count": 43,
-            "final_value": 8587.208,
+            "final_value": 8933.2073,
             "rule_counts": {
                 "cross_down_exit": 5,
                 "cross_up_equal_weight": 7,
@@ -167,13 +172,13 @@ GOLDEN: dict[tuple[str, int], dict[str, dict[str, Any]]] = {
                 "fgi_downshift_dca_sell": 18,
                 "regime_no_signal_hold": 298,
             },
-            "digest": "063248e197f95eafbb519612cb961a72d58b013b03fa78f500238e03ba233e32",
+            "digest": "b8306ac427b99a4f5ce6fe478582531e0559ae620997ed668c5b5ae69fc0da36",
         },
         DCA: {
             "trade_count": 400,
-            "final_value": 7952.3646,
+            "final_value": 7545.3146,
             "rule_counts": {"None": 400},
-            "digest": "8f8f05a4c1065c73310df82afbccaeab538ae730c4b27eb6d4a21a71e86a1888",
+            "digest": "5024c35fde3f760feb9a9b4e1bbd687581345d838ce0f55fab795654dae0eadd",
         },
     },
 }

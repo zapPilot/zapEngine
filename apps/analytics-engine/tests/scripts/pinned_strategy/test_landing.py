@@ -1,6 +1,7 @@
 """Never publish an invented deployment or a non-reproducible historical example."""
 
 import json
+from datetime import timedelta
 from decimal import Decimal
 
 import pytest
@@ -132,14 +133,23 @@ def test_exporter_replays_real_strategy_with_synthetic_test_inputs(
     from scripts.pinned_strategy.benchmark import run_compare
     from tests.test_validation_events import EVENTS, _synthetic_market_history
 
-    history = _synthetic_market_history(
+    prices, sentiments, start, end = _synthetic_market_history(
         event=next(
             e for e in EVENTS if e.id == "btc_cross_down_preserve_spy_2025_10_18"
         )
     )
+    # The exit is decided on the last synthetic day and fills on the next bar, so
+    # the history runs one day past it for the target to show up in the portfolio.
+    fill_day = {**prices[-1], "date": end + timedelta(days=1)}
+    sentiments[fill_day["date"]] = sentiments[end]
+    history = ([*prices, fill_day], sentiments, start, fill_day["date"])
     result = run_compare(history, True).model_dump(mode="json")
-    last = result["timeline"][-1]["strategies"]["slice"]["portfolio"][
-        "asset_allocation"
+    allocations = [
+        [
+            round(point["strategies"]["slice"]["portfolio"]["asset_allocation"][k], 4)
+            for k in ("btc", "eth", "spy", "stable")
+        ]
+        for point in result["timeline"][-2:]
     ]
     published = {
         "window": {"start": history[2].isoformat(), "end": history[3].isoformat()},
@@ -150,10 +160,15 @@ def test_exporter_replays_real_strategy_with_synthetic_test_inputs(
                 "fromAssets": ["BTC", "ETH"],
             }
         ],
-        "series": [{"id": "strategy", "values": [{"date": "2025-10-18"}]}],
+        "series": [
+            {
+                "id": "strategy",
+                "values": [{"date": "2025-10-18"}, {"date": "2025-10-19"}],
+            }
+        ],
         "allocations": {
             "assets": ["btc", "eth", "spy", "stable"],
-            "values": [[round(last[k], 4) for k in ("btc", "eth", "spy", "stable")]],
+            "values": allocations,
         },
     }
     artifact = json.loads(ARTIFACT.read_text())

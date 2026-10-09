@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from src.models.backtesting import (
+    BacktestAssumptions,
     BacktestCompareConfigV3,
     BacktestCompareRequestV3,
     BacktestResponse,
@@ -66,7 +67,11 @@ def _setup_compare_service(
         ]
     )
     service.data_provider.fetch_sentiments = MagicMock(return_value=sentiments or {})
-    mock_runner = MagicMock(return_value=BacktestResponse(strategies={}, timeline=[]))
+    mock_runner = MagicMock(
+        return_value=BacktestResponse(
+            assumptions=BacktestAssumptions(), strategies={}, timeline=[]
+        )
+    )
     monkeypatch.setattr(
         "src.services.strategy.backtesting_service.run_compare_v3_on_data",
         mock_runner,

@@ -252,6 +252,7 @@ _ = get_benchmark_strategy_preset  # noqa: F841
 
 # DMA-first response models - runtime serialization / Pydantic-only access
 spot_usd  # unused variable (src/models/backtesting.py)
+pnl_attribution  # unused variable (src/models/backtesting.py)
 stable_usd  # unused variable (src/models/backtesting.py)
 distance  # unused variable (src/models/backtesting.py)
 cooldown_remaining_days  # unused variable (src/models/backtesting.py)

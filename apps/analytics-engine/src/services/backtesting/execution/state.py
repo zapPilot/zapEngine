@@ -9,6 +9,7 @@ from src.models.backtesting import (
     DecisionState,
     ExecutionState,
     ExecutionStatus,
+    PnlAttribution,
     PortfolioState,
     SignalState,
     SpotAssetType,
@@ -88,6 +89,8 @@ def build_strategy_summaries(
     last_market_prices: dict[str, float] | None,
     strategy_daily_values: dict[str, list[float]],
     benchmark_daily_prices: list[float],
+    price_pnl_usd: dict[str, float],
+    risk_free_apr: float,
 ) -> dict[str, StrategySummary]:
     summaries: dict[str, StrategySummary] = {}
     for strategy in strategies:
@@ -110,6 +113,7 @@ def build_strategy_summaries(
         performance_metrics = _calculate_performance_metrics(
             strategy_daily_values[strategy.strategy_id],
             benchmark_daily_prices,
+            risk_free_apr,
         )
         canonical_strategy_id = cast(
             StrategyId,
@@ -133,6 +137,11 @@ def build_strategy_summaries(
             ulcer_index=performance_metrics["ulcer_index"],
             alpha=performance_metrics["alpha"],
             information_ratio=performance_metrics["information_ratio"],
+            pnl_attribution=PnlAttribution(
+                price_usd=price_pnl_usd[strategy.strategy_id],
+                yield_usd=portfolio.yield_usd,
+                cost_usd=-portfolio.cost_usd,
+            ),
             final_allocation=Allocation(**allocation),
             final_asset_allocation=asset_allocation,
             parameters={**parameters, **(result.metrics or {})},
@@ -255,9 +264,12 @@ def _resolve_execution_actionability(
 def _calculate_performance_metrics(
     strategy_values: list[float],
     benchmark_prices: list[float],
+    risk_free_apr: float,
 ) -> dict[str, float]:
     calculator = PerformanceMetricsCalculator()
-    return calculator.calculate_all_metrics(strategy_values, benchmark_prices)
+    return calculator.calculate_all_metrics(
+        strategy_values, benchmark_prices, risk_free_apr
+    )
 
 
 def _resolve_target_allocation(

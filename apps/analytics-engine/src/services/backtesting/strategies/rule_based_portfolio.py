@@ -51,6 +51,7 @@ from src.services.backtesting.signals.flat_minimum import (
 )
 from src.services.backtesting.strategies.base import (
     BaseStrategy,
+    Order,
     StrategyAction,
     StrategyContext,
 )
@@ -321,19 +322,16 @@ class RuleBasedPortfolioStrategy(BaseStrategy):
             ),
             execution=execution,
         )
-        return StrategyAction(
-            snapshot=snapshot,
-            transfers=list(execution.transfers) or None,
+        # The executor found money to move; the order asks the engine to rebalance
+        # to the decision's target when it fills, from whatever it holds by then.
+        order = (
+            Order(target_allocation=dict(decision.target_allocation))
+            if execution.transfers and decision.target_allocation is not None
+            else None
         )
+        return StrategyAction(snapshot=snapshot, order=order)
 
-    def record_day(
-        self,
-        context: StrategyContext,
-        action: StrategyAction,
-        yield_breakdown: dict[str, float],
-        trade_executed: bool,
-    ) -> None:
-        del yield_breakdown, trade_executed
+    def record_day(self, context: StrategyContext, action: StrategyAction) -> None:
         snapshot = action.snapshot
         self.daily_data.append(
             {

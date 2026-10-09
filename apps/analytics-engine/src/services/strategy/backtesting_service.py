@@ -31,7 +31,6 @@ from src.services.backtesting.execution.compare import (
     materialize_compare_request,
     run_compare_v3_on_data,
 )
-from src.services.backtesting.execution.config import RegimeConfig
 from src.services.backtesting.features import MarketDataRequirements
 from src.services.backtesting.strategy_registry import (
     ResolvedSavedStrategyConfig,
@@ -53,7 +52,7 @@ if TYPE_CHECKING:  # pragma: no cover -- type-only import, never executed
 logger = logging.getLogger(__name__)
 
 # Bump to invalidate cached replays after a change to how the model is replayed.
-MODEL_REPLAY_CACHE_VERSION = "v1"
+MODEL_REPLAY_CACHE_VERSION = "v2"
 # The model decides once a day, so a short window keeps every user on one replay
 # without waiting for a server-side signal that the day's data has landed.
 MODEL_REPLAY_CACHE_TTL = timedelta(minutes=10)
@@ -392,7 +391,6 @@ class BacktestingService:
         request: BacktestCompareRequestV3,
         resolved_configs: list[ResolvedSavedStrategyConfig],
         runner: Callable[..., BacktestResponse],
-        config: RegimeConfig | None,
     ) -> BacktestResponse:
         prepared = self.prepare_market_window(
             resolved_configs=resolved_configs,
@@ -420,7 +418,6 @@ class BacktestingService:
             user_start_date=prepared.user_start_date,
             resolved_configs=resolved_configs,
             window=window,
-            config=config,
         )
         # The runner doesn't know about freshness — patch it in here so the
         # downstream consumer (frontend) sees a single end-to-end response.
@@ -540,11 +537,7 @@ class BacktestingService:
             data_freshness=data_freshness,
         )
 
-    def _compare(
-        self,
-        request: BacktestCompareRequestV3,
-        config: RegimeConfig | None,
-    ) -> _CompareOutcome:
+    def _compare(self, request: BacktestCompareRequestV3) -> _CompareOutcome:
         effective_request, resolved_configs, _primary_asset = (
             _materialize_compare_market_scope_with_store(
                 request,
@@ -555,14 +548,13 @@ class BacktestingService:
             request=effective_request,
             resolved_configs=resolved_configs,
             runner=run_compare_v3_on_data,
-            config=config,
         )
         return _CompareOutcome(response=response, resolved_configs=resolved_configs)
 
     async def run_compare_v3(
-        self, request: BacktestCompareRequestV3, config: RegimeConfig | None = None
+        self, request: BacktestCompareRequestV3
     ) -> BacktestResponse:
-        return self._compare(request, config).response
+        return self._compare(request).response
 
     def replay_model(self, saved_config_id: str, requested_end: date) -> ModelReplay:
         """Replay a saved config over the model window and return its last bar.
@@ -604,7 +596,6 @@ class BacktestingService:
                     )
                 ],
             ),
-            None,
         )
         response = outcome.response
         window = response.window

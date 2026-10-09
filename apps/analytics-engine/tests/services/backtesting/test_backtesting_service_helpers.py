@@ -6,7 +6,11 @@ from unittest.mock import MagicMock
 import pytest
 
 from src.config.strategy_presets import resolve_seed_strategy_config
-from src.models.backtesting import BacktestCompareConfigV3, BacktestResponse
+from src.models.backtesting import (
+    BacktestAssumptions,
+    BacktestCompareConfigV3,
+    BacktestResponse,
+)
 from src.models.strategy_config import SavedStrategyConfig
 from src.services.backtesting.constants import (
     STRATEGY_DCA_CLASSIC,
@@ -27,7 +31,11 @@ from tests.services.backtesting.support import (
 
 
 def _patch_compare_runner(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
-    mock_runner = MagicMock(return_value=BacktestResponse(strategies={}, timeline=[]))
+    mock_runner = MagicMock(
+        return_value=BacktestResponse(
+            assumptions=BacktestAssumptions(), strategies={}, timeline=[]
+        )
+    )
     monkeypatch.setattr(
         "src.services.strategy.backtesting_service.run_compare_v3_on_data",
         mock_runner,

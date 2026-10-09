@@ -7,6 +7,31 @@ For current best template and active strategy state, see [AGENTS.md](./AGENTS.md
 
 Newest first. Each entry: date, commit, finding, key numbers.
 
+### 2026-10-09 - Honest backtest defaults: next-bar fills, fixed stablecoin yield, PnL split
+
+- **Status**: Behavior change. Every headline number moves; the published snapshot and landing artifacts have **not** been re-baselined yet (see Snapshot delta). Fourth step of the DMA/FGI review.
+- **Commit**: pending (`claude/dma-fgi-strategy-review-lab-9b9354-pr4`).
+- **Finding**: the track record rested on two optimistic assumptions. Signals used the day's close and the trade filled at that same close, which nobody can do; and idle stablecoins earned 5-25% APR depending on the FGI label (BTC and ETH 1-5%), which flatters a strategy that sits more than half in stable (52.5% on average, over half the days). Neither was visible next to the numbers.
+- **Change**: a `BacktestAssumptions` (`fill_lag_days=1`, `slippage_rate=0.003`, `stable_apr=0.03`) is an optional field on the compare request and is echoed on every response. An order placed on bar `i` fills on bar `i + fill_lag_days`; each bar, in order: price moves are attributed, stablecoin yield accrues for the days since the last bar (compounding daily), due orders fill at that bar's prices (a rebalance order is re-planned with `plan_transfers_to_target` from the holdings it finds then; DCA's exact transfers fill as given), then the strategy decides on what those fills left. `trade_count` counts orders placed, and the transfers a bar records are the order it placed that day, so event dates stay on the decision day. Orders still pending when the data ends are never filled; the live suggestion is exactly that case (the model decided, you act tomorrow). BTC, ETH and SPY earn nothing.
+- **Reporting**: every strategy summary carries `pnl_attribution {price_usd, yield_usd, cost_usd}` (price is the repricing of last bar's holdings, yield the credited interest, cost the slippage paid, so the three sum to `final_value - total_invested`; a test checks it). Sharpe and Sortino are now measured on returns **in excess of `stable_apr`** (Sortino's downside is measured against that rate too); this is a definition change on top of the assumption change, worth 0.19 Sharpe on the default run (2.33 over 0%, 2.15 over 3%). The sweep script adds `assumptions` and `roi_price/yield/cost_percent` to the snapshot, outside the drift gate.
+- **Removed**: `APR_BY_REGIME`, `RegimeConfig` and `EngineConfig` (the engine takes the assumptions directly), the per-day `apply_yield` flag, `StrategyAction.transfers/target_allocations` (replaced by one `order`), `record_day`'s yield/trade arguments, and the spot-yield path in `Portfolio`.
+- **Measured** on the production recording the pinned-strategy spike uses (`tests/fixtures/pinned_strategy/market_history.jsonl.gz`: 499 bars, 2025-05-14 to 2026-09-25; it reproduces the old engine's published figures, 64 trades and -8.93% MaxDD, with 89.25% ROI against 82.76% for the 2026-10-08 window). Default strategy:
+
+  | Model | ROI | Sharpe | MaxDD | Trades |
+  | --- | --- | --- | --- | --- |
+  | Previous (same-bar fills, FGI-label yields) | 89.25% | 2.77 | -8.93% | 64 |
+  | Same, run on the new engine (check) | 89.22% | 2.60 | -8.93% | 64 |
+  | Next-bar fills only | 73.83% | 2.42 | -9.03% | 64 |
+  | Fixed 3% stable yield only | 78.21% | 2.35 | -9.02% | 64 |
+  | **Both (the new default)** | **63.74%** | **2.15** | **-9.12%** | **64** |
+  | Default, stable yield 0% / 5% | 60.23% / 66.13% | 2.24 / 2.09 | -9.13% / -9.11% | 64 |
+  | Default, slippage 0% / 0.6% | 66.34% / 61.19% | 2.22 / 2.08 | -9.08% / -9.32% | 64 |
+
+  Sharpe is measured over the run's own `stable_apr` in every row but the first, which uses the old definition (over 0%). The lag costs about 15 points and the yield model about 11, with 1 point of interaction: the DMA exits fire on momentum days, so the next bar's price is worse on average than the signal bar's. The new default splits as price +6,292 USD (62.9% of capital), yield +278 (2.8%), slippage -196 (-2.0%). DCA Classic goes from -2.79% to -8.88%; next-bar fills alone leave it at -2.78%, so all of that is the yield assumption (its idle stable pool was earning 5-25%). The strategy keeps beating DCA by 72.6 points where it led by 92 before, and its trade count and decisions barely change.
+- **Evidence**: the six golden digests were regenerated with the reason in `test_engine_golden.py` (trade counts within 3 of the old ones, every default rule still fires); the live-vs-compare parity tests are unchanged; the rolling-window convergence of the live replay still holds (windows starting 30 days apart agree on all of the last 60 decisions in 12 of 12 synthetic histories at the production 500-day window, 11 of 12 at 250 days); `test_validation_events.py` passes unchanged, so no behavioral fixture needed an edit.
+- **Snapshot delta**: not re-baselined. The committed fixture still says 82.76% ROI under the old assumptions; the CI snapshot check will fail until the PR branch is re-baselined through the **Backtest Refresh** workflow (new `max_roi_shift` input; procedure in `ITERATION_PLAYBOOK.md`). The pinned-strategy example in `verifiable-strategy.json` replays this engine and must be regenerated in the same step (`test_approved_historical_example_before_deployment` fails until it is). Expect the published ROI to land roughly 20-25 points below 82.76%, with the default strategy's lead over DCA still above 60 points.
+- **Next**: PR5 compiles a declarative strategy spec into the same engine with bit-exact parity against this one.
+
 ### 2026-10-09 - Deleted the execution machinery nothing reaches and folded the composition layer into the recipe
 
 - **Status**: Refactor. One response-schema change (execution step/plugin fields removed) and one bug fix (`saved_config_id: "dca_classic"` returned 400). No decision changes. Third step of the DMA/FGI review.

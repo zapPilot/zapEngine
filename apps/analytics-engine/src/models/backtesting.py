@@ -16,6 +16,11 @@ from pydantic import (
 
 from src.models.market_data_freshness import MarketDataFreshness
 from src.models.validation_utils import validate_config_id
+from src.services.backtesting.constants import (
+    DEFAULT_FILL_LAG_DAYS,
+    DEFAULT_SLIPPAGE_RATE,
+    DEFAULT_STABLE_APR,
+)
 from src.services.backtesting.decision import RuleGroup
 from src.services.backtesting.public_params import (
     public_params_to_runtime_params,
@@ -46,6 +51,50 @@ def _assert_sums_to_one(total: float, label: str = "allocation") -> None:
     """Validate that a total is approximately 1.0 (within 0.001 tolerance)."""
     if abs(total - 1.0) > 0.001:
         raise ValueError(f"{label} must sum to 1.0, got {total:.6f}")
+
+
+class BacktestAssumptions(BaseModel):
+    """What a backtest assumes about execution and yield.
+
+    Echoed on every response. BTC, ETH and SPY earn no yield; only idle
+    stablecoins accrue ``stable_apr``.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    fill_lag_days: int = Field(
+        default=DEFAULT_FILL_LAG_DAYS,
+        ge=0,
+        le=1,
+        description=(
+            "Bars between a decision and its fill. 1 = filled on the next bar "
+            "(someone acts on the reminder the day after); 0 = filled on the "
+            "decision bar."
+        ),
+    )
+    slippage_rate: float = Field(
+        default=DEFAULT_SLIPPAGE_RATE,
+        ge=0.0,
+        le=0.05,
+        description="Fraction of every transfer's gross amount lost to fees and spread.",
+    )
+    stable_apr: float = Field(
+        default=DEFAULT_STABLE_APR,
+        ge=0.0,
+        le=0.5,
+        description="Annual yield credited daily on idle stablecoins.",
+    )
+
+
+class PnlAttribution(BaseModel):
+    """Where a strategy's profit and loss came from.
+
+    The three parts add up to ``final_value - total_invested``.
+    """
+
+    price_usd: float = Field(description="Gain or loss from asset prices moving.")
+    yield_usd: float = Field(description="Stablecoin yield credited.")
+    cost_usd: float = Field(description="Slippage paid (zero or negative).")
 
 
 class Allocation(BaseModel):
@@ -181,6 +230,7 @@ class StrategySummary(BaseModel):
     ulcer_index: float = 0.0
     alpha: float = 0.0
     information_ratio: float = 0.0
+    pnl_attribution: PnlAttribution
     # win_rate_percent stays None: a meaningful trade-level win rate needs
     # forward-PnL per executed decision (hot-path trade accounting, separate
     # track). Deriving it from daily returns would be positive-day rate, which
@@ -208,6 +258,7 @@ class BacktestWindowInfo(BaseModel):
 
 
 class BacktestResponse(BaseModel):
+    assumptions: BacktestAssumptions
     strategies: dict[str, StrategySummary]
     timeline: list[TimelinePoint]
     window: BacktestWindowInfo | None = None
@@ -282,6 +333,10 @@ class BacktestCompareRequestV3(BaseModel):
     total_capital: float = Field(default=10000.0, gt=0.0)
     emit_decision_log: bool = False
     decision_log_dir: str | None = None
+    assumptions: BacktestAssumptions | None = Field(
+        default=None,
+        description="Execution and yield assumptions; the defaults apply when omitted.",
+    )
     configs: list[BacktestCompareConfigV3]
 
     @model_validator(mode="after")

@@ -75,7 +75,7 @@ def _utc_now() -> datetime:
 
 class StrategyDailySuggestionService:
     # Bump to invalidate cached suggestions after a logic change.
-    CACHE_VERSION = "v2"
+    CACHE_VERSION = "v3"
     # There is no server-side ETL completion signal, so freshness rests on the
     # canonical snapshot date and the model's end date in the key plus this
     # short window.
