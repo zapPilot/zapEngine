@@ -33,4 +33,24 @@ describe('DeBankFetcher token validation coverage', () => {
       raw,
     );
   });
+
+  it('logs the failing token fields to scope the next schema fix', async () => {
+    const fetcher = new DeBankFetcher({ strictErrors: false });
+    mockDeBankResponse(fetcher, [
+      validToken({ amount: 'not-a-number', chain: '' }),
+    ]);
+
+    const { logger } = await import('../../../../src/utils/logger.js');
+    await fetcher.fetchWalletTokenList(walletAddress);
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      'DeBank token list validation failed, returning raw data',
+      expect.objectContaining({
+        tokenCount: 1,
+        validationIssues: expect.arrayContaining([
+          expect.objectContaining({ path: expect.stringContaining('amount') }),
+        ]),
+      }),
+    );
+  });
 });

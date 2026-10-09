@@ -194,6 +194,12 @@ export class DeBankFetcher extends BaseApiFetcher {
     logger.warn('DeBank token list validation failed, returning raw data', {
       walletAddress: maskWalletAddress(walletAddress),
       error: validation.error.message,
+      tokenCount: data.length,
+      validationIssues: validation.error.issues.slice(0, 5).map((issue) => ({
+        path: issue.path.join('.'),
+        message: issue.message,
+        code: issue.code,
+      })),
     });
     if (this.strictErrors) {
       throw new Error('DeBank token list validation failed');
