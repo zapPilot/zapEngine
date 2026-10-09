@@ -6,7 +6,19 @@ Zap Pilot uses the same primitives across native UI, the website, story scenes a
 
 The mark has a 32-unit viewBox: an open arc, three ticks and pivot use ink; the needle starts at 16,16 and follows `l-3.3-7.6` in sign-ink. Use the mark at 16 px for tiny identity, 22 px beside a label, 32 px in navigation, or 64 px as a standalone identity. Preserve its proportions and open space.
 
-The wordmark is Archivo at width 108 and weight 640. The lockup pairs its outlined glyphs with the mark; the optional tagline is “Rules decide. You sign.” Both strings are shaped into paths by the pinned font generator. Do not substitute live text into exported assets.
+The wordmark is Archivo at width 108 and weight 640. The lockup pairs its outlined glyphs with the mark; the optional stacked slogan is “Your strategy. Your machine. Your wallet.” These strings are shaped into paths by the pinned font generator. Do not substitute live text into exported assets.
+
+## Verbal identity
+
+`@zapengine/zap-pilot-story/brand` owns the canonical English identity:
+
+- Slogan: “Your strategy. Your machine. Your wallet.”
+- Punchline: “Rules decide. You sign.”
+- One-liner: “Zap Pilot is building a self-hosted runtime for programmable portfolios.”
+
+The one-liner switches to “Zap Pilot is a self-hosted runtime for programmable portfolios.” only when `self-hosting` is Live. Every slogan screen displays the self-hosting status. Until Live, `machine.` is outlined; `wallet.` uses sign-ink. English is canonical across language variants. Glyph strings mirror the brand module and parity tests prevent drift.
+
+Regenerate glyphs without rewriting static font instances using `pnpm --filter @zapengine/design-tokens fonts --glyphs`, then run `pnpm --filter @zapengine/design-tokens brand`. Flipping self-hosting to Live takes three edits: the capability status in zap-pilot-story, `SELF_HOSTING_STATUS` in `scripts/brand.mjs`, and `SELF_HOSTING_LABEL` in `scripts/fonts.py`. Then run both commands above; lockups, podcast media and sign-off cards regenerate. The zap-pilot-story glyph test fails until the label matches.
 
 ## Modes and roles
 

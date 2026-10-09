@@ -1,4 +1,5 @@
-import { coerceToSupportedLanguage } from '../services/podcast/classroom-language.js';
+import { oneLiner, SLOGAN } from '@zapengine/zap-pilot-story/brand';
+
 import type { LanguageClassroomLanguageCode } from '../types.js';
 
 export const BRAND_CTA_VERSION = 'v1' as const;
@@ -14,32 +15,12 @@ const SOCIAL_BRAND_CTA_PREFIX_BY_LANGUAGE: Record<
   en: 'Website',
 };
 
-// Two CJK characters + one space cost five weighted X units. Together with the
-// two separator newlines and X's fixed 23-unit URL weight, this keeps the old
-// 250-unit generated-copy budget intact while making the destination explicit.
-export const SOCIAL_BRAND_CTA_BY_LANGUAGE: Record<
-  LanguageClassroomLanguageCode,
-  string
-> = {
-  'zh-Hant': `官網 ${ZAP_PILOT_SITE_URL}`,
-  ja: `公式サイト ${ZAP_PILOT_SITE_URL}`,
-  en: `Website ${ZAP_PILOT_SITE_URL}`,
-};
-
-const YOUTUBE_DESCRIPTION_CTA_PREFIX_BY_LANGUAGE: Record<
-  LanguageClassroomLanguageCode,
-  string
-> = {
-  'zh-Hant': '更多市场洞察与工具：',
-  ja: '市場インサイトとツールをもっと：',
-  en: 'More market insights and tools: ',
-};
-
-const VIDEO_CTA_TITLES: Record<LanguageClassroomLanguageCode, string> = {
-  'zh-Hant': '更多市场洞察与工具',
-  ja: '市場インサイトとツールをもっと',
-  en: 'MORE MARKET INSIGHTS & TOOLS',
-};
+export function socialSignOff(
+  languageCode: LanguageClassroomLanguageCode,
+  destinationUrl: string = ZAP_PILOT_SITE_URL,
+): string {
+  return `${SLOGAN}\n${SOCIAL_BRAND_CTA_PREFIX_BY_LANGUAGE[languageCode]} ${destinationUrl}`;
+}
 
 export function socialLandingUrl(input: {
   episodeId: string;
@@ -65,18 +46,17 @@ export function appendBrandCta(
 }
 
 export function youtubeDescriptionCtaFor(
-  languageCode: LanguageClassroomLanguageCode,
   destinationUrl: string = ZAP_PILOT_SITE_URL,
 ): string {
-  return `${YOUTUBE_DESCRIPTION_CTA_PREFIX_BY_LANGUAGE[languageCode]}${destinationUrl}`;
+  return `${oneLiner()}\n${SLOGAN}\nWebsite: ${destinationUrl}`;
 }
 
-export function videoBrandCtaFor(languageCode: string): {
+export function videoBrandOutro(): {
   title: string;
   callToAction: string;
 } {
   return {
-    title: VIDEO_CTA_TITLES[coerceToSupportedLanguage(languageCode)],
+    title: SLOGAN,
     callToAction: ZAP_PILOT_SITE_LABEL,
   };
 }

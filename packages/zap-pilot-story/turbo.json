@@ -1,0 +1,19 @@
+{
+  "extends": ["//"],
+  "tasks": {
+    "test": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/packages/design-tokens/brand/glyphs.json",
+        "$TURBO_ROOT$/packages/design-tokens/dist/css/variables.css"
+      ]
+    },
+    "test:coverage": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/packages/design-tokens/brand/glyphs.json",
+        "$TURBO_ROOT$/packages/design-tokens/dist/css/variables.css"
+      ]
+    }
+  }
+}

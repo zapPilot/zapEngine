@@ -1,22 +1,48 @@
 import { StatusNote } from '@/components/StatusBadge';
-import { MESSAGES } from '@/config/messages';
+import { HERO as hero } from '@zapengine/zap-pilot-story/copy';
+import {
+  BRAND_NAME,
+  SLOGAN,
+  SLOGAN_PARTS,
+  isLive,
+} from '@zapengine/zap-pilot-story/brand';
 import { PitchSlide } from './PitchSlide';
 
-/**
- * Slide 1 — Cover. Pulls strings from MESSAGES so the deck headline can never
- * drift from the home page hero, including the status chips that keep the
- * brand line honest about what runs today.
- */
+const wordStyles = {
+  o: { color: 'transparent', WebkitTextStroke: '1.5px var(--ink)' },
+  s: { color: 'var(--sign-ink)' },
+  '': {},
+};
+
+/** Cover reuses the story hero and its capability chips. */
 export function PitchTitleSlide() {
-  const { hero, common } = MESSAGES;
   return (
     <PitchSlide id="cover">
       <div className="pitch-cover-inner">
         <span className="pitch-cover-pill">{hero.eyebrow}</span>
-        <h1 className="pitch-cover-headline" id="pitch-cover-title">
-          {common.brandLine}
+        <h1
+          className="pitch-cover-headline"
+          id="pitch-cover-title"
+          aria-label={SLOGAN}
+        >
+          {SLOGAN_PARTS.map((part, index) => {
+            const style = !isLive(part.capability)
+              ? 'o'
+              : 'sign' in part
+                ? 's'
+                : '';
+            return (
+              <span key={part.capability}>
+                Your{' '}
+                <span data-style={style} style={wordStyles[style]}>
+                  {part.word}
+                </span>
+                {index < SLOGAN_PARTS.length - 1 ? ' ' : ''}
+              </span>
+            );
+          })}
         </h1>
-        <p className="pitch-cover-subtitle">{hero.subtitle}</p>
+        <p className="pitch-cover-subtitle">{hero.body}</p>
         <ul className="pitch-cover-chips">
           {hero.chips.map((chip) => (
             <li key={chip.text}>
@@ -25,7 +51,7 @@ export function PitchTitleSlide() {
           ))}
         </ul>
         <p className="pitch-cover-meta" aria-hidden>
-          <span>{common.brandName}</span>
+          <span>{BRAND_NAME}</span>
           <span>·</span>
           <span>Investor Pitch</span>
         </p>

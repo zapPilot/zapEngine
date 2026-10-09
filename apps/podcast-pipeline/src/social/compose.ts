@@ -185,7 +185,7 @@ export function composeYouTubeDescription(
   // still catches it.
   const branded =
     summary && SOCIAL_PLATFORM_CONFIG.youtube.ctaMode === 'brand'
-      ? `${summary}\n\n${youtubeDescriptionCtaFor(episode.languageCode ?? 'zh-Hant', destinationUrl)}`
+      ? `${summary}\n\n${youtubeDescriptionCtaFor(destinationUrl)}`
       : summary;
   return branded;
 }

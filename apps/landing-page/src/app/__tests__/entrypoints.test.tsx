@@ -1,3 +1,4 @@
+import { HERO } from '@zapengine/zap-pilot-story/copy';
 import '@testing-library/jest-dom';
 import { render, screen, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
@@ -112,12 +113,15 @@ describe('app entrypoints', () => {
 
   it('builds the static pitch social card', () => {
     const result = PitchOpenGraphImage();
-    expect(imageResponse).toHaveBeenCalledWith(expect.anything(), size);
-    expect(result).toMatchObject({ options: size });
+    expect(imageResponse).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining(size),
+    );
+    expect(result).toMatchObject({ options: expect.objectContaining(size) });
     render(<>{(result as unknown as { element: ReactNode }).element}</>);
-    expect(screen.getByText(MESSAGES.common.brandLine)).toBeInTheDocument();
+    expect(screen.getByText('strategy.')).toBeInTheDocument();
     expect(screen.getByText(PITCH_OG.footer)).toBeInTheDocument();
-    for (const chip of MESSAGES.hero.chips) {
+    for (const chip of HERO.chips) {
       expect(screen.getByText(chip.text)).toBeInTheDocument();
     }
     expect({ alt, contentType, dynamic, revalidate }).toEqual({

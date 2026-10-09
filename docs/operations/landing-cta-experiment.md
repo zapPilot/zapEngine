@@ -110,3 +110,5 @@ actual exposure start/end, exclusions, counts and uncertainty in every review.
 
 See [PostHog exposure semantics](https://posthog.com/docs/experiments/exposures)
 and [flag-loading behavior](https://posthog.com/docs/feature-flags/adding-feature-flag-code).
+
+On 2026-10-09, the hero headline changed to the canonical brand slogan and its body adopted the self-hosting status-bound one-liner; the `landing-waitlist-cta-v2` baseline includes this copy change.
