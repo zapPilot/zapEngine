@@ -42,7 +42,13 @@ export function Text({
   const inherited = useContext(TextContext);
   const resolvedVariant = variant ?? inherited.variant;
   const resolvedTone = tone ?? inherited.tone;
-  const display = ['display-xl', 'display', 'title'].includes(resolvedVariant);
+  const display = [
+    'display-xl',
+    'display',
+    'title',
+    'headline',
+    'verdict',
+  ].includes(resolvedVariant);
   return (
     <TextContext.Provider
       value={{ variant: resolvedVariant, tone: resolvedTone }}

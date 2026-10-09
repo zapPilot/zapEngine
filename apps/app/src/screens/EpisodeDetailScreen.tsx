@@ -192,15 +192,18 @@ export function EpisodeDetailScreen() {
     if (router.canGoBack()) {
       router.back();
     } else {
-      router.replace('/podcast');
+      router.replace('/listen');
     }
   };
   const insets = useSafeAreaInsets();
   const { languageCode: selectedLanguageCode, t } = useContentLanguage();
   const [activeVideoClock, setActiveVideoClock] =
     useState<EpisodeMediaClock | null>(null);
-  const { episodeId: routeEpisodeId, languageCode: routeLanguageCode } =
-    usePodcastEpisodeRoute(selectedLanguageCode);
+  const {
+    episodeId: routeEpisodeId,
+    languageCode: routeLanguageCode,
+    mediaTab,
+  } = usePodcastEpisodeRoute(selectedLanguageCode);
   const downloads = usePodcastDownloads();
   const offlineEpisode =
     downloadedEpisodeRows(downloads.records, 'newest').find(
@@ -296,6 +299,7 @@ export function EpisodeDetailScreen() {
     router.replace(podcastEpisodeHref(episode.id, code));
   };
 
+  const mediaKey = `${episode.localizationId}:${mediaTab ?? 'default'}`;
   return (
     <View className="flex-1 bg-ground">
       <ScreenScrollView width="reading" bottomPadding={36 + insets.bottom}>
@@ -309,8 +313,18 @@ export function EpisodeDetailScreen() {
           languageCode={episode.languageCode}
         />
         <EpisodeHeroCard episode={episode} />
+        {mediaTab === 'transcript' ? (
+          <EpisodeTranscript
+            episode={episode}
+            player={player}
+            activeVideoClock={activeVideoClock}
+          />
+        ) : null}
         <EpisodeMediaPlayer
-          key={episode.localizationId}
+          key={mediaKey}
+          {...(mediaTab === undefined
+            ? {}
+            : { initialTab: mediaTab === 'transcript' ? 'story' : mediaTab })}
           episode={episode}
           episodes={episodes}
           player={player}
@@ -318,11 +332,13 @@ export function EpisodeDetailScreen() {
           onVideoClockChange={setActiveVideoClock}
         />
         <LanguageClassroomSection lessons={episode.languageClassrooms} />
-        <EpisodeTranscript
-          episode={episode}
-          player={player}
-          activeVideoClock={activeVideoClock}
-        />
+        {mediaTab !== 'transcript' ? (
+          <EpisodeTranscript
+            episode={episode}
+            player={player}
+            activeVideoClock={activeVideoClock}
+          />
+        ) : null}
       </ScreenScrollView>
     </View>
   );

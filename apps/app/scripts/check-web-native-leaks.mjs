@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 const appRoot = fileURLToPath(new URL('..', import.meta.url));
 const bundleDir = join(appRoot, 'dist/web/_expo/static/js/web');
 const nativeOnlyPackages = [
+  '@shopify/react-native-skia',
   'expo-in-app-updates',
   '@privy-io/expo',
   '@privy-io/expo-native-extensions',

@@ -12,6 +12,9 @@ const mocks = vi.hoisted(() => ({
 // The stand-in is reached through `await import(...)` rather than a top-level
 // import: vi.mock factories are hoisted above imports, so an outer import
 // binding referenced from inside one hits a TDZ error.
+vi.mock('@/components/fund/FundSheetHost', () => ({
+  FundSheetHost: () => null,
+}));
 vi.mock('@sentry/react-native', async () => {
   const { createSentryErrorBoundaryStandIn } =
     await import('./support/sentryErrorBoundaryStandIn');
@@ -20,6 +23,10 @@ vi.mock('@sentry/react-native', async () => {
     ErrorBoundary: createSentryErrorBoundaryStandIn(mocks.onCapturedError),
   };
 });
+
+vi.mock('@/providers/FundFlowProvider', () => ({
+  FundFlowProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
+}));
 
 vi.mock('expo-router', () => ({ useRouter: () => ({ replace: vi.fn() }) }));
 vi.mock('expo-font', () => ({ useFonts: () => [true] }));

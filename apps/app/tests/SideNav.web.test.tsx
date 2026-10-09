@@ -6,8 +6,18 @@ import { SideNav } from '@/components/shell/SideNav.web';
 const mocks = vi.hoisted(() => ({
   connect: vi.fn().mockResolvedValue('cancelled'),
   navigate: vi.fn(),
-  pathname: '/home',
+  pathname: '/today',
   connected: false,
+}));
+vi.mock('@/providers/FundFlowProvider', () => ({
+  useFundFlow: () => ({
+    available: true,
+    visible: false,
+    step: 'amount',
+    signRequest: null,
+    open: vi.fn(),
+    close: vi.fn(),
+  }),
 }));
 vi.mock('react-native', async () => ({
   ...(await import('./support/reactNativeStub')).reactNativeStub,
@@ -29,6 +39,10 @@ vi.mock('react-native', async () => ({
     </button>
   ),
 }));
+vi.mock(
+  'react-native-svg',
+  async () => (await import('./support/svgStub')).svgStub,
+);
 vi.mock(
   'lucide-react-native',
   async () => (await import('./support/lucideStub')).lucideStub,
@@ -64,16 +78,11 @@ vi.mock('@/components/shell/NowPlayingBarHost', () => ({
 vi.mock('@/integration/useAccount', () => ({
   useAccount: () => ({
     isConnected: mocks.connected,
+    connect: mocks.connect,
     email: 'test@example.com',
   }),
 }));
-vi.mock('@/integration/useTabAccess', () => ({
-  useTabAccess: () => ({
-    connect: mocks.connect,
-    isAccessible: (name: string) =>
-      mocks.connected || name === 'home' || name === 'podcast',
-  }),
-}));
+
 vi.mock('@/providers/ContentLanguageProvider', async () => {
   const { en } = await import('./support/i18nHarness');
   return { useContentLanguage: () => ({ t: en }) };
@@ -86,7 +95,7 @@ let root = createRoot(host);
 afterEach(async () => {
   await act(async () => root.unmount());
   root = createRoot(host);
-  mocks.pathname = '/home';
+  mocks.pathname = '/today';
   mocks.connected = false;
   vi.clearAllMocks();
 });
@@ -100,10 +109,9 @@ it('uses normal navigation for all accessible tabs and the account footer, with 
   mocks.connected = true;
   await act(async () => root.render(<SideNav />));
   for (const [label, path] of [
-    ['Podcast', '/podcast'],
-    ['Strategy', '/strategy'],
-    ['Account', '/account'],
-    ['Home', '/home'],
+    ['Listen', '/listen'],
+    ['Runtime', '/runtime'],
+    ['Today', '/today'],
   ]) {
     await click(label!);
     expect(mocks.navigate).toHaveBeenLastCalledWith('NAVIGATE', path);
@@ -116,18 +124,21 @@ it('uses normal navigation for all accessible tabs and the account footer, with 
   }
   await act(async () =>
     host
-      .querySelectorAll<HTMLButtonElement>('[aria-label="Account"]')[1]!
+      .querySelector<HTMLButtonElement>('[aria-label="Manage wallets"]')!
       .click(),
   );
-  expect(mocks.navigate).toHaveBeenLastCalledWith('NAVIGATE', '/account');
+  expect(mocks.navigate).toHaveBeenLastCalledWith(
+    'NAVIGATE',
+    '/runtime?section=wallet',
+  );
 });
-it('requests connection for locked Strategy and Account without navigating', async () => {
+it('lets guests navigate every place while keeping login in the footer', async () => {
   await act(async () => root.render(<SideNav />));
-  await click('Strategy');
-  await click('Account');
-  expect(mocks.connect).toHaveBeenCalledTimes(2);
-  expect(mocks.navigate).not.toHaveBeenCalled();
-  expect(
-    host.querySelector('[aria-label="Home"]')?.getAttribute('aria-current'),
-  ).toBe('page');
+  await click('Runtime');
+  expect(mocks.navigate).toHaveBeenLastCalledWith('NAVIGATE', '/runtime');
+  await click('Listen');
+  expect(mocks.navigate).toHaveBeenLastCalledWith('NAVIGATE', '/listen');
+  expect(mocks.connect).not.toHaveBeenCalled();
+  await click('Sign in');
+  expect(mocks.connect).toHaveBeenCalledOnce();
 });

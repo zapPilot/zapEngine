@@ -66,6 +66,13 @@ export interface DemoData {
     latestSnapshotDate: string | null;
     trendPoints: DailyValuePoint[];
     assets: DemoAsset[];
+    sleeveAllocation: {
+      btc: number;
+      eth: number;
+      spy: number;
+      stable: number;
+      alt: number;
+    };
   };
   /** The Home strategy card's demo state. */
   strategy: {
@@ -91,6 +98,13 @@ export const DEMO: DemoData = {
   },
   home: {
     totalBalance: 24_815.6,
+    sleeveAllocation: {
+      btc: 0.05,
+      eth: 0.205,
+      spy: 0.477,
+      stable: 0.268,
+      alt: 0,
+    },
     latestChangePct: 2.6,
     latestChangeUsd: 612.4,
     latestSnapshotDate: '2026-08-22',

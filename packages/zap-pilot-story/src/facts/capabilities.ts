@@ -7,14 +7,15 @@
  * status recorded here. the host positioning tests fences it.
  */
 
-export const CAPABILITY_STATUSES = [
-  'live',
-  'research',
-  'in-development',
-  'planned',
-] as const;
-
-export type CapabilityStatus = (typeof CAPABILITY_STATUSES)[number];
+import {
+  CAPABILITY_STATUS,
+  type CapabilityStatus,
+} from './capability-status.js';
+export {
+  CAPABILITY_STATUSES,
+  CAPABILITY_STATUS,
+  type CapabilityStatus,
+} from './capability-status.js';
 
 export const STATUS_LABEL = {
   live: 'Live',
@@ -39,141 +40,141 @@ interface Capability {
 export const CAPABILITIES = {
   'reference-strategy': {
     label: 'Reference strategy',
-    status: 'live',
+    status: CAPABILITY_STATUS['reference-strategy'],
     detail:
       'DMA/FGI Portfolio Rules is evaluated daily on Zap Pilot-hosted servers and produces an advisory target allocation with a decision packet.',
   },
   'market-signals': {
     label: 'Market signals',
-    status: 'live',
+    status: CAPABILITY_STATUS['market-signals'],
     detail:
       '200-day moving averages, crypto and US-equity Fear & Greed, and ETH/BTC, shown in the app next to each decision.',
   },
   'portfolio-tracking': {
     label: 'Portfolio tracking',
-    status: 'live',
+    status: CAPABILITY_STATUS['portfolio-tracking'],
     detail:
       'Wallet positions are refreshed daily and shown in the app, read-only.',
   },
   'dca-benchmark': {
     label: 'DCA Classic benchmark',
-    status: 'live',
+    status: CAPABILITY_STATUS['dca-benchmark'],
     detail:
       'Starts half in BTC and moves the other half into BTC in equal daily amounts. Every reference-strategy backtest is measured against it.',
   },
   'deposit-plans': {
     label: 'Deposit plans',
-    status: 'live',
+    status: CAPABILITY_STATUS['deposit-plans'],
     detail:
       'Deposits you start yourself go straight into positions you hold: the Spark USDC vault on Morpho (Base), GMX v2 GM pools (Arbitrum) and Hyperliquid HLP, routed through LI.FI.',
   },
   'pre-sign-checks': {
     label: 'Pre-sign checks',
-    status: 'live',
+    status: CAPABILITY_STATUS['pre-sign-checks'],
     detail:
       'Every plan fails closed unless approvals are capped (never unlimited) and routed swaps meet a minimum received within 1% slippage; a batch that fails Tenderly simulation is rejected. HyperCore follow-up steps are not simulated.',
   },
   'wallet-signing': {
     label: 'Wallet signing',
-    status: 'live',
+    status: CAPABILITY_STATUS['wallet-signing'],
     detail:
       'EIP-5792/7702 wallets sign one atomic batch; other wallets sign step by step. Privy wallets also sign an EIP-712 intent bound to the batch.',
   },
   'adapter-boundary': {
     label: 'Protocol adapters',
-    status: 'live',
+    status: CAPABILITY_STATUS['adapter-boundary'],
     detail:
       'Morpho, GMX v2, Hyperliquid and LI.FI adapters only encode actions that are already decided; they never choose a strategy.',
   },
   'no-zap-pilot-vault': {
     label: 'No Zap Pilot vault',
-    status: 'live',
+    status: CAPABILITY_STATUS['no-zap-pilot-vault'],
     detail:
       'There is no Zap Pilot vault or custody contract. The venues themselves are pooled third-party protocols with their own risks.',
   },
   'device-agent-key': {
     label: 'Device agent key',
-    status: 'live',
+    status: CAPABILITY_STATUS['device-agent-key'],
     detail:
       'Hyperliquid deposits use an agent key created and stored on your device (browser storage on the web). You approve it once, and that approval may not expire.',
   },
   'open-source': {
     label: 'Open source',
-    status: 'live',
+    status: CAPABILITY_STATUS['open-source'],
     detail: 'MIT-licensed code and a public reference-strategy spec.',
   },
   'verifiable-rule': {
     label: 'On-chain rule check',
-    status: 'research',
+    status: CAPABILITY_STATUS['verifiable-rule'],
     detail:
       'One of the six rules (cross-down exit) is compiled to Vyper on Arbitrum Sepolia with a pinned runtime codehash, so a recorded exit can be recomputed.',
   },
   withdrawals: {
     label: 'Withdrawals',
-    status: 'in-development',
+    status: CAPABILITY_STATUS['withdrawals'],
     detail:
       'A withdrawal planning endpoint exists on the server; the app does not offer withdrawals yet.',
   },
   'local-drift-check': {
     label: 'Mac drift check',
-    status: 'in-development',
+    status: CAPABILITY_STATUS['local-drift-check'],
     detail:
       'A Mac app that checks for drift every six hours and notifies you. It asks the hosted engine for the decision, never signs, and is not available to download yet.',
   },
   'snapshot-chain': {
     label: 'Snapshot chain',
-    status: 'in-development',
+    status: CAPABILITY_STATUS['snapshot-chain'],
     detail:
       'Daily IPFS snapshots linked into a chain. They are unsigned and track a single reference address.',
   },
   'rebalance-plans': {
     label: 'Rebalance plans',
-    status: 'planned',
+    status: CAPABILITY_STATUS['rebalance-plans'],
     detail:
       'Turn the gap between a strategy target and your positions into transactions you review and sign.',
   },
   'strategy-versioning': {
     label: 'Strategy versioning',
-    status: 'planned',
+    status: CAPABILITY_STATUS['strategy-versioning'],
     detail:
       'Versioned strategy configs you can hold fixed. Today the config is global and can change in place.',
   },
   'strategy-lab': {
     label: 'Strategy lab',
-    status: 'planned',
+    status: CAPABILITY_STATUS['strategy-lab'],
     detail: 'Write your own rules and backtest them against DCA Classic.',
   },
   'policy-engine': {
     label: 'Policy engine',
-    status: 'planned',
+    status: CAPABILITY_STATUS['policy-engine'],
     detail:
       'Limits, allowlists and a kill switch you set, checked before anything is signed.',
   },
   'self-hosting': {
     label: 'Local runtime',
-    status: 'planned',
+    status: CAPABILITY_STATUS['self-hosting'],
     detail: 'Strategy evaluation and planning on hardware you control.',
   },
   'unattended-runs': {
     label: 'Unattended runs',
-    status: 'planned',
+    status: CAPABILITY_STATUS['unattended-runs'],
     detail:
       'Rebalancing without you, only inside scoped on-chain permissions you can revoke.',
   },
   'tokenized-equities': {
     label: 'Tokenized S&P 500',
-    status: 'planned',
+    status: CAPABILITY_STATUS['tokenized-equities'],
     detail:
       'An adapter for the S&P 500 sleeve the reference strategy models. Deposits keep it at 0% until one exists.',
   },
   'strategy-publishing': {
     label: 'Strategy publishing',
-    status: 'planned',
+    status: CAPABILITY_STATUS['strategy-publishing'],
     detail: 'Publish a strategy with a verifiable track record.',
   },
   'ai-exception-layer': {
     label: 'AI exception layer',
-    status: 'planned',
+    status: CAPABILITY_STATUS['ai-exception-layer'],
     detail:
       'An optional model that handles exceptions inside limits you set. No model decides allocations.',
   },

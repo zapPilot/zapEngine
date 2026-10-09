@@ -1,3 +1,5 @@
+import { FundSheetHost } from '@/components/fund/FundSheetHost';
+import { FundFlowProvider } from '@/providers/FundFlowProvider';
 import { queryClient } from '@zapengine/app-core/lib/state/queryClient';
 import { focusManager, QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
@@ -128,15 +130,18 @@ export function AppProviderShell(
               <PodcastPlayerProvider>
                 <PodcastProgressTracker />
                 <ToastProvider>
-                  {props.renderAccountSessionBridge?.()}
-                  <View
-                    className="flex-1 bg-ground"
-                    nativeID={runtimeConfig.runtime}
-                  >
-                    <StatusBar style="light" />
-                    {children}
-                    <ConnectSheetHost />
-                  </View>
+                  <FundFlowProvider>
+                    {props.renderAccountSessionBridge?.()}
+                    <View
+                      className="flex-1 bg-ground"
+                      nativeID={runtimeConfig.runtime}
+                    >
+                      <StatusBar style="light" />
+                      {children}
+                      <ConnectSheetHost />
+                      <FundSheetHost />
+                    </View>
+                  </FundFlowProvider>
                 </ToastProvider>
               </PodcastPlayerProvider>
             </VideoPlaybackCoordinatorProvider>

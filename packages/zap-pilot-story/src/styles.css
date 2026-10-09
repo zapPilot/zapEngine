@@ -1,3 +1,4 @@
+@import './engine.css';
 @import '@zapengine/story-kit/styles.css';
 .zp-motion a {
   color: inherit;
@@ -51,31 +52,6 @@
   color: var(--ink-2);
   white-space: nowrap;
   font-style: normal;
-}
-.zp-st {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  box-sizing: border-box;
-  border: 1.5px solid currentColor;
-  flex: none;
-  font-style: normal;
-}
-.zp-st-live {
-  background: currentColor;
-}
-.zp-st-dev {
-  background: linear-gradient(90deg, currentColor 50%, transparent 50%);
-}
-.zp-st-res {
-  background: radial-gradient(circle, currentColor 0 1.4px, transparent 1.9px);
-}
-.zp-st-plan {
-  border-style: dashed;
-}
-.zp-st.zp-st-none {
-  display: none;
 }
 .zp-btn {
   display: inline-flex;
@@ -183,165 +159,6 @@
   overflow: hidden;
   container-type: size;
   isolation: isolate;
-}
-.zp-persp {
-  position: absolute;
-  inset: 0 var(--zp-frame-x);
-  overflow: visible;
-  pointer-events: none;
-}
-.zp-world {
-  position: absolute;
-  width: 0;
-  height: 0;
-  transform-style: preserve-3d;
-}
-.zp-fc {
-  position: absolute;
-  left: 0;
-  top: 0;
-  box-sizing: border-box;
-  transform-origin: 0 0;
-  font-family: var(--font-mono);
-  line-height: 1.25;
-  letter-spacing: 0.06em;
-  white-space: pre-wrap;
-  overflow: hidden;
-  --zp-face-fill: transparent;
-  background: var(--zp-face-fill);
-}
-.zp-dial3d {
-  position: absolute;
-  left: 0;
-  top: 0;
-  box-sizing: border-box;
-  transform-origin: 0 0;
-  background: var(--sheet);
-  border: 1px solid var(--rule-2);
-  border-radius: 6px;
-  box-shadow: inset 0 0 0 1px var(--material-edge);
-  overflow: hidden;
-}
-.zp-dot3d {
-  position: absolute;
-  left: 0;
-  top: 0;
-  transform-origin: 0 0;
-  border-radius: 50%;
-}
-.zp-blb {
-  position: absolute;
-  left: 0;
-  top: 0;
-  transform-origin: 0 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  white-space: nowrap;
-}
-.zp-blb-box {
-  display: flex;
-  align-items: center;
-  gap: 0.6em;
-  padding: 0.42em 0.75em;
-  background: var(--sheet);
-  color: var(--ink);
-  border: 1px solid var(--rule-2);
-  border-radius: 3px;
-  font-family: var(--font-mono);
-  line-height: 1.3;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  box-shadow: none;
-}
-.zp-blb-s {
-  font-weight: 400;
-  color: var(--ink-3);
-  letter-spacing: 0.03em;
-}
-.zp-blb-s:empty {
-  display: none;
-}
-.zp-blb-box.zp-ink {
-  background: var(--ink);
-  color: var(--ground);
-  border-color: var(--ink);
-}
-.zp-blb-box.zp-ink .zp-blb-s {
-  color: color-mix(in srgb, var(--ground) 72%, transparent);
-}
-.zp-blb-box.zp-sign {
-  border-color: var(--sign);
-  color: var(--sign-ink);
-}
-.zp-blb-box.zp-plan {
-  border-style: dashed;
-  color: var(--ink-2);
-  background: color-mix(in srgb, var(--sheet) 86%, transparent);
-}
-.zp-blb-stem {
-  display: block;
-  width: 1px;
-  background: var(--ink-2);
-}
-.zp-tag3d {
-  position: absolute;
-  left: 0;
-  top: 0;
-  transform-origin: 0 0;
-  display: flex;
-  align-items: center;
-  white-space: nowrap;
-}
-.zp-tag-box {
-  display: flex;
-  align-items: center;
-  gap: 0.65em;
-  padding: 0.32em 0.65em;
-  border-radius: 3px;
-  font-family: var(--font-mono);
-  line-height: 1.3;
-  letter-spacing: 0.04em;
-  color: var(--ink-2);
-  background: color-mix(in srgb, var(--sheet) 90%, transparent);
-  border: 1px solid var(--rule);
-}
-.zp-tag-box.zp-ink {
-  background: var(--ink);
-  color: var(--ground);
-  border-color: var(--ink);
-}
-.zp-tag-n {
-  font-weight: 700;
-}
-.zp-tag-s {
-  font-size: 0.86em;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  opacity: 0.8;
-}
-.zp-tag-s:empty {
-  display: none;
-}
-.zp-tag-lead {
-  display: block;
-  width: 18px;
-  height: 1px;
-  background: var(--ink-3);
-}
-.zp-veil {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: linear-gradient(
-    90deg,
-    var(--ground) 0,
-    var(--ground) var(--zp-frame-x),
-    color-mix(in srgb, var(--ground) 86%, transparent)
-      calc(var(--zp-frame-x) + min(100cqw, 1440px) * 0.3),
-    transparent calc(var(--zp-frame-x) + min(100cqw, 1440px) * 0.52)
-  );
 }
 
 .zp-kt {
@@ -1215,11 +1032,6 @@
 }
 
 /* Geometry and data marks share the camera and the canonical sleeve materials. */
-.zp-asset-glyph {
-  width: 100%;
-  height: 100%;
-  display: block;
-}
 .zp-signal {
   margin-top: 24px;
   width: min(100%, 420px);
@@ -1292,11 +1104,6 @@
   width: 92px;
   height: 92px;
   margin: 0 0 8px;
-}
-
-.zp-blb .zp-asset-glyph {
-  width: 18px;
-  height: 18px;
 }
 
 /* The allocation strip is labelled with live shares, matching the design. */

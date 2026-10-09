@@ -10,7 +10,7 @@ import {
   HYPERCORE_LEG_TITLE,
 } from '@/integration/hyperCoreLegModel';
 import { formatUsd6 } from '@/lib/format';
-import type { HyperCoreLegPlan } from '@/screens/invest/useHyperCoreLegPlan';
+import type { HyperCoreLegPlan } from '@/components/fund/useHyperCoreLegPlan';
 
 /**
  * The HLP leg funded straight from HyperCore. It is a terminal appendix to the

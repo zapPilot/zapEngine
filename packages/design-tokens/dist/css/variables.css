@@ -135,6 +135,22 @@
   --type-data-family: var(--font-mono);
   --type-data-case: none;
   --type-data-numeric: tabular-nums;
+  --type-headline-size: 36px;
+  --type-headline-line: 38px;
+  --type-headline-tracking: -0.035em;
+  --type-headline-weight: 640;
+  --type-headline-width: 108%;
+  --type-headline-family: var(--font-display);
+  --type-headline-case: none;
+  --type-headline-numeric: normal;
+  --type-verdict-size: 64px;
+  --type-verdict-line: 60px;
+  --type-verdict-tracking: -0.04em;
+  --type-verdict-weight: 660;
+  --type-verdict-width: 112%;
+  --type-verdict-family: var(--font-display);
+  --type-verdict-case: none;
+  --type-verdict-numeric: normal;
 }
 :root,
 [data-theme='paper'] {

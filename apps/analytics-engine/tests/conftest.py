@@ -16,6 +16,7 @@ from sqlalchemy.pool import NullPool
 from src.core.cache_service import analytics_cache
 from src.core.database import get_db
 from src.main import app
+from src.services.backtesting.execution.result_cache import compare_results
 
 TEST_DATABASE_URL = os.getenv(
     "TEST_DATABASE_URL",
@@ -40,8 +41,10 @@ if not (
 def clear_cache():
     """Clear analytics cache before each test to ensure test isolation."""
     analytics_cache.clear()
+    compare_results.clear()
     yield
     analytics_cache.clear()
+    compare_results.clear()
 
 
 def create_test_engine():

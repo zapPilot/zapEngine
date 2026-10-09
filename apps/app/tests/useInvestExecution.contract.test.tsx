@@ -587,3 +587,86 @@ describe('InvestExecutionProvider reviewed execution contract', () => {
     ).toBe(false);
   });
 });
+
+it.each(['reset', 'wallet', 'user', 'unmount'])(
+  'ignores a signature response after %s changes the session',
+  async (change) => {
+    const h = await renderHarness();
+    let resolve!: (result: { status: string; callsId: string }) => void;
+    mocks.executeReviewedBatch.mockImplementationOnce(
+      () =>
+        new Promise((done) => {
+          resolve = done;
+        }),
+    );
+    let pending!: ReturnType<
+      InvestExecutionContextValue['submitReviewedBatch']
+    >;
+    await act(async () => {
+      pending = h
+        .current()
+        .submitReviewedBatch({ plan: PLAN, review: review() });
+    });
+    if (change === 'reset') await act(async () => h.current().reset());
+    if (change === 'wallet') {
+      mocks.wallet.account = { address: OTHER_WALLET, isConnected: true };
+      await h.rerender();
+    }
+    if (change === 'user') {
+      mocks.account.userId = 'user-2';
+      await h.rerender();
+    }
+    if (change === 'unmount') await act(async () => h.root.unmount());
+    let result: unknown;
+    await act(async () => {
+      resolve({ status: 'submitted', callsId: 'late' });
+      result = await pending;
+    });
+    expect(result).toMatchObject({ status: 'blocked' });
+    expect(h.current().reviewedProgress).toBeNull();
+    expect(mocks.waitForReviewedBatch).not.toHaveBeenCalled();
+    expect(mocks.trackEvent).not.toHaveBeenCalled();
+  },
+);
+it('refuses a callback retained from a previous draft before opening the wallet', async () => {
+  const h = await renderHarness();
+  const staleSubmit = h.current().submitReviewedBatch;
+  mocks.invest.stageDrafts = [stageDraft('2000000')];
+  await h.rerender();
+  expect(await staleSubmit({ plan: PLAN, review: review() })).toMatchObject({
+    status: 'blocked',
+  });
+  expect(mocks.executeReviewedBatch).not.toHaveBeenCalled();
+  await act(async () => {
+    await h.current().submitReviewedBatch({ plan: PLAN, review: review() });
+  });
+  expect(h.current().reviewedProgress?.phase).toBe('complete');
+});
+
+it('does not let an earlier status response overwrite a newer submitted batch', async () => {
+  const h = await renderHarness();
+  let resolve!: (value: { status: 'confirmed' }) => void;
+  mocks.waitForReviewedBatch.mockImplementationOnce(
+    () =>
+      new Promise((done) => {
+        resolve = done;
+      }),
+  );
+  mocks.executeReviewedBatch
+    .mockResolvedValueOnce({ status: 'submitted', callsId: 'first' })
+    .mockResolvedValueOnce({ status: 'submitted', callsId: 'second' });
+  await act(async () => {
+    await h.current().submitReviewedBatch({ plan: PLAN, review: review() });
+  });
+  await act(async () => {
+    await h.current().submitReviewedBatch({ plan: PLAN, review: review() });
+  });
+  await act(async () => {
+    resolve({ status: 'confirmed' });
+    await Promise.resolve();
+  });
+  expect(h.current().reviewedProgress).toMatchObject({
+    callsId: 'second',
+    phase: 'complete',
+  });
+});

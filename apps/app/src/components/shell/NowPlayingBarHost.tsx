@@ -13,9 +13,7 @@ export function NowPlayingBarHost({
   if (
     pathname.startsWith('/podcast/') ||
     pathname === '/e' ||
-    pathname.startsWith('/e/') ||
-    pathname === '/invest' ||
-    pathname.startsWith('/invest/')
+    pathname.startsWith('/e/')
   )
     return null;
   return (

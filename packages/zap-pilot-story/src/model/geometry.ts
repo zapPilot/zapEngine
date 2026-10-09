@@ -1,4 +1,4 @@
-import { clamp, easeInOutCubic } from '@zapengine/story-kit';
+export { cameraProgress } from './motion.js';
 /** Geometry helpers retain the prototype's defensive defaults. */
 export const worldLength = (units: number): string =>
   `calc(${units.toFixed(4)} * var(--zp-u))`;
@@ -7,9 +7,3 @@ export const wireBorder = (width?: string, color?: string): string =>
 export const lineBorder = (color: string, style = 'solid'): string =>
   `1px ${style || 'solid'} ${color}`;
 export const labelStem = (units?: number): string => worldLength(units || 1.2);
-export const cameraProgress = (
-  time: number,
-  start: number,
-  end: number,
-): number =>
-  end > start ? easeInOutCubic(clamp((time - start) / (end - start))) : 1;

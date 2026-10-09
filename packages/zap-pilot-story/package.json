@@ -17,6 +17,19 @@
       "import": "./dist/copy/index.js"
     },
     "./styles.css": "./src/styles.css",
+    "./status": {
+      "types": "./dist/facts/capability-status.d.ts",
+      "import": "./dist/facts/capability-status.js"
+    },
+    "./model": {
+      "types": "./dist/model/index.d.ts",
+      "import": "./dist/model/index.js"
+    },
+    "./engine.css": "./src/engine.css",
+    "./engine-world": {
+      "types": "./dist/scenes/EngineWorld.d.ts",
+      "import": "./dist/scenes/EngineWorld.js"
+    },
     "./brand": {
       "types": "./dist/brand/index.d.ts",
       "import": "./dist/brand/index.js"

@@ -1,20 +1,23 @@
 import { Tabs } from 'expo-router';
 import type { ReactElement } from 'react';
 
+import { Platform } from 'react-native';
 import { AppTabBar } from '@/components/shell/AppTabBar';
-import { DEFAULT_APP_TAB } from '@/integration/navigationModel';
+import { defaultTabFor } from '@/integration/navigationModel';
+
+const BACK_BEHAVIOR = 'history' as const;
 
 export default function TabsLayout(): ReactElement {
   return (
     <Tabs
-      initialRouteName={DEFAULT_APP_TAB}
+      initialRouteName={defaultTabFor(Platform.OS)}
+      backBehavior={BACK_BEHAVIOR}
       tabBar={(props) => <AppTabBar {...props} />}
       screenOptions={{ headerShown: false }}
     >
-      <Tabs.Screen name="home" />
-      <Tabs.Screen name="strategy" />
-      <Tabs.Screen name="podcast" />
-      <Tabs.Screen name="account" />
+      <Tabs.Screen name="today" />
+      <Tabs.Screen name="listen" />
+      <Tabs.Screen name="runtime" />
     </Tabs>
   );
 }

@@ -2,12 +2,6 @@ import { usePortfolioDashboard } from '@zapengine/app-core/hooks/analytics/usePo
 import { useDailyYieldReturns } from '@zapengine/app-core/hooks/queries/analytics/useDailyYieldReturns';
 import { useLandingPageData } from '@zapengine/app-core/hooks/queries/analytics/usePortfolioQuery';
 import { isNotFoundError } from '@zapengine/app-core/lib/errors';
-import {
-  buildTradeActions,
-  formatRegimeLabel,
-  getStatusPanelContent,
-} from '@zapengine/app-core/services/suggestion';
-import type { DailySuggestionActionStatus } from '@zapengine/app-core/types/strategy';
 import { useMemo } from 'react';
 
 import { DEMO } from '@/data/demo';
@@ -24,7 +18,6 @@ import {
   type RangeAttributionSummary,
   summarizeRangeAttribution,
 } from '@/integration/rangeAttribution';
-import { useStrategySuggestion } from '@/integration/useStrategySuggestion';
 
 export const HOME_RANGE_OPTIONS = ['1D', '1W', '1M', '3M', '1Y'] as const;
 export type HomeRange = (typeof HOME_RANGE_OPTIONS)[number];
@@ -50,21 +43,8 @@ export interface HomeViewData {
   attribution: RangeAttributionSummary | null;
 }
 
-export interface HomeStrategyStatusView {
-  status: DailySuggestionActionStatus;
-  regimeLabel: string;
-  fearGreed: number | null;
-  primaryAction: {
-    description: string;
-    amountUsd: number;
-  } | null;
-  additionalActionCount: number;
-  reason: string | null;
-}
-
 export interface HomeData {
   home: HomeViewData;
-  strategyStatus: HomeStrategyStatusView | null;
 }
 
 /**
@@ -91,13 +71,11 @@ export interface UseHomeDataResult {
   balance: HomeSectionState;
   /** Dashboard query: the trend chart. */
   trend: HomeSectionState;
-  /** Daily suggestion: the strategy card. */
-  strategy: HomeSectionState;
   snapshotAvailability: HomeSnapshotAvailability;
 }
 
 /**
- * Home only needs portfolio-level analytics plus the current strategy decision.
+ * Home only needs portfolio-level analytics with attribution for the selected window.
  * Spendable balances belong to the invest flow, not this portfolio overview.
  *
  * @param subjectUserId Account-engine user id whose bundle is displayed —
@@ -164,40 +142,6 @@ export function calculateHomeRangeChange(
   return calculateAdjacentSnapshotChange([first, latest]);
 }
 
-export function strategyStatusFromSuggestion(
-  data: NonNullable<ReturnType<typeof useStrategySuggestion>['data']>,
-): HomeStrategyStatusView {
-  const actions = buildTradeActions(data);
-  const primaryAction = actions.at(0) ?? null;
-  const statusPanel = getStatusPanelContent(data, actions);
-
-  return {
-    status: data.action.status,
-    regimeLabel: formatRegimeLabel(data.context.signal.regime),
-    fearGreed: data.context.market.sentiment ?? null,
-    primaryAction: primaryAction
-      ? {
-          description: primaryAction.description,
-          amountUsd: primaryAction.amount_usd,
-        }
-      : null,
-    additionalActionCount: Math.max(0, actions.length - 1),
-    reason:
-      data.action.status === 'action_required'
-        ? null
-        : statusPanel.bodyDescription,
-  };
-}
-
-const DEMO_STRATEGY_STATUS: HomeStrategyStatusView = {
-  status: 'no_action',
-  regimeLabel: 'cautious',
-  fearGreed: DEMO.strategy.sentiment,
-  primaryAction: null,
-  additionalActionCount: 0,
-  reason: DEMO.strategy.quote,
-};
-
 /**
  * Stale data still counts as available: an error on top of a snapshot must not
  * demote Home to the import flow. Only a landing failure that is neither a
@@ -240,7 +184,6 @@ export function useHomeData(
     analyticsSubjectId ?? undefined,
     getHomeDashboardWindowParams(range),
   );
-  const suggestion = useStrategySuggestion(analyticsSubjectId);
   // Yield attribution needs enough samples for its outlier fence, so short
   // ranges keep a 30-day floor and 3M uses 90 days. One-year attribution is
   // disabled until the 365-day backend path is safe on the small Fly VM.
@@ -257,8 +200,8 @@ export function useHomeData(
   const isResolvingSubject =
     Boolean(options.isResolvingSubject) && analyticsSubjectId === null;
 
-  // Per section rather than aggregated: the slowest of the three must not hold
-  // the other two in a skeleton.
+  // Per section rather than aggregated: the slower section must not hold
+  // the other in a skeleton.
   const balance: HomeSectionState = {
     isLoading: isResolvingSubject || landing.isLoading,
     isError: landing.isError,
@@ -267,13 +210,8 @@ export function useHomeData(
     isLoading: isResolvingSubject || dashboard.isLoading,
     isError: dashboard.isError,
   };
-  const strategy: HomeSectionState = {
-    isLoading: isResolvingSubject || suggestion.isLoading,
-    isError: suggestion.isError,
-  };
-
-  const isLoading = balance.isLoading || trend.isLoading || strategy.isLoading;
-  const isError = balance.isError || trend.isError || strategy.isError;
+  const isLoading = balance.isLoading || trend.isLoading;
+  const isError = balance.isError || trend.isError;
 
   // While the subject is still resolving, stay in the live (skeleton) state
   // instead of flashing demo data.
@@ -309,15 +247,6 @@ export function useHomeData(
     () => summarizeRangeAttribution(selectedTrendPoints),
     [selectedTrendPoints],
   );
-  const strategyStatus = useMemo(
-    () =>
-      isDemo
-        ? DEMO_STRATEGY_STATUS
-        : suggestion.data
-          ? strategyStatusFromSuggestion(suggestion.data)
-          : null,
-    [isDemo, suggestion.data],
-  );
   return {
     data: {
       home: {
@@ -327,13 +256,11 @@ export function useHomeData(
         trendPoints: selectedTrendPoints,
         attribution: rangeAttribution,
       },
-      strategyStatus,
     },
     isLoading,
     isError,
     balance,
     trend,
-    strategy,
     snapshotAvailability: snapshotAvailability({
       isDemo,
       hasPortfolioSnapshot,

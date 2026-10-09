@@ -9,6 +9,12 @@ import * as podcast from './modules/podcast';
 import * as strategy from './modules/strategy';
 import * as portfolio from './modules/portfolio';
 import * as invest from './modules/invest';
+import * as fund from './modules/fund';
+import * as dock from './modules/dock';
+import * as today from './modules/today';
+import * as listen from './modules/listen';
+import * as runtime from './modules/runtime';
+import * as firstRun from './modules/firstRun';
 
 export const en = {
   ...common.en,
@@ -21,6 +27,12 @@ export const en = {
   ...strategy.en,
   ...portfolio.en,
   ...invest.en,
+  ...fund.en,
+  ...dock.en,
+  ...today.en,
+  ...listen.en,
+  ...runtime.en,
+  ...firstRun.en,
 } as const;
 
 export const zhHant = {
@@ -34,6 +46,12 @@ export const zhHant = {
   ...strategy.zhHant,
   ...portfolio.zhHant,
   ...invest.zhHant,
+  ...fund.zhHant,
+  ...dock.zhHant,
+  ...today.zhHant,
+  ...listen.zhHant,
+  ...runtime.zhHant,
+  ...firstRun.zhHant,
 } satisfies TranslationDictionary;
 
 export const ja = {
@@ -47,6 +65,12 @@ export const ja = {
   ...strategy.ja,
   ...portfolio.ja,
   ...invest.ja,
+  ...fund.ja,
+  ...dock.ja,
+  ...today.ja,
+  ...listen.ja,
+  ...runtime.ja,
+  ...firstRun.ja,
 } satisfies TranslationDictionary;
 
 export type TranslationKey = keyof typeof en;

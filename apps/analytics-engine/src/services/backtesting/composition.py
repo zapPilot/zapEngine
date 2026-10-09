@@ -54,6 +54,10 @@ class ResolvedSavedStrategyConfig:
     supports_daily_suggestion: bool
     public_params: dict[str, JsonValue]
     build_strategy: Callable[[StrategyBuildRequest], BaseStrategy]
+    # Full saved-config snapshot keying the compare-result cache, so an edited
+    # saved config is never answered from an older run. Recipe-only configs have
+    # no saved config; strategy_id and public_params already identify them.
+    cache_identity: dict[str, JsonValue] | None = None
 
 
 @dataclass(frozen=True)
@@ -121,6 +125,7 @@ def _resolved_saved_config_fields(
         "runtime_portfolio_mode": runtime_portfolio_mode,
         "supports_daily_suggestion": saved_config.supports_daily_suggestion,
         "public_params": public_params,
+        "cache_identity": saved_config.model_dump(mode="json"),
     }
 
 

@@ -25,6 +25,7 @@ from src.services.analytics.drawdown_analysis_service import DrawdownAnalysisSer
 from src.services.analytics.risk_metrics_service import RiskMetricsService
 from src.services.analytics.rolling_analytics_service import RollingAnalyticsService
 from src.services.analytics.trend_analysis_service import TrendAnalysisService
+from src.services.backtesting.execution.result_cache import compare_results
 from src.services.market.lido_staking_apr_provider import LidoStakingAprProvider
 from src.services.market.macro_fear_greed_service import (
     MacroFearGreedDatabaseService,
@@ -302,6 +303,7 @@ def build_backtesting_service(
         token_price_service or TokenPriceService(db, query_service),
         sentiment_service or SentimentDatabaseService(db, query_service),
         strategy_config_store=StrategyConfigStore(db),
+        result_cache=compare_results,
         stock_price_service=stock_price_service or StockPriceService(db, query_service),
         macro_fear_greed_service=macro_fear_greed_service
         or MacroFearGreedDatabaseService(db, query_service),

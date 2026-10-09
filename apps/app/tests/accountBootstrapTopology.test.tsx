@@ -5,7 +5,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthenticatedActionProvider } from '@/providers/AuthenticatedActionProvider';
-import { AccountScreen } from '@/screens/AccountScreen';
+import { RuntimeYouSection } from '@/components/runtime/RuntimeYouSection';
+import { TelegramCard } from '@/components/account/TelegramCard';
 vi.mock('@/components/account/AppVersionCard', () => ({
   AppVersionCard: () => null,
 }));
@@ -155,7 +156,7 @@ beforeEach(() => {
 });
 
 describe('account bootstrap single-flight (production topology)', () => {
-  it('mounts AuthenticatedActionProvider + AccountScreen + TelegramCard + DeleteAccountCard with exactly one connect-wallet POST', async () => {
+  it('mounts AuthenticatedActionProvider + RuntimeYouSection + TelegramCard + RuntimeDeleteAccount with exactly one connect-wallet POST', async () => {
     const container = document.createElement('div');
     document.body.appendChild(container);
     let root: Root | undefined;
@@ -173,7 +174,12 @@ describe('account bootstrap single-flight (production topology)', () => {
           createElement(
             AuthenticatedActionProvider,
             null,
-            createElement(AccountScreen),
+            createElement(
+              'div',
+              null,
+              createElement(RuntimeYouSection),
+              createElement(TelegramCard),
+            ),
           ),
         ),
       );
@@ -219,7 +225,12 @@ describe('account bootstrap single-flight (production topology)', () => {
           createElement(
             AuthenticatedActionProvider,
             null,
-            createElement(AccountScreen),
+            createElement(
+              'div',
+              null,
+              createElement(RuntimeYouSection),
+              createElement(TelegramCard),
+            ),
           ),
         ),
       );

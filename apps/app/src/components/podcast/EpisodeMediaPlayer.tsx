@@ -126,6 +126,7 @@ export function PodcastIconButton({
 }
 
 interface EpisodeMediaPlayerProps {
+  initialTab?: EpisodeMediaTab;
   episode: PodcastEpisode;
   episodes: readonly PodcastEpisode[];
   player: PodcastPlayer;
@@ -456,6 +457,7 @@ function AudioPlaybackControls({
 
 export function EpisodeMediaPlayer({
   episode: sourceEpisode,
+  initialTab,
   episodes,
   player,
   onEpisodeChanged,
@@ -478,7 +480,7 @@ export function EpisodeMediaPlayer({
     [sourceEpisode, record, downloads.localUri],
   );
   const [selectedTab, setSelectedTab] = useState<EpisodeMediaTab>(
-    record === undefined ? 'story' : 'video',
+    initialTab ?? (record === undefined ? 'story' : 'video'),
   );
   const [selectedClassroomLanguage, setSelectedClassroomLanguage] = useState<
     string | null

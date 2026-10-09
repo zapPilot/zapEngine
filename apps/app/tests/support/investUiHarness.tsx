@@ -1,6 +1,34 @@
 import { act, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, vi } from 'vitest';
+const fundUiProbe = vi.hoisted(() => ({
+  open: vi.fn(),
+  close: vi.fn(),
+}));
+vi.mock('@/providers/FundFlowProvider', () => ({
+  useFundFlow: () => ({
+    available: true,
+    visible: true,
+    step: 'amount',
+    signRequest: null,
+    ...fundUiProbe,
+  }),
+}));
+vi.mock('@/components/fund/FundSheet', () => ({
+  FundSheet: ({
+    children,
+    footer,
+  }: {
+    children?: ReactNode;
+    footer?: ReactNode;
+  }) => (
+    <div>
+      {children}
+      {footer}
+    </div>
+  ),
+}));
+vi.mock('react-native-svg', async () => (await import('./svgStub')).svgStub);
 interface NativeProps {
   children?: ReactNode;
   accessibilityLabel?: string;
@@ -82,4 +110,8 @@ export async function changeInput(input: HTMLInputElement, value: string) {
     )!.set!.call(input, value);
     input.dispatchEvent(new Event('input', { bubbles: true }));
   });
+}
+
+export function getFundUiProbe() {
+  return fundUiProbe;
 }

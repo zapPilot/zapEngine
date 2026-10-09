@@ -29,6 +29,8 @@ export interface InvestPosition {
  * Destinations that draw on the same source chain are planned together and
  * become a single reviewed wallet batch.
  */
+export const HLP_VENUE = 'Hyperliquid';
+
 export const INVEST_POSITIONS: readonly InvestPosition[] = [
   {
     id: 'morpho-base',
@@ -52,7 +54,7 @@ export const INVEST_POSITIONS: readonly InvestPosition[] = [
     venue: 'Official HLP vault',
     protocol: 'hyperliquid',
     chainKey: 'hyperliquid',
-    detail: 'Hyperliquid · official HLP vault',
+    detail: `${HLP_VENUE} · official HLP vault`,
   },
 ];
 

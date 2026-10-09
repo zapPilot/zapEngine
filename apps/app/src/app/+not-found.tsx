@@ -21,7 +21,7 @@ export default function NotFoundRoute() {
             action={{
               label: t('tabs.podcast'),
               accessibilityLabel: t('tabs.podcast'),
-              onPress: () => router.replace('/podcast'),
+              onPress: () => router.replace('/listen'),
             }}
           />
         </View>

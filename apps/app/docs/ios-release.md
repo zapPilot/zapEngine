@@ -119,13 +119,14 @@ App Store Connect holds the listing copy; this is the source of truth for the
 that depends on facts about this repository.
 
 > This update includes the existing Zap Pilot podcast experience plus a
-> read-only portfolio dashboard. Home and Portfolio display existing
-> portfolio analytics for the signed-in account or a user-entered watch-only
-> address. Strategy displays the strategy's daily assessment alongside public
-> market indicators (BTC, ETH, and S&P 500 prices against their 200-day
-> moving averages, the ETH/BTC ratio, and crypto and macro Fear & Greed
-> indices). The iOS dashboard is informational only and cannot move assets or
-> execute transactions.
+> read-only portfolio dashboard, organized into Today, Listen, and Runtime.
+> iOS opens Listen. Today and the Decision detail page display an explicitly
+> labeled simulated reference strategy alongside public market indicators
+> (BTC, ETH, and S&P 500 prices against their 200-day moving averages, the
+> ETH/BTC ratio, and crypto and macro Fear & Greed indices). Portfolio displays
+> existing analytics for the signed-in account or a watch-only address.
+> The iOS dashboard is informational only: funding, signing, wallet custody
+> controls, and transaction execution are absent from the binary.
 >
 > All podcasts and editorial content available in the app are original
 > first-party content produced by us. The app does not aggregate podcasts,

@@ -47,5 +47,5 @@ it('explains an unknown route and offers a working return to Podcast', async () 
   await act(async () =>
     host.querySelector<HTMLButtonElement>('[aria-label="Podcast"]')!.click(),
   );
-  expect(replace).toHaveBeenCalledWith('/podcast');
+  expect(replace).toHaveBeenCalledWith('/listen');
 });

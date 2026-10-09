@@ -1,14 +1,10 @@
+import { buildDefaultBacktestRequest } from '@/integration/referenceStrategyModel';
 // @vitest-environment jsdom
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { tokens } from '@zapengine/design-tokens/tokens';
 
-import {
-  buildDefaultBacktestRequest,
-  useDefaultStrategyBacktest,
-  viewFromResponse,
-} from '../src/integration/useDefaultStrategyBacktest';
 import {
   usePortfolioData,
   type UsePortfolioDataResult,
@@ -77,14 +73,9 @@ vi.mock(
 );
 
 type BacktestConfigsInput = Parameters<typeof buildDefaultBacktestRequest>[0];
-type BacktestResponseInput = Parameters<typeof viewFromResponse>[0];
 
 function backtestConfigs(value: unknown): BacktestConfigsInput {
   return value as BacktestConfigsInput;
-}
-
-function backtestResponse(value: unknown): BacktestResponseInput {
-  return value as BacktestResponseInput;
 }
 
 function settledLanding() {
@@ -93,24 +84,6 @@ function settledLanding() {
 
 function settledDashboard() {
   return { dashboard: null, isLoading: false, isError: false };
-}
-
-function lastBacktestQueryOptions(): {
-  queryKey: unknown;
-  queryFn: () => Promise<unknown>;
-  staleTime: number;
-} {
-  const options = useQueryMock.mock.calls.at(-1)?.[0] as
-    | {
-        queryKey: unknown;
-        queryFn: () => Promise<unknown>;
-        staleTime: number;
-      }
-    | undefined;
-  if (!options || typeof options.queryFn !== 'function') {
-    throw new Error('Expected backtest hook to call useQuery with a queryFn');
-  }
-  return options;
 }
 
 function renderPortfolioData(
@@ -246,273 +219,6 @@ describe('backtest preset fallbacks', () => {
         },
       ],
     });
-  });
-});
-
-describe('backtest response mapping gaps', () => {
-  it('marks a negative ROI as negative instead of neutral', () => {
-    const view = viewFromResponse(
-      backtestResponse({
-        strategies: {
-          dca_classic: {},
-          dma_fgi_portfolio_rules_default: {
-            display_name: 'DMA/FGI Portfolio Rules',
-            roi_percent: -5.5,
-            max_drawdown_percent: -3.2,
-            sharpe_ratio: 0.5,
-            calmar_ratio: 0.25,
-            volatility: 12,
-            win_rate_percent: 40,
-            trade_count: 7,
-            final_value: 9000,
-          },
-        },
-        timeline: [],
-      }),
-    );
-
-    expect(view?.returnLabel).toBe('−5.5%');
-    expect(view?.metrics[0]).toEqual({
-      label: 'ROI',
-      value: '−5.5%',
-      tone: 'negative',
-    });
-  });
-
-  it('returns null when the response carries no strategies map', () => {
-    expect(viewFromResponse(backtestResponse({}))).toBeNull();
-    expect(
-      viewFromResponse(backtestResponse({ strategies: undefined })),
-    ).toBeNull();
-    expect(viewFromResponse(backtestResponse({ strategies: {} }))).toBeNull();
-  });
-
-  it('keeps only finite timeline values in chart data', () => {
-    const view = viewFromResponse(
-      backtestResponse({
-        strategies: {
-          dca_classic: {},
-          dma_fgi_portfolio_rules_default: {
-            display_name: 'DMA/FGI Portfolio Rules',
-            roi_percent: 4,
-            max_drawdown_percent: -2,
-            sharpe_ratio: 1,
-            calmar_ratio: 1,
-            volatility: 10,
-            win_rate_percent: 50,
-            trade_count: 3,
-            final_value: 10400,
-          },
-        },
-        timeline: [
-          {
-            strategies: {
-              dma_fgi_portfolio_rules_default: {
-                portfolio: { total_value: 10000 },
-              },
-            },
-          },
-          {
-            strategies: {
-              dma_fgi_portfolio_rules_default: {
-                portfolio: { total_value: undefined },
-              },
-            },
-          },
-          { strategies: {} },
-          {
-            strategies: {
-              dma_fgi_portfolio_rules_default: {
-                portfolio: { total_value: 'bad' },
-              },
-            },
-          },
-          {
-            strategies: {
-              dma_fgi_portfolio_rules_default: {
-                portfolio: { total_value: 10400 },
-              },
-            },
-          },
-        ],
-      }),
-    );
-
-    expect(view?.chartData).toEqual([10000, 10400]);
-  });
-
-  it('returns empty chart data when the timeline is missing', () => {
-    const view = viewFromResponse(
-      backtestResponse({
-        strategies: {
-          dca_classic: {},
-          dma_fgi_portfolio_rules_default: {
-            display_name: 'DMA/FGI Portfolio Rules',
-            roi_percent: 4,
-            max_drawdown_percent: -2,
-            sharpe_ratio: 1,
-            calmar_ratio: 1,
-            volatility: 10,
-            win_rate_percent: 50,
-            trade_count: 3,
-            final_value: 10400,
-          },
-        },
-      }),
-    );
-
-    expect(view?.chartData).toEqual([]);
-  });
-
-  it('guards chart data when the strategies map is inconsistent between lookups', () => {
-    const summary = {
-      display_name: 'DMA/FGI Portfolio Rules',
-      roi_percent: 5,
-      max_drawdown_percent: -1,
-      sharpe_ratio: 1,
-      calmar_ratio: 1,
-      volatility: 10,
-      win_rate_percent: 50,
-      trade_count: 1,
-      final_value: 10500,
-    };
-    let reads = 0;
-    const response = {
-      timeline: [
-        {
-          strategies: {
-            extra: { portfolio: { total_value: 10000 } },
-          },
-        },
-      ],
-    } as unknown as Record<string, unknown>;
-    Object.defineProperty(response, 'strategies', {
-      enumerable: true,
-      get() {
-        reads += 1;
-        return reads === 1
-          ? { dca_classic: {} }
-          : { dca_classic: {}, extra: summary };
-      },
-    });
-
-    const view = viewFromResponse(response as BacktestResponseInput);
-
-    expect(view?.chartData).toEqual([]);
-  });
-});
-
-describe('useDefaultStrategyBacktest hook', () => {
-  it('defaults the query key and maps an empty query to null data', () => {
-    const result = useDefaultStrategyBacktest();
-
-    expect(result).toEqual({ data: null, isLoading: false, isError: false });
-    const options = lastBacktestQueryOptions();
-    expect(options.queryKey).toEqual([
-      'desktop',
-      'strategy',
-      'default-backtest',
-      'default',
-    ]);
-    expect(options.staleTime).toBe(10 * 60 * 1000);
-  });
-
-  it('surfaces query data, loading, and error state as-is', () => {
-    const view = { displayName: 'Live' };
-    useQueryMock.mockReturnValue({
-      data: view,
-      isLoading: true,
-      isError: true,
-    });
-
-    expect(useDefaultStrategyBacktest(30)).toEqual({
-      data: view,
-      isLoading: true,
-      isError: true,
-    });
-    expect(lastBacktestQueryOptions().queryKey).toEqual([
-      'desktop',
-      'strategy',
-      'default-backtest',
-      30,
-    ]);
-  });
-
-  it('runs the full backtest through the explicit-days request path', async () => {
-    getStrategyConfigsMock.mockResolvedValue(
-      backtestConfigs({
-        backtest_defaults: { days: 365, total_capital: 5000 },
-        presets: [],
-        strategies: [],
-      }),
-    );
-    runBacktestMock.mockResolvedValue(
-      backtestResponse({
-        strategies: {
-          dca_classic: {},
-          dma_fgi_portfolio_rules_default: {
-            display_name: 'DMA/FGI Portfolio Rules',
-            roi_percent: 6,
-            max_drawdown_percent: -2,
-            sharpe_ratio: 1,
-            calmar_ratio: 1,
-            volatility: 9,
-            win_rate_percent: 55,
-            trade_count: 5,
-            final_value: 10600,
-          },
-        },
-        timeline: [],
-      }),
-    );
-
-    useDefaultStrategyBacktest(90);
-    const { queryFn } = lastBacktestQueryOptions();
-    const view = (await queryFn()) as { displayName: string };
-
-    expect(getStrategyConfigsMock).toHaveBeenCalledTimes(1);
-    expect(runBacktestMock).toHaveBeenCalledTimes(1);
-    const request = runBacktestMock.mock.calls[0]?.[0] as { days: number };
-    expect(request.days).toBe(90);
-    expect(view.displayName).toBe('DMA/FGI Portfolio Rules');
-  });
-
-  it('runs the full backtest through the default-days request path', async () => {
-    getStrategyConfigsMock.mockResolvedValue(
-      backtestConfigs({
-        backtest_defaults: { days: 365, total_capital: 5000 },
-        presets: [],
-        strategies: [],
-      }),
-    );
-    runBacktestMock.mockResolvedValue(
-      backtestResponse({
-        strategies: {
-          dca_classic: {},
-          dma_fgi_portfolio_rules_default: {
-            display_name: 'DMA/FGI Portfolio Rules',
-            roi_percent: 6,
-            max_drawdown_percent: -2,
-            sharpe_ratio: 1,
-            calmar_ratio: 1,
-            volatility: 9,
-            win_rate_percent: 55,
-            trade_count: 5,
-            final_value: 10600,
-          },
-        },
-        timeline: [],
-      }),
-    );
-
-    useDefaultStrategyBacktest();
-    const view = (await lastBacktestQueryOptions().queryFn()) as {
-      displayName: string;
-    };
-
-    const request = runBacktestMock.mock.calls[0]?.[0] as { days: number };
-    expect(request.days).toBe(365);
-    expect(view.displayName).toBe('DMA/FGI Portfolio Rules');
   });
 });
 
