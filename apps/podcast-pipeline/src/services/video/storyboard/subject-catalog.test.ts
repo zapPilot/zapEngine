@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import {
   isGenericVisualSubjectName,
+  normalizeVisualSubjectCatalogInput,
   parseVisualSubjectCatalog,
+  visualSubjectCatalogSchema,
 } from './subject-catalog.js';
 
 function rawSubject(
@@ -257,6 +259,314 @@ describe('visual subject catalog', () => {
         ],
       }),
     ).toThrow('exactly one primary subject');
+  });
+});
+
+describe('one-letter brand names and repairable names', () => {
+  const coinbase = rawSubject();
+
+  it('accepts a one-letter brand and derives its identity query from the qualifier', () => {
+    const catalog = parseVisualSubjectCatalog({
+      primarySubjectId: 'subject-coinbase',
+      subjects: [
+        coinbase,
+        {
+          ...rawSubject({
+            id: 'subject-x',
+            canonicalName: 'X',
+            storyRole: 'secondary',
+            evidenceSceneIds: ['scene-02'],
+            identityHints: ['a descriptive hint too long to disambiguate'],
+          }),
+          searchQualifier: 'Twitter',
+        },
+      ],
+    });
+
+    expect(catalog.subjects[1]).toMatchObject({
+      canonicalName: 'X',
+      searchQuery: 'X Twitter',
+    });
+  });
+
+  it('accepts a longer brand name that carries a one-letter alias', () => {
+    const catalog = parseVisualSubjectCatalog({
+      primarySubjectId: 'subject-coinbase',
+      subjects: [
+        coinbase,
+        rawSubject({
+          id: 'subject-x-corp',
+          canonicalName: 'X Corp',
+          aliases: ['X'],
+          storyRole: 'secondary',
+          evidenceSceneIds: ['scene-02'],
+          identityHints: ['social platform'],
+        }),
+      ],
+    });
+
+    expect(catalog.subjects[1]).toMatchObject({
+      canonicalName: 'X Corp',
+      aliases: ['X'],
+      searchQuery: 'X Corp social platform',
+    });
+  });
+
+  it('does not rename a one-letter subject to an alias that merely contains its letter', () => {
+    const catalog = parseVisualSubjectCatalog({
+      primarySubjectId: 'subject-coinbase',
+      subjects: [
+        coinbase,
+        rawSubject({
+          id: 'subject-x',
+          canonicalName: 'X',
+          aliases: ['Texas Instruments'],
+          storyRole: 'secondary',
+          evidenceSceneIds: ['scene-02'],
+          identityHints: ['chip maker'],
+        }),
+      ],
+    });
+
+    expect(catalog.subjects[1]).toMatchObject({
+      canonicalName: 'chip maker X',
+      aliases: ['X', 'Texas Instruments'],
+      searchQuery: 'X chip maker',
+    });
+  });
+
+  it('keeps the substring rule for names of two or more characters', () => {
+    const catalog = parseVisualSubjectCatalog({
+      primarySubjectId: 'subject-coinbase',
+      subjects: [
+        coinbase,
+        rawSubject({
+          id: 'subject-sol',
+          canonicalName: 'Sol',
+          aliases: ['Solana'],
+          storyRole: 'secondary',
+          evidenceSceneIds: ['scene-02'],
+          identityHints: ['blockchain'],
+        }),
+      ],
+    });
+
+    expect(catalog.subjects[1]).toMatchObject({
+      canonicalName: 'Solana',
+      aliases: ['Sol'],
+    });
+  });
+
+  it('rejects a stored one-letter query that carries no qualifier', () => {
+    const catalog = parseVisualSubjectCatalog({
+      primarySubjectId: 'subject-coinbase',
+      subjects: [
+        coinbase,
+        {
+          ...rawSubject({
+            id: 'subject-x',
+            canonicalName: 'X',
+            storyRole: 'secondary',
+            evidenceSceneIds: ['scene-02'],
+            identityHints: ['social platform'],
+          }),
+          searchQualifier: 'Twitter',
+        },
+      ],
+    });
+    const [primary, x] = catalog.subjects;
+
+    expect(
+      visualSubjectCatalogSchema.safeParse({
+        ...catalog,
+        subjects: [primary, { ...x, searchQuery: 'X ' }],
+      }).success,
+    ).toBe(false);
+  });
+
+  it('drops invalid and repeated aliases before the cap and reports each repair', () => {
+    const catalog = parseVisualSubjectCatalog({
+      primarySubjectId: 'subject-coinbase',
+      subjects: [
+        {
+          ...rawSubject(),
+          aliases: [
+            '中',
+            '中',
+            '中',
+            '中',
+            '中',
+            '中',
+            '中',
+            '中',
+            'Base',
+            'Bitcoin',
+          ],
+        },
+      ],
+    });
+
+    expect(catalog.subjects[0]?.aliases).toEqual(['Base', 'Bitcoin']);
+    expect(catalog.repairedSubjects).toHaveLength(8);
+    expect(catalog.repairedSubjects?.[0]).toEqual({
+      id: 'subject-coinbase',
+      field: 'aliases',
+      kind: 'dropped-invalid',
+      value: '中',
+    });
+  });
+
+  it('reports every repaired alias and identity hint with the subject it came from', () => {
+    const catalog = parseVisualSubjectCatalog({
+      primarySubjectId: 'subject-coinbase',
+      subjects: [
+        {
+          ...rawSubject(),
+          aliases: ['中', 'Coinbase', '  ', 'Base', 'base', 'a'.repeat(81)],
+          identityHints: ['z', 'crypto exchange', 'Crypto Exchange'],
+        },
+      ],
+    });
+
+    expect(catalog.subjects[0]).toMatchObject({
+      aliases: ['Base'],
+      identityHints: ['crypto exchange'],
+      searchQuery: 'Coinbase crypto exchange',
+    });
+    expect(catalog.repairedSubjects).toEqual([
+      {
+        id: 'subject-coinbase',
+        field: 'aliases',
+        kind: 'dropped-invalid',
+        value: '中',
+      },
+      {
+        id: 'subject-coinbase',
+        field: 'aliases',
+        kind: 'dropped-duplicate',
+        value: 'Coinbase',
+      },
+      {
+        id: 'subject-coinbase',
+        field: 'aliases',
+        kind: 'dropped-invalid',
+        value: '',
+      },
+      {
+        id: 'subject-coinbase',
+        field: 'aliases',
+        kind: 'dropped-duplicate',
+        value: 'base',
+      },
+      {
+        id: 'subject-coinbase',
+        field: 'aliases',
+        kind: 'dropped-invalid',
+        value: 'a'.repeat(80),
+      },
+      {
+        id: 'subject-coinbase',
+        field: 'identityHints',
+        kind: 'dropped-invalid',
+        value: 'z',
+      },
+      {
+        id: 'subject-coinbase',
+        field: 'identityHints',
+        kind: 'dropped-duplicate',
+        value: 'Crypto Exchange',
+      },
+    ]);
+  });
+
+  it('keeps a two-character persisted catalog parseable without adding repair keys', () => {
+    const catalog = parseVisualSubjectCatalog({
+      primarySubjectId: 'subject-coinbase',
+      subjects: [coinbase],
+    });
+
+    expect(visualSubjectCatalogSchema.parse(catalog)).toEqual(catalog);
+    expect(catalog).not.toHaveProperty('repairedSubjects');
+  });
+});
+
+describe('repair bookkeeping', () => {
+  it('appends parse-time repairs after the repairs a caller already reported', () => {
+    const catalog = parseVisualSubjectCatalog({
+      primarySubjectId: 'subject-coinbase',
+      repairedSubjects: [
+        {
+          id: 'subject-earlier',
+          field: 'aliases',
+          kind: 'dropped-ungrounded',
+          value: 'Y',
+        },
+      ],
+      subjects: [{ ...rawSubject(), aliases: ['中', 'Base'] }],
+    });
+
+    expect(catalog.repairedSubjects).toEqual([
+      {
+        id: 'subject-earlier',
+        field: 'aliases',
+        kind: 'dropped-ungrounded',
+        value: 'Y',
+      },
+      {
+        id: 'subject-coinbase',
+        field: 'aliases',
+        kind: 'dropped-invalid',
+        value: '中',
+      },
+    ]);
+  });
+
+  it('replaces a malformed repair list with the repairs it actually made', () => {
+    const catalog = parseVisualSubjectCatalog({
+      primarySubjectId: 'subject-coinbase',
+      repairedSubjects: 'not-a-list',
+      subjects: [{ ...rawSubject(), aliases: ['中'] }],
+    });
+
+    expect(catalog.repairedSubjects).toEqual([
+      {
+        id: 'subject-coinbase',
+        field: 'aliases',
+        kind: 'dropped-invalid',
+        value: '中',
+      },
+    ]);
+  });
+
+  it('files repairs under "unknown" for a subject without a string id, and leaves a non-string canonical name alone', () => {
+    const normalized = normalizeVisualSubjectCatalogInput({
+      primarySubjectId: 'subject-coinbase',
+      subjects: [
+        { id: 42, canonicalName: 'Coinbase', aliases: ['中'] },
+        {
+          id: 'subject-numeric-name',
+          canonicalName: 42,
+          aliases: ['中', 'Base'],
+        },
+      ],
+    }) as {
+      subjects: { canonicalName: unknown; aliases: string[] }[];
+      repairedSubjects: unknown[];
+    };
+
+    expect(normalized.repairedSubjects).toEqual([
+      { id: 'unknown', field: 'aliases', kind: 'dropped-invalid', value: '中' },
+      {
+        id: 'subject-numeric-name',
+        field: 'aliases',
+        kind: 'dropped-invalid',
+        value: '中',
+      },
+    ]);
+    expect(normalized.subjects[1]).toMatchObject({
+      canonicalName: 42,
+      aliases: ['Base'],
+    });
   });
 });
 

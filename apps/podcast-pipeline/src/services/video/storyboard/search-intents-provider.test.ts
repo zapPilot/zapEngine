@@ -826,3 +826,407 @@ describe('named-entity-first subject materialization', () => {
     expect(llmMocks.createCompletionWithRetry).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('single-letter brand identity (X incident)', () => {
+  const X_DRAFT = {
+    scenes: [
+      { sceneId: 'scene-01', startSentenceId: 's0001', endSentenceId: 's0001' },
+      { sceneId: 'scene-02', startSentenceId: 's0002', endSentenceId: 's0002' },
+    ],
+  };
+  const X_SCRIPT =
+    'X announced a paid tier for its platform. Users can now upgrade.';
+  const LONG_HINT = 'a descriptive hint too long to disambiguate';
+
+  function compactSubject(overrides: Record<string, unknown>) {
+    return {
+      id: 'subject-x',
+      canonicalName: 'X',
+      type: 'company',
+      aliases: [],
+      storyRole: 'primary',
+      identityHints: [LONG_HINT],
+      negativeHints: [],
+      searchQualifier: null,
+      ...overrides,
+    };
+  }
+
+  function completionWith(payload: unknown) {
+    return {
+      model: MODEL,
+      provider: 'synthetic',
+      choices: [
+        {
+          finish_reason: 'stop',
+          message: { content: JSON.stringify(payload) },
+        },
+      ],
+    };
+  }
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    llmMocks.getOpenRouterConfig.mockReturnValue({
+      openai: {},
+      model: MODEL,
+      thinkingModel: null,
+      timeoutMs: 120_000,
+    });
+  });
+
+  it('accepts an X subject on the retry instead of failing on its one-letter name', async () => {
+    llmMocks.createCompletionWithRetry
+      .mockResolvedValueOnce(completionWith({ primarySubjectId: 'subject-x' }))
+      .mockResolvedValueOnce(
+        completionWith({
+          primarySubjectId: 'subject-x',
+          subjects: [compactSubject({ searchQualifier: 'Twitter' })],
+        }),
+      );
+
+    const result = await enrichStoryboardSearchIntents(
+      { draft: X_DRAFT, title: 'X paid tier', script: X_SCRIPT },
+      { provider: createOpenRouterSearchIntentProvider() },
+    );
+
+    expect(llmMocks.createCompletionWithRetry).toHaveBeenCalledTimes(2);
+    expect(
+      result.draft.scenes.flatMap((scene) => scene.imageSearchIntent),
+    ).toEqual(['X Twitter', 'X Twitter']);
+  });
+
+  it('keeps X Corp with its one-letter alias in a single catalog call', async () => {
+    llmMocks.createCompletionWithRetry.mockResolvedValueOnce(
+      completionWith({
+        primarySubjectId: 'subject-x-corp',
+        subjects: [
+          compactSubject({
+            id: 'subject-x-corp',
+            canonicalName: 'X Corp',
+            aliases: ['X'],
+            identityHints: ['social platform'],
+          }),
+        ],
+      }),
+    );
+
+    const result = await enrichStoryboardSearchIntents(
+      { draft: X_DRAFT, title: 'X Corp paid tier', script: X_SCRIPT },
+      { provider: createOpenRouterSearchIntentProvider() },
+    );
+
+    expect(llmMocks.createCompletionWithRetry).toHaveBeenCalledTimes(1);
+    expect(result.subjectCatalog.subjects[0]).toMatchObject({
+      canonicalName: 'X Corp',
+      aliases: ['X'],
+    });
+    expect(
+      result.draft.scenes.flatMap((scene) => scene.imageSearchIntent),
+    ).toEqual(['X Corp', 'X Corp']);
+  });
+
+  it('does not ground the brand X on a lowercase x inside another token', async () => {
+    llmMocks.createCompletionWithRetry.mockResolvedValueOnce(
+      completionWith({
+        primarySubjectId: 'subject-stripe',
+        subjects: [
+          compactSubject({
+            id: 'subject-stripe',
+            canonicalName: 'Stripe',
+            identityHints: ['payments company'],
+          }),
+          compactSubject({
+            searchQualifier: 'Twitter',
+            storyRole: 'supporting',
+          }),
+        ],
+      }),
+    );
+
+    const catalog = await createOpenRouterSearchIntentProvider().catalog({
+      title: 'Stripe payments',
+      scenes: [
+        {
+          sceneId: 'scene-01',
+          text: 'Stripe added x402 payments, and x-axis charts track volume.',
+        },
+      ],
+    });
+
+    expect(catalog).toMatchObject({
+      droppedSubjects: [
+        expect.objectContaining({ id: 'subject-x', reason: 'not-grounded' }),
+      ],
+    });
+  });
+
+  it('drops an ungrounded one-letter alias alone and keeps its subject', async () => {
+    llmMocks.createCompletionWithRetry.mockResolvedValueOnce(
+      completionWith({
+        primarySubjectId: 'subject-dots',
+        subjects: [
+          compactSubject({
+            id: 'subject-dots',
+            canonicalName: 'Dots',
+            type: 'product',
+            aliases: ['X'],
+            identityHints: ['social app'],
+          }),
+        ],
+      }),
+    );
+
+    const catalog = await createOpenRouterSearchIntentProvider().catalog({
+      title: 'Dots agent',
+      scenes: [
+        { sceneId: 'scene-01', text: 'Dots launched an agent for users.' },
+      ],
+    });
+
+    expect(catalog).toMatchObject({
+      subjects: [expect.objectContaining({ id: 'subject-dots', aliases: [] })],
+      repairedSubjects: [
+        {
+          id: 'subject-dots',
+          field: 'aliases',
+          kind: 'dropped-ungrounded',
+          value: 'X',
+        },
+      ],
+    });
+  });
+
+  it('drops a one-letter subject that has no identity-explicit query, alone', async () => {
+    llmMocks.createCompletionWithRetry.mockResolvedValueOnce(
+      completionWith({
+        primarySubjectId: 'subject-stripe',
+        subjects: [
+          compactSubject({
+            id: 'subject-stripe',
+            canonicalName: 'Stripe',
+            identityHints: ['payments company'],
+          }),
+          compactSubject({ storyRole: 'supporting' }),
+        ],
+      }),
+    );
+
+    const catalog = await createOpenRouterSearchIntentProvider().catalog({
+      title: 'Stripe and X',
+      scenes: [
+        { sceneId: 'scene-01', text: 'Stripe and X both report revenue.' },
+      ],
+    });
+
+    expect(catalog).toMatchObject({
+      droppedSubjects: [
+        expect.objectContaining({
+          id: 'subject-x',
+          reason: 'unsearchable-name',
+        }),
+      ],
+    });
+  });
+
+  it('keeps every grounded subject when one alias is invalid and reports each repair', async () => {
+    llmMocks.createCompletionWithRetry.mockResolvedValueOnce(
+      completionWith({
+        primarySubjectId: 'subject-nvidia',
+        subjects: [
+          compactSubject({
+            id: 'subject-nvidia',
+            canonicalName: 'NVIDIA',
+            aliases: ['輝達', 'a'.repeat(81), '中', '輝達', '  ', 42],
+            identityHints: ['GPU maker'],
+          }),
+          compactSubject({
+            id: 'subject-andy-jassy',
+            canonicalName: 'Andy Jassy',
+            type: 'person',
+            aliases: ['Jassy', 'Jassy'],
+            storyRole: 'supporting',
+            identityHints: ['Amazon CEO'],
+          }),
+        ],
+      }),
+    );
+
+    const result = await enrichStoryboardSearchIntents(
+      {
+        draft: X_DRAFT,
+        title: 'NVIDIA and Amazon',
+        script:
+          'NVIDIA said GPU demand rose. Andy Jassy discussed data centers.',
+      },
+      { provider: createOpenRouterSearchIntentProvider() },
+    );
+
+    expect(llmMocks.createCompletionWithRetry).toHaveBeenCalledTimes(1);
+    expect(result.subjectCatalog.subjects.map((subject) => subject.id)).toEqual(
+      ['subject-nvidia', 'subject-andy-jassy'],
+    );
+    expect(result.subjectCatalog.subjects[0]?.aliases).toEqual(['輝達']);
+    expect(result.subjectCatalog.repairedSubjects).toEqual([
+      {
+        id: 'subject-nvidia',
+        field: 'aliases',
+        kind: 'dropped-invalid',
+        value: 'a'.repeat(80),
+      },
+      {
+        id: 'subject-nvidia',
+        field: 'aliases',
+        kind: 'dropped-invalid',
+        value: '中',
+      },
+      {
+        id: 'subject-nvidia',
+        field: 'aliases',
+        kind: 'dropped-duplicate',
+        value: '輝達',
+      },
+      {
+        id: 'subject-nvidia',
+        field: 'aliases',
+        kind: 'dropped-invalid',
+        value: '',
+      },
+      {
+        id: 'subject-nvidia',
+        field: 'aliases',
+        kind: 'dropped-invalid',
+        value: '',
+      },
+      {
+        id: 'subject-andy-jassy',
+        field: 'aliases',
+        kind: 'dropped-duplicate',
+        value: 'Jassy',
+      },
+    ]);
+  });
+
+  it('keeps a one-letter subject with malformed list fields raw for schema diagnostics', async () => {
+    llmMocks.createCompletionWithRetry.mockResolvedValueOnce(
+      completionWith({
+        primarySubjectId: 'subject-stripe',
+        subjects: [
+          compactSubject({
+            id: 'subject-stripe',
+            canonicalName: 'Stripe',
+            identityHints: ['payments company'],
+          }),
+          compactSubject({
+            storyRole: 'supporting',
+            searchQualifier: 'Twitter',
+            aliases: 'not-an-array',
+            identityHints: 'not-a-list',
+            negativeHints: 'not-a-list',
+          }),
+        ],
+      }),
+    );
+
+    const catalog = (await createOpenRouterSearchIntentProvider().catalog({
+      title: 'Stripe and X',
+      scenes: [
+        { sceneId: 'scene-01', text: 'Stripe and X both report revenue.' },
+      ],
+    })) as { subjects: Record<string, unknown>[] };
+
+    expect(catalog.subjects[1]).toMatchObject({
+      id: 'subject-x',
+      aliases: [],
+      identityHints: 'not-a-list',
+      negativeHints: 'not-a-list',
+    });
+  });
+
+  it('drops a canonical name that is neither a usable name nor a one-letter brand, alone', async () => {
+    llmMocks.createCompletionWithRetry.mockResolvedValueOnce(
+      completionWith({
+        primarySubjectId: 'subject-stripe',
+        subjects: [
+          compactSubject({
+            id: 'subject-stripe',
+            canonicalName: 'Stripe',
+            identityHints: ['payments company'],
+          }),
+          compactSubject({
+            id: 'subject-cjk',
+            canonicalName: '中',
+            type: 'place',
+            storyRole: 'supporting',
+          }),
+        ],
+      }),
+    );
+
+    const catalog = await createOpenRouterSearchIntentProvider().catalog({
+      title: 'Stripe payments',
+      scenes: [{ sceneId: 'scene-01', text: 'Stripe added payments.' }],
+    });
+
+    expect(catalog).toMatchObject({
+      droppedSubjects: [
+        expect.objectContaining({
+          id: 'subject-cjk',
+          reason: 'invalid-canonical-name',
+        }),
+      ],
+    });
+  });
+
+  it('plans X Twitter as the only identity query and keeps every scene entity at two characters or more', async () => {
+    llmMocks.createCompletionWithRetry.mockResolvedValueOnce(
+      completionWith({
+        primarySubjectId: 'subject-x',
+        subjects: [compactSubject({ searchQualifier: 'Twitter' })],
+      }),
+    );
+
+    const result = await enrichStoryboardSearchIntents(
+      { draft: X_DRAFT, title: 'X paid tier', script: X_SCRIPT },
+      { provider: createOpenRouterSearchIntentProvider() },
+    );
+
+    expect(
+      result.draft.scenes.flatMap((scene) => scene.imageSearchEntities),
+    ).toEqual(['X Twitter', 'X Twitter']);
+    const directory = await mkdtemp(join(tmpdir(), 'x-identity-plan-'));
+    try {
+      const search = vi.fn(async (query: string) => {
+        expect(query).toBe('X Twitter');
+        return fixtureBraveResults(query, 2);
+      });
+      await planPodcastVisualAssets({
+        scenes: result.draft.scenes,
+        subjectCatalog: result.subjectCatalog,
+        sceneAssignments: result.sceneAssignments,
+        workingDirectory: directory,
+        articleImages: [
+          {
+            imageUrl: 'https://publisher.test/cover.jpg',
+            sourceUrl: 'https://publisher.test/x',
+            origin: 'openGraph',
+            width: 2400,
+            height: 1350,
+          },
+        ],
+        dependencies: {
+          acquireImage: vi.fn(async (url: string) =>
+            fixtureRemoteImage(url, directory),
+          ),
+          fingerprintImage: vi.fn(async (path: string) =>
+            fixtureImageFingerprint(path),
+          ),
+          searchProviders: [{ origin: 'brave', search }],
+        },
+      });
+      expect(search).toHaveBeenCalled();
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+});
