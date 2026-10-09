@@ -17,7 +17,7 @@ const {
   mockGenerateHls,
   mockGenerateLanguageClassroomsWithLLM,
   mockGenerateScriptWithLLM,
-  mockGenerateEditorialTitleWithLLM,
+  mockGenerateEditorialTitle,
   mockInsertEpisode,
   mockInsertEpisodeLocalization,
   mockListLanguageClassroomsByLocalizationId,
@@ -37,7 +37,7 @@ const {
   mockGenerateHls: vi.fn(),
   mockGenerateLanguageClassroomsWithLLM: vi.fn(),
   mockGenerateScriptWithLLM: vi.fn(),
-  mockGenerateEditorialTitleWithLLM: vi.fn(),
+  mockGenerateEditorialTitle: vi.fn(),
   mockInsertEpisode: vi.fn(),
   mockInsertEpisodeLocalization: vi.fn(),
   mockListLanguageClassroomsByLocalizationId: vi.fn(),
@@ -53,11 +53,7 @@ const {
 }));
 
 vi.mock('./editorial-title.js', () => ({
-  generateEditorialTitleWithLLM: mockGenerateEditorialTitleWithLLM,
-  buildEditorialTitleVariants: vi.fn(async () => ({
-    titleVariants: {},
-    cost: [],
-  })),
+  generateEditorialTitle: mockGenerateEditorialTitle,
 }));
 
 vi.mock('./db.js', () => ({
@@ -152,11 +148,13 @@ describe('performIngest failure paths', () => {
         status: 'scraped',
       }),
     );
-    mockGenerateEditorialTitleWithLLM.mockResolvedValue({
+    mockGenerateEditorialTitle.mockResolvedValue({
       title: '软件更新的新变化',
+      titleVariants: {},
+      provenance: null,
+      cost: [],
       model: 'test-model',
       provider: 'test-provider',
-      costUsd: 0,
     });
     mockGenerateScriptWithLLM.mockResolvedValue({
       script: 'Generated script',
@@ -405,11 +403,13 @@ describe('performIngest failure paths', () => {
   it('cleans standalone separators only for the main TTS input', async () => {
     const originalScript =
       'First paragraph.\n\n---\n\nKeep inline --- punctuation.';
-    mockGenerateEditorialTitleWithLLM.mockResolvedValue({
+    mockGenerateEditorialTitle.mockResolvedValue({
       title: '软件更新的新变化',
+      titleVariants: {},
+      provenance: null,
+      cost: [],
       model: 'test-model',
       provider: 'test-provider',
-      costUsd: 0,
     });
     mockGenerateScriptWithLLM.mockResolvedValue({
       script: originalScript,
@@ -473,11 +473,18 @@ describe('performIngest failure paths', () => {
   });
 
   it('retains title cost in failed ingest telemetry without generating script', async () => {
-    mockGenerateEditorialTitleWithLLM.mockResolvedValue({
+    mockGenerateEditorialTitle.mockResolvedValue({
       title: null,
-      model: 'test-model',
-      provider: 'test-provider',
-      costUsd: 0.00002,
+      reason: 'no candidate passed',
+      cost: [
+        {
+          category: 'llm',
+          label: 'LLM title',
+          model: 'test-model',
+          provider: 'test-provider',
+          costUsd: 0.00002,
+        },
+      ],
     });
     const telemetry: import('./ingest/script-stage.js').IngestLanguageTelemetry =
       {
@@ -501,11 +508,21 @@ describe('performIngest failure paths', () => {
   });
 
   it('sums LLM costs for a fresh ingest invocation', async () => {
-    mockGenerateEditorialTitleWithLLM.mockResolvedValue({
+    mockGenerateEditorialTitle.mockResolvedValue({
       title: '软件更新的新变化',
+      titleVariants: {},
+      provenance: null,
+      cost: [
+        {
+          category: 'llm',
+          label: 'LLM title',
+          model: 'test-model',
+          provider: 'test-provider',
+          costUsd: 0.00002,
+        },
+      ],
       model: 'test-model',
       provider: 'test-provider',
-      costUsd: 0.00002,
     });
     const result = await performIngest(
       'https://example.com/article',
@@ -1480,11 +1497,13 @@ describe('performIngest failure paths', () => {
     const localizations = new Map<string, EpisodeLocalizationRow>();
     const editorialTitle = '市场流动性正在重新定价';
 
-    mockGenerateEditorialTitleWithLLM.mockResolvedValue({
+    mockGenerateEditorialTitle.mockResolvedValue({
       title: editorialTitle,
+      titleVariants: {},
+      provenance: null,
+      cost: [],
       model: 'test-model',
       provider: 'test-provider',
-      costUsd: 0,
     });
     mockGenerateScriptWithLLM.mockResolvedValue({
       script: PACKAGED_SCRIPT,

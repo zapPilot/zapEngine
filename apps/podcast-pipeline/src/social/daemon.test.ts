@@ -37,7 +37,9 @@ const mocks = vi.hoisted(() => ({
   updateSocialPostIdentity: vi.fn(),
   updateSocialPostReviewStatus: vi.fn(),
   publishSocialBatch: vi.fn(),
-  prepareSocialBatchCopy: vi.fn().mockResolvedValue({}),
+  prepareSocialBatchCopy: vi
+    .fn()
+    .mockResolvedValue({ episode: { title: '市場更新' } }),
   createMetricCollectors: vi.fn(),
   createMetricsBrowserSession: vi.fn(),
   closeMetricsBrowserSession: vi.fn(),
@@ -209,7 +211,9 @@ beforeEach(() => {
   });
   mocks.listPartiallyPublishedCohorts.mockReset().mockResolvedValue([]);
   vi.clearAllMocks();
-  mocks.prepareSocialBatchCopy.mockResolvedValue({});
+  mocks.prepareSocialBatchCopy.mockResolvedValue({
+    episode: { title: '市場更新' },
+  });
   mocks.listSocialPublishCandidates.mockResolvedValue([]);
   // Publishing now re-checks media for every claimed cohort, so the default is
   // the normal production state -- every episode asked about is fully ready.

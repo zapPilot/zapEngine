@@ -41,7 +41,9 @@ const mocks = vi.hoisted(() => ({
   updateSocialPostIdentity: vi.fn(),
   updateSocialPostReviewStatus: vi.fn(),
   publishSocialBatch: vi.fn(),
-  prepareSocialBatchCopy: vi.fn().mockResolvedValue({}),
+  prepareSocialBatchCopy: vi
+    .fn()
+    .mockResolvedValue({ episode: { title: '市場更新' } }),
   createMetricCollectors: vi.fn().mockReturnValue({
     x: vi.fn(),
     threads: vi.fn(),
@@ -195,7 +197,9 @@ function mockSuccessfulCatchUpPublish(): void {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.prepareSocialBatchCopy.mockResolvedValue({});
+  mocks.prepareSocialBatchCopy.mockResolvedValue({
+    episode: { title: '市場更新' },
+  });
   mocks.alignPendingSocialReleaseCohorts.mockResolvedValue({
     alignedLanes: 0,
     rescheduledEpisodes: 0,
@@ -538,6 +542,62 @@ describe('NON-NEGOTIABLE episode release cohort contract', () => {
     }
   });
 
+  it('holds an episode whose transport title is over budget without stopping the others', async () => {
+    mocks.claimReleaseCohortJobs.mockResolvedValue([
+      claimedLane(ARTICLE_A, 'rednote', 'zh-Hant', `${ARTICLE_A}-rednote`),
+      claimedLane(ARTICLE_B, 'rednote', 'zh-Hant', 'b-rednote'),
+    ]);
+    mocks.listSocialPublishCandidatesForEpisodes.mockResolvedValue([
+      candidate(ARTICLE_A, 'zh-Hant'),
+      candidate(ARTICLE_B, 'zh-Hant'),
+    ]);
+    mocks.prepareSocialBatchCopy.mockImplementation(
+      async ({ episodeId }: { episodeId: string }) => ({
+        episode: {
+          // Live form counter: 21 / 20, so it must never be cut or sent.
+          title:
+            episodeId === ARTICLE_A
+              ? 'Bitget遭3.5億美元駭客攻擊，資金追蹤全解析'
+              : '市場更新',
+        },
+      }),
+    );
+    let transportRan = false;
+    mocks.publishSocialBatch.mockImplementation(async () => {
+      transportRan = true;
+      return [
+        { platform: 'rednote', status: 'published', url: 'https://xhs/1' },
+      ];
+    });
+    mocks.listSocialPostsByEpisode.mockImplementation(async () =>
+      transportRan ? [{ id: 'post-b', post_url: 'https://xhs/1' }] : [],
+    );
+    const log = vi.fn();
+
+    await expect(
+      runSocialDaemonTick({ now: NOW, firstStartedAt: FIRST_STARTED_AT, log }),
+    ).resolves.not.toThrow();
+
+    expect(mocks.publishSocialBatch).toHaveBeenCalledOnce();
+    expect(mocks.publishSocialBatch).toHaveBeenCalledWith(
+      expect.objectContaining({ episodeId: ARTICLE_B }),
+    );
+    expect(mocks.failSocialPublishJob).toHaveBeenCalledOnce();
+    const [held] = mocks.failSocialPublishJob.mock.calls[0]!;
+    expect(held.jobId).toBe(`${ARTICLE_A}-rednote`);
+    expect(held.error).toContain(
+      'Release held: zh-Hant transport title unavailable',
+    );
+    expect(held.error).toContain('Rednote title measures 21 units');
+    expect(mocks.releaseSocialPublishJobLease).not.toHaveBeenCalled();
+    expect(mocks.completeSocialPublishJob).toHaveBeenCalledWith(
+      expect.objectContaining({ jobId: 'b-rednote' }),
+    );
+    expect(log).toHaveBeenCalledWith(
+      expect.stringContaining('title unavailable'),
+    );
+  });
+
   it('repairs the durable queue before discovering any new article', async () => {
     const candidates = readyEpisode(ARTICLE_A);
     mocks.listSocialPublishCandidates.mockResolvedValue(candidates);
@@ -728,7 +788,8 @@ describe('NON-NEGOTIABLE episode release cohort contract', () => {
     );
     mocks.prepareSocialBatchCopy.mockImplementation(
       async ({ languageCode }: { languageCode: string }) => {
-        if (languageCode !== 'zh-Hant') return {};
+        if (languageCode !== 'zh-Hant')
+          return { episode: { title: '市場更新' } };
         throw new SocialCopyGenerationError({
           episodeId: ARTICLE_A,
           languageCode: 'zh-Hant',

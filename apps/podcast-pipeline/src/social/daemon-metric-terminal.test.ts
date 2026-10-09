@@ -32,7 +32,9 @@ const mocks = vi.hoisted(() => ({
   captureDueAccountSnapshots: vi.fn(),
   capturePrePublishAccountSnapshots: vi.fn(),
   publishSocialBatch: vi.fn(),
-  prepareSocialBatchCopy: vi.fn().mockResolvedValue({}),
+  prepareSocialBatchCopy: vi
+    .fn()
+    .mockResolvedValue({ episode: { title: '市場更新' } }),
 }));
 
 vi.mock('./daemon-store.js', () => ({
@@ -151,7 +153,9 @@ const NOW_7D = new Date('2026-08-20T10:00:00.000Z');
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.prepareSocialBatchCopy.mockResolvedValue({});
+  mocks.prepareSocialBatchCopy.mockResolvedValue({
+    episode: { title: '市場更新' },
+  });
   mocks.listSocialPublishCandidates.mockResolvedValue([]);
   mocks.listSocialPublishCandidatesForEpisodes.mockResolvedValue([]);
   mocks.getSocialQueueSnapshot.mockResolvedValue({

@@ -1,6 +1,6 @@
 import {
   composeSocialContent,
-  fitRednoteTitle,
+  resolveTransportTitle,
   type SocialComposeEpisode,
 } from './compose.js';
 import { assertRednoteCopySafe } from './lexicon/index.js';
@@ -67,6 +67,7 @@ function composeForPublish(
   return composeSocialContent(platform, {
     copy: input.copy,
     episode: input.episode,
+    titleOverride: input.titleOverrideByPlatform?.[platform] ?? null,
     ...(input.destinationUrlByPlatform?.[platform]
       ? { destinationUrl: input.destinationUrlByPlatform[platform] }
       : {}),
@@ -111,8 +112,9 @@ function createYouTubeJob(input: SocialPublishJobsInput): SocialPublishJob {
       'YouTube publishing requires the canonical video thumbnail.',
     );
   }
-  const { title, body } = composeForPublish(platform, input);
-  if (!title?.trim() || !body.trim()) {
+  const { body } = composeForPublish(platform, input);
+  const title = requireTransportTitle(platform, input);
+  if (!body.trim()) {
     throw new Error(
       'YouTube publishing requires title and description metadata.',
     );
@@ -135,14 +137,8 @@ function createYouTubeJob(input: SocialPublishJobsInput): SocialPublishJob {
 function createRednoteJob(input: SocialPublishJobsInput): SocialPublishJob {
   const platform = 'rednote';
   const videoPath = requireVideoPath(platform, input);
-  const composed = composeForPublish(platform, input);
-  const rawTitle =
-    input.titleOverrideByPlatform?.[platform]?.trim() || composed.title;
-  const { hashtags } = composed;
-  if (!rawTitle?.trim()) {
-    throw new Error('Rednote publishing requires the canonical episode title.');
-  }
-  const title = fitRednoteTitle(rawTitle);
+  const { hashtags } = composeForPublish(platform, input);
+  const title = requireTransportTitle(platform, input);
   // The last mile: `copy.ts` gates each generated field, but only what is
   // actually composed for publish is what Rednote review reads. The note
   // carries no prose body, so only the title and topics need this check.
@@ -153,6 +149,24 @@ function createRednoteJob(input: SocialPublishJobsInput): SocialPublishJob {
     platform,
     publish: () => publisher.publishRednote({ title, hashtags, videoPath }),
   };
+}
+
+// The release barrier holds a cohort whose title cannot be sent before any
+// lane is claimed for transport, so reaching this throw is a bypassed barrier
+// (`social:publish`) and must stop the job rather than cut the title.
+function requireTransportTitle(
+  platform: 'rednote' | 'youtube',
+  input: SocialPublishJobsInput,
+): string {
+  const resolved = resolveTransportTitle(
+    input.episode,
+    platform,
+    input.titleOverrideByPlatform?.[platform],
+  );
+  if (resolved.title !== null) return resolved.title;
+  throw new Error(
+    `${platformLabel(platform)} title unavailable: ${resolved.reason}`,
+  );
 }
 
 function selectVideoPath(

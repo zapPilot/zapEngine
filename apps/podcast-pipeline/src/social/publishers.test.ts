@@ -315,24 +315,35 @@ describe('createSocialPublishJobs', () => {
       }),
     ).toThrow('YouTube publishing requires the canonical video thumbnail.');
 
-    for (const blank of [
-      {
+    expect(() =>
+      createSocialPublishJobs({
+        platforms: ['youtube'],
         copy,
-        episode: { ...episode, title: '   ' },
-      },
-      { copy, episode: { title: '市場更新', summary: '   ' } },
+        episode: { title: '市場更新', summary: '   ' },
+        videoUrl: VIDEO_URL,
+        videoDurationSeconds: 301,
+        thumbnailUrl: THUMBNAIL_URL,
+        videoPath: VIDEO_PATH,
+      }),
+    ).toThrow('YouTube publishing requires title and description metadata.');
+  });
+
+  it('rejects YouTube when the title is blank or over 100 characters', () => {
+    for (const [title, reason] of [
+      ['   ', 'YouTube title is empty'],
+      ['界'.repeat(101), 'YouTube title is 101 characters, over 100'],
     ]) {
       expect(() =>
         createSocialPublishJobs({
           platforms: ['youtube'],
-          copy: blank.copy,
-          episode: blank.episode,
+          copy,
+          episode: { ...episode, title: title! },
           videoUrl: VIDEO_URL,
           videoDurationSeconds: 301,
           thumbnailUrl: THUMBNAIL_URL,
           videoPath: VIDEO_PATH,
         }),
-      ).toThrow('YouTube publishing requires title and description metadata.');
+      ).toThrow(`YouTube title unavailable: ${reason}`);
     }
   });
 
@@ -378,12 +389,12 @@ describe('createSocialPublishJobs', () => {
   });
 
   it.each([
-    ['標'.repeat(21), '標'.repeat(20)],
+    ['ether.fi为何告别EigenLayer？', 'ether.fi为何告别EigenLayer？'],
     [
-      '这是一个关于科技公司未来的押注OpenAI新故事',
-      '这是一个关于科技公司未来的押注',
+      'Quant一周暴涨300% 代币化存款赛道为何火了',
+      'Quant一周暴涨300% 代币化存款赛道为何火了',
     ],
-  ])('fits %s at the Rednote publish boundary', async (title, expected) => {
+  ])('publishes the fitting title %s as-is', async (title, expected) => {
     const [job] = createSocialPublishJobs({
       platforms: ['rednote'],
       copy,
@@ -402,20 +413,34 @@ describe('createSocialPublishJobs', () => {
     });
   });
 
-  it('rejects Rednote before publishing when the canonical episode title is blank', () => {
-    expect(() =>
-      createSocialPublishJobs({
-        platforms: ['rednote'],
-        copy,
-        episode: { ...episode, title: '   ' },
-        videoUrl: VIDEO_URL,
-        videoDurationSeconds: 301,
-        videoPath: VIDEO_PATH,
-      }),
-    ).toThrow('Rednote publishing requires the canonical episode title.');
-
-    expect(mocks.createPlaywrightRednotePublisher).not.toHaveBeenCalled();
-  });
+  it.each([
+    ['an over-budget title', '標'.repeat(21), undefined],
+    [
+      'a live-counter 21 / 20 title',
+      'Bitget遭3.5億美元駭客攻擊，資金追蹤全解析',
+      undefined,
+    ],
+    ['a blank title', '   ', undefined],
+    ['an over-budget override', '市場更新', '標'.repeat(21)],
+  ])(
+    'refuses to build a Rednote job for %s instead of cutting it',
+    (_label, title, override) => {
+      expect(() =>
+        createSocialPublishJobs({
+          platforms: ['rednote'],
+          copy,
+          episode: { ...episode, title },
+          videoUrl: VIDEO_URL,
+          videoDurationSeconds: 301,
+          videoPath: VIDEO_PATH,
+          ...(override
+            ? { titleOverrideByPlatform: { rednote: override } }
+            : {}),
+        }),
+      ).toThrow(/^Rednote title unavailable: /u);
+      expect(mocks.createPlaywrightRednotePublisher).not.toHaveBeenCalled();
+    },
+  );
 
   it('rejects unsupported platform values at the exhaustive boundary', () => {
     expect(() =>

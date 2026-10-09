@@ -13,9 +13,9 @@ description: Use for ZapEngine marketing copy, positioning, /pitch decks, promo 
 - Pitch: `apps/landing-page/src/config/pitch.ts` and `apps/landing-page/src/app/pitch/`; the cover reuses `MESSAGES.hero`.
 - Promo video: `apps/video/src/videos/<id>/storyboard.ts`; numbers come only from `facts.ts`.
 - Kokode (separate medical product): `packages/kokode-story/src/` is the only copy source for its landing, `/pitch/`, `/pitch/partner/` and the `kokode-clinic` film. `packages/kokode-story/src/story.test.ts` fences claims (no absolute, regulatory or medical-device wording outside disclaimers, one price, no revenue-share figures, demos keep their disclaimers); when it fails, change the copy.
-- Titles: `apps/podcast-pipeline/prompts/title-system-prompt.txt`. Runtime reads that prompt, never this skill; deliberately synchronize packaging changes.
-- Budget compression: `apps/podcast-pipeline/prompts/title-compression-system-prompt.txt`, generated and persisted in ingest.
-- Budget policy: `apps/podcast-pipeline/src/social/policy.ts`; deterministic fitting: `apps/podcast-pipeline/src/services/title-variants.ts`.
+- Titles: `apps/podcast-pipeline/prompts/title-system-prompt.txt` (article-grounded generator) and `apps/podcast-pipeline/prompts/title-verification-system-prompt.txt` (independent verifier). Runtime reads those prompts, never this skill; deliberately synchronize packaging changes.
+- Budget compression: `apps/podcast-pipeline/prompts/title-compression-system-prompt.txt`, generated, verified and persisted in ingest.
+- Budget policy and Rednote measure: `apps/podcast-pipeline/src/social/policy.ts`; stored-variant validation: `apps/podcast-pipeline/src/services/title-variants.ts`. There is no mechanical fitting; a title that cannot fit holds the release.
 - Podcast cover and first content scene use the publisher's `og:image`, subject to the existing decorative rejection and fallback rules. Preserve that invariant.
 - Shared facts: `packages/zap-pilot-story/src/facts/` owns the recorded contract exports and pinned replay. Rolling landing backtests remain in the host; never use them to silently refresh the film.
 - Evidence: `docs/operations/rednote-distribution-diagnosis.md` and Control Center's `ops_growth.packaging` read model.
@@ -42,16 +42,18 @@ subjects: preserve named entities and core claims before improving a hook.
 ## Workflow
 
 1. Follow `Audience → problem/job → primary desire → concrete outcome → mechanism → proof → CTA`.
-2. Locate evidence before choosing a desire; titles use only the source title.
+2. Locate evidence before choosing a desire; titles are grounded in the source title and the full article.
 3. Draft one message with an identifiable subject and one primary desire.
-4. Check claims, entities, numbers and financial boundaries against the source.
+4. Check claims, entities, numbers and financial boundaries against the source and article.
 5. Verify the changed surface with the commands below.
 
 ## Surface rules
 
 ### Titles
 
-Best Title has no character target (4..60 generation guard) and must never be identical to the source after normalization. Change the angle or sentence structure, preserving all named entities and core claims; never invent superlatives, rankings or characterizations. Title and variants precede script; failures stop ingest without a scraped-title fallback. Preserve entities, core claims and reader perspective. Never expand a USDT claim into generic crypto. Generate semantically equivalent variants in ingest only when a character budget is exceeded; freeze them with title and script. Social never calls a title LLM or derives audience-specific hooks/theses. Keep source consequences, contrasts and questions;
+Best Title is article-grounded and has no character target (4..60 generation guard). The generator reads the source title and the full article and returns a thesis plus 3–5 differently angled candidates, each with at most three short article quotes. A candidate must never be identical to the source after normalization, must convert to Simplified Chinese and must pass the Rednote risk lexicon. Every substantive claim must be supported by the article; an independent verifier (doubt means fail) must also find the subject identifiable and no exaggerated certainty, unsupported causation, prediction or investment promise. Change the angle or sentence structure, preserving all named entities and core claims; never invent superlatives, rankings or characterizations, never move a number away from its owner, turn coordination into either/or, widen a denial's scope or generalize a claim. Never expand a USDT claim into generic crypto. Title and variants precede script; failures stop ingest without a scraped-title fallback.
+
+The first verified candidate that fits Rednote's measure (full-width 1, half-width 0.5, limit 20) is chosen as-is. Otherwise generate a semantically equivalent compression in ingest, re-verify it for thesis, entities, relations and no new claim, and freeze it with title and script. Nothing is truncated: when no candidate compresses, a further round runs and then ingest fails closed. Social never calls a title LLM or derives audience-specific hooks/theses, and a missing variant holds the release. Keep source consequences, contrasts and questions;
 never invent them or hide the subject to manufacture suspense.
 
 ### Landing
@@ -114,4 +116,4 @@ landing changes also run
 Group observations by episode `created_at` relative to deployment, because
 backlog delays publication. Among distributed Rednote notes compare 24h average
 views, best and like rate; report the ≤20-view distribution gate separately.
-Track over-budget Best Titles and the persisted `llm` versus `truncate` variant proportions.
+Track over-budget Best Titles, verifier rejections and rounds from `title_provenance`, and held releases; `truncate` variants are no longer valid.

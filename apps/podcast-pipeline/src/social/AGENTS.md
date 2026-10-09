@@ -82,7 +82,9 @@ The contract separates pre-scheduling readiness from lane creation:
    one language alone — Rednote lexicon validation runs on `zh-Hant` only — so
    generating it inside the publish loop can ship `ja` and `en` before the
    rejection on `zh-Hant` is known. A rejected note holds that whole article the same way
-   missing media does.
+   missing media does. A zh-Hant title with no valid Rednote variant holds the
+   cohort the same way (`resolveTransportTitle` never throws; it spends an
+   attempt, max 8, and other episodes continue).
 
 `social_waiting_media` is an episode-language readiness signal, not a future
 platform-lane assignment table. Once an episode has any durable publish job or
@@ -148,8 +150,12 @@ insert against a legacy cohort.
   Semantically equivalent compression variants are generated in ingest by character
   budget and persisted atomically in `title_variants`; they are never recomputed
   by social or after resume. Social never generates titles or calls a title LLM.
-  Transport reads a stored budget variant, otherwise deterministic fitting at word
-  or clause boundaries (Rednote 20, YouTube 100); X and Threads have no title field.
+  Transport reads a stored, revalidated budget variant (Rednote measure in
+  `policy.ts`, limit 20; YouTube is a 100-code-point check only); when none fits,
+  `resolveTransportTitle` returns null and the release barrier holds the cohort
+  fail-closed instead of fitting or truncating. Operator repair
+  (`titles:repair`) only fills missing/invalid variants and never changes the Best
+  Title. X and Threads have no title field.
   Platform audience, per-platform hook, thesis, and learned headline strategies
   are forbidden. Never add a title field to `GeneratedSocialCopy`.
 - `social_publish_jobs.legacy_title_override` is migration-only for the finite

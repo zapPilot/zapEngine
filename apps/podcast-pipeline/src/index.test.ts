@@ -39,7 +39,7 @@ const {
   mockGenerateHls,
   mockGenerateLanguageClassroomsWithLLM,
   mockGenerateScriptWithLLM,
-  mockGenerateEditorialTitleWithLLM,
+  mockGenerateEditorialTitle,
   mockInsertEpisode,
   mockInsertEpisodeLocalization,
   mockInvalidateEpisodeSearchCache,
@@ -77,7 +77,7 @@ const {
   mockGenerateHls: vi.fn(),
   mockGenerateLanguageClassroomsWithLLM: vi.fn(),
   mockGenerateScriptWithLLM: vi.fn(),
-  mockGenerateEditorialTitleWithLLM: vi.fn(),
+  mockGenerateEditorialTitle: vi.fn(),
   mockInsertEpisode: vi.fn(),
   mockInsertEpisodeLocalization: vi.fn(),
   mockInvalidateEpisodeSearchCache: vi.fn(),
@@ -113,11 +113,7 @@ const {
 }));
 
 vi.mock('./services/editorial-title.js', () => ({
-  generateEditorialTitleWithLLM: mockGenerateEditorialTitleWithLLM,
-  buildEditorialTitleVariants: vi.fn(async () => ({
-    titleVariants: {},
-    cost: [],
-  })),
+  generateEditorialTitle: mockGenerateEditorialTitle,
 }));
 
 vi.mock('@hono/node-server', () => ({
@@ -743,11 +739,13 @@ describe('POST /ingest pipeline', () => {
         status: 'scraped',
       }),
     );
-    mockGenerateEditorialTitleWithLLM.mockResolvedValue({
+    mockGenerateEditorialTitle.mockResolvedValue({
       title: '市场流动性正在重新定价',
+      titleVariants: {},
+      provenance: null,
+      cost: [],
       model: 'test-model',
       provider: 'test-provider',
-      costUsd: 0,
     });
     mockGenerateScriptWithLLM.mockResolvedValue({
       script: 'Generated script',
@@ -2554,11 +2552,13 @@ function configureFreshTelegramIngest(): void {
       return Promise.resolve(row);
     },
   );
-  mockGenerateEditorialTitleWithLLM.mockResolvedValue({
+  mockGenerateEditorialTitle.mockResolvedValue({
     title: '软件更新的新变化',
+    titleVariants: {},
+    provenance: null,
+    cost: [],
     model: 'test-model',
     provider: 'test-provider',
-    costUsd: 0,
   });
   mockGenerateScriptWithLLM.mockResolvedValue({
     script: 'Generated script',
