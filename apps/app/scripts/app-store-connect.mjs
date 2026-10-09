@@ -185,11 +185,9 @@ export async function fetchIosVersionState({
       { 'filter[platform]': 'IOS', limit: '200' },
       context,
     ),
-    fetchAll(
-      `/v1/apps/${appId}/preReleaseVersions`,
-      { 'filter[platform]': 'IOS', limit: '200' },
-      context,
-    ),
+    // preReleaseVersions rejects filter[platform] (HTTP 400, verified against
+    // the live API); the IOS filter below covers it client-side.
+    fetchAll(`/v1/apps/${appId}/preReleaseVersions`, { limit: '200' }, context),
   ]);
 
   return {

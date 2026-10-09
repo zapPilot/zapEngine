@@ -184,9 +184,12 @@ describe('fetchIosVersionState', () => {
       ],
       trainVersions: ['3.0.1'],
     });
-    expect(urls.some((u) => u.includes('/v1/apps/1/preReleaseVersions?'))).toBe(
-      true,
+    // Apple rejects filter[platform] on preReleaseVersions with HTTP 400.
+    const trainUrl = urls.find((u) =>
+      u.includes('/v1/apps/1/preReleaseVersions?'),
     );
+    expect(trainUrl).toBeDefined();
+    expect(trainUrl).not.toContain('filter');
     expect(
       urls.find(
         (u) => u.includes('/appStoreVersions?') && !u.includes('page2'),
