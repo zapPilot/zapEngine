@@ -1002,14 +1002,10 @@ class TestBootstrapYieldRouterGaps:
         service.query_service = Mock()
         service.db = Mock()
         with pytest.raises(ValueError, match="on or before"):
-            import asyncio
-
-            asyncio.run(
-                service.get_sentiment_history(
-                    hours=24,
-                    start_time=dt_cls(2026, 1, 2, tzinfo=UTC),
-                    end_time=dt_cls(2026, 1, 1, tzinfo=UTC),
-                )
+            service.get_sentiment_history(
+                hours=24,
+                start_time=dt_cls(2026, 1, 2, tzinfo=UTC),
+                end_time=dt_cls(2026, 1, 1, tzinfo=UTC),
             )
 
     def test_sentiment_daily_aggregates_returns_rows(self) -> None:

@@ -350,8 +350,7 @@ class TestGetCurrentSentiment:
 class TestGetSentimentHistory:
     """Test get_sentiment_history method."""
 
-    @pytest.mark.asyncio
-    async def test_get_sentiment_history_success(self):
+    def test_get_sentiment_history_success(self):
         """Should retrieve historical sentiment snapshots."""
         mock_db = MagicMock()
         mock_query_service = MagicMock(spec=QueryService)
@@ -382,7 +381,7 @@ class TestGetSentimentHistory:
         mock_query_service.execute_query.return_value = mock_rows
 
         with patch("src.services.market.sentiment_database_service.logger"):
-            responses = await service.get_sentiment_history(hours=24)
+            responses = service.get_sentiment_history(hours=24)
 
         assert len(responses) == 3
         # Verify query name and params
@@ -392,8 +391,7 @@ class TestGetSentimentHistory:
         assert "min_timestamp" in args[2]
         assert "max_timestamp" in args[2]
 
-    @pytest.mark.asyncio
-    async def test_get_sentiment_history_uses_explicit_date_range(self):
+    def test_get_sentiment_history_uses_explicit_date_range(self):
         """Should query requested historical bounds instead of relative now only."""
         mock_db = MagicMock()
         mock_query_service = MagicMock(spec=QueryService)
@@ -401,7 +399,7 @@ class TestGetSentimentHistory:
         mock_query_service.execute_query.return_value = []
 
         with patch("src.services.market.sentiment_database_service.logger"):
-            responses = await service.get_sentiment_history(
+            responses = service.get_sentiment_history(
                 start_time=datetime(2024, 11, 1, tzinfo=UTC),
                 end_time=datetime(2026, 4, 6, tzinfo=UTC),
             )
@@ -411,8 +409,7 @@ class TestGetSentimentHistory:
         assert args[2]["min_timestamp"] == datetime(2024, 11, 1, tzinfo=UTC)
         assert args[2]["max_timestamp"] == datetime(2026, 4, 6, tzinfo=UTC)
 
-    @pytest.mark.asyncio
-    async def test_get_sentiment_history_no_data(self):
+    def test_get_sentiment_history_no_data(self):
         """Should return empty list when no data is available."""
         mock_db = MagicMock()
         mock_query_service = MagicMock(spec=QueryService)
@@ -421,28 +418,25 @@ class TestGetSentimentHistory:
         mock_query_service.execute_query.return_value = []
 
         with patch("src.services.market.sentiment_database_service.logger"):
-            responses = await service.get_sentiment_history(hours=24)
+            responses = service.get_sentiment_history(hours=24)
 
         assert responses == []
 
-    @pytest.mark.asyncio
-    async def test_get_sentiment_history_invalid_hours(self):
+    def test_get_sentiment_history_invalid_hours(self):
         """Should reject invalid hours parameter."""
         service = SentimentDatabaseService(MagicMock(), query_service=MagicMock())
 
         with pytest.raises(ValueError, match="Hours must be >= 1"):
-            await service.get_sentiment_history(hours=0)
+            service.get_sentiment_history(hours=0)
 
-    @pytest.mark.asyncio
-    async def test_get_sentiment_history_negative_hours(self):
+    def test_get_sentiment_history_negative_hours(self):
         """Should reject negative hours."""
         service = SentimentDatabaseService(MagicMock(), query_service=MagicMock())
 
         with pytest.raises(ValueError, match="Hours must be >= 1"):
-            await service.get_sentiment_history(hours=-5)
+            service.get_sentiment_history(hours=-5)
 
-    @pytest.mark.asyncio
-    async def test_get_sentiment_history_skips_malformed_rows(self):
+    def test_get_sentiment_history_skips_malformed_rows(self):
         """Should skip malformed rows and continue processing."""
         mock_db = MagicMock()
         mock_query_service = MagicMock(spec=QueryService)
@@ -474,15 +468,14 @@ class TestGetSentimentHistory:
         mock_query_service.execute_query.return_value = mock_rows
 
         with patch("src.services.market.sentiment_database_service.logger"):
-            responses = await service.get_sentiment_history(hours=24)
+            responses = service.get_sentiment_history(hours=24)
 
         # Should return 2 valid rows, skipping the malformed one
         assert len(responses) == 2
         assert responses[0].value == 40
         assert responses[1].value == 65
 
-    @pytest.mark.asyncio
-    async def test_get_sentiment_history_database_error(self):
+    def test_get_sentiment_history_database_error(self):
         """Should handle database errors gracefully."""
         mock_db = MagicMock()
         mock_query_service = MagicMock(spec=QueryService)
@@ -493,10 +486,9 @@ class TestGetSentimentHistory:
         )
 
         with pytest.raises(InternalError):
-            await service.get_sentiment_history(hours=24)
+            service.get_sentiment_history(hours=24)
 
-    @pytest.mark.asyncio
-    async def test_get_sentiment_history_returns_data_from_all_sources(self):
+    def test_get_sentiment_history_returns_data_from_all_sources(self):
         """Should return historical data from all sources (logic in SQL, test validates mapping)."""
         mock_db = MagicMock()
         mock_query_service = MagicMock(spec=QueryService)
@@ -519,7 +511,7 @@ class TestGetSentimentHistory:
         mock_query_service.execute_query.return_value = mock_rows
 
         with patch("src.services.market.sentiment_database_service.logger"):
-            responses = await service.get_sentiment_history(hours=24)
+            responses = service.get_sentiment_history(hours=24)
 
         assert len(responses) == 2
 
@@ -672,8 +664,7 @@ class TestBoundaryConditions:
         response_hundred = service._transform_db_row_to_response(row_hundred)
         assert response_hundred.value == 100
 
-    @pytest.mark.asyncio
-    async def test_get_sentiment_history_one_hour(self):
+    def test_get_sentiment_history_one_hour(self):
         """Should handle minimum hours parameter."""
         mock_db = MagicMock()
         mock_query_service = MagicMock(spec=QueryService)
@@ -683,11 +674,10 @@ class TestBoundaryConditions:
 
         with patch("src.services.market.sentiment_database_service.logger"):
             # Should not raise error for hours=1
-            responses = await service.get_sentiment_history(hours=1)
+            responses = service.get_sentiment_history(hours=1)
             assert responses == []
 
-    @pytest.mark.asyncio
-    async def test_get_sentiment_history_large_hour_range(self):
+    def test_get_sentiment_history_large_hour_range(self):
         """Should handle large hour ranges (e.g., 365 days)."""
         mock_db = MagicMock()
         mock_query_service = MagicMock(spec=QueryService)
@@ -697,5 +687,5 @@ class TestBoundaryConditions:
 
         with patch("src.services.market.sentiment_database_service.logger"):
             # Should handle 1 year of history
-            responses = await service.get_sentiment_history(hours=8760)
+            responses = service.get_sentiment_history(hours=8760)
             assert responses == []

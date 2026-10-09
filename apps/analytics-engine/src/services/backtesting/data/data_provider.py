@@ -134,7 +134,7 @@ class BacktestDataProvider:
             if asset_symbol.lower() not in prices
         }
         if missing_required_assets:
-            # Drop this date so _prepare_market_data naturally truncates the
+            # Drop this date so prepare_market_window naturally truncates the
             # effective window to the spot-price availability intersection.
             return None
         if prices:
@@ -230,7 +230,7 @@ class BacktestDataProvider:
             failure_log_message="Failed to fetch optional macro Fear & Greed data: %s",
         )
 
-    async def fetch_token_prices(
+    def fetch_token_prices(
         self,
         token_symbol: str,
         start_date: date,
@@ -300,7 +300,7 @@ class BacktestDataProvider:
             logger.error("Failed to fetch prices for %s: %s", token_symbol, error)
             return []
 
-    async def fetch_sentiments(
+    def fetch_sentiments(
         self, start_date: date, end_date: date
     ) -> dict[date, dict[str, Any]]:
         """Fetch sentiment data and map by date.
@@ -323,7 +323,7 @@ class BacktestDataProvider:
             days_diff = (end_date - start_date).days + 1
             hours = days_diff * 24
 
-            sentiments = await self.sentiment_service.get_sentiment_history(
+            sentiments = self.sentiment_service.get_sentiment_history(
                 hours=hours,
                 start_time=start_date,
                 end_time=end_date,

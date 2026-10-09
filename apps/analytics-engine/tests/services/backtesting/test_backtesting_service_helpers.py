@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -52,10 +52,10 @@ async def test_run_compare_v3_enables_dma_and_shifts_effective_start_without_mut
     service: BacktestingService,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    service.data_provider.fetch_token_prices = AsyncMock(
+    service.data_provider.fetch_token_prices = MagicMock(
         return_value=price_series(days=5)
     )
-    service.data_provider.fetch_sentiments = AsyncMock(
+    service.data_provider.fetch_sentiments = MagicMock(
         return_value=sentiment_map(days=5, start_offset=2, label="greed", value=70)
     )
     mock_runner = _patch_compare_runner(monkeypatch)
@@ -70,7 +70,7 @@ async def test_run_compare_v3_enables_dma_and_shifts_effective_start_without_mut
     assert requirements.required_price_features == frozenset(
         {"dma_200", "eth_dma_200", "spy_dma_200"}
     )
-    service.data_provider.fetch_sentiments.assert_awaited_once()
+    service.data_provider.fetch_sentiments.assert_called_once()
     assert request.start_date == date(2025, 1, 1)
     assert [cfg.strategy_id for cfg in request.configs] == ["dma_fgi_portfolio_rules"]
     assert [
@@ -96,14 +96,14 @@ async def test_run_compare_v3_no_feature_recipe_skips_dma_fetch(
         requires_sentiment=False,
         required_price_features=frozenset(),
     )
-    service.data_provider.fetch_token_prices = AsyncMock(
+    service.data_provider.fetch_token_prices = MagicMock(
         return_value=[
             price_row(date(2025, 1, 2), price=101.0),
             price_row(date(2025, 1, 3), price=102.0),
             price_row(date(2025, 1, 4), price=103.0),
         ]
     )
-    service.data_provider.fetch_sentiments = AsyncMock(return_value={})
+    service.data_provider.fetch_sentiments = MagicMock(return_value={})
     mock_runner = _patch_compare_runner(monkeypatch)
     request = compare_request(
         configs=[
@@ -148,10 +148,10 @@ async def test_run_compare_v3_clamps_dma_start_and_end_to_usable_rows(
     service: BacktestingService,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    service.data_provider.fetch_token_prices = AsyncMock(
+    service.data_provider.fetch_token_prices = MagicMock(
         return_value=price_series(days=5, dma_offsets={2, 3})
     )
-    service.data_provider.fetch_sentiments = AsyncMock(
+    service.data_provider.fetch_sentiments = MagicMock(
         return_value=sentiment_map(days=5)
     )
     mock_runner = _patch_compare_runner(monkeypatch)
@@ -177,10 +177,10 @@ async def test_run_compare_v3_returns_untruncated_window_when_data_is_fully_avai
     service: BacktestingService,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    service.data_provider.fetch_token_prices = AsyncMock(
+    service.data_provider.fetch_token_prices = MagicMock(
         return_value=price_series(days=3)
     )
-    service.data_provider.fetch_sentiments = AsyncMock(
+    service.data_provider.fetch_sentiments = MagicMock(
         return_value=sentiment_map(days=3, label="greed", value=70)
     )
     mock_runner = _patch_compare_runner(monkeypatch)
@@ -201,10 +201,10 @@ async def test_run_compare_v3_returns_untruncated_window_when_data_is_fully_avai
 async def test_run_compare_v3_raises_when_no_usable_overlap_remains(
     service: BacktestingService,
 ) -> None:
-    service.data_provider.fetch_token_prices = AsyncMock(
+    service.data_provider.fetch_token_prices = MagicMock(
         return_value=price_series(days=3, dma_offsets=set())
     )
-    service.data_provider.fetch_sentiments = AsyncMock(
+    service.data_provider.fetch_sentiments = MagicMock(
         return_value=sentiment_map(days=3)
     )
 
@@ -232,8 +232,8 @@ def test_select_longest_dma_segment_prefers_latest_segment_on_tie() -> None:
 async def test_run_compare_v3_raises_when_no_prices(
     service: BacktestingService,
 ) -> None:
-    service.data_provider.fetch_token_prices = AsyncMock(return_value=[])
-    service.data_provider.fetch_sentiments = AsyncMock(return_value={})
+    service.data_provider.fetch_token_prices = MagicMock(return_value=[])
+    service.data_provider.fetch_sentiments = MagicMock(return_value={})
 
     with pytest.raises(MarketDataUnavailableError, match="No price data available"):
         await service.run_compare_v3(compare_request())
@@ -243,10 +243,10 @@ async def test_run_compare_v3_raises_when_no_prices(
 async def test_run_compare_v3_raises_when_sentiment_starts_after_end(
     service: BacktestingService,
 ) -> None:
-    service.data_provider.fetch_token_prices = AsyncMock(
+    service.data_provider.fetch_token_prices = MagicMock(
         return_value=[price_row(date(2025, 1, 1), dma_200=95.0)]
     )
-    service.data_provider.fetch_sentiments = AsyncMock(
+    service.data_provider.fetch_sentiments = MagicMock(
         return_value={date(2025, 1, 10): {"label": "greed", "value": 70}}
     )
 
@@ -266,8 +266,8 @@ async def test_run_compare_v3_raises_when_sentiment_starts_after_end(
 async def test_run_compare_v3_rejects_token_symbol_mismatch_before_fetch(
     service: BacktestingService,
 ) -> None:
-    service.data_provider.fetch_token_prices = AsyncMock(return_value=[])
-    service.data_provider.fetch_sentiments = AsyncMock(return_value={})
+    service.data_provider.fetch_token_prices = MagicMock(return_value=[])
+    service.data_provider.fetch_sentiments = MagicMock(return_value={})
 
     with pytest.raises(ValueError, match="expected 'BTC', got 'ETH'"):
         await service.run_compare_v3(compare_request(token_symbol="ETH"))
@@ -287,8 +287,8 @@ async def test_run_compare_v3_rejects_mixed_primary_assets_before_fetch(
         primary_asset="ETH",
         requires_sentiment=False,
     )
-    service.data_provider.fetch_token_prices = AsyncMock(return_value=[])
-    service.data_provider.fetch_sentiments = AsyncMock(return_value={})
+    service.data_provider.fetch_token_prices = MagicMock(return_value=[])
+    service.data_provider.fetch_sentiments = MagicMock(return_value={})
 
     with pytest.raises(
         ValueError,
@@ -328,13 +328,13 @@ async def test_run_compare_v3_resolves_saved_config_with_injected_catalog(
         strategy_config_store=MagicMock(resolve_config=lambda _config_id: saved_config),
         composition_catalog=catalog,
     )
-    service.data_provider.fetch_token_prices = AsyncMock(
+    service.data_provider.fetch_token_prices = MagicMock(
         return_value=[
             price_row(date(2025, 1, 1), price=100.0),
             price_row(date(2025, 1, 2), price=101.0),
         ]
     )
-    service.data_provider.fetch_sentiments = AsyncMock(return_value={})
+    service.data_provider.fetch_sentiments = MagicMock(return_value={})
     mock_runner = _patch_compare_runner(monkeypatch)
 
     await service.run_compare_v3(
@@ -375,13 +375,13 @@ async def test_run_compare_v3_does_not_auto_inject_baseline_for_saved_configs(
             ],
         ),
     )
-    service.data_provider.fetch_token_prices = AsyncMock(
+    service.data_provider.fetch_token_prices = MagicMock(
         return_value=[
             price_row(date(2025, 1, 1), price=100.0, dma_200=95.0),
             price_row(date(2025, 1, 2), price=101.0, dma_200=95.0),
         ]
     )
-    service.data_provider.fetch_sentiments = AsyncMock(
+    service.data_provider.fetch_sentiments = MagicMock(
         return_value=sentiment_map(days=2)
     )
     mock_runner = _patch_compare_runner(monkeypatch)
@@ -418,7 +418,7 @@ async def test_run_compare_v3_accepts_builtin_strategy_id_as_saved_config_alias(
             ],
         ),
     )
-    service.data_provider.fetch_token_prices = AsyncMock(
+    service.data_provider.fetch_token_prices = MagicMock(
         return_value=[
             {
                 **price_row(date(2025, 1, 1), price=100.0, dma_200=95.0),
@@ -440,7 +440,7 @@ async def test_run_compare_v3_accepts_builtin_strategy_id_as_saved_config_alias(
             },
         ]
     )
-    service.data_provider.fetch_sentiments = AsyncMock(
+    service.data_provider.fetch_sentiments = MagicMock(
         return_value=sentiment_map(days=2)
     )
     mock_runner = _patch_compare_runner(monkeypatch)

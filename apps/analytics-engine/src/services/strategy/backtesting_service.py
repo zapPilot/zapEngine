@@ -456,7 +456,7 @@ class BacktestingService:
             composition_catalog or get_default_composition_catalog()
         )
 
-    async def _run_with_prepared_data(
+    def _run_with_prepared_data(
         self,
         *,
         request: BacktestCompareRequestV3,
@@ -464,7 +464,7 @@ class BacktestingService:
         runner: Callable[..., BacktestResponse],
         config: RegimeConfig | None,
     ) -> BacktestResponse:
-        prepared = await self._prepare_market_data(
+        prepared = self.prepare_market_window(
             resolved_configs=resolved_configs,
             token_symbol=request.token_symbol,
             start_date=request.start_date,
@@ -502,7 +502,7 @@ class BacktestingService:
             )
         return response
 
-    async def _prepare_market_data(
+    def prepare_market_window(
         self,
         *,
         resolved_configs: list[ResolvedSavedStrategyConfig],
@@ -520,7 +520,7 @@ class BacktestingService:
         warmup_days = _resolve_recipe_warmup_days(resolved_configs)
         fetch_start_date = requested_window.start_date - timedelta(days=warmup_days)
         market_data_requirements = _resolve_market_data_requirements(resolved_configs)
-        prices = await self.data_provider.fetch_token_prices(
+        prices = self.data_provider.fetch_token_prices(
             token_symbol,
             fetch_start_date,
             requested_window.end_date,
@@ -538,7 +538,7 @@ class BacktestingService:
                 oldest_data_date=None,
             )
         sentiments = (
-            await self.data_provider.fetch_sentiments(
+            self.data_provider.fetch_sentiments(
                 fetch_start_date,
                 requested_window.end_date,
             )
@@ -620,7 +620,7 @@ class BacktestingService:
                 composition_catalog=self.composition_catalog,
             )
         )
-        return await self._run_with_prepared_data(
+        return self._run_with_prepared_data(
             request=effective_request,
             resolved_configs=resolved_configs,
             runner=run_compare_v3_on_data,
