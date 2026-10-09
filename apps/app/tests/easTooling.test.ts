@@ -484,9 +484,7 @@ describe('EAS post-install workspace build', () => {
       const { packages } = turboDryRun(postInstallFilter());
 
       expect(packages.length).toBeGreaterThan(0);
-      expect(packages).toEqual(
-        expect.arrayContaining(workspaceDependencies()),
-      );
+      expect(packages).toEqual(expect.arrayContaining(workspaceDependencies()));
     },
   );
 
