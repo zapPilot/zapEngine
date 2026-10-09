@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process';
 
-import { createLinePrefixer, parseOpsArgs } from './ops-lib.mjs';
+import {
+  createLinePrefixer,
+  parseOpsArgs,
+  PODCAST_PIPELINE_PREREQUISITE,
+} from './ops-lib.mjs';
 
 const USAGE = [
   'usage: pnpm ops [--dashboard] [--social] [--social-once] [--verbose] [--status [--json] [--force]]',
@@ -34,15 +38,12 @@ const CHILDREN = {
     // only reader of what Fly actually charges is a signed-in browser on this
     // machine. It never exits non-zero -- see the daemon's own header for why
     // a signed-out Fly must not colour the whole stack red.
-    args: [
-      '--filter',
-      '@zapengine/control-center',
-      'ops:fly-billing-daemon',
-    ],
+    args: ['--filter', '@zapengine/control-center', 'ops:fly-billing-daemon'],
   },
   social: {
     label: 'social',
     command: 'pnpm',
+    prerequisite: PODCAST_PIPELINE_PREREQUISITE,
     // The workspace script, not the root `social:daemon` passthrough: that one
     // re-enters scripts/env/run.mjs and we are already inside it. Never the
     // `:watch` variant either -- a watcher that restarts the daemon mid-publish
@@ -52,6 +53,7 @@ const CHILDREN = {
   socialOnce: {
     label: 'social-once',
     command: 'pnpm',
+    prerequisite: PODCAST_PIPELINE_PREREQUISITE,
     // Same daemon entry point and pid lock, but the workspace script selects
     // the bounded operator catch-up path and exits after at most one article.
     args: ['--filter', '@zapengine/podcast-pipeline', 'social:once'],
@@ -131,7 +133,7 @@ function startStack() {
     if (remaining === 0) process.exit(failed ? 1 : 0);
   };
 
-  for (const child of selected) {
+  const startChild = (child) => {
     const args =
       (child.label === 'social' || child.label === 'social-once') &&
       options.verbose
@@ -181,12 +183,65 @@ function startStack() {
       }
       settle();
     });
-  }
+  };
 
   for (const signal of ['SIGINT', 'SIGTERM']) {
     process.on(signal, () => {
       shuttingDown = true;
       for (const child of running) child.kill(signal);
+    });
+  }
+
+  // Turbo decides whether anything is stale. This only runs it and waits. Its
+  // output is inherited rather than prefixed, because it runs alone before the
+  // child it gates starts.
+  const runPrerequisite = (step) =>
+    new Promise((resolve) => {
+      console.log(`🛠️  [ops] ${step.label}: turbo rebuilds only what changed`);
+      const spawned = spawn(step.command, step.args, { stdio: 'inherit' });
+      running.add(spawned);
+      let settled = false;
+      const settle = (ready, reason) => {
+        if (settled) return;
+        settled = true;
+        running.delete(spawned);
+        if (!ready && !shuttingDown) {
+          console.error(`[ops] ${step.label} failed · ${reason}`);
+        }
+        resolve(ready);
+      };
+      spawned.on('error', (error) => settle(false, error.message));
+      spawned.on('close', (code, signal) =>
+        settle(code === 0, signal ?? `exit ${code}`),
+      );
+    });
+
+  // Only a child that declares a prerequisite waits for it. The dashboard does
+  // not, so a failed build leaves it running; the failure is still printed here
+  // and reflected in the exit code.
+  const gates = new Map();
+  for (const child of selected) {
+    if (!child.prerequisite) {
+      startChild(child);
+      continue;
+    }
+    if (!gates.has(child.prerequisite)) {
+      gates.set(child.prerequisite, runPrerequisite(child.prerequisite));
+    }
+    gates.get(child.prerequisite).then((ready) => {
+      // An interrupted build is the operator stopping the stack, not a failure,
+      // so it matches a child that Ctrl-C ends: nothing starts, nothing is flagged.
+      if (shuttingDown) {
+        finish();
+      } else if (ready) {
+        startChild(child);
+      } else {
+        failed = true;
+        console.error(
+          `[${child.label}] not started · its dependencies did not build, so nothing was published.`,
+        );
+        finish();
+      }
     });
   }
 }

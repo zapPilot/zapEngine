@@ -127,4 +127,4 @@ Optimization also obeys the [universal packaging contract](src/social/AGENTS.md#
 
 `src/brand/podcast-sign-off.ts` holds exact released literals for podcast-script.v2 and legacy stripping. Do not assemble spoken packaging from runtime brand strings: parity tests bind the frozen English identity to the shared brand module. A future identity change requires a new version. Repackage only `script_generated` canonical rows; translate only stripped bodies and package each language deterministically before audio. Existing audio-generated/completed rows never receive replacement scripts because a packaging version changes. Rendering provenance is satori-resvg-v5; this does not trigger historical rerenders.
 
-The brand subpath resolves to built story output. For the local social daemon, install dependencies and build `pnpm turbo run build --filter=@zapengine/podcast-pipeline^...` before starting `pnpm ops --social`.
+The brand subpath resolves to built story output. `pnpm ops --social`, `pnpm ops --social-once`, and the `dev` and `dev:worker` scripts build those internal dependencies through Turbo before they start, so no separate build step is needed.
