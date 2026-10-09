@@ -1,3 +1,4 @@
+import { BRAND_NAME } from '@zapengine/zap-pilot-story/brand';
 import { BrandMark } from '@/components/BrandMark';
 import { LINKS } from '@/config/links';
 export function SiteFooter() {
@@ -24,7 +25,7 @@ export function SiteFooter() {
           </ul>
         </nav>
         <p className="zp-footer-note">
-          Zap Pilot is in development. Backtests are not a promise of future
+          {BRAND_NAME} is in development. Backtests are not a promise of future
           returns, and nothing here is investment advice.
         </p>
       </div>

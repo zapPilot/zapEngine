@@ -1,3 +1,19 @@
+import { OgCard } from '@/components/og/OgCard';
+import {
+  HERO,
+  STAGES,
+  JOIN,
+  CHAPTER_COPY,
+} from '@zapengine/zap-pilot-story/copy';
+import {
+  BRAND_NAME,
+  SLOGAN,
+  SLOGAN_PARTS,
+  PUNCHLINE,
+  ONE_LINER,
+  oneLiner,
+  isLive,
+} from '@zapengine/zap-pilot-story/brand';
 /**
  * Positioning guardrail.
  *
@@ -29,7 +45,7 @@ import {
 import { backtestDisclaimer } from '@/data/backtest-stats';
 
 interface CopyString {
-  /** Dotted location, e.g. `MESSAGES.hero.chips.3.text`. */
+  /** Dotted location, e.g. `HERO.chips.3.text`. */
   readonly path: string;
   /** The section or export the string belongs to. */
   readonly block: string;
@@ -42,6 +58,8 @@ interface CopyString {
 /** Keys whose values are identifiers or presentation flags, not copy. */
 const NON_COPY_KEYS = new Set([
   'capability',
+  'badge',
+  'tally',
   'icon',
   'id',
   'key',
@@ -64,16 +82,32 @@ function collect(root: unknown, rootPath: string, blockDepth: number) {
         value,
         item,
       });
+    } else if (Array.isArray(value) && parts.at(-1) === 'lines') {
+      visit(
+        value
+          .flat()
+          .join(' ')
+          .replaceAll(/\|[osm]/g, ''),
+        parts,
+        item,
+      );
     } else if (Array.isArray(value)) {
       value.forEach((child, index) =>
         visit(child, [...parts, `${index}`], item),
       );
     } else if (value !== null && typeof value === 'object') {
       const record = value as Record<string, unknown>;
-      const own =
-        'capability' in record
+      const declared = [
+        ...('capability' in record
           ? capabilityIds(record['capability'] as CapabilityRef)
-          : item;
+          : []),
+        ...('badge' in record
+          ? capabilityIds(record['badge'] as CapabilityRef)
+          : []),
+      ];
+      // Only a declared capability re-attributes children. Otherwise `item`
+      // passes through, so a top-level null still marks unattributed strings.
+      const own = 'capability' in record || 'badge' in record ? declared : item;
       for (const [key, child] of Object.entries(record)) {
         if (!NON_COPY_KEYS.has(key)) visit(child, [...parts, key], own);
       }
@@ -88,7 +122,7 @@ function referencedIds(value: unknown, ids = new Set<CapabilityId>()) {
     for (const child of value) referencedIds(child, ids);
   } else if (value !== null && typeof value === 'object') {
     for (const [key, child] of Object.entries(value)) {
-      if (key === 'capability') {
+      if (key === 'capability' || key === 'badge') {
         for (const id of capabilityIds(child as CapabilityRef)) ids.add(id);
       } else {
         referencedIds(child, ids);
@@ -113,12 +147,26 @@ const CAPABILITY_STRINGS: CopyString[] = (
     item: [id],
   })),
 );
-const COPY = [...MESSAGE_STRINGS, ...PITCH_STRINGS];
-const ALL_STRINGS = [...COPY, ...CAPABILITY_STRINGS];
+const STORY = { HERO, STAGES, JOIN, CHAPTER_COPY };
+const STORY_STRINGS = Object.entries(STORY).flatMap(([name, value]) =>
+  collect(value, name, Array.isArray(value) ? 2 : 1),
+);
+const BRAND_STRINGS = collect(
+  { BRAND_NAME, SLOGAN, PUNCHLINE, ONE_LINER },
+  'BRAND',
+  1,
+);
+const COPY = [...MESSAGE_STRINGS, ...PITCH_STRINGS, ...STORY_STRINGS];
+const ALL_STRINGS = [...COPY, ...CAPABILITY_STRINGS, ...BRAND_STRINGS];
 
 const BLOCK_REFERENCES = new Map<string, Set<CapabilityId>>([
   ...Object.entries(MESSAGES).map(
     ([name, value]) => [`MESSAGES.${name}`, referencedIds(value)] as const,
+  ),
+  ...Object.entries(STORY).flatMap(([name, value]) =>
+    Array.isArray(value)
+      ? value.map((item, i) => [`${name}.${i}`, referencedIds(item)] as const)
+      : [[name, referencedIds(value)] as const],
   ),
   ...Object.entries(PITCH).map(
     ([name, value]) => [name, referencedIds(value)] as const,
@@ -187,8 +235,8 @@ const STATUS_TRIGGERS: readonly (readonly [RegExp, CapabilityId])[] = [
 ];
 
 /** The brand line may appear only where a status marker shares the screen. */
-const BRAND_LINE_PATHS = new Set([
-  'MESSAGES.common.brandLine',
+const SLOGAN_SCREENS = new Set([
+  'HERO.lines',
   'MESSAGES.meta.title',
   'PITCH_META.description',
 ]);
@@ -209,8 +257,16 @@ const LIVE_ALLOWLIST: readonly CapabilityId[] = [
 
 describe('positioning guardrail: collected copy', () => {
   it('collects the home page, pitch and capability strings', () => {
-    expect(ALL_STRINGS.length).toBeGreaterThan(250);
-    for (const prefix of ['MESSAGES.hero.', 'MESSAGES.runtime.', 'PITCH_']) {
+    for (const prefix of [
+      'MESSAGES.',
+      'PITCH_',
+      'CAPABILITIES.',
+      'BRAND.',
+      'HERO.',
+      'STAGES.',
+      'JOIN.',
+      'CHAPTER_COPY.',
+    ]) {
       expect(ALL_STRINGS.some((entry) => entry.path.startsWith(prefix))).toBe(
         true,
       );
@@ -258,10 +314,12 @@ describe('positioning guardrail: collected copy', () => {
   });
 
   it('references the capability behind every status-coupled phrase', () => {
-    const brandLine = MESSAGES.common.brandLine;
+    const brandStrings = [SLOGAN, PUNCHLINE, ...Object.values(ONE_LINER)];
     const missing = COPY.flatMap((entry) => {
-      if (entry.path.startsWith('MESSAGES.common.brandLine')) return [];
-      const text = entry.value.replaceAll(brandLine, '');
+      const text = brandStrings.reduce(
+        (text, brand) => text.replaceAll(brand, ''),
+        entry.value,
+      );
       const references = BLOCK_REFERENCES.get(entry.block)!;
       return STATUS_TRIGGERS.filter(
         ([trigger, id]) => trigger.test(text) && !references.has(id),
@@ -271,21 +329,19 @@ describe('positioning guardrail: collected copy', () => {
   });
 
   it('keeps the brand line to the hero, metadata and pitch cover', () => {
-    const brandLine = MESSAGES.common.brandLine;
     expect(
       failures(
         COPY,
         ({ path: location, value }) =>
-          value.includes(brandLine) && !BRAND_LINE_PATHS.has(location),
+          value.includes(SLOGAN) && !SLOGAN_SCREENS.has(location),
       ),
     ).toEqual([]);
-    for (const part of MESSAGES.common.brandLineParts) {
+    for (const part of SLOGAN_PARTS.map((part) => `Your ${part.word}`)) {
       expect(
         failures(
           COPY,
           ({ path: location, value }) =>
-            value === part &&
-            !location.startsWith('MESSAGES.common.brandLineParts.'),
+            value === part && !SLOGAN_SCREENS.has(location),
         ),
       ).toEqual([]);
     }
@@ -346,6 +402,8 @@ describe('positioning guardrail: rendered status badges', () => {
       'rebalance-plans',
       'self-hosting',
       'tokenized-equities',
+      'policy-engine',
+      'unattended-runs',
     ];
     const missing = expected.filter((id) => !shown.has(id));
     expect(missing).toEqual([]);
@@ -355,7 +413,9 @@ describe('positioning guardrail: rendered status badges', () => {
     const { container } = render(<PitchPage />);
     expect(badgeMismatches(container)).toEqual([]);
     const shown = renderedIds(container);
-    const missing = [...referencedIds(PITCH)].filter((id) => !shown.has(id));
+    const missing = [...referencedIds([PITCH, HERO.chips])].filter(
+      (id) => !shown.has(id),
+    );
     expect(missing).toEqual([]);
   });
 
@@ -364,6 +424,18 @@ describe('positioning guardrail: rendered status badges', () => {
     expect(
       landing.querySelector('#engine [data-capability~="self-hosting"]'),
     ).not.toBeNull();
+    if (!isLive('self-hosting'))
+      expect(
+        landing.querySelector('#engine h1 [data-style="o"]'),
+      ).toHaveTextContent('machine.');
+    for (const label of ['Home', 'Pitch']) {
+      const og = render(
+        <OgCard label={label} url="zap-pilot.org" footer="Open source" />,
+      ).container;
+      expect(
+        og.querySelector('[data-capability~="self-hosting"]'),
+      ).not.toBeNull();
+    }
     const pitch = render(<PitchPage />).container;
     expect(
       pitch.querySelector('#slide-cover [data-capability~="self-hosting"]'),
@@ -467,5 +539,25 @@ describe('positioning guardrail: docs', () => {
       ),
     );
     expect(hits).toEqual([]);
+  });
+});
+
+describe('status-bound brand identity', () => {
+  it('uses the canonical one-liner in copy, docs and README', () => {
+    const sources = [
+      ...COPY.map((entry) => entry.value),
+      ...MDX.map((doc) => doc.source),
+      readFileSync(
+        path.resolve(import.meta.dirname, '../../../../../README.md'),
+        'utf8',
+      ),
+    ];
+    const lines = sources.flatMap((source) =>
+      [...source.matchAll(/Zap Pilot is [^.!?\n]*runtime[^.!?\n]*[.!?]/g)].map(
+        (match) => match[0],
+      ),
+    );
+    expect(lines.length).toBeGreaterThan(0);
+    expect(lines.filter((line) => line !== oneLiner())).toEqual([]);
   });
 });

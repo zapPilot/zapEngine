@@ -17,6 +17,11 @@ export default defineKnipConfig({
   // Consumed only through the `/tokens` subpath in
   // src/services/video/templates.tsx. That subpath resolves into the package's
   // dist output, so knip never credits the direct dependency.
-  ignoreDependencies: ['@zapengine/design-tokens'],
+  // The brand entry is also consumed only through a dist-backed subpath
+  // (src/brand/cta.ts); the package gate reports it unused despite that import.
+  ignoreDependencies: [
+    '@zapengine/design-tokens',
+    '@zapengine/zap-pilot-story',
+  ],
   vitest: { config: ['vitest.config.ts'] },
 });

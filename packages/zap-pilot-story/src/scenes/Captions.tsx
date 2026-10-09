@@ -1,7 +1,8 @@
 import { SignalGraphic } from './SignalGraphic.js';
 import { clamp, easeInOutCubic, parseKinetic } from '@zapengine/story-kit';
 import { KineticText } from '@zapengine/story-kit/react';
-import { STAGES } from '../copy/beats.js';
+import { PartRows } from './PartRows.js';
+import { STAGES, stageKick } from '../copy/beats.js';
 import { engineDecision } from '../facts/decision.js';
 import { StatusBadge } from './StatusBadge.js';
 const decision = engineDecision();
@@ -22,13 +23,17 @@ export function Captions({ time }: { time: number }) {
   }
   return (
     <div className="zp-capbox">
-      <p className="zp-lbl zp-cap-k">{beat.kick}</p>
+      <p className="zp-lbl zp-cap-k">{stageKick(beat)}</p>
       <h2 className="zp-kt zp-cap-t">
-        <KineticText
-          lines={lines}
-          progress={progress}
-          exit={beat.name === 'Status' ? true : undefined}
-        />
+        {beat.title && beat.name === 'Parts' ? (
+          beat.title
+        ) : (
+          <KineticText
+            lines={lines}
+            progress={progress}
+            exit={beat.name === 'Status' ? true : undefined}
+          />
+        )}
       </h2>
       {beat.name === 'Observe' || beat.name === 'Target' ? (
         <SignalGraphic target={beat.name === 'Observe' ? null : target} />
@@ -65,20 +70,7 @@ export function Captions({ time }: { time: number }) {
           ))}
         </div>
       )}
-      {beat.name === 'Parts' && (
-        <ul className="zp-crows">
-          {(
-            ['reference-strategy', 'self-hosting', 'wallet-signing'] as const
-          ).map((id, i) => (
-            <li key={id}>
-              <span className="zp-crow-t">
-                {['Strategy rules', 'Your machine', 'Wallet signing'][i]}
-              </span>
-              <StatusBadge capability={id} />
-            </li>
-          ))}
-        </ul>
-      )}
+      {beat.name === 'Parts' && <PartRows />}
       {beat.badge && (
         <p className="zp-cap-b">
           <StatusBadge capability={beat.badge} />

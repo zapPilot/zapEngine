@@ -157,9 +157,9 @@ describe('buildSocialPostRecord', () => {
       generatedTitle: '市場更新',
       publishedTitle: '市場更新',
       generatedBody:
-        '完整說明\n\n更多市场洞察与工具：https://www.zap-pilot.org',
+        '完整說明\n\nZap Pilot is building a self-hosted runtime for programmable portfolios.\nYour strategy. Your machine. Your wallet.\nWebsite: https://www.zap-pilot.org',
       publishedBody:
-        '完整說明\n\n更多市场洞察与工具：https://www.zap-pilot.org',
+        '完整說明\n\nZap Pilot is building a self-hosted runtime for programmable portfolios.\nYour strategy. Your machine. Your wallet.\nWebsite: https://www.zap-pilot.org',
       hashtags: [],
       videoDurationSec: 321,
     });
@@ -334,7 +334,7 @@ describe('createSocialPostPersister', () => {
       expect.objectContaining({
         generatedTitle: '市場更新',
         generatedBody:
-          '完整說明\n\n更多市场洞察与工具：https://www.zap-pilot.org',
+          '完整說明\n\nZap Pilot is building a self-hosted runtime for programmable portfolios.\nYour strategy. Your machine. Your wallet.\nWebsite: https://www.zap-pilot.org',
       }),
     );
   });

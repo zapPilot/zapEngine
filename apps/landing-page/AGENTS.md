@@ -17,4 +17,5 @@ See @README.md for project overview.
 - `first_touch_utm_*` and the waitlist POST share the same localStorage first-touch record, captured during client instrumentation.
 
 - Capability and recorded contract facts live in `@zapengine/zap-pilot-story/facts`; do not restore host-owned copies.
-- `MESSAGES` and `/pitch` follow [persuasive-messaging](../../.agents/skills/persuasive-messaging/SKILL.md); `content/docs/` MDX is outside its scope.
+- Brand identity comes from `@zapengine/zap-pilot-story/brand`; hero and capability chips come from story copy. `MESSAGES` owns host metadata and forms. Home/pitch OG screens display the self-hosting marker.
+- Story marketing copy, `MESSAGES` and `/pitch` follow [persuasive-messaging](../../.agents/skills/persuasive-messaging/SKILL.md); `content/docs/` MDX is outside its scope.

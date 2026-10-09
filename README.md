@@ -1,6 +1,6 @@
 # zapEngine
 
-zapPilot is building a **self-hosted runtime for programmable portfolios** — your strategy, your machine, your wallet. A strategy you can read produces a target allocation; the runtime is being built to turn that target into checked transactions you sign from your own wallet. Today a reference strategy (DMA/FGI Portfolio Rules) is evaluated on Zap Pilot-hosted services, and deposits go directly into protocol positions held at your own address; the [status table](https://zap-pilot.org/docs#status-of-every-capability) lists what is live, in development, and planned. The platform also powers the **From Fed to Chain** podcast, providing free financial knowledge to the community.
+Zap Pilot is building a self-hosted runtime for programmable portfolios. Your strategy. Your machine. Your wallet. A strategy you can read produces a target allocation; the runtime is being built to turn that target into checked transactions you sign from your own wallet. Today a reference strategy (DMA/FGI Portfolio Rules) is evaluated on Zap Pilot-hosted services, and deposits go directly into protocol positions held at your own address; the [status table](https://zap-pilot.org/docs#status-of-every-capability) lists what is live, in development, and planned. The platform also powers the **From Fed to Chain** podcast, providing free financial knowledge to the community.
 
 This codebase powers the full stack: TypeScript/Python microservices, a universal Expo/React Native app (iOS/Android/Web), an Electron macOS desktop shell, and a Next.js marketing site.
 
@@ -14,7 +14,7 @@ MIT License — see [LICENSE](./LICENSE.md) for details.
 
 ---
 
-Turborepo + pnpm monorepo for Zap Pilot — a programmable-portfolio runtime (strategy evaluation, transaction planning, pre-sign checks, wallet execution) and the From Fed to Chain podcast stack.
+Turborepo + pnpm monorepo for Zap Pilot — a self-hosted runtime for programmable portfolios in development (strategy evaluation, transaction planning, pre-sign checks, wallet execution) — and the From Fed to Chain podcast stack.
 
 ## Architecture
 

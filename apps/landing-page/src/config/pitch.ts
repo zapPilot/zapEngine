@@ -1,5 +1,5 @@
 import { LINKS } from './links';
-import { MESSAGES } from './messages';
+import { BRAND_NAME, SLOGAN, oneLiner } from '@zapengine/zap-pilot-story/brand';
 import type {
   CapabilityRef,
   CapabilityStatus,
@@ -25,13 +25,13 @@ export const PITCH_CTAS = {
 } as const;
 
 export const PITCH_META = {
-  title: `${MESSAGES.common.brandName} — Investor Pitch`,
-  description: `${MESSAGES.common.brandLine} Zap Pilot is building a runtime for programmable portfolios — a reference strategy you can read, wallet-signed deposits into positions you hold, and checks before every signature.`,
+  title: `${BRAND_NAME} — Investor Pitch`,
+  description: `${SLOGAN} ${oneLiner()} A reference strategy you can read, wallet-signed deposits into positions you hold, and checks before every signature.`,
   url: 'https://zap-pilot.org/pitch',
 } as const;
 
 export const PITCH_OG = {
-  label: 'ZAP PILOT · INVESTOR PITCH',
+  label: 'INVESTOR PITCH',
   url: 'zap-pilot.org/pitch',
   footer: 'OPEN SOURCE · NO ZAP PILOT VAULT',
 } as const;

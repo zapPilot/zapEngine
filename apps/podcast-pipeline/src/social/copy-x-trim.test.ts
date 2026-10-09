@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { appendBrandCta } from '../brand/cta.js';
-import { parseGeneratedSocialCopy, weightedTweetLength } from './copy.js';
+import { socialSignOff } from '../brand/cta.js';
+import { parseGeneratedSocialCopy } from './copy.js';
+import { applyPlatformCta } from './platforms.js';
+import { weightedTweetLength } from './x-text.js';
 
 describe('X local length trimming', () => {
   it('trims an overlong English body and preserves the complete CTA', () => {
@@ -14,12 +16,10 @@ describe('X local length trimming', () => {
       { x: true, threads: false, rednote: false, youtube: false },
     );
 
-    expect(copy.x!.text).toBe('A'.repeat(247));
+    expect(copy.x!.text).toBe('A'.repeat(205));
 
-    const published = appendBrandCta(copy.x!.text, 'en');
-    expect(published).toBe(
-      `${'A'.repeat(247)}\n\nWebsite https://www.zap-pilot.org`,
-    );
+    const published = applyPlatformCta('x', copy.x!.text, 'en');
+    expect(published).toBe(`${'A'.repeat(205)}\n\n${socialSignOff('en')}`);
     expect(weightedTweetLength(published)).toBe(280);
   });
 });

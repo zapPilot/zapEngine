@@ -23,5 +23,6 @@
   "apps/control-center/public/favicon.svg",
   "apps/video/public/brand/zap-pilot-logo-night.svg",
   "apps/podcast-pipeline/assets/video/brand/zap-pilot-logo.svg",
-  "apps/podcast-pipeline/assets/video/brand/zap-pilot-outro.png"
+  "apps/podcast-pipeline/assets/video/brand/zap-pilot-outro.png",
+  "apps/podcast-pipeline/assets/video/brand/zap-pilot-signoff.svg"
 ]

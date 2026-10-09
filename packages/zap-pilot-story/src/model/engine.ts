@@ -1,3 +1,14 @@
+import {
+  CAPABILITIES,
+  type CapabilityIdWithStatus,
+} from '../facts/capabilities.js';
+const WIREFRAME = {
+  machine: 'self-hosting',
+  plans: 'rebalance-plans',
+  policy: 'policy-engine',
+} as const satisfies Record<string, CapabilityIdWithStatus<'planned'>>;
+const wireStatus = (part: keyof typeof WIREFRAME) =>
+  `st-${({ planned: 'plan' } as const)[CAPABILITIES[WIREFRAME[part]].status]}`;
 import type { Sleeve } from '../scenes/AssetGlyph.js';
 import {
   worldLength,
@@ -209,7 +220,9 @@ class EngineModel {
     const lengths = new Map<number, string>();
     const px = (units: number) => {
       const cached = lengths.get(units);
-      if (cached !== undefined) return cached;
+      if (cached !== undefined) {
+        return cached;
+      }
       const value = worldLength(units);
       lengths.set(units, value);
       return value;
@@ -340,7 +353,9 @@ class EngineModel {
       height: number,
       op: number,
     ) => {
-      if (op < 0.004) return;
+      if (op < 0.004) {
+        return;
+      }
       const color = `var(--sleeve-${asset})`;
       const material = {
         op,
@@ -830,7 +845,7 @@ class EngineModel {
     }
     pin([4.5, -13.5, top + 3], 'REBALANCE PLANS', 'not built yet', {
       op: pf,
-      g: 'st-plan',
+      g: wireStatus('plans'),
       tone: 'plan',
       stem: 1.6,
     });
@@ -914,7 +929,7 @@ class EngineModel {
     }
     pin([5.7, 12.5, 4.4], 'YOUR POLICY', 'planned', {
       op: C.cl((chk - 0.86) / 0.04) * (1 - sg(0.785, 0.805)),
-      g: 'st-plan',
+      g: wireStatus('policy'),
       tone: 'plan',
       stem: 1.3,
     });
@@ -1043,7 +1058,7 @@ class EngineModel {
     });
     pin([-16, 24, 5.2], 'YOUR MACHINE', 'planned · hosted today', {
       op: sg(0.06, 0.08) * aout,
-      g: 'st-plan',
+      g: wireStatus('machine'),
       tone: 'plan',
       stem: 1.7,
     });
@@ -1073,7 +1088,7 @@ class EngineModel {
     });
     pin([4.5, -13.5, top + 3], 'REBALANCE PLANS', '', {
       op: own,
-      g: 'st-plan',
+      g: wireStatus('plans'),
       tone: 'plan',
       stem: 2.1,
     });
@@ -1084,7 +1099,7 @@ class EngineModel {
     });
     pin([5.7, 12.5, 4.4], 'YOUR POLICY', '', {
       op: own,
-      g: 'st-plan',
+      g: wireStatus('policy'),
       tone: 'plan',
       stem: 1.6,
     });
@@ -1096,7 +1111,7 @@ class EngineModel {
     });
     pin([-16, 24, 5.2], 'YOUR MACHINE', '', {
       op: own,
-      g: 'st-plan',
+      g: wireStatus('machine'),
       tone: 'plan',
       stem: 1.7,
     });

@@ -11,7 +11,10 @@ import {
   toEpisodeResponse,
 } from './db.js';
 import { convertTextToZhCN, convertTextToZhTW } from './opencc.js';
-import { PODCAST_INTRO } from './podcast-packaging.js';
+import {
+  isKnownPodcastIntro,
+  stripKnownPodcastPackaging,
+} from './podcast-packaging.js';
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const CORPUS_PAGE_SIZE = 50;
@@ -183,7 +186,9 @@ function prepareEpisode(
   const normalizedTitle = normalizeSearchText(
     canonicalSearchText(row.title, languageCode),
   );
-  const script = row.script;
+  const script = row.script
+    ? stripKnownPodcastPackaging(row.script)
+    : row.script;
 
   return {
     row,
@@ -402,7 +407,7 @@ function firstScriptParagraph(script: string | null): string | null {
     script
       .split(/\n\s*\n/u)
       .map((value) => value.trim())
-      .find((value) => Boolean(value) && value !== PODCAST_INTRO) ??
+      .find((value) => Boolean(value) && !isKnownPodcastIntro(value)) ??
     script.trim();
   return truncateSnippet(paragraph);
 }

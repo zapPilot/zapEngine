@@ -1,8 +1,11 @@
 """Reproduce native/brand instances from hash-verified, commit-pinned OFL sources.
 
+Verbal identity strings mirror zap-pilot-story/src/brand/index.ts.
+
 Run: uv run --with fonttools --with brotli --with uharfbuzz scripts/fonts.py
 """
 from __future__ import annotations
+import argparse
 import hashlib
 import io
 import json
@@ -22,6 +25,8 @@ SOURCE = ROOT / "fonts/source"
 STATIC = ROOT / "fonts/static"
 BRAND = ROOT / "brand"
 PIN = json.loads((SOURCE / "manifest.json").read_text())
+# Upper-cased STATUS_LABEL of the self-hosting capability (zap-pilot-story/src/facts/capabilities.ts).
+SELF_HOSTING_LABEL = "PLANNED"
 UNICODES = set(range(0x20, 0x250)) | set(range(0x2000, 0x2070)) | set(range(0x20A0, 0x20D0)) | set(range(0x2190, 0x2200)) | {0x2212}
 
 
@@ -93,15 +98,30 @@ def outline(path, text):
 def main():
     STATIC.mkdir(parents=True, exist_ok=True)
     BRAND.mkdir(parents=True, exist_ok=True)
-    records = {name: instance(spec, STATIC / spec["file"]) for name, spec in TOKENS["font"]["native"].items()}
-    for license_file in SOURCE.glob("*-OFL.txt"):
-        (STATIC / license_file.name).write_bytes(license_file.read_bytes())
-    (STATIC / "manifest.json").write_text(json.dumps({"sourceCommit": PIN["commit"], "fonts": records}, indent=2) + "\n")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--glyphs", action="store_true", help="Reuse instances without rewriting static fonts")
+    args = parser.parse_args()
     wordmark = ROOT / "fonts/brand/Archivo-Wordmark.ttf"
-    instance({"source": "Archivo", "weight": 640, "width": 108, "family": "Archivo Wordmark"}, wordmark)
-    glyphs = {"wordmark": outline(wordmark, "Zap Pilot"), "tagline": outline(STATIC / TOKENS["font"]["native"]["text"]["file"], "Rules decide. You sign.")}
+    if not args.glyphs:
+        records = {name: instance(spec, STATIC / spec["file"]) for name, spec in TOKENS["font"]["native"].items()}
+        for license_file in SOURCE.glob("*-OFL.txt"):
+            (STATIC / license_file.name).write_bytes(license_file.read_bytes())
+        (STATIC / "manifest.json").write_text(json.dumps({"sourceCommit": PIN["commit"], "fonts": records}, indent=2) + "\n")
+        instance({"source": "Archivo", "weight": 640, "width": 108, "family": "Archivo Wordmark"}, wordmark)
+    display = STATIC / TOKENS["font"]["native"]["display"]["file"]
+    mono = STATIC / TOKENS["font"]["native"]["mono"]["file"]
+    glyphs = {
+        "wordmark": outline(wordmark, "Zap Pilot"),
+        "slogan": [[{**outline(display, word), "word": word, "style": style} for word, style in line] for line in [
+            [("Your", ""), ("strategy.", "")],
+            [("Your", ""), ("machine.", "o")],
+            [("Your", ""), ("wallet.", "s")],
+        ]],
+        "status": outline(mono, "PLANNED"),
+        "site": outline(mono, "www.zap-pilot.org"),
+    }
     (BRAND / "glyphs.json").write_text(json.dumps(glyphs, indent=2) + "\n")
-    subprocess.run(["pnpm", "exec", "prettier", "--write", str(STATIC / "manifest.json"), str(BRAND / "glyphs.json")], cwd=ROOT, check=True)
+    subprocess.run(["pnpm", "exec", "prettier", "--write", *([str(STATIC / "manifest.json")] if not args.glyphs else []), str(BRAND / "glyphs.json")], cwd=ROOT, check=True)
 
 
 if __name__ == "__main__":

@@ -15,6 +15,8 @@ COPY packages/eslint-config/package.json packages/eslint-config/package.json
 COPY packages/knip-config/package.json packages/knip-config/package.json
 COPY packages/tsconfig/package.json packages/tsconfig/package.json
 COPY packages/types/package.json packages/types/package.json
+COPY packages/story-kit/package.json packages/story-kit/package.json
+COPY packages/zap-pilot-story/package.json packages/zap-pilot-story/package.json
 RUN HUSKY=0 pnpm install --frozen-lockfile --filter @zapengine/podcast-pipeline... --store-dir=/pnpm/store
 
 FROM deps AS build
@@ -23,16 +25,22 @@ COPY packages/eslint-config packages/eslint-config
 COPY packages/knip-config packages/knip-config
 COPY packages/tsconfig packages/tsconfig
 COPY packages/types packages/types
+COPY packages/story-kit packages/story-kit
+COPY packages/zap-pilot-story packages/zap-pilot-story
 COPY apps/podcast-pipeline apps/podcast-pipeline
 RUN pnpm --filter @zapengine/design-tokens build \
  && pnpm --filter @zapengine/types build \
+ && pnpm --filter @zapengine/story-kit build \
+ && pnpm --filter @zapengine/zap-pilot-story build \
  && pnpm --filter @zapengine/podcast-pipeline build \
  && pnpm --filter @zapengine/podcast-pipeline deploy --legacy /out \
  && cp -R apps/podcast-pipeline/assets /out/assets \
  && cp -R apps/podcast-pipeline/prompts /out/prompts \
  && test -f /out/dist/index.js \
  && test -f /out/dist/release-heartbeat.js \
- && test -f /out/dist/worker.js
+ && test -f /out/dist/worker.js \
+ && cd /out \
+ && node --input-type=module -e "await import('@zapengine/zap-pilot-story/brand')"
 
 FROM node:24-alpine AS runner
 RUN apk add --no-cache ffmpeg

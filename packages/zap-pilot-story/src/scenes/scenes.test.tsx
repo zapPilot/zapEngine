@@ -6,7 +6,10 @@ import { LandingStory, StatusBadge } from './index.js';
 import { Captions } from './Captions.js';
 import { EngineWorld } from './EngineWorld.js';
 import { ReplayBoard } from './ReplayBoard.js';
-import { STAGES } from '../copy/index.js';
+import { SLOGAN, SLOGAN_PARTS, PUNCHLINE } from '../brand/index.js';
+import { STAGES, stageKick } from '../copy/beats.js';
+import { capabilityIds } from '../facts/capabilities.js';
+import { PartRows } from './PartRows.js';
 import {
   CAPABILITIES,
   STATUS_LABEL,
@@ -73,7 +76,29 @@ describe('Motion scenes', () => {
   it('server-renders a compact, readable poster with every stage and final replay', () => {
     const html = renderToStaticMarkup(story());
     expect(html).toContain('data-mode="poster"');
-    expect(html).toContain('Rules decide. You sign.');
+    expect(html).toContain(PUNCHLINE);
+    const { container } = render(story());
+    expect(container.querySelector('h1 .sk-sr')?.textContent).toBe(SLOGAN);
+    expect(container.querySelector('h1 [data-style="o"]')?.textContent).toBe(
+      'machine.',
+    );
+    expect(
+      renderToStaticMarkup(<PartRows />).match(/data-capability=/g),
+    ).toHaveLength(3);
+    const partsStage = container.querySelectorAll('.zp-stage-list > li')[
+      STAGES.findIndex((beat) => beat.name === 'Parts')
+    ];
+    expect(
+      Array.from(partsStage!.querySelectorAll('[data-capability]'), (badge) => [
+        badge.getAttribute('data-capability'),
+        badge.getAttribute('data-status'),
+      ]),
+    ).toEqual(
+      SLOGAN_PARTS.map((part) => [
+        part.capability,
+        CAPABILITIES[part.capability].status,
+      ]),
+    );
     expect(html).toContain('2026-10-05');
     expect(html).toContain('SIGNS THE BATCH');
     expect(html).toContain('82.38%');
@@ -84,10 +109,10 @@ describe('Motion scenes', () => {
       const { container } = render(
         <Captions time={(beat.start + beat.end) / 2} />,
       );
-      expect(container.textContent).toContain(beat.kick);
+      expect(container.textContent).toContain(stageKick(beat));
       if (beat.badge) {
         expect(container.querySelector('[data-capability]')?.textContent).toBe(
-          STATUS_LABEL[CAPABILITIES[beat.badge].status],
+          STATUS_LABEL[CAPABILITIES[capabilityIds(beat.badge)[0]!].status],
         );
       }
       cleanup();

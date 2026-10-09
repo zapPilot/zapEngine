@@ -68,7 +68,7 @@ it('regenerates every host brand copy byte for byte', () => {
     const outputs: string[] = JSON.parse(
       readFileSync(join(packageRoot, 'brand/outputs.json'), 'utf8'),
     );
-    expect(outputs.length).toBe(25);
+    expect(outputs.length).toBe(26);
     for (const output of outputs) {
       expect(readFileSync(join(directory, output)), output).toEqual(
         readFileSync(join(packageRoot, '../..', output)),
@@ -78,3 +78,13 @@ it('regenerates every host brand copy byte for byte', () => {
     rmSync(directory, { recursive: true, force: true });
   }
 }, 60_000);
+
+it('renders the podcast media window at fourfold resolution', () => {
+  const png = readFileSync(
+    join(
+      packageRoot,
+      '../../apps/podcast-pipeline/assets/video/brand/zap-pilot-outro.png',
+    ),
+  );
+  expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([2880, 2560]);
+});

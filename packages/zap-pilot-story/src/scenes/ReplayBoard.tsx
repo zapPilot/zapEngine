@@ -205,9 +205,7 @@ export function ReplayBoard({ progress = 1 }: { progress?: number }) {
             {String(view.chapter + 1).padStart(2, '0')} · {chapter.date} ·{' '}
             {copy.rule}
           </p>
-          {chapter.id === 'spy' && (
-            <StatusBadge capability="tokenized-equities" />
-          )}
+          {'capability' in copy && <StatusBadge capability={copy.capability} />}
           <h3 className="zp-kt zp-r-cht">{copy.title}</h3>
           <p className="zp-r-chb">{copy.body}</p>
         </div>

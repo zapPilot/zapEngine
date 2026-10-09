@@ -22,11 +22,11 @@ import { createDeterministicStoryboard } from './video/storyboard/fallback.js';
 import { splitCanonicalSentences } from './video/storyboard/sentences.js';
 
 describe('packagePodcastScript', () => {
-  it('uses Simplified branding without changing the packaging version', () => {
-    expect(PODCAST_PACKAGING_VERSION).toBe('podcast-script.v1');
+  it('uses frozen v2 branding', () => {
+    expect(PODCAST_PACKAGING_VERSION).toBe('podcast-script.v2');
     expect(PODCAST_INTRO).toBe('欢迎收听 Zap Podcast。');
     expect(ZAP_PILOT_OUTRO).toBe(
-      '如果你也在管理多个钱包、DeFi 仓位和投资组合，可以到 Zap Pilot 官网，让投资组合管理更简单、更清楚。',
+      'Your strategy, your machine, your wallet——Zap Pilot 正在打造一套自托管的可编程投资组合运行环境，想了解进展，可以到 Zap Pilot 官网看看。',
     );
   });
 
