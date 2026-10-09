@@ -19,7 +19,7 @@ from scripts.pinned_strategy.shadow import shadow_compare
 from scripts.pinned_strategy.touch_mode import cross_on_touch_mode
 from src.models.backtesting import BacktestCompareConfigV3, BacktestCompareRequestV3
 from src.services.backtesting.execution.compare import run_compare_v3_on_data
-from tests.services.backtesting.support.event_histories import synthetic_event_history
+from src.services.backtesting.validation.event_histories import synthetic_event_history
 from tests.services.backtesting.support.reference_rules import reference_rule
 from tests.test_validation_events import EVENTS
 

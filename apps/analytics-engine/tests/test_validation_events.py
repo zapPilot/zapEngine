@@ -11,12 +11,15 @@ from src.services.backtesting.constants import (
     STRATEGY_DMA_FGI_PORTFOLIO_RULES,
 )
 from src.services.backtesting.execution.compare import run_compare_v3_on_data
+from src.services.backtesting.validation.event_histories import (
+    strategy_timeline,
+    synthetic_event_history,
+)
 from src.services.backtesting.validation.event_runner import (
     ValidationEvent,
     evaluate_event,
     load_validation_events,
 )
-from tests.services.backtesting.support.event_histories import synthetic_event_history
 
 FIXTURE_PATH = (
     Path(__file__).resolve().parent / "fixtures/hierarchical_validation_events.json"
@@ -44,7 +47,7 @@ def validation_timelines_by_event() -> dict[str, dict[str, list[dict[str, Any]]]
             strategy_ids=strategy_ids,
         )
         timelines_by_event[event.id] = {
-            strategy_id: _normalized_strategy_timeline(payload, strategy_id)
+            strategy_id: strategy_timeline(payload, strategy_id)
             for strategy_id in strategy_ids
         }
     return timelines_by_event
@@ -96,15 +99,3 @@ def test_validation_event(
         validation_timelines_by_event[event.id][strategy_id],
     )
     assert result.passed, result.failure_message
-
-
-def _normalized_strategy_timeline(
-    payload: dict[str, Any],
-    strategy_id: str,
-) -> list[dict[str, Any]]:
-    normalized: list[dict[str, Any]] = []
-    for point in payload["timeline"]:
-        market = point["market"]
-        strategy_state = point["strategies"][strategy_id]
-        normalized.append({"date": market["date"], "market": market, **strategy_state})
-    return normalized

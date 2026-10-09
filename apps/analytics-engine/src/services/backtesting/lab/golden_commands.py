@@ -71,7 +71,12 @@ def golden_command(args: argparse.Namespace, context: Context) -> Outcome:
     return _write(path, args.spec or list(golden.DEFAULT_SPECS), context)
 
 
-def _check(path: Path, refs: list[str] | None, context: Context) -> Outcome:
+def golden_differences(
+    path: Path,
+    refs: list[str] | None,
+    context: Context,
+) -> tuple[list[str], dict[str, list[str]]]:
+    """The specs a golden file checks, and how each differs from its pin."""
     recorded = _recorded(path)
     wanted = refs or list(recorded)
     missing = [ref for ref in wanted if ref not in recorded]
@@ -88,6 +93,11 @@ def _check(path: Path, refs: list[str] | None, context: Context) -> Outcome:
         for ref, entry in current.items()
         if (problems := golden.differences(recorded[ref], entry))
     }
+    return wanted, changed
+
+
+def _check(path: Path, refs: list[str] | None, context: Context) -> Outcome:
+    wanted, changed = golden_differences(path, refs, context)
     return Outcome(
         {"checked": wanted, "differences": changed},
         warnings=[
@@ -105,4 +115,4 @@ def _write(path: Path, refs: list[str], context: Context) -> Outcome:
     return Outcome({"written": sorted(entries)}, artifacts=[str(path)])
 
 
-__all__ = ["add_commands", "golden_command"]
+__all__ = ["add_commands", "golden_command", "golden_differences"]

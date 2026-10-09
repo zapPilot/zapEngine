@@ -17,6 +17,7 @@ from src.services.backtesting.lab.stats import (
     compounded,
     daily_sharpe,
     deflated_sharpe,
+    max_drawdown_percent,
     moments,
     plateau_retention,
     sharpe,
@@ -241,3 +242,15 @@ def test_neighbors_are_chosen_by_distance_then_position() -> None:
     value = plateau_retention(points, [1.0, 0.5, 0.5, 0.0], 0, neighbors=2)
 
     assert value == pytest.approx(0.5)
+
+
+def test_a_drawdown_is_the_deepest_fall_from_a_peak() -> None:
+    # 1.10, 0.88, 0.924, 0.8316, 1.2474: the peak is 1.10 and the low 0.8316.
+    returns = [0.10, -0.20, 0.05, -0.10, 0.50]
+
+    assert max_drawdown_percent(returns) == pytest.approx((0.8316 / 1.10 - 1) * 100)
+
+
+def test_a_run_that_only_rises_has_no_drawdown() -> None:
+    assert max_drawdown_percent([0.01, 0.02, 0.0]) == 0.0
+    assert max_drawdown_percent([]) == 0.0

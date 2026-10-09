@@ -112,6 +112,8 @@ trim, half of the proceeds into SPY:
 | `breakout_20d_dca_buy`            | `technical_add`  | `breakout_20d`                |                                                   |
 | `breakdown_20d_dca_sell`          | `technical_trim` | `breakdown_20d`               |                                                   |
 
+A research trim, like the reference's trims, takes `sizing` (`absolute`, a share of
+the portfolio, or `relative`, a share of the position that never cuts into a core).
 A rule listed after the reference's rules decides only on days they do not, exactly
 as the old priorities ranked it. Before the cutover (PR 10) a parity test built
 every old `enabled_rules` combination (each research rule on top of the defaults

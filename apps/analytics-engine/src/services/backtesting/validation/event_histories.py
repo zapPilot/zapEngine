@@ -2,8 +2,9 @@
 
 Each history is a 46-day flat market (everything 10% above its DMA, neutral
 sentiment) with the few days around the event bent to produce it: a cross, a
-ratio move, a fear spike. They are small enough to read and shared by the
-validation test and by the spec parity test.
+ratio move, a fear spike. They are small enough to read, and shared by the
+validation test, the live-versus-model parity tests and the strategy lab, which
+runs a candidate spec through the same events before it may be promoted.
 """
 
 from __future__ import annotations
@@ -12,6 +13,18 @@ from datetime import date, timedelta
 from typing import Any
 
 from src.services.backtesting.validation.event_runner import ValidationEvent
+
+
+def strategy_timeline(payload: dict[str, Any], key: str) -> list[dict[str, Any]]:
+    """One strategy's days of a compare response, shaped for ``evaluate_event``."""
+    return [
+        {
+            "date": point["market"]["date"],
+            "market": point["market"],
+            **point["strategies"][key],
+        }
+        for point in payload["timeline"]
+    ]
 
 
 def synthetic_event_history(
@@ -43,12 +56,7 @@ def synthetic_event_history(
         current: {"label": "neutral", "value": 50, "timestamp": current.isoformat()}
         for current in dates
     }
-    _shape_event_market(
-        event=event,
-        rows=rows,
-        sentiments=sentiments,
-        dates=dates,
-    )
+    _shape_event_market(event=event, rows=rows, dates=dates)
     return [rows[current] for current in dates], sentiments, start, end
 
 
@@ -56,16 +64,11 @@ def _shape_event_market(
     *,
     event: ValidationEvent,
     rows: dict[date, dict[str, Any]],
-    sentiments: dict[date, dict[str, Any]],
     dates: list[date],
 ) -> None:
     event_date = date.fromisoformat(event.event_date)
     previous_date = event_date - timedelta(days=1)
-    if event.id == "eth_btc_deviation_dca_to_eth_2025_04_07":
-        _shape_eth_btc_deviation_dca(rows, dates)
-    elif event.id == "spy_latch_absorb_fresh_stable_2026_04_16":
-        _shape_spy_latch_absorption(rows, sentiments, dates, event_date)
-    elif event.event_type == "crypto_cross_down":
+    if event.event_type == "crypto_cross_down":
         _shape_crypto_cross_down(rows, event_date, event.reference_asset or "BTC")
     elif event.event_type == "crypto_cross_up":
         _shape_crypto_cross_up(rows, dates, event_date, event.reference_asset or "BTC")
@@ -74,48 +77,12 @@ def _shape_event_market(
         _set_spy_zone(rows, event_date, above=False)
     elif event.event_type == "spy_cross_up":
         _shape_spy_cross_up(rows, dates, event_date)
-    elif event.event_type == "extreme_fear_below_crypto_dma":
-        _shape_extreme_fear_crypto(rows, sentiments, dates, event_date)
-    elif event.event_type == "extreme_fear_below_spy_dma":
-        _shape_extreme_fear_spy(rows, dates, event_date)
     elif event.event_type == "eth_btc_ratio_cross_up":
         _shape_ratio_cross(rows, dates, event_date, previous_ratio=0.8, event_ratio=1.2)
     elif event.event_type == "eth_btc_ratio_cross_down":
         _shape_ratio_cross(rows, dates, event_date, previous_ratio=1.2, event_ratio=0.8)
     elif event.id == "cooldown_period_2025_03_24":
         _shape_cooldown_event(rows, dates, event_date)
-
-
-def _shape_eth_btc_deviation_dca(
-    rows: dict[date, dict[str, Any]],
-    dates: list[date],
-) -> None:
-    for current in dates:
-        _set_ratio(rows, current, ratio=0.55)
-
-
-def _shape_spy_latch_absorption(
-    rows: dict[date, dict[str, Any]],
-    sentiments: dict[date, dict[str, Any]],
-    dates: list[date],
-    event_date: date,
-) -> None:
-    activation_date = event_date - timedelta(days=1)
-    for current in dates:
-        _set_crypto_zone(rows, current, "BTC", above=False)
-        _set_crypto_zone(rows, current, "ETH", above=False)
-        _set_spy_zone(rows, current, above=False)
-    for symbol in ("BTC", "ETH"):
-        _set_crypto_zone(rows, activation_date, symbol, above=True)
-    _set_spy_zone(rows, activation_date, above=True)
-    _set_spy_zone(rows, event_date, above=True)
-    for symbol in ("BTC", "ETH"):
-        _set_crypto_zone(rows, event_date, symbol, above=False)
-    sentiments[event_date] = {
-        "label": "fear",
-        "value": 25,
-        "timestamp": event_date.isoformat(),
-    }
 
 
 def _shape_crypto_cross_down(
@@ -157,39 +124,6 @@ def _shape_spy_cross_up(
         _set_crypto_zone(rows, current, "ETH", above=False)
         _set_spy_zone(rows, current, above=False)
     _set_spy_zone(rows, event_date, above=True)
-
-
-def _shape_extreme_fear_crypto(
-    rows: dict[date, dict[str, Any]],
-    sentiments: dict[date, dict[str, Any]],
-    dates: list[date],
-    event_date: date,
-) -> None:
-    cross_down_date = event_date - timedelta(days=35)
-    for current in dates:
-        above = current < cross_down_date
-        _set_crypto_zone(rows, current, "BTC", above=above)
-        _set_crypto_zone(rows, current, "ETH", above=above)
-        _set_spy_zone(rows, current, above=above)
-    rows[event_date]["extra_data"]["macro_fear_greed"] = _macro("extreme_fear")
-    sentiments[event_date] = {
-        "label": "extreme_fear",
-        "value": 10,
-        "timestamp": event_date.isoformat(),
-    }
-
-
-def _shape_extreme_fear_spy(
-    rows: dict[date, dict[str, Any]],
-    dates: list[date],
-    event_date: date,
-) -> None:
-    cross_down_date = event_date - timedelta(days=35)
-    for current in dates:
-        _set_crypto_zone(rows, current, "BTC", above=False)
-        _set_crypto_zone(rows, current, "ETH", above=False)
-        _set_spy_zone(rows, current, above=current < cross_down_date)
-    rows[event_date]["extra_data"]["macro_fear_greed"] = _macro("extreme_fear")
 
 
 def _shape_ratio_cross(

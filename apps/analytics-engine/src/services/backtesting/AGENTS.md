@@ -35,6 +35,11 @@ Use `strategy-lab` (`COMMANDS.md`) and the agent skill `.agents/skills/strategy-
 - The ledger (`.lab/ledger.jsonl`) counts every candidate tried and sets the bar of the Deflated Sharpe. Never delete or rewrite it to improve a number; a finding that depends on it states its count.
 - A holdout look belongs to the lineage and is spent once, after 90 new days. Do not look to check a candidate, and do not change a candidate after its look and ask again.
 
+## Promoting a candidate
+
+- A reference changes only through a promotion. `strategy-lab promote` weighs a candidate against `src/config/strategies/PROMOTION_POLICY.json` (real data only, the default assumptions, no dead parameter, the validation events and golden pins, the walk-forward folds judged against the production reference, the deflated Sharpe, and the lineage's single holdout look) and writes `.lab/promotions/<id>.json`. Only a `promotable` verdict opens the pull request that bumps `reference/dma_fgi.json`.
+- The policy is the bar. Changing a threshold is a reviewed change of its own, never part of a promotion, and never done to make a candidate pass.
+
 ## Lab data
 
 - Production market data never enters the repo. An operator records it into the git-ignored `.lab/bundles/` with `strategy-lab bundle record`, and a bundle is identified by its `content_sha256`; a result that depends on data names the bundle it ran on.

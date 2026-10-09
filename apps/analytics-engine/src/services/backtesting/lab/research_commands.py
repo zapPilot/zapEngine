@@ -86,6 +86,11 @@ def add_commands(commands: Any) -> None:
     sweeping.add_argument(
         "--space", required=True, help="A JSON file of parameters and sampling."
     )
+    sweeping.add_argument(
+        "--reference",
+        help="Judge the folds against this spec instead of --spec itself "
+        "(promotion judges against the production reference). " + SPEC_HELP,
+    )
     evaluation_commands.add_assumption_options(sweeping)
     sweeping.set_defaults(handler=sweep_command, command_path=["sweep"])
 
@@ -182,6 +187,11 @@ def liveness_command(args: argparse.Namespace, context: Context) -> Outcome:
 
 def sweep_command(args: argparse.Namespace, context: Context) -> Outcome:
     _, spec = load_spec_or_fail(args.spec, context)
+    reference = (
+        None
+        if args.reference is None
+        else load_spec_or_fail(args.reference, context)[1]
+    )
     bundle = load_bundle_or_fail(args.bundle, context)
     config = SweepConfig(
         assumptions=evaluation_commands.assumptions_of(args),
@@ -194,6 +204,7 @@ def sweep_command(args: argparse.Namespace, context: Context) -> Outcome:
             load_space(Path(args.space)),
             config,
             ledger=Ledger(context.ledger_path),
+            reference=reference,
         )
     except SpaceError as error:
         raise CliError(
@@ -307,6 +318,9 @@ def holdout_look_command(args: argparse.Namespace, context: Context) -> Outcome:
     result = {
         "lineage": lineage,
         "pin_date": pin.pin_date.isoformat(),
+        "bundle": {**_bundle_entry(bundle), "source": bundle.manifest.source},
+        "assumptions": candidate.body["assumptions"],
+        "total_capital": candidate.body["total_capital"],
         "window": candidate.body["window"],
         "candidate": {**candidate.body["fingerprint"]["spec"], **own},
         "reference": {**baseline.body["fingerprint"]["spec"], **other},
@@ -334,7 +348,14 @@ def holdout_look_command(args: argparse.Namespace, context: Context) -> Outcome:
         bundle=_bundle_entry(bundle),
         report_hash=candidate.report_hash,
     )
-    return Outcome(dict(normalize(result)), warnings=candidate.body["warnings"])
+    # The only copy of the look's numbers: a promotion reads them from here.
+    path = context.holdouts_dir / f"{lineage}.look.json"
+    path.write_text(json.dumps(normalize(result), indent=2, sort_keys=True) + "\n")
+    return Outcome(
+        dict(normalize(result)),
+        artifacts=[str(path)],
+        warnings=candidate.body["warnings"],
+    )
 
 
 def _ledger(context: Context) -> Ledger:

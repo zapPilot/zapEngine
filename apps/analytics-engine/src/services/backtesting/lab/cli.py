@@ -38,6 +38,7 @@ from typing import Any
 from src.services.backtesting.lab import (
     evaluation_commands,
     golden_commands,
+    promotion_commands,
     research_commands,
 )
 from src.services.backtesting.lab.bundle import (
@@ -234,6 +235,7 @@ def _parser() -> argparse.ArgumentParser:
     evaluation_commands.add_commands(commands)
     research_commands.add_commands(commands)
     golden_commands.add_commands(commands)
+    promotion_commands.add_commands(commands)
     return parser
 
 

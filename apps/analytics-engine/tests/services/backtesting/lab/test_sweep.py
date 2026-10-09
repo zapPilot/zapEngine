@@ -27,7 +27,7 @@ from src.services.backtesting.lab.sweep import (
     sample,
     sweep,
 )
-from src.services.backtesting.spec import load_spec
+from src.services.backtesting.spec import load_spec, parse_spec
 from tests.services.backtesting.spec.helpers import reference_raw
 
 COOLDOWN = "/rules[cross_down_exit]/cooldown_days"
@@ -308,10 +308,54 @@ def test_a_sweep_says_what_it_did(result: dict[str, Any]) -> None:
     assert result["fingerprint"]["bundle"]["source"] == "synthetic"
     assert set(result["fingerprint"]) == {
         "spec",
+        "reference",
         "bundle",
         "eval_config_hash",
         "space_hash",
     }
+    # With no reference named, the folds are judged against the spec searched.
+    assert result["fingerprint"]["reference"] == result["fingerprint"]["spec"]
+
+
+def test_a_sweep_can_be_judged_against_another_spec(spec, long_bundle) -> None:
+    raw = reference_raw()
+    raw["id"] = "no_exit"
+    raw["rules"] = [rule for rule in raw["rules"] if rule["id"] != "cross_down_exit"]
+    candidate = parse_spec(raw)
+    space = parse_space(
+        {
+            "parameters": [{"pointer": STEP, "values": [0.025, 0.05]}],
+            "sampling": {"method": "grid"},
+        }
+    )
+
+    judged = sweep(candidate, long_bundle, space, reference=spec)
+    own = sweep(spec, long_bundle, space)
+
+    assert judged["fingerprint"]["spec"]["ref"].startswith("no_exit@")
+    assert judged["fingerprint"]["reference"] == own["fingerprint"]["spec"]
+    # What the folds beat is the reference, over the same window and assumptions.
+    assert judged["reference"] == own["reference"]
+    assert (
+        judged["folds"][0]["oos"]["reference_roi_percent"]
+        == (own["folds"][0]["oos"]["reference_roi_percent"])
+    )
+
+
+def test_naming_the_same_behavior_as_the_reference_changes_nothing(
+    spec, long_bundle
+) -> None:
+    space = parse_space(
+        {
+            "parameters": [{"pointer": STEP, "values": [0.025, 0.05]}],
+            "sampling": {"method": "grid"},
+        }
+    )
+
+    alone = sweep(spec, long_bundle, space)
+    named = sweep(spec, long_bundle, space, reference=load_spec("reference/dma_fgi"))
+
+    assert named == alone
 
 
 def test_only_the_development_window_is_searched(result: dict[str, Any]) -> None:
@@ -351,6 +395,20 @@ def test_each_fold_picks_a_trial_and_is_judged_against_the_reference(result) -> 
             oos["selected_roi_percent"] - oos["reference_roi_percent"], abs=1e-4
         )
         assert oos["win"] is (oos["edge_pp"] > 0)
+
+
+def test_each_fold_says_how_deep_the_selected_trial_fell_against_the_reference(
+    result,
+) -> None:
+    for fold in result["folds"]:
+        oos = fold["oos"]
+        assert oos["selected_max_drawdown_percent"] <= 0.0
+        assert oos["reference_max_drawdown_percent"] <= 0.0
+        assert oos["max_drawdown_pp"] == pytest.approx(
+            oos["selected_max_drawdown_percent"]
+            - oos["reference_max_drawdown_percent"],
+            abs=1e-4,
+        )
 
 
 def test_the_aggregate_is_the_folds_summed_up(result) -> None:

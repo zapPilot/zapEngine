@@ -132,7 +132,7 @@ def test_exporter_replays_real_strategy_with_synthetic_test_inputs(
     from scripts.pinned_strategy import export_landing_examples as exporter
     from scripts.pinned_strategy.benchmark import run_compare
     from src.services.backtesting.lab.bundle import Bundle, build_manifest
-    from tests.services.backtesting.support.event_histories import (
+    from src.services.backtesting.validation.event_histories import (
         synthetic_event_history,
     )
     from tests.test_validation_events import EVENTS

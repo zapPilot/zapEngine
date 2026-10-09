@@ -68,6 +68,20 @@ def compounded(returns: Sequence[float]) -> float:
     return total - 1.0
 
 
+def max_drawdown_percent(returns: Sequence[float]) -> float:
+    """The deepest fall from a peak over a run of daily returns, as a percentage.
+
+    Zero when the value never falls below an earlier high; negative otherwise.
+    """
+    value = peak = 1.0
+    worst = 0.0
+    for daily in returns:
+        value *= 1.0 + daily
+        peak = max(peak, value)
+        worst = min(worst, value / peak - 1.0)
+    return worst * 100.0
+
+
 @dataclass(frozen=True)
 class Bootstrap:
     mean: float
@@ -218,6 +232,7 @@ __all__ = [
     "compounded",
     "daily_sharpe",
     "deflated_sharpe",
+    "max_drawdown_percent",
     "moments",
     "plateau_retention",
     "sharpe",

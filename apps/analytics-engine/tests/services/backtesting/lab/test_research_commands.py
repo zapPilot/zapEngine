@@ -296,6 +296,47 @@ def test_every_trial_of_a_sweep_is_in_the_ledger(
     assert out["result"]["deflated_sharpe"]["trials"] == 6
 
 
+def test_a_sweep_can_be_judged_against_another_spec(tmp_path: Path) -> None:
+    candidate = _candidate(tmp_path)
+    # The candidate has no exit rule, so the space cannot name its cooldown.
+    space = _space(tmp_path, parameters=[{"pointer": STEP, "values": [0.025, 0.05]}])
+
+    code, out = _invoke(
+        tmp_path,
+        "sweep",
+        "--spec",
+        str(candidate),
+        "--reference",
+        REFERENCE_REF,
+        "--bundle",
+        LONG,
+        "--space",
+        str(space),
+    )
+
+    assert (code, out["result"]["status"]) == (0, "ok")
+    fingerprint = out["result"]["fingerprint"]
+    assert fingerprint["spec"]["ref"].startswith("no_exit@")
+    assert fingerprint["reference"]["ref"].startswith("dma_fgi@")
+
+
+def test_a_reference_that_cannot_be_read_stops_the_sweep(tmp_path: Path) -> None:
+    code, out = _invoke(
+        tmp_path,
+        "sweep",
+        "--spec",
+        REFERENCE_REF,
+        "--reference",
+        "no/such/spec",
+        "--bundle",
+        LONG,
+        "--space",
+        str(_space(tmp_path)),
+    )
+
+    assert (code, out["result"]["code"]) == (3, "spec_not_found")
+
+
 def test_a_sweep_takes_the_assumptions(
     swept: tuple[Path, int, dict[str, Any]], tmp_path: Path
 ) -> None:
@@ -606,6 +647,37 @@ def test_one_look_compares_a_candidate_with_the_reference_on_the_new_data(
     assert pin.looked is not None
     assert pin.looked["spec"]["ref"] == result["candidate"]["ref"]
     assert pin.looked["window_start"] == result["window"]["start"]
+
+
+def test_a_look_names_its_data_and_assumptions_and_keeps_its_numbers(
+    tmp_path: Path,
+) -> None:
+    _invoke(tmp_path, "holdout", "init", "--lineage", "lin", "--bundle", PRIMARY)
+
+    _, out = _invoke(
+        tmp_path,
+        "holdout",
+        "look",
+        "--lineage",
+        "lin",
+        "--spec",
+        str(_candidate(tmp_path)),
+        "--bundle",
+        SHORT,
+    )
+
+    result = out["result"]
+    assert result["bundle"]["source"] == "synthetic"
+    assert result["bundle"]["ref"].startswith("synthetic-regimes-1-400:")
+    assert result["assumptions"] == {
+        "fill_lag_days": 1,
+        "slippage_rate": 0.003,
+        "stable_apr": 0.03,
+    }
+    assert result["total_capital"] == 10_000.0
+    kept = tmp_path / "holdouts" / "lin.look.json"
+    assert out["artifacts"] == [str(kept)]
+    assert json.loads(kept.read_text()) == result
 
 
 def test_the_look_belongs_to_the_lineage_not_to_a_candidate(tmp_path: Path) -> None:

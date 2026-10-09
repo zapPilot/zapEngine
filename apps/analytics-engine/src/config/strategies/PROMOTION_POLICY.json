@@ -1,0 +1,25 @@
+{
+  "format": "promotion-policy/1",
+  "description": "What a candidate must show before it may replace the reference, on real data and with the same assumptions as the reference. The thresholds are the review's proposal; the repository owner confirms or changes them in a pull request, never in the middle of a promotion.",
+  "prerequisites": {
+    "real_data_only": true,
+    "canonical_assumptions": true,
+    "no_dead_parameters": true,
+    "hard_invariants": true,
+    "validation_events": true,
+    "golden_unaffected": true
+  },
+  "walk_forward": {
+    "min_folds": 3,
+    "fold_win_rate_at_least": 0.6,
+    "mean_oos_edge_above_pp": 0.0,
+    "bootstrap_p_below": 0.1,
+    "fold_drawdown_worse_by_at_most_pp": 3.0,
+    "deflated_sharpe_above": 0.9
+  },
+  "holdout": {
+    "required": true,
+    "roi_shortfall_at_most_pp": 2.0,
+    "drawdown_worse_by_at_most_pp": 3.0
+  }
+}

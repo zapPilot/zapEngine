@@ -50,6 +50,7 @@ from src.services.backtesting.lab.stats import (
     compounded,
     daily_sharpe,
     deflated_sharpe,
+    max_drawdown_percent,
     plateau_retention,
     sharpe,
 )
@@ -66,6 +67,8 @@ METHODS = ("grid", "random", "halton")
 _HALTON_PRIMES = (2, 3, 5, 7, 11, 13, 17, 19, 23, 29)
 _DECIMALS = 6
 BASE = "base"
+# The spec the folds are judged against, when it is not the one being searched.
+REFERENCE = "reference"
 TOP_TRIALS = 5
 OK = "ok"
 INSUFFICIENT = "insufficient_evidence"
@@ -327,14 +330,27 @@ def sweep(
     config: SweepConfig | None = None,
     *,
     ledger: Ledger | None = None,
+    reference: StrategySpec | None = None,
 ) -> dict[str, Any]:
+    """Search ``space`` around ``spec`` and judge the result against ``reference``.
+
+    Without a ``reference`` the folds are judged against ``spec`` itself, which
+    answers whether tuning helped. With one (the production reference, say) they
+    answer whether the best of the search beats it out of sample.
+    """
     config = config or SweepConfig()
     check_space(space, spec)
+    baseline = spec if reference is None else reference
+    same_as_base = behavior_hash(baseline) == behavior_hash(spec)
     eval_config = EvalConfig(
         assumptions=config.assumptions, total_capital=config.total_capital
     )
     identity = {
         "spec": {"ref": spec_ref(spec), "behavior_hash": behavior_hash(spec)},
+        "reference": {
+            "ref": spec_ref(baseline),
+            "behavior_hash": behavior_hash(baseline),
+        },
         "bundle": {
             "ref": f"{bundle.manifest.name}:{bundle.manifest.bundle_id}",
             "content_sha256": bundle.manifest.content_sha256,
@@ -365,14 +381,19 @@ def sweep(
         start=dev_start,
         end=dev_end,
     )
+    judged_against = BASE if same_as_base else REFERENCE
     response = run_specs(
-        {BASE: spec, **{f"t{index}": trial for index, trial in enumerate(specs)}},
+        {
+            BASE: spec,
+            **{f"t{index}": trial for index, trial in enumerate(specs)},
+            **({} if same_as_base else {REFERENCE: baseline}),
+        },
         prepare(bundle, run_config),
         run_config,
     )
     curves = {
         key: _curve(response, key)
-        for key in [BASE, *(f"t{i}" for i in range(len(specs)))]
+        for key in [BASE, judged_against, *(f"t{i}" for i in range(len(specs)))]
     }
     full = {key: curve.returns(dev_start, dev_end) for key, curve in curves.items()}
     rf = config.assumptions.stable_apr
@@ -383,7 +404,7 @@ def sweep(
     else:
         trials = len(specs)
 
-    fold_rows, diffs = _walk_forward(curves, assignments, folds, rf)
+    fold_rows, diffs = _walk_forward(curves, assignments, folds, rf, judged_against)
     best = max(range(len(specs)), key=lambda index: (scores[index], -index))
     best_returns = full[f"t{best}"]
     per_day = [
@@ -434,8 +455,8 @@ def sweep(
             "roi_percent": compounded(best_returns) * 100.0,
         },
         "reference": {
-            "sharpe": sharpe(full[BASE], rf),
-            "roi_percent": compounded(full[BASE]) * 100.0,
+            "sharpe": sharpe(full[judged_against], rf),
+            "roi_percent": compounded(full[judged_against]) * 100.0,
         },
         "plateau": {
             "neighbors": config.neighbors,
@@ -527,6 +548,7 @@ def _walk_forward(
     assignments: Sequence[Mapping[str, Any]],
     folds: Sequence[Fold],
     risk_free_apr: float,
+    baseline: str,
 ) -> tuple[list[dict[str, Any]], list[float]]:
     rows: list[dict[str, Any]] = []
     diffs: list[float] = []
@@ -537,8 +559,10 @@ def _walk_forward(
         ]
         chosen = max(range(len(assignments)), key=lambda index: (train[index], -index))
         selected = curves[f"t{chosen}"].returns(*fold.test)
-        reference = curves[BASE].returns(*fold.test)
+        reference = curves[baseline].returns(*fold.test)
         edge = (compounded(selected) - compounded(reference)) * 100.0
+        selected_drawdown = max_drawdown_percent(selected)
+        reference_drawdown = max_drawdown_percent(reference)
         diffs.extend(a - b for a, b in zip(selected, reference, strict=True))
         rows.append(
             {
@@ -553,6 +577,10 @@ def _walk_forward(
                     "reference_roi_percent": compounded(reference) * 100.0,
                     "edge_pp": edge,
                     "win": edge > 0.0,
+                    "selected_max_drawdown_percent": selected_drawdown,
+                    "reference_max_drawdown_percent": reference_drawdown,
+                    # Negative: the selected trial fell further than the reference.
+                    "max_drawdown_pp": selected_drawdown - reference_drawdown,
                 },
             }
         )

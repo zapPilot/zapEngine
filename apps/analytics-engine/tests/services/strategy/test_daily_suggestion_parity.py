@@ -29,18 +29,18 @@ from src.services.backtesting.constants import (
     STRATEGY_DMA_FGI_PORTFOLIO_RULES,
 )
 from src.services.backtesting.lab.synthetic import SyntheticMarket, synthetic_market
+
+# The validation-event histories are the repo's behavioral fixtures: each one
+# is shaped so a specific rule must fire on its last day. Their builders live in
+# the shared support module and are reused rather than copied.
+from src.services.backtesting.validation.event_histories import (
+    synthetic_event_history,
+)
 from src.services.backtesting.validation.event_runner import ValidationEvent
 from src.services.strategy import backtesting_service as backtesting_service_module
 from src.services.strategy.backtesting_service import BacktestingService
 from src.services.strategy.strategy_daily_suggestion_service import (
     StrategyDailySuggestionService,
-)
-
-# The validation-event histories are the repo's behavioral fixtures: each one
-# is shaped so a specific rule must fire on its last day. Their builders live in
-# the shared support module and are reused rather than copied.
-from tests.services.backtesting.support.event_histories import (
-    synthetic_event_history,
 )
 from tests.services.backtesting.support.synthetic_services import (
     SyntheticMarketServices,
