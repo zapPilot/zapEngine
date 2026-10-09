@@ -5,15 +5,15 @@ rather than creating a new record. This mirrors Android, which kept
 `com.fromfedtochain.app` for the same reason
 ([android-release.md](./android-release.md)).
 
-| Setting                    | Value                           |
-| -------------------------- | ------------------------------- |
-| App / launcher name        | `Zap Pilot`                     |
-| iOS bundle identifier      | `com.example.fromFedToChainApp` |
-| App Store Connect app ID   | `6749248542`                    |
-| Apple Team ID              | `LP8CA4MT6U`                    |
-| User-facing version        | `3.0.1`                         |
-| Build number source        | EAS remote, auto-incremented    |
-| Default submission outcome | App Store Connect → TestFlight  |
+| Setting                    | Value                                                   |
+| -------------------------- | ------------------------------------------------------- |
+| App / launcher name        | `Zap Pilot`                                             |
+| iOS bundle identifier      | `com.example.fromFedToChainApp`                         |
+| App Store Connect app ID   | `6749248542`                                            |
+| Apple Team ID              | `LP8CA4MT6U`                                            |
+| User-facing version        | Resolved from ASC each release; committed floor `3.0.1` |
+| Build number source        | EAS remote, auto-incremented                            |
+| Default submission outcome | App Store Connect → TestFlight                          |
 
 The `com.example.` prefix comes from the retired Flutter app lineage and is the
 bundle identifier of the shipped App Store listing. App Store Connect cannot
@@ -35,8 +35,10 @@ an already-approved listing is the supported path.
 TestFlight. It does **not** submit the app for App Store review — that remains a
 deliberate action in App Store Connect.
 
-EAS auto-increments only the internal `buildNumber`. For a user-visible release,
-update `version` in `apps/app/app.config.ts` before building.
+EAS auto-increments only the internal `buildNumber`. The user-visible App Version
+is decided by `scripts/ios-release.mjs` against App Store Connect on every build;
+see [App Version policy](#app-version-policy). Do not edit `version` by hand for
+a release.
 
 ## Version numbering
 
@@ -53,6 +55,62 @@ than the previously approved version.
 carries no ordering constraint — Google Play orders by `versionCode`.
 
 Do not "correct" this back down to a 2.x string.
+
+## App Version policy
+
+The iOS App Version is never committed per release. `ios:release` resolves it
+from App Store Connect (ASC) on each run and pins it into the checkout's
+`app.config.ts` only for the duration of the build.
+
+**Current version** is the highest of: the committed `version` in `app.config.ts`
+(a floor, currently `3.0.1`), every iOS TestFlight train, and every iOS App Store
+version. A version is **open** when its App Store state is one of
+`PREPARE_FOR_SUBMISSION`, `READY_FOR_REVIEW`, `WAITING_FOR_REVIEW`, `IN_REVIEW`,
+`DEVELOPER_REJECTED`, `REJECTED`, `METADATA_REJECTED` or `INVALID_BINARY`. Any
+other state, including one the script does not know, counts as closed.
+
+Choose a policy with the workflow input `ios_version_policy` or
+`--policy <value>`:
+
+| Policy           | Behavior                                                           |
+| ---------------- | ------------------------------------------------------------------ |
+| `auto` (default) | Reuse the current version if it is open, otherwise bump the patch. |
+| `keep`           | Use the current version; fails if Apple has closed it.             |
+| `bump-patch`     | Always use current + one patch.                                    |
+
+Notes:
+
+- Re-runs are idempotent: state comes from Apple, not from EAS build history, so
+  a retry after a failed build resolves the same version.
+- If the resolved version is `IN_REVIEW`, the run prints a warning. Apple may
+  approve it while the build is running, which makes the upload fail with
+  ITMS-90186.
+- After resolving, the script rewrites the literal `version:` line in
+  `app.config.ts` (restored on exit), checks it with `eas config`, builds with
+  `--message`, then verifies the built `appVersion` and that the build number
+  advanced before it writes `build_id`, `app_version` and `build_number` to the
+  workflow outputs.
+- `submit-only` never changes versions; it uploads the exact build ID given.
+- Android is independent: its `versionName` still uses the committed `version`.
+- `version` in `app.config.ts` must stay a plain literal, and `ios.version` must
+  never be added there.
+
+Local runs need these environment variables: `APPLE_API_KEY` (path to the `.p8`
+file), `APPLE_API_KEY_ID` and `APPLE_API_ISSUER`. To see the decision without
+building:
+
+```bash
+pnpm --filter @zapengine/app ios:version:resolve
+```
+
+### One-time setup for CI
+
+1. In App Store Connect → Users and Access → Integrations, create a **Team** API
+   key with the **App Manager** role.
+2. In GitHub, create the environment `ios-release` (optionally restrict
+   deployment branches to `main`) with secrets `APPLE_API_KEY_P8` (the full `.p8`
+   text), `APPLE_API_KEY_ID` and `APPLE_API_ISSUER`. The `build-ios` job exposes
+   them only to the `ios:release` step.
 
 ## App Review notes
 
@@ -138,10 +196,11 @@ App Store Connect has reached build `204` on this record from Flutter build
 `apps/app/release-baselines.json`; it is distinct from the listing's shipped
 version `2.03`.
 
-`ios:release` runs `ios:version:check` as a preflight before starting a new iOS
-build. If the EAS remote build number is below that floor, it fails immediately
-instead of creating another binary that Apple will reject. `ios:version:check`
-remains available as a standalone diagnostic.
+`ios:release` checks that floor before starting a new iOS build. If the EAS
+remote build number is below it, it fails immediately instead of creating another
+binary that Apple will reject. `ios:version:resolve` is the read-only diagnostic.
+`ascBuildNumberFloor` is an immutable historical floor; the App Version is not
+recorded in `release-baselines.json`.
 
 EAS CLI does not expose a supported non-interactive flag for setting the remote
 build number, so initial alignment remains a deliberate one-time operation:
@@ -255,10 +314,10 @@ pnpm --filter @zapengine/app format:check
 pnpm turbo run deadcode dup:check --filter=@zapengine/app
 ```
 
-Create the signed store build (runs the remote version preflight first):
+Create the signed store build (resolves the App Version and checks the build-number floor first):
 
 ```bash
-pnpm --filter @zapengine/app ios:release
+pnpm --filter @zapengine/app ios:release            # --policy auto|keep|bump-patch
 ```
 
 `ios:release` waits for EAS Build and captures the exact build ID returned by that
@@ -296,6 +355,10 @@ is the problem. Any App Store Connect upload performed outside EAS can advance
 the store build number independently, so realign EAS remote versioning before the
 next EAS production build.
 
+`ios:archive` accepts `--policy`, queries App Store Connect only, and pins the
+resolved version into `app.config.ts`. Unlike `ios:release`, it does **not**
+restore the file. After archiving, run `git checkout -- apps/app/app.config.ts`.
+
 ## Failure guide
 
 - **Interactive Apple login requested:** the App Store Connect API key is not on
@@ -312,7 +375,19 @@ next EAS production build.
   profile. Same section; the baseline is updated last, after the profile is
   verified.
 - **`ascAppId` error:** verify `submit.production.ios.ascAppId` in `eas.json`.
-- **`ios:version:check` says EAS is below the ASC floor:** run `ios:version:init`
+- **ASC 401:** the API key credentials do not match or the key was revoked.
+  Check `APPLE_API_KEY_P8`, `APPLE_API_KEY_ID` and `APPLE_API_ISSUER` together.
+- **ASC 403:** the key lacks permission; it needs the App Manager role.
+- **ASC 404:** the key cannot see app `6749248542`; use a Team key for the right
+  team.
+- **ASC unavailable (429, 5xx, network, timeout, non-JSON):** no version decision
+  was made. Re-run later.
+- **`keep` blocked because Apple closed the version:** use `auto` or `bump-patch`.
+- **In-review warning:** the resolved version is `IN_REVIEW`; if Apple approves it
+  during the build, the upload fails with ITMS-90186. Re-run with `bump-patch`.
+- **Version synchronization failed:** `eas config` or the built `appVersion`
+  differs from the resolved version. The build is not handed to submit.
+- **`ios:release` says EAS is below the ASC floor:** run `ios:version:init`
   once and set EAS to at least the highest build already present in App Store
   Connect; do not keep building through the gap.
 - **Build number rejected by Apple despite the preflight:** an out-of-band upload

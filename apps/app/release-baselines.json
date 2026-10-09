@@ -1,9 +1,8 @@
 {
   "ios": {
-    "appVersion": "3.0.1",
     "ascBuildNumberFloor": 204,
     "observedAt": "2026-09-06",
-    "note": "Highest build ever uploaded to the shipped listing (ASC app 6749248542): 204, from the Flutter app. The store's released version string is 2.03, which Apple reads as major 2 minor 3, so the Expo app first released as 3.0.0 to outrank it; 3.0.1 follows because the 3.0.0 train is closed for new builds. The next production build is 205.",
+    "note": "Immutable historical floor: the highest build ever uploaded to the shipped listing (ASC app 6749248542) was 204, from the Flutter app. App versions and later build numbers are read from App Store Connect and EAS at release time.",
     "provisioningProfile": {
       "capabilities": ["com.apple.developer.associated-domains"],
       "observedAt": "2026-09-22",
