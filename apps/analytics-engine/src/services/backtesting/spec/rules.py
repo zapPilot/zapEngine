@@ -32,6 +32,7 @@ from src.services.backtesting.portfolio_rules.fgi_downshift_dca_sell import (
 )
 from src.services.backtesting.portfolio_rules.spy_latch import SpyLatchRule
 from src.services.backtesting.spec.common import (
+    TUNABLE,
     Asset,
     AssetThresholds,
     Holding,
@@ -91,6 +92,7 @@ class DmaCrossUpRebalance(SpecModel):
         ge=0,
         le=365,
         description="Days an asset that triggered the rule cannot trigger it again.",
+        json_schema_extra=TUNABLE,
     )
 
     def to_rule(self, priority: int) -> PortfolioRule:
@@ -139,16 +141,19 @@ class DeviationTierSpec(SpecModel):
         gt=0.0,
         le=10.0,
         description="The tier applies from this distance from the ratio's DMA outwards.",
+        json_schema_extra=TUNABLE,
     )
     rotation_fraction: float = Field(
         gt=0.0,
         le=1.0,
         description="Share of the source leg that moves.",
+        json_schema_extra=TUNABLE,
     )
     cooldown_days: int = Field(
         ge=0,
         le=365,
         description="Days this tier stays off after it trades.",
+        json_schema_extra=TUNABLE,
     )
 
 
@@ -278,6 +283,7 @@ class SpyLatchOverlay(SpecModel):
         ge=1,
         le=90,
         description="Days after the cross-up during which new stable goes to SPY.",
+        json_schema_extra=TUNABLE,
     )
 
     def to_rule(self, priority: int) -> PortfolioRule:

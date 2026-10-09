@@ -17,12 +17,12 @@ A strategy is one JSON document that spells out everything it does: no field has
 | `signals.dma` | object | The 200-day moving-average signal of each asset. |
 | `signals.dma.feature` | `"dma_200"` | Moving average that prices are compared with. |
 | `signals.dma.cross_cooldown_days` | object | Days after a cross during which the opposite cross of the same asset is ignored. |
-| `signals.dma.cross_cooldown_days.SPY` | integer (>= 0, <= 365) | Cooldown for SPY. |
-| `signals.dma.cross_cooldown_days.BTC` | integer (>= 0, <= 365) | Cooldown for BTC. |
-| `signals.dma.cross_cooldown_days.ETH` | integer (>= 0, <= 365) | Cooldown for ETH. |
-| `signals.dma.cross_on_touch` | boolean | Count a price that touches its DMA as a cross. |
+| `signals.dma.cross_cooldown_days.SPY` | integer (>= 0, <= 365) | Cooldown for SPY. *(tunable)* |
+| `signals.dma.cross_cooldown_days.BTC` | integer (>= 0, <= 365) | Cooldown for BTC. *(tunable)* |
+| `signals.dma.cross_cooldown_days.ETH` | integer (>= 0, <= 365) | Cooldown for ETH. *(tunable)* |
+| `signals.dma.cross_on_touch` | boolean | Count a price that touches its DMA as a cross. *(tunable)* |
 | `signals.ratio` | object | The ETH/BTC ratio against its own 200-day moving average. |
-| `signals.ratio.cross_cooldown_days` | integer (>= 0, <= 365) | Days after a ratio rotation during which the next cross is ignored. |
+| `signals.ratio.cross_cooldown_days` | integer (>= 0, <= 365) | Days after a ratio rotation during which the next cross is ignored. *(tunable)* |
 | `execution` | object | How a decision becomes trades. |
 | `execution.mode` | `"full_target"` | A matched rule moves the portfolio to its target in full. |
 
@@ -39,12 +39,12 @@ Fires on a day an asset's price crosses below its 200-day DMA (the signal's cros
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `id` | string `^[a-z][a-z0-9_]{2,47}$` | Name of the rule in decision traces. |
-| `cooldown_days` | integer (>= 0, <= 365) | Days the rule stays off after it trades. |
+| `cooldown_days` | integer (>= 0, <= 365) | Days the rule stays off after it trades. *(tunable)* |
 | `peer_groups` | array of array of `"SPY"` \| `"BTC"` \| `"ETH"` | Assets that leave together when one of them crosses down. An asset in no group leaves alone. |
 | `proceeds` | object | Where the cash from the exits goes. |
 | `proceeds.to` | array of object | Assets that receive a share of the proceeds, in order. |
 | `proceeds.to[].asset` | `"SPY"` \| `"BTC"` \| `"ETH"` | Asset that receives part of the proceeds. |
-| `proceeds.to[].share` | number (> 0.0, <= 1.0) | Fraction of the proceeds that goes to the asset. |
+| `proceeds.to[].share` | number (> 0.0, <= 1.0) | Fraction of the proceeds that goes to the asset. *(tunable)* |
 
 ### `dma_cross_up_rebalance`
 
@@ -55,7 +55,7 @@ Fires on a day an asset crosses above its DMA. The portfolio is re-weighted equa
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `id` | string `^[a-z][a-z0-9_]{2,47}$` | Name of the rule in decision traces. |
-| `cooldown_days` | integer (>= 0, <= 365) | Days an asset that triggered the rule cannot trigger it again. |
+| `cooldown_days` | integer (>= 0, <= 365) | Days an asset that triggered the rule cannot trigger it again. *(tunable)* |
 
 ### `ratio_cross_rotation`
 
@@ -66,7 +66,7 @@ Fires when the ETH/BTC ratio crosses its own 200-day DMA. A cross up sweeps `cro
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `id` | string `^[a-z][a-z0-9_]{2,47}$` | Name of the rule in decision traces. |
-| `cooldown_days` | integer (>= 0, <= 365) | Days the rule stays off after it trades. |
+| `cooldown_days` | integer (>= 0, <= 365) | Days the rule stays off after it trades. *(tunable)* |
 | `cross_up` | object | Move when the ratio crosses above its DMA (ETH is the stronger leg). |
 | `cross_up.sources` | array of `"SPY"` \| `"BTC"` \| `"ETH"` \| `"STABLE"` | Holdings swept into the destination. |
 | `cross_up.destination` | `"SPY"` \| `"BTC"` \| `"ETH"` \| `"STABLE"` | Holding that receives everything. |
@@ -85,9 +85,9 @@ Fires when the ETH/BTC ratio sits far from its DMA, whether or not it just cross
 | `id` | string `^[a-z][a-z0-9_]{2,47}$` | Name of the rule in decision traces. |
 | `tiers` | array of object | Distance bands, strongest first. A stronger move is not blocked by the cooldown of a milder one. |
 | `tiers[].name` | string `^[a-z][a-z0-9_]{2,47}$` | Tier name; it appears in the trade's name. |
-| `tiers[].threshold` | number (> 0.0, <= 10.0) | The tier applies from this distance from the ratio's DMA outwards. |
-| `tiers[].rotation_fraction` | number (> 0.0, <= 1.0) | Share of the source leg that moves. |
-| `tiers[].cooldown_days` | integer (>= 0, <= 365) | Days this tier stays off after it trades. |
+| `tiers[].threshold` | number (> 0.0, <= 10.0) | The tier applies from this distance from the ratio's DMA outwards. *(tunable)* |
+| `tiers[].rotation_fraction` | number (> 0.0, <= 1.0) | Share of the source leg that moves. *(tunable)* |
+| `tiers[].cooldown_days` | integer (>= 0, <= 365) | Days this tier stays off after it trades. *(tunable)* |
 | `below` | object \| null | Move when the ratio is far below its DMA; null turns it off. |
 | `below.source` | `"BTC"` \| `"ETH"` | Holding the rotation sells. |
 | `below.destination` | `"BTC"` \| `"ETH"` | Holding it buys. |
@@ -104,22 +104,22 @@ Fires when an asset above its DMA is further above than its threshold times the 
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `id` | string `^[a-z][a-z0-9_]{2,47}$` | Name of the rule in decision traces. |
-| `cooldown_days` | integer (>= 0, <= 365) | Days the rule stays off after it trades. |
-| `sell_step` | number (> 0.0, <= 1.0) | Share of the portfolio sold per matching asset. |
+| `cooldown_days` | integer (>= 0, <= 365) | Days the rule stays off after it trades. *(tunable)* |
+| `sell_step` | number (> 0.0, <= 1.0) | Share of the portfolio sold per matching asset. *(tunable)* |
 | `thresholds` | object | How far above its DMA an asset may run before it is sold into. |
-| `thresholds.SPY` | number (> 0.0, <= 10.0) | Threshold for SPY. |
-| `thresholds.BTC` | number (> 0.0, <= 10.0) | Threshold for BTC. |
-| `thresholds.ETH` | number (> 0.0, <= 10.0) | Threshold for ETH. |
+| `thresholds.SPY` | number (> 0.0, <= 10.0) | Threshold for SPY. *(tunable)* |
+| `thresholds.BTC` | number (> 0.0, <= 10.0) | Threshold for BTC. *(tunable)* |
+| `thresholds.ETH` | number (> 0.0, <= 10.0) | Threshold for ETH. *(tunable)* |
 | `fgi_multipliers` | object | Multiplies the thresholds by the asset's fear/greed regime. Below 1 the sale starts earlier. |
-| `fgi_multipliers.extreme_fear` | number (>= 0.0, <= 2.0) | Multiplier while the regime is extreme fear. |
-| `fgi_multipliers.fear` | number (>= 0.0, <= 2.0) | Multiplier while the regime is fear. |
-| `fgi_multipliers.neutral` | number (>= 0.0, <= 2.0) | Multiplier while the regime is neutral. |
-| `fgi_multipliers.greed` | number (>= 0.0, <= 2.0) | Multiplier while the regime is greed. |
-| `fgi_multipliers.extreme_greed` | number (>= 0.0, <= 2.0) | Multiplier while the regime is extreme greed. |
+| `fgi_multipliers.extreme_fear` | number (>= 0.0, <= 2.0) | Multiplier while the regime is extreme fear. *(tunable)* |
+| `fgi_multipliers.fear` | number (>= 0.0, <= 2.0) | Multiplier while the regime is fear. *(tunable)* |
+| `fgi_multipliers.neutral` | number (>= 0.0, <= 2.0) | Multiplier while the regime is neutral. *(tunable)* |
+| `fgi_multipliers.greed` | number (>= 0.0, <= 2.0) | Multiplier while the regime is greed. *(tunable)* |
+| `fgi_multipliers.extreme_greed` | number (>= 0.0, <= 2.0) | Multiplier while the regime is extreme greed. *(tunable)* |
 | `proceeds` | object | Where the cash from the sales goes. |
 | `proceeds.to` | array of object | Assets that receive a share of the proceeds, in order. |
 | `proceeds.to[].asset` | `"SPY"` \| `"BTC"` \| `"ETH"` | Asset that receives part of the proceeds. |
-| `proceeds.to[].share` | number (> 0.0, <= 1.0) | Fraction of the proceeds that goes to the asset. |
+| `proceeds.to[].share` | number (> 0.0, <= 1.0) | Fraction of the proceeds that goes to the asset. *(tunable)* |
 
 ### `fgi_downshift_trim`
 
@@ -130,14 +130,14 @@ Fires when an asset's fear/greed regime was in `from_regimes` the day before and
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `id` | string `^[a-z][a-z0-9_]{2,47}$` | Name of the rule in decision traces. |
-| `cooldown_days` | integer (>= 0, <= 365) | Days the rule stays off after it trades. |
-| `sell_step` | number (> 0.0, <= 1.0) | Share of the portfolio sold per matching asset. |
+| `cooldown_days` | integer (>= 0, <= 365) | Days the rule stays off after it trades. *(tunable)* |
+| `sell_step` | number (> 0.0, <= 1.0) | Share of the portfolio sold per matching asset. *(tunable)* |
 | `from_regimes` | array of `"extreme_fear"` \| `"fear"` \| `"neutral"` \| `"greed"` \| `"extreme_greed"` | Regimes the asset was in the day before. |
 | `to_regimes` | array of `"extreme_fear"` \| `"fear"` \| `"neutral"` \| `"greed"` \| `"extreme_greed"` | Regimes the asset is in today. |
 | `proceeds` | object | Where the cash from the sales goes. |
 | `proceeds.to` | array of object | Assets that receive a share of the proceeds, in order. |
 | `proceeds.to[].asset` | `"SPY"` \| `"BTC"` \| `"ETH"` | Asset that receives part of the proceeds. |
-| `proceeds.to[].share` | number (> 0.0, <= 1.0) | Fraction of the proceeds that goes to the asset. |
+| `proceeds.to[].share` | number (> 0.0, <= 1.0) | Fraction of the proceeds that goes to the asset. *(tunable)* |
 
 ## Guards
 
@@ -149,9 +149,9 @@ Holds the portfolio instead of trading when a trade-frequency limit is hit.
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `min_trade_interval_days` | integer (>= 1, <= 365) \| null | Least days between two trades; null for no limit. |
-| `max_trades_7d` | integer (>= 1, <= 365) \| null | Most trades in any 7 days; null for no limit. |
-| `max_trades_30d` | integer (>= 1, <= 365) \| null | Most trades in any 30 days; null for no limit. |
+| `min_trade_interval_days` | integer (>= 1, <= 365) \| null | Least days between two trades; null for no limit. *(tunable)* |
+| `max_trades_7d` | integer (>= 1, <= 365) \| null | Most trades in any 7 days; null for no limit. *(tunable)* |
+| `max_trades_30d` | integer (>= 1, <= 365) \| null | Most trades in any 30 days; null for no limit. *(tunable)* |
 
 ## Overlays
 
@@ -164,4 +164,4 @@ After SPY crosses up, parks fresh stable in SPY for a few days.
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `id` | string `^[a-z][a-z0-9_]{2,47}$` | Name of the overlay in decision traces. |
-| `follow_through_days` | integer (>= 1, <= 90) | Days after the cross-up during which new stable goes to SPY. |
+| `follow_through_days` | integer (>= 1, <= 90) | Days after the cross-up during which new stable goes to SPY. *(tunable)* |

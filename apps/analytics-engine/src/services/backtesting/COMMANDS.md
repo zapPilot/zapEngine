@@ -37,10 +37,11 @@ Validate, hash and lock strategy specs, and export their schema. No secrets are 
 Every command prints one JSON envelope, `{command, ok, exit_code, result, warnings, artifacts}`. For a failed command `result` carries `code`, `message` and `issues`, and each issue points at the fault with a JSON pointer. Exit codes:
 
 - 0: done.
-- 1: a gate failed (a generated artifact or a lock is out of date, or a lock would hide a behavior change).
-- 2: the command does not apply to what it was given, or a usage error.
+- 1: a gate failed (a generated artifact or a lock is out of date, a lock would hide a behavior change, a hard invariant is broken, or `liveness` found a dead parameter).
+- 2: the command does not apply to what it was given, or a usage error (a search space that does not fit the spec, a lineage name that is not a slug).
 - 3: the spec is missing or invalid.
-- 4 and 5: data or coverage is insufficient, and a holdout request was refused. Reserved for the bundle and holdout commands.
+- 4: data or coverage is insufficient (a bundle is missing or corrupt, a sweep has fewer than three walk-forward folds, a history has no days in the window, the ledger is damaged).
+- 5: a holdout request was refused (the lineage is not pinned, has had its look, or lacks 90 new days).
 
 ```bash
 pnpm --filter @zapengine/analytics-engine strategy-lab spec validate reference/dma_fgi
@@ -80,3 +81,26 @@ pnpm --filter @zapengine/analytics-engine strategy-lab bundle synth --scenario s
 `eval`, `ablate` and `diff --bundle` take the assumptions and the window: `--fill-lag 0|1`, `--slippage`, `--stable-apr`, `--capital`, `--start`, `--end`. The defaults are the honest assumptions every published number uses; overrides exist to measure what an assumption costs, never to pick a strategy. A report's `fingerprint` names the spec (`id@version#hash12`), the bundle's content hash, the evaluation settings and the code revision, and `report_hash` is the hash of its canonical JSON: the same inputs on the same revision give the same hash.
 
 A report holds: the metrics the engine itself reports (ROI, drawdown, Sharpe over the stable APR, PnL split into price, yield and cost) plus exposure and turnover; per-rule `matches`, `wins`, `trades`, `shadowed` and `cooldown_skips`; the leave-one-out contribution of every rule, overlay and guard; the invariants with example days (`held_below_dma_days`, `buys_below_dma`, `proceeds_into_downtrend`, `cooldown_blocked_exits`, `stuck_in_stable`, and the hard `weights_valid`); a sparse decision trace; and warnings (synthetic data is not evidence, a window too short for walk-forward). The agent skill `.agents/skills/strategy-lab/SKILL.md` explains how to read it.
+
+### Searching without fooling yourself
+
+`liveness`, `sweep` and `holdout` guard a search of the parameter space. A search is only worth what its guards are worth, so each one refuses rather than flatters. Everything they write is under `.lab/` (git-ignored): runs in `.lab/runs/`, the ledger in `.lab/ledger.jsonl`, holdout pins in `.lab/holdouts/`.
+
+```bash
+pnpm --filter @zapengine/analytics-engine strategy-lab liveness --spec .lab/candidates/my_candidate.json --bundle prod:latest
+pnpm --filter @zapengine/analytics-engine strategy-lab liveness --spec .lab/candidates/my_candidate.json --bundle prod:latest --only /rules[cross_down_exit]
+pnpm --filter @zapengine/analytics-engine strategy-lab sweep --spec .lab/candidates/my_candidate.json --bundle prod:latest --space .lab/spaces/cooldowns.json
+pnpm --filter @zapengine/analytics-engine strategy-lab holdout init --lineage my-lineage --bundle prod:latest
+pnpm --filter @zapengine/analytics-engine strategy-lab holdout status --lineage my-lineage
+pnpm --filter @zapengine/analytics-engine strategy-lab holdout look --lineage my-lineage --spec .lab/candidates/my_candidate.json --bundle prod:latest
+pnpm --filter @zapengine/analytics-engine strategy-lab ledger summary
+pnpm --filter @zapengine/analytics-engine strategy-lab ledger show --kind sweep --limit 5
+```
+
+**`liveness`** perturbs every tunable leaf of a spec (the fields marked `x-tunable` in the schema, listed as _(tunable)_ in `VOCABULARY.md`) down and up, runs each variant over the same bars as the spec and compares the decision traces. Each leaf is `live` (a perturbation changes a decision on a `--bundle` history; `one_sided` when only one direction does), `dormant` (only a stress history shows a difference), `dead` (nothing changes anywhere) or `unprobed` (every perturbation breaks the spec's own rules). Stress histories default to six synthetic stress seeds; `--stress` (repeatable) names others and `--only` (repeatable) limits the probe to pointers starting with a prefix. Any dead leaf exits 1 and is listed in `warnings`; a history with no days in the window exits 4 instead of calling everything dead. Writes `.lab/runs/liveness-<hash>/liveness.json`.
+
+**`sweep`** tries the assignments a search space names and reports how much to believe the best of them. The space file lists `parameters` (a tunable `pointer` with `values`, or `min`, `max` and `steps`) and `sampling` (`grid` over every combination up to 200 points, `random` or `halton` for `trials` points from `seed`). Only the development window is searched; the last 180 days are left for the holdout. Every trial is one continuous causal run, and the walk-forward folds are slices of it: each fold picks its best trial on its training days alone and is judged against the reference on the next 90 days. The result carries the fold table, `fold_win_rate`, `mean_oos_edge_pp`, a seeded block-bootstrap interval of the out-of-sample edge, the plateau retention of the best trial, and its deflated Sharpe ratio, charged for every distinct candidate the ledger holds. Fewer than three folds (about 720 days of complete data) is `insufficient_evidence` and exit 4, never a result. Takes `--fill-lag`, `--slippage`, `--stable-apr` and `--capital`; the window is the bundle's. Writes `.lab/runs/sweep-<id>/sweep.json`.
+
+**`holdout`** keeps one look at data nobody tuned on. `init` pins a lineage (a family of candidates tuned on the same data) at the last day of the bundle and never moves the pin. `status` says whether a look is allowed: it needs 90 days of data after the pin and an unused look. `look` spends the lineage's only look before it computes anything, then evaluates the candidate against `--reference` (default `reference/dma_fgi`) on the days after the pin. A second look, or an early one, exits 5 whatever the candidate. Whether the edge is enough is a promotion decision, not this command's.
+
+**`ledger`** lists what the lab has tried. Every `eval`, `ablate`, `diff --bundle`, `liveness`, sweep trial and holdout step is appended to `.lab/ledger.jsonl`; `summary` counts entries per kind and the distinct specs (by behavior hash) that set the deflated Sharpe's bar, and `show` prints the latest entries. The file is local and append-only: deleting it forgets attempts, so a result that depends on it should state the count in its pull request.

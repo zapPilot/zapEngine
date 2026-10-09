@@ -50,19 +50,22 @@
                   "description": "Cooldown for SPY.",
                   "maximum": 365,
                   "minimum": 0,
-                  "type": "integer"
+                  "type": "integer",
+                  "x-tunable": true
                 },
                 "BTC": {
                   "description": "Cooldown for BTC.",
                   "maximum": 365,
                   "minimum": 0,
-                  "type": "integer"
+                  "type": "integer",
+                  "x-tunable": true
                 },
                 "ETH": {
                   "description": "Cooldown for ETH.",
                   "maximum": 365,
                   "minimum": 0,
-                  "type": "integer"
+                  "type": "integer",
+                  "x-tunable": true
                 }
               },
               "required": [
@@ -74,7 +77,8 @@
             },
             "cross_on_touch": {
               "description": "Count a price that touches its DMA as a cross.",
-              "type": "boolean"
+              "type": "boolean",
+              "x-tunable": true
             }
           },
           "required": [
@@ -92,7 +96,8 @@
               "description": "Days after a ratio rotation during which the next cross is ignored.",
               "maximum": 365,
               "minimum": 0,
-              "type": "integer"
+              "type": "integer",
+              "x-tunable": true
             }
           },
           "required": [
@@ -130,7 +135,8 @@
                 "description": "Days the rule stays off after it trades.",
                 "maximum": 365,
                 "minimum": 0,
-                "type": "integer"
+                "type": "integer",
+                "x-tunable": true
               },
               "peer_groups": {
                 "description": "Assets that leave together when one of them crosses down. An asset in no group leaves alone.",
@@ -169,7 +175,8 @@
                           "description": "Fraction of the proceeds that goes to the asset.",
                           "exclusiveMinimum": 0.0,
                           "maximum": 1.0,
-                          "type": "number"
+                          "type": "number",
+                          "x-tunable": true
                         }
                       },
                       "required": [
@@ -213,7 +220,8 @@
                 "description": "Days an asset that triggered the rule cannot trigger it again.",
                 "maximum": 365,
                 "minimum": 0,
-                "type": "integer"
+                "type": "integer",
+                "x-tunable": true
               }
             },
             "required": [
@@ -240,7 +248,8 @@
                 "description": "Days the rule stays off after it trades.",
                 "maximum": 365,
                 "minimum": 0,
-                "type": "integer"
+                "type": "integer",
+                "x-tunable": true
               },
               "cross_up": {
                 "additionalProperties": false,
@@ -347,19 +356,22 @@
                       "description": "The tier applies from this distance from the ratio's DMA outwards.",
                       "exclusiveMinimum": 0.0,
                       "maximum": 10.0,
-                      "type": "number"
+                      "type": "number",
+                      "x-tunable": true
                     },
                     "rotation_fraction": {
                       "description": "Share of the source leg that moves.",
                       "exclusiveMinimum": 0.0,
                       "maximum": 1.0,
-                      "type": "number"
+                      "type": "number",
+                      "x-tunable": true
                     },
                     "cooldown_days": {
                       "description": "Days this tier stays off after it trades.",
                       "maximum": 365,
                       "minimum": 0,
-                      "type": "integer"
+                      "type": "integer",
+                      "x-tunable": true
                     }
                   },
                   "required": [
@@ -468,13 +480,15 @@
                 "description": "Days the rule stays off after it trades.",
                 "maximum": 365,
                 "minimum": 0,
-                "type": "integer"
+                "type": "integer",
+                "x-tunable": true
               },
               "sell_step": {
                 "description": "Share of the portfolio sold per matching asset.",
                 "exclusiveMinimum": 0.0,
                 "maximum": 1.0,
-                "type": "number"
+                "type": "number",
+                "x-tunable": true
               },
               "thresholds": {
                 "additionalProperties": false,
@@ -484,19 +498,22 @@
                     "description": "Threshold for SPY.",
                     "exclusiveMinimum": 0.0,
                     "maximum": 10.0,
-                    "type": "number"
+                    "type": "number",
+                    "x-tunable": true
                   },
                   "BTC": {
                     "description": "Threshold for BTC.",
                     "exclusiveMinimum": 0.0,
                     "maximum": 10.0,
-                    "type": "number"
+                    "type": "number",
+                    "x-tunable": true
                   },
                   "ETH": {
                     "description": "Threshold for ETH.",
                     "exclusiveMinimum": 0.0,
                     "maximum": 10.0,
-                    "type": "number"
+                    "type": "number",
+                    "x-tunable": true
                   }
                 },
                 "required": [
@@ -514,31 +531,36 @@
                     "description": "Multiplier while the regime is extreme fear.",
                     "maximum": 2.0,
                     "minimum": 0.0,
-                    "type": "number"
+                    "type": "number",
+                    "x-tunable": true
                   },
                   "fear": {
                     "description": "Multiplier while the regime is fear.",
                     "maximum": 2.0,
                     "minimum": 0.0,
-                    "type": "number"
+                    "type": "number",
+                    "x-tunable": true
                   },
                   "neutral": {
                     "description": "Multiplier while the regime is neutral.",
                     "maximum": 2.0,
                     "minimum": 0.0,
-                    "type": "number"
+                    "type": "number",
+                    "x-tunable": true
                   },
                   "greed": {
                     "description": "Multiplier while the regime is greed.",
                     "maximum": 2.0,
                     "minimum": 0.0,
-                    "type": "number"
+                    "type": "number",
+                    "x-tunable": true
                   },
                   "extreme_greed": {
                     "description": "Multiplier while the regime is extreme greed.",
                     "maximum": 2.0,
                     "minimum": 0.0,
-                    "type": "number"
+                    "type": "number",
+                    "x-tunable": true
                   }
                 },
                 "required": [
@@ -572,7 +594,8 @@
                           "description": "Fraction of the proceeds that goes to the asset.",
                           "exclusiveMinimum": 0.0,
                           "maximum": 1.0,
-                          "type": "number"
+                          "type": "number",
+                          "x-tunable": true
                         }
                       },
                       "required": [
@@ -618,13 +641,15 @@
                 "description": "Days the rule stays off after it trades.",
                 "maximum": 365,
                 "minimum": 0,
-                "type": "integer"
+                "type": "integer",
+                "x-tunable": true
               },
               "sell_step": {
                 "description": "Share of the portfolio sold per matching asset.",
                 "exclusiveMinimum": 0.0,
                 "maximum": 1.0,
-                "type": "number"
+                "type": "number",
+                "x-tunable": true
               },
               "from_regimes": {
                 "description": "Regimes the asset was in the day before.",
@@ -678,7 +703,8 @@
                           "description": "Fraction of the proceeds that goes to the asset.",
                           "exclusiveMinimum": 0.0,
                           "maximum": 1.0,
-                          "type": "number"
+                          "type": "number",
+                          "x-tunable": true
                         }
                       },
                       "required": [
@@ -733,7 +759,8 @@
                 "type": "null"
               }
             ],
-            "description": "Least days between two trades; null for no limit."
+            "description": "Least days between two trades; null for no limit.",
+            "x-tunable": true
           },
           "max_trades_7d": {
             "anyOf": [
@@ -746,7 +773,8 @@
                 "type": "null"
               }
             ],
-            "description": "Most trades in any 7 days; null for no limit."
+            "description": "Most trades in any 7 days; null for no limit.",
+            "x-tunable": true
           },
           "max_trades_30d": {
             "anyOf": [
@@ -759,7 +787,8 @@
                 "type": "null"
               }
             ],
-            "description": "Most trades in any 30 days; null for no limit."
+            "description": "Most trades in any 30 days; null for no limit.",
+            "x-tunable": true
           }
         },
         "required": [
@@ -791,7 +820,8 @@
             "description": "Days after the cross-up during which new stable goes to SPY.",
             "maximum": 90,
             "minimum": 1,
-            "type": "integer"
+            "type": "integer",
+            "x-tunable": true
           }
         },
         "required": [

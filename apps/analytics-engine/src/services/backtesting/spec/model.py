@@ -6,7 +6,12 @@ from typing import Literal
 
 from pydantic import Field
 
-from src.services.backtesting.spec.common import AssetCooldowns, Slug, SpecModel
+from src.services.backtesting.spec.common import (
+    TUNABLE,
+    AssetCooldowns,
+    Slug,
+    SpecModel,
+)
 from src.services.backtesting.spec.rules import OverlaySpec, RuleSpec
 
 SPEC_FORMAT = "strategy-spec/1"
@@ -26,6 +31,7 @@ class DmaSignal(SpecModel):
     )
     cross_on_touch: bool = Field(
         description="Count a price that touches its DMA as a cross.",
+        json_schema_extra=TUNABLE,
     )
 
 
@@ -36,6 +42,7 @@ class RatioSignal(SpecModel):
         ge=0,
         le=365,
         description="Days after a ratio rotation during which the next cross is ignored.",
+        json_schema_extra=TUNABLE,
     )
 
 
@@ -57,16 +64,19 @@ class TradeQuotaGuardSpec(SpecModel):
         ge=1,
         le=365,
         description="Least days between two trades; null for no limit.",
+        json_schema_extra=TUNABLE,
     )
     max_trades_7d: int | None = Field(
         ge=1,
         le=365,
         description="Most trades in any 7 days; null for no limit.",
+        json_schema_extra=TUNABLE,
     )
     max_trades_30d: int | None = Field(
         ge=1,
         le=365,
         description="Most trades in any 30 days; null for no limit.",
+        json_schema_extra=TUNABLE,
     )
 
 

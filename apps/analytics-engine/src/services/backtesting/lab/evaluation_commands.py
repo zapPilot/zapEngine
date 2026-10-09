@@ -10,6 +10,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from src.models.backtesting import BacktestAssumptions
+from src.services.backtesting.lab.bundle import Bundle
 from src.services.backtesting.lab.diff import (
     behavior_changed,
     compare_on_bundle,
@@ -29,13 +30,29 @@ from src.services.backtesting.lab.evaluate import (
     evaluate,
     spec_ref,
 )
-from src.services.backtesting.spec import behavior_hash
+from src.services.backtesting.lab.ledger import Ledger
+from src.services.backtesting.lab.report import hash_of, normalize
+from src.services.backtesting.spec import StrategySpec, behavior_hash
 
 REPORT_FILENAME = "report.json"
 SUMMARY_FILENAME = "summary.txt"
 RUN_ID_LENGTH = 16
 SPEC_HELP = "A reference such as reference/dma_fgi, or a path to a .json file."
 BUNDLE_HELP = "name:latest, name:<id>, a bundle path or synthetic:<scenario>."
+
+
+def add_assumption_options(parser: argparse.ArgumentParser) -> None:
+    """The assumptions and capital a run is made under."""
+    parser.add_argument(
+        "--fill-lag", type=int, help="Bars between a decision and its fill: 0 or 1."
+    )
+    parser.add_argument(
+        "--slippage", type=float, help="Loss on every transfer, 0 to 0.05."
+    )
+    parser.add_argument(
+        "--stable-apr", type=float, help="Yield on stablecoins, 0 to 0.5."
+    )
+    parser.add_argument("--capital", type=float, help="Starting capital in USD.")
 
 
 def add_evaluation_options(parser: argparse.ArgumentParser) -> None:
@@ -48,16 +65,7 @@ def add_evaluation_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--end", type=date.fromisoformat, help="Last day (default: the bundle's)."
     )
-    parser.add_argument(
-        "--fill-lag", type=int, help="Bars between a decision and its fill: 0 or 1."
-    )
-    parser.add_argument(
-        "--slippage", type=float, help="Loss on every transfer, 0 to 0.05."
-    )
-    parser.add_argument(
-        "--stable-apr", type=float, help="Yield on stablecoins, 0 to 0.5."
-    )
-    parser.add_argument("--capital", type=float, help="Starting capital in USD.")
+    add_assumption_options(parser)
 
 
 def add_commands(commands: Any) -> None:
@@ -94,30 +102,58 @@ def add_commands(commands: Any) -> None:
     difference.set_defaults(handler=diff_command, command_path=["diff"])
 
 
-def eval_config(args: argparse.Namespace, **overrides: Any) -> EvalConfig:
-    """The evaluation settings the arguments name; unset ones keep the defaults."""
+def assumptions_of(args: argparse.Namespace) -> BacktestAssumptions:
+    """The assumptions the arguments name; unset ones keep the honest defaults."""
     given = {
         "fill_lag_days": args.fill_lag,
         "slippage_rate": args.slippage,
         "stable_apr": args.stable_apr,
     }
     try:
-        assumptions = BacktestAssumptions(
+        return BacktestAssumptions(
             **{key: value for key, value in given.items() if value is not None}
         )
     except ValidationError as error:
         raise CliError(
             EXIT_NOT_APPLICABLE, "invalid_assumptions", error.errors()[0]["msg"]
         ) from error
+
+
+def capital_settings(args: argparse.Namespace) -> dict[str, Any]:
+    """``total_capital`` when the arguments name one; the default otherwise."""
+    return {} if args.capital is None else {"total_capital": args.capital}
+
+
+def eval_config(args: argparse.Namespace, **overrides: Any) -> EvalConfig:
+    """The evaluation settings the arguments name; unset ones keep the defaults."""
     settings: dict[str, Any] = {
-        "assumptions": assumptions,
+        "assumptions": assumptions_of(args),
         "start": args.start,
         "end": args.end,
+        **capital_settings(args),
         **overrides,
     }
-    if args.capital is not None:
-        settings["total_capital"] = args.capital
     return EvalConfig(**settings)
+
+
+def record_evaluation(
+    context: Context,
+    kind: str,
+    spec: StrategySpec,
+    bundle: Bundle,
+    **fields: Any,
+) -> None:
+    """Note an evaluation in the ledger: how many things were tried is a result."""
+    manifest = bundle.manifest
+    Ledger(context.ledger_path).append(
+        kind,
+        spec={"ref": spec_ref(spec), "behavior_hash": behavior_hash(spec)},
+        bundle={
+            "ref": f"{manifest.name}:{manifest.bundle_id}",
+            "content_sha256": manifest.content_sha256,
+        },
+        **fields,
+    )
 
 
 def eval_command(args: argparse.Namespace, context: Context) -> Outcome:
@@ -134,6 +170,14 @@ def eval_command(args: argparse.Namespace, context: Context) -> Outcome:
         json.dumps(report.as_dict(), indent=2, sort_keys=True) + "\n"
     )
     summary_path.write_text("\n".join(summary) + "\n")
+    record_evaluation(
+        context,
+        "eval",
+        spec,
+        bundle,
+        eval_config_hash=report.body["fingerprint"]["eval_config_hash"],
+        report_hash=report.report_hash,
+    )
     body = {key: value for key, value in report.as_dict().items() if key != "trace"}
     hard = [
         item["name"]
@@ -152,6 +196,14 @@ def ablate_command(args: argparse.Namespace, context: Context) -> Outcome:
     _, spec = load_spec_or_fail(args.spec, context)
     bundle = load_bundle_or_fail(args.bundle, context)
     report = evaluate(spec, bundle, eval_config(args, benchmarks=()))
+    record_evaluation(
+        context,
+        "ablate",
+        spec,
+        bundle,
+        eval_config_hash=report.body["fingerprint"]["eval_config_hash"],
+        report_hash=report.report_hash,
+    )
     body = report.body
     return Outcome(
         {
@@ -181,15 +233,26 @@ def diff_command(args: argparse.Namespace, context: Context) -> Outcome:
     }
     if args.bundle is not None:
         bundle = load_bundle_or_fail(args.bundle, context)
-        result["comparison"] = compare_on_bundle(
-            base, candidate, bundle, eval_config(args)
-        )
+        config = eval_config(args)
+        result["comparison"] = compare_on_bundle(base, candidate, bundle, config)
+        for role, spec in (("base", base), ("candidate", candidate)):
+            record_evaluation(
+                context,
+                "compare",
+                spec,
+                bundle,
+                role=role,
+                eval_config_hash=hash_of(normalize(config.as_dict())),
+            )
     return Outcome(result)
 
 
 __all__ = [
+    "SPEC_HELP",
+    "BUNDLE_HELP",
     "add_commands",
     "add_evaluation_options",
     "eval_command",
     "eval_config",
+    "record_evaluation",
 ]

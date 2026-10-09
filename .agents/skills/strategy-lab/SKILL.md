@@ -18,7 +18,7 @@ Do not use it to change what the product recommends today (that is a reviewed ch
 
 1. **Never edit a spec under `src/config/strategies/reference/` in place.** Candidates live in `apps/analytics-engine/.lab/candidates/` (`spec new` puts them there). `.lab/` is git-ignored and nothing in it is committed.
 2. **Synthetic data is not evidence.** `synthetic:` bundles exercise code and pin behavior. A claim about performance needs a recorded production bundle, and the report's `warnings` say so when it does not have one.
-3. **Parse the JSON envelope and the exit code, never the prose.** Every command prints one object `{command, ok, exit_code, result, warnings, artifacts}`. Exit codes: 0 done; 1 a gate failed (stale generated file, drifted or refused lock, a broken hard invariant); 2 the command does not apply to what it was given; 3 the spec is missing or invalid (`result.issues` points at each fault with a JSON pointer); 4 data or coverage is insufficient (a bundle is missing or corrupt).
+3. **Parse the JSON envelope and the exit code, never the prose.** Every command prints one object `{command, ok, exit_code, result, warnings, artifacts}`. Exit codes: 0 done; 1 a gate failed (stale generated file, drifted or refused lock, a broken hard invariant, a dead parameter); 2 the command does not apply to what it was given; 3 the spec is missing or invalid (`result.issues` points at each fault with a JSON pointer); 4 data or coverage is insufficient (a bundle is missing or corrupt, a sweep has fewer than three walk-forward folds, a history has no days in the window); 5 the holdout refuses (no new data yet, or the lineage has had its look).
 4. **Read the data's coverage before trusting a result.** `bundle coverage <ref>` says what the data can support. When it says no holdout and no walk-forward, every number is descriptive.
 5. **Say which bundle and which spec.** A report's `fingerprint` names the spec (`id@version#hash12`), the bundle's content hash, the evaluation settings and the code revision. Quote it.
 
@@ -47,6 +47,63 @@ Read in this order.
 5. **`invariants`.** Each is a count of days with examples. `weights_valid` is hard (a failure is an engine bug and exits 1); the rest are findings: `held_below_dma_days`, `buys_below_dma`, `proceeds_into_downtrend`, `cooldown_blocked_exits`, `stuck_in_stable`. The reference breaks several on purpose or by design; compare a candidate's counts with the reference's on the same bundle.
 6. **`trace`** lists the days money moved, as compact decision-log lines. Use it to explain a number, not to find one.
 
+## Which knobs matter
+
+```bash
+strategy-lab liveness --spec .lab/candidates/wider_cooldown.json --bundle prod:latest
+strategy-lab liveness --spec .lab/candidates/wider_cooldown.json --bundle prod:latest --only /rules[cross_down_exit]
+```
+
+`liveness` perturbs every tunable leaf of the spec (the fields marked _(tunable)_ in `VOCABULARY.md`), down and up, runs each variant over the same bars and compares the decisions day by day. A leaf is `live` when some perturbation changes a decision on a `--bundle` history (`one_sided` when only one direction does: something else masks the other), `dormant` when only the stress histories show a difference (default: six synthetic stress seeds; `--stress` chooses), `dead` when nothing changes anywhere, and `unprobed` when every perturbation breaks the spec's own rules. A dead parameter exits 1: sweeping it searches nothing, so remove it or fix the spec. A dormant one matters only in rare conditions, so a sweep on ordinary history cannot tell its values apart; do not claim a finding about it. `days` says how many days each history ran: a verdict on a short history is a weak one.
+
+## Searching a parameter space
+
+```bash
+strategy-lab sweep --spec .lab/candidates/wider_cooldown.json --bundle prod:latest --space .lab/spaces/cooldowns.json
+```
+
+A space file lists tunable pointers with `values`, or `min`/`max` (and `steps` for a grid), and a `sampling` block:
+
+```json
+{
+  "parameters": [
+    {
+      "pointer": "/rules[cross_down_exit]/cooldown_days",
+      "values": [15, 30, 60]
+    },
+    {
+      "pointer": "/rules[dma_overextension_dca_sell]/sell_step",
+      "min": 0.02,
+      "max": 0.1,
+      "steps": 5
+    }
+  ],
+  "sampling": { "method": "grid", "trials": 50, "seed": 1 }
+}
+```
+
+`grid` is every combination (at most 200); `random` and `halton` draw `trials` points. A pointer that is not a tunable leaf, or a value of the wrong type, exits 2 and lists the valid pointers. The sweep searches only the development window; the last 180 days are left for the holdout. Read the result in this order.
+
+1. **`status`.** `insufficient_evidence` (exit 4) means fewer than three walk-forward folds fit, about 720 days of complete data. The answer is more data, not a looser sweep, and synthetic data does not substitute.
+2. **`folds` and `aggregate`.** Each fold picks its best trial on the training days alone, then is judged against the reference on the next 90 days. `fold_win_rate` and `mean_oos_edge_pp` summarize those out-of-sample blocks; `oos_edge_annualized_pp` is a block-bootstrap interval of the edge, and an interval that includes zero is no evidence of an edge. `distinct_selected` says how stable the choice was: a different winner every fold means the parameter does not matter much.
+3. **`plateau`.** The median score of the best trial's nearest neighbors over its own. Near 1 is a plateau; a small value is a spike that will not survive a small change.
+4. **`deflated_sharpe`.** The probability the best trial's Sharpe beats what luck alone produces among that many candidates. `trials` is the number of distinct specs the ledger holds, so earlier attempts raise the bar. Closer to 1 is better.
+5. **`best`** is the best of a search, chosen in sample. Never quote its ROI as the result.
+
+## The holdout and the ledger
+
+```bash
+strategy-lab holdout init --lineage dma-cooldowns --bundle prod:latest
+strategy-lab holdout status --lineage dma-cooldowns
+strategy-lab holdout look --lineage dma-cooldowns --spec .lab/candidates/wider_cooldown.json --bundle prod:latest
+strategy-lab ledger summary
+strategy-lab ledger show --kind sweep --limit 5
+```
+
+A lineage is a family of candidates tuned on the same data. `holdout init` pins the last day of that data. `holdout look` is allowed once per lineage, and only after at least 90 new days have arrived since the pin; anything else exits 5 and is not retried with a different candidate, because the look belongs to the lineage, not to a candidate. The look is spent before anything is computed. It compares the candidate with `--reference` (default `reference/dma_fgi`) on the days after the pin and says nothing about whether the edge is enough: that is a promotion decision.
+
+The ledger (`.lab/ledger.jsonl`) is append-only and local. It records every `eval`, `ablate`, `diff --bundle`, `liveness`, sweep trial and holdout step, because how many candidates were tried is itself a result: it sets the bar of the deflated Sharpe. Do not delete or edit it, and quote its `distinct_candidates` count when reporting a finding.
+
 ## Tuning
 
-Change one thing per candidate and keep the candidate's `id` descriptive. A change that moves the numbers on one bundle has not been shown to work: no walk-forward, holdout or promotion machinery exists yet, so report differences as observations with the bundle named. Do not tune on a window and then quote that window as proof.
+Change one thing per candidate and keep the candidate's `id` descriptive. Run `liveness` before a sweep, search only live parameters, and report the whole picture: the fold win rate, the interval, the plateau, the deflated Sharpe and how many candidates the ledger holds. A change that moves the numbers on one bundle has not been shown to work, and the best trial of a sweep is a hypothesis; the lineage's single holdout look is the test of it. No promotion gate exists yet, so report differences as observations with the bundle and the ledger count named. Do not tune on a window and then quote that window as proof.

@@ -691,7 +691,10 @@ def test_a_broken_hard_invariant_fails_the_gate_but_still_reports(
 
     from src.services.backtesting.lab import evaluation_commands
 
-    body = {"invariants": [{"name": "weights_valid", "hard": True, "count": 2}]}
+    body = {
+        "fingerprint": {"eval_config_hash": "sha256:" + "b" * 64},
+        "invariants": [{"name": "weights_valid", "hard": True, "count": 2}],
+    }
     fake = SimpleNamespace(
         body=body,
         report_hash="sha256:" + "a" * 64,

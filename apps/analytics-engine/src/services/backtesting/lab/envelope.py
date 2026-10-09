@@ -14,6 +14,7 @@ from src.services.backtesting.lab.bundle import (
     BundleReferenceError,
     load_bundle,
 )
+from src.services.backtesting.lab.ledger import LEDGER_FILENAME
 from src.services.backtesting.spec import StrategySpec, load_spec
 from src.services.backtesting.spec.loader import resolve_spec_path
 from src.services.backtesting.spec.validation import SpecError, SpecIssue
@@ -23,6 +24,7 @@ EXIT_GATE = 1
 EXIT_NOT_APPLICABLE = 2
 EXIT_SPEC = 3
 EXIT_DATA = 4
+EXIT_HOLDOUT = 5
 
 
 @dataclass
@@ -62,6 +64,14 @@ class Context:
     def candidates_dir(self) -> Path:
         return self.lab_dir / "candidates"
 
+    @property
+    def ledger_path(self) -> Path:
+        return self.lab_dir / LEDGER_FILENAME
+
+    @property
+    def holdouts_dir(self) -> Path:
+        return self.lab_dir / "holdouts"
+
 
 def load_spec_or_fail(ref: str, context: Context) -> tuple[Path, StrategySpec]:
     path = resolve_spec_path(ref, context.strategies_dir)
@@ -97,6 +107,7 @@ __all__ = [
     "Context",
     "EXIT_DATA",
     "EXIT_GATE",
+    "EXIT_HOLDOUT",
     "EXIT_NOT_APPLICABLE",
     "EXIT_OK",
     "EXIT_SPEC",

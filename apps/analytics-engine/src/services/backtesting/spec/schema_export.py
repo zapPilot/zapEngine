@@ -198,7 +198,10 @@ def _flatten(
         if not prefix and name in skip:
             continue
         path = f"{prefix}{name}"
-        rows.append((path, _type_label(child), str(child.get("description", ""))))
+        meaning = str(child.get("description", ""))
+        if child.get("x-tunable"):
+            meaning = f"{meaning} *(tunable)*".strip()
+        rows.append((path, _type_label(child), meaning))
         rows.extend(_children(child, path))
     return rows
 

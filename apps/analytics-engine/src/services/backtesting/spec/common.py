@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
@@ -13,11 +13,19 @@ Asset = Literal["SPY", "BTC", "ETH"]
 Holding = Literal["SPY", "BTC", "ETH", "STABLE"]
 Regime = Literal["extreme_fear", "fear", "neutral", "greed", "extreme_greed"]
 Slug = Annotated[str, StringConstraints(pattern=r"^[a-z][a-z0-9_]{2,47}$")]
+# Marks a number or flag that is a behavior knob: sweeps vary it and the liveness
+# check perturbs it. Identity, structure and data preparation are not tunable.
+TUNABLE: dict[str, Any] = {"x-tunable": True}
 # Fields every rule kind shares.
 RuleId = Annotated[Slug, Field(description="Name of the rule in decision traces.")]
 RuleCooldown = Annotated[
     int,
-    Field(ge=0, le=365, description="Days the rule stays off after it trades."),
+    Field(
+        ge=0,
+        le=365,
+        description="Days the rule stays off after it trades.",
+        json_schema_extra=TUNABLE,
+    ),
 ]
 SellStep = Annotated[
     float,
@@ -25,6 +33,7 @@ SellStep = Annotated[
         gt=0.0,
         le=1.0,
         description="Share of the portfolio sold per matching asset.",
+        json_schema_extra=TUNABLE,
     ),
 ]
 
@@ -38,17 +47,47 @@ class SpecModel(BaseModel):
 class AssetCooldowns(SpecModel):
     """One cooldown, in days, per asset."""
 
-    SPY: int = Field(ge=0, le=365, description="Cooldown for SPY.")
-    BTC: int = Field(ge=0, le=365, description="Cooldown for BTC.")
-    ETH: int = Field(ge=0, le=365, description="Cooldown for ETH.")
+    SPY: int = Field(
+        ge=0,
+        le=365,
+        description="Cooldown for SPY.",
+        json_schema_extra=TUNABLE,
+    )
+    BTC: int = Field(
+        ge=0,
+        le=365,
+        description="Cooldown for BTC.",
+        json_schema_extra=TUNABLE,
+    )
+    ETH: int = Field(
+        ge=0,
+        le=365,
+        description="Cooldown for ETH.",
+        json_schema_extra=TUNABLE,
+    )
 
 
 class AssetThresholds(SpecModel):
     """One distance above the 200-day DMA, as a fraction, per asset."""
 
-    SPY: float = Field(gt=0.0, le=10.0, description="Threshold for SPY.")
-    BTC: float = Field(gt=0.0, le=10.0, description="Threshold for BTC.")
-    ETH: float = Field(gt=0.0, le=10.0, description="Threshold for ETH.")
+    SPY: float = Field(
+        gt=0.0,
+        le=10.0,
+        description="Threshold for SPY.",
+        json_schema_extra=TUNABLE,
+    )
+    BTC: float = Field(
+        gt=0.0,
+        le=10.0,
+        description="Threshold for BTC.",
+        json_schema_extra=TUNABLE,
+    )
+    ETH: float = Field(
+        gt=0.0,
+        le=10.0,
+        description="Threshold for ETH.",
+        json_schema_extra=TUNABLE,
+    )
 
 
 class RegimeMultipliers(SpecModel):
@@ -58,26 +97,31 @@ class RegimeMultipliers(SpecModel):
         ge=0.0,
         le=2.0,
         description="Multiplier while the regime is extreme fear.",
+        json_schema_extra=TUNABLE,
     )
     fear: float = Field(
         ge=0.0,
         le=2.0,
         description="Multiplier while the regime is fear.",
+        json_schema_extra=TUNABLE,
     )
     neutral: float = Field(
         ge=0.0,
         le=2.0,
         description="Multiplier while the regime is neutral.",
+        json_schema_extra=TUNABLE,
     )
     greed: float = Field(
         ge=0.0,
         le=2.0,
         description="Multiplier while the regime is greed.",
+        json_schema_extra=TUNABLE,
     )
     extreme_greed: float = Field(
         ge=0.0,
         le=2.0,
         description="Multiplier while the regime is extreme greed.",
+        json_schema_extra=TUNABLE,
     )
 
 
@@ -87,6 +131,7 @@ class ProceedsShare(SpecModel):
         gt=0.0,
         le=1.0,
         description="Fraction of the proceeds that goes to the asset.",
+        json_schema_extra=TUNABLE,
     )
 
 
@@ -114,5 +159,6 @@ __all__ = [
     "RuleId",
     "SellStep",
     "Slug",
+    "TUNABLE",
     "SpecModel",
 ]

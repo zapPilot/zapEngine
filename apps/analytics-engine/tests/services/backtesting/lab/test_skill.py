@@ -48,7 +48,7 @@ def test_every_command_the_skill_shows_parses(skill: str) -> None:
 
 
 def test_the_skill_names_every_exit_code_the_cli_uses(skill: str) -> None:
-    for code in ("0", "1", "2", "3", "4"):
+    for code in ("0", "1", "2", "3", "4", "5"):
         assert re.search(rf"\b{code} ", skill), code
 
 

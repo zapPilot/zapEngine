@@ -25,6 +25,13 @@ The non-default technical-indicator research surface is documented in [TECHNICAL
 
 Use `strategy-lab` (`COMMANDS.md`) and the agent skill `.agents/skills/strategy-lab/SKILL.md` to evaluate a candidate spec: `eval`, `ablate` and `diff` run it on a bundle and report what it did. Candidates live in the git-ignored `.lab/candidates/`; a reference is never edited in place. The numbers come from `execution/compare.py::simulate`, the one simulation path the API uses too; do not add a second.
 
+## Searching a parameter space
+
+- A search is `strategy-lab liveness` (is the knob connected to any decision?), then `sweep` (walk-forward folds with nested selection, a bootstrap interval, plateau retention and a Deflated Sharpe), then one `holdout look` per lineage. Fields a search may move carry `x-tunable` in the spec models; a parameter `liveness` finds dead is removed or fixed, not swept.
+- Fewer than three folds is `insufficient_evidence`, never a result, and synthetic data does not substitute. The best trial of a sweep is chosen in sample and is not a finding.
+- The ledger (`.lab/ledger.jsonl`) counts every candidate tried and sets the bar of the Deflated Sharpe. Never delete or rewrite it to improve a number; a finding that depends on it states its count.
+- A holdout look belongs to the lineage and is spent once, after 90 new days. Do not look to check a candidate, and do not change a candidate after its look and ask again.
+
 ## Lab data
 
 - Production market data never enters the repo. An operator records it into the git-ignored `.lab/bundles/` with `strategy-lab bundle record`, and a bundle is identified by its `content_sha256`; a result that depends on data names the bundle it ran on.
