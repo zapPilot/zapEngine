@@ -75,14 +75,19 @@ async def run(service, resolved, runner, request=None):
 @pytest.mark.asyncio
 async def test_compare_reuses_result_and_defends_against_response_mutation(setup_cache):
     service, _, resolved, runner = setup_cache
+    runner.side_effect = lambda **kwargs: BacktestResponse(
+        strategies={}, timeline=[], window=kwargs["window"]
+    )
 
     first = await run(service, resolved, runner)
-    first.decision_log_path = "caller-mutated"
+    assert first.window is not None
+    first.window = None
     second = await run(service, resolved, runner)
-    second.decision_log_path = "also-mutated"
+    assert second.window is not None
+    second.window = None
     third = await run(service, resolved, runner)
 
-    assert third.decision_log_path is None
+    assert third.window is not None
     assert runner.call_count == 1
     assert service._prepare_market_data.call_count == 3
 
@@ -143,23 +148,6 @@ async def test_compare_entries_expire_after_the_ttl(setup_cache):
         await run(service, resolved, runner)
 
     assert runner.call_count == 2
-
-
-@pytest.mark.asyncio
-async def test_artifact_requests_neither_read_nor_populate_the_cache(setup_cache):
-    service, _, resolved, runner = setup_cache
-    artifact = compare_request().model_copy(update={"emit_decision_log": True})
-
-    for _ in range(2):
-        await run(service, resolved, runner, artifact)
-    assert runner.call_count == 2
-
-    await run(service, resolved, runner)
-    await run(service, resolved, runner)
-    assert runner.call_count == 3
-
-    await run(service, resolved, runner, artifact)
-    assert runner.call_count == 4
 
 
 @pytest.mark.asyncio
@@ -281,10 +269,6 @@ def test_cache_key_ignores_fields_that_cannot_change_the_result(setup_cache):
     assert original == key(compare_request(days=5))
     assert original == key(
         compare_request(start_date=date(2024, 1, 1), end_date=date(2024, 2, 1))
-    )
-    # An output directory only matters when a decision log is written.
-    assert original == key(
-        compare_request().model_copy(update={"decision_log_dir": "/tmp/artifacts"})
     )
 
 

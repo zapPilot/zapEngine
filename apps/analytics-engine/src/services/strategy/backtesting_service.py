@@ -501,21 +501,17 @@ class BacktestingService:
                 config=config,
             )
 
-        if request.emit_decision_log:
-            # Artifact requests must write their own file, even on identical data.
-            response = compute()
-        else:
-            response = self.result_cache.get_or_compute(
-                compare_result_key(
-                    request,
-                    resolved_configs,
-                    prepared.prices,
-                    prepared.sentiments,
-                    window,
-                    config,
-                ),
-                compute,
-            )
+        response = self.result_cache.get_or_compute(
+            compare_result_key(
+                request,
+                resolved_configs,
+                prepared.prices,
+                prepared.sentiments,
+                window,
+                config,
+            ),
+            compute,
+        )
         # The runner doesn't know about freshness — patch it in here so the
         # downstream consumer (frontend) sees a single end-to-end response.
         # `model_copy` is preferred over mutation because BacktestResponse may

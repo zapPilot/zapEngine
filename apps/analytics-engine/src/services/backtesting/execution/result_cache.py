@@ -76,14 +76,11 @@ def compare_result_key(
 ) -> str:
     normalized = request.model_dump(
         mode="json",
-        # Dates are keyed through ``window``, artifact fields never reach a cached
-        # run, and configs are keyed in resolved form below.
+        # Dates are keyed through ``window`` and configs in resolved form below.
         exclude={
             "start_date",
             "end_date",
             "days",
-            "emit_decision_log",
-            "decision_log_dir",
             "configs",
         },
     )
