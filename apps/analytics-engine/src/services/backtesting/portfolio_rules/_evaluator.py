@@ -114,6 +114,7 @@ class RulesEvaluator:
             snapshot,
             risk_guards=self.risk_guards,
             config=self.config,
+            rules=self.rules,
         )
 
     def _apply_post_intent_adjustments(

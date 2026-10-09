@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import pytest
 
-from src.services.backtesting.portfolio_rules.base import PortfolioRuleConfig
+from src.services.backtesting.portfolio_rules.base import (
+    FgiRegime,
+    PortfolioRuleConfig,
+    ProceedsRouting,
+)
 from src.services.backtesting.portfolio_rules.fgi_downshift_dca_sell import (
     FgiDownshiftDcaSellRule,
 )
@@ -70,3 +74,39 @@ def test_downshift_sell_ignores_non_transition_days() -> None:
     )
 
     assert not rule.matches(rule_snapshot, config=PortfolioRuleConfig())
+
+
+def test_the_regimes_of_a_downshift_are_configurable() -> None:
+    rule = FgiDownshiftDcaSellRule(
+        from_regimes=frozenset({FgiRegime.EXTREME_GREED}),
+        to_regimes=frozenset({FgiRegime.GREED}),
+    )
+    from_extreme = snapshot(
+        assets={"BTC": state(symbol="BTC", fgi_regime="greed")},
+        previous={"BTC": "extreme_greed"},
+        crypto_regime="greed",
+    )
+    from_greed = snapshot(
+        assets={"BTC": state(symbol="BTC", fgi_regime="neutral")},
+        previous={"BTC": "greed"},
+        crypto_regime="neutral",
+    )
+
+    assert rule.matches(from_extreme, config=PortfolioRuleConfig())
+    assert not rule.matches(from_greed, config=PortfolioRuleConfig())
+
+
+def test_downshift_proceeds_can_be_routed() -> None:
+    rule = FgiDownshiftDcaSellRule(proceeds=ProceedsRouting(to=(("SPY", 0.5),)))
+    rule_snapshot = snapshot(
+        assets={"BTC": state(symbol="BTC", fgi_regime="neutral")},
+        current={"btc": 0.40, "eth": 0.0, "spy": 0.0, "stable": 0.60, "alt": 0.0},
+        previous={"BTC": "greed"},
+        crypto_regime="neutral",
+    )
+
+    intent = rule.build_intent(rule_snapshot, config=PortfolioRuleConfig())
+
+    assert intent.target_allocation == pytest.approx(
+        {"btc": 0.35, "eth": 0.0, "spy": 0.025, "stable": 0.625, "alt": 0.0}
+    )

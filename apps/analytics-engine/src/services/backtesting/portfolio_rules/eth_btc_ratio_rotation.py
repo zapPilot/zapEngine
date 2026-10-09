@@ -20,6 +20,12 @@ class EthBtcRatioRotationRule:
     cooldown_days: int = 30
     rule_group: RuleGroup = "cross"
     description: str = "Rotate BTC <-> ETH when ETH/BTC ratio crosses its 200-day DMA."
+    # Allocation keys swept into the destination on a cross-up (ETH is the
+    # stronger leg) and on a cross-down. Stable is swept on the way up only.
+    up_sources: tuple[str, ...] = ("btc", "stable")
+    up_destination: str = "eth"
+    down_sources: tuple[str, ...] = ("eth",)
+    down_destination: str = "btc"
 
     def matches(
         self,
@@ -41,17 +47,11 @@ class EthBtcRatioRotationRule:
     ) -> AllocationIntent:
         ratio_state = snapshot.eth_btc_ratio_state
         target = current_target(snapshot)
-        btc = float(target.get("btc", 0.0))
-        eth = float(target.get("eth", 0.0))
-        stable = float(target.get("stable", 0.0))
         if ratio_state is not None and ratio_state.actionable_cross_event == "cross_up":
-            target["eth"] = eth + btc + stable
-            target["btc"] = 0.0
-            target["stable"] = 0.0
+            _sweep(target, self.up_sources, self.up_destination)
             allocation_name = "portfolio_eth_btc_ratio_rotation_to_eth"
         else:
-            target["btc"] = btc + eth
-            target["eth"] = 0.0
+            _sweep(target, self.down_sources, self.down_destination)
             allocation_name = "portfolio_eth_btc_ratio_rotation_to_btc"
         return eth_btc_ratio_rotation_intent(
             snapshot=snapshot,
@@ -59,7 +59,22 @@ class EthBtcRatioRotationRule:
             target=target,
             allocation_name=allocation_name,
             rule_group=self.rule_group,
+            starts_ratio_cooldown=True,
         )
+
+
+def _sweep(
+    target: dict[str, float],
+    sources: tuple[str, ...],
+    destination: str,
+) -> None:
+    """Move everything held in ``sources`` into ``destination``."""
+    total = float(target.get(destination, 0.0))
+    for key in sources:
+        total = total + float(target.get(key, 0.0))
+    for key in sources:
+        target[key] = 0.0
+    target[destination] = total
 
 
 __all__ = ["EthBtcRatioRotationRule"]

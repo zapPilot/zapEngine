@@ -696,9 +696,9 @@ class TestEthBtcRuleGaps:
 
         from src.services.backtesting.portfolio_rules.eth_btc_deviation_dca import (
             EthBtcDeviationDcaRule,
+            _match_for_snapshot,
             _ratio_deviation,
-            _require_tier,
-            _tier_for_snapshot,
+            _require_match,
         )
         from src.services.backtesting.signals.dma_gated_fgi.types import (
             DmaCooldownState,
@@ -706,13 +706,13 @@ class TestEthBtcRuleGaps:
         from src.services.backtesting.signals.ratio_state import EthBtcRatioState
         from tests.services.backtesting.helpers import snapshot
 
-        # Line 111: intent without a matching tier fails closed.
+        # An intent without a matching tier fails closed.
         rule = EthBtcDeviationDcaRule()
         empty = snapshot(eth_btc_ratio_state=None)
         with pytest.raises(ValueError, match="without a match"):
-            _require_tier(empty, rule=rule)
-        # Line 144: symmetric disabled ignores the mirrored side.
-        sym_off = EthBtcDeviationDcaRule(symmetric_enabled=False)
+            _require_match(empty, rule=rule)
+        # Without an upper leg the mirrored side is ignored.
+        sym_off = EthBtcDeviationDcaRule(above=None)
         cooldown = DmaCooldownState(active=False, remaining_days=0, blocked_zone=None)
         bullish = EthBtcRatioState(
             ratio=1.6,
@@ -723,8 +723,8 @@ class TestEthBtcRuleGaps:
             cooldown_state=cooldown,
         )
         sym_snap = snapshot(eth_btc_ratio_state=bullish)
-        assert _tier_for_snapshot(sym_snap, rule=sym_off) is None
-        # Line 194: explicit deviation bypasses ratio math.
+        assert _match_for_snapshot(sym_snap, rule=sym_off) is None
+        # An explicit deviation bypasses the ratio math.
         explicit = EthBtcRatioState(
             ratio=1.0,
             ratio_dma_200=1.0,
@@ -735,7 +735,7 @@ class TestEthBtcRuleGaps:
         )
         object.__setattr__(explicit, "deviation_from_dma_200", -0.7)
         assert _ratio_deviation(explicit) == pytest.approx(-0.7)
-        # Line 196: non-positive DMA base yields no deviation.
+        # A non-positive DMA base yields no deviation.
         flat = EthBtcRatioState(
             ratio=1.0,
             ratio_dma_200=0.0,

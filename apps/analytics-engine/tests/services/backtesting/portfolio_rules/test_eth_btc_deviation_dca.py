@@ -13,6 +13,8 @@ from src.services.backtesting.portfolio_rules.decision_policy import (
     resolve_portfolio_rules_intent,
 )
 from src.services.backtesting.portfolio_rules.eth_btc_deviation_dca import (
+    DeviationLeg,
+    DeviationTier,
     EthBtcDeviationDcaRule,
 )
 from src.services.backtesting.signals.dma_gated_fgi.types import (
@@ -177,4 +179,125 @@ def test_tuned_cooldown_days_by_tier(
             config=PortfolioRuleConfig(),
         )
         == expected_days
+    )
+
+
+def test_the_upper_leg_can_be_turned_off() -> None:
+    rule = EthBtcDeviationDcaRule(above=None)
+    far_above = snapshot(eth_btc_ratio_state=_ratio_state(0.70))
+    far_below = snapshot(eth_btc_ratio_state=_ratio_state(-0.70))
+
+    assert not rule.matches(far_above, config=PortfolioRuleConfig())
+    assert rule.matches(far_below, config=PortfolioRuleConfig())
+
+
+def test_the_lower_leg_can_be_turned_off() -> None:
+    rule = EthBtcDeviationDcaRule(below=None)
+
+    assert not rule.matches(
+        snapshot(eth_btc_ratio_state=_ratio_state(-0.70)),
+        config=PortfolioRuleConfig(),
+    )
+
+
+def test_tiers_and_legs_are_configurable() -> None:
+    rule = EthBtcDeviationDcaRule(
+        tiers=(
+            DeviationTier(
+                name="big", threshold=0.30, rotation_fraction=0.5, cooldown_days=9
+            ),
+        ),
+        below=DeviationLeg(source="eth", destination="btc"),
+        above=None,
+    )
+    rule_snapshot = snapshot(
+        current={"btc": 0.10, "eth": 0.40, "spy": 0.20, "stable": 0.30, "alt": 0.0},
+        eth_btc_ratio_state=_ratio_state(-0.35),
+    )
+
+    intent = rule.build_intent(rule_snapshot, config=PortfolioRuleConfig())
+
+    assert intent.allocation_name == "portfolio_eth_btc_deviation_big_to_btc"
+    assert intent.target_allocation["eth"] == pytest.approx(0.20)
+    assert intent.target_allocation["btc"] == pytest.approx(0.30)
+    assert intent.diagnostics is not None
+    assert intent.diagnostics["portfolio_rule_tier"] == "big"
+    assert (
+        rule.cooldown_days_for_snapshot(rule_snapshot, config=PortfolioRuleConfig())
+        == 9
+    )
+
+
+def test_a_milder_tier_applies_between_thresholds() -> None:
+    rule = EthBtcDeviationDcaRule()
+
+    in_the_gap = snapshot(eth_btc_ratio_state=_ratio_state(-0.64))
+
+    assert (
+        rule.cooldown_days_for_snapshot(in_the_gap, config=PortfolioRuleConfig()) == 14
+    )
+
+
+def test_the_deviation_rotation_does_not_start_the_ratio_cooldown() -> None:
+    intent = EthBtcDeviationDcaRule().build_intent(
+        snapshot(eth_btc_ratio_state=_ratio_state(-0.55)),
+        config=PortfolioRuleConfig(),
+    )
+
+    assert intent.diagnostics is not None
+    assert "starts_ratio_cooldown" not in intent.diagnostics
+
+
+def test_a_rule_reports_the_shortest_tier_cooldown_as_its_own() -> None:
+    assert EthBtcDeviationDcaRule().cooldown_days == 14
+
+
+def test_asking_for_an_intent_without_a_match_is_an_error() -> None:
+    with pytest.raises(ValueError, match="without a match"):
+        EthBtcDeviationDcaRule().build_intent(
+            snapshot(eth_btc_ratio_state=_ratio_state(0.10)),
+            config=PortfolioRuleConfig(),
+        )
+
+
+@pytest.mark.parametrize(
+    ("tiers", "message"),
+    [
+        ((), "positive thresholds"),
+        (
+            (DeviationTier("a", 0.0, 0.5, 1),),
+            "positive thresholds",
+        ),
+        (
+            (DeviationTier("a", 0.5, 0.5, 1), DeviationTier("b", 0.6, 0.5, 1)),
+            "strongest first",
+        ),
+        (
+            (DeviationTier("a", 0.5, 0.5, 1), DeviationTier("b", 0.5, 0.5, 1)),
+            "strongest first",
+        ),
+    ],
+)
+def test_tiers_must_be_positive_and_strongest_first(
+    tiers: tuple[DeviationTier, ...],
+    message: str,
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        EthBtcDeviationDcaRule(tiers=tiers)
+
+
+def test_a_ratio_without_a_dma_has_no_deviation() -> None:
+    state = _ratio_state(0.0)
+    broken = EthBtcRatioState(
+        ratio=state.ratio,
+        ratio_dma_200=0.0,
+        zone=state.zone,
+        cross_event=None,
+        actionable_cross_event=None,
+        cooldown_state=state.cooldown_state,
+    )
+
+    assert not EthBtcDeviationDcaRule().matches(
+        snapshot(eth_btc_ratio_state=broken),
+        config=PortfolioRuleConfig(),
     )

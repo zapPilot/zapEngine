@@ -9,21 +9,14 @@ from src.services.backtesting.portfolio_rules.base import (
     DIAG_PORTFOLIO_RULE_TRIGGER_ASSETS,
     PortfolioRuleConfig,
     PortfolioSnapshot,
-    add_stable,
+    ProceedsRouting,
     allocation_key_for_symbol,
-    cross_down_cooldown_days_for,
     current_target,
     portfolio_target_intent,
     signals_consulted_for_symbols,
     symbols_for_snapshot,
 )
 from src.services.backtesting.target_allocation import normalize_target_allocation
-
-_ASSET_CLASS_PEERS: dict[str, tuple[str, ...]] = {
-    "BTC": ("BTC", "ETH"),
-    "ETH": ("BTC", "ETH"),
-    "SPY": ("SPY",),
-}
 
 
 @dataclass(frozen=True)
@@ -34,16 +27,9 @@ class CrossDownExitRule:
     rule_group: RuleGroup = "cross"
     description: str = "Exit any asset that crosses below DMA; proceeds remain stable."
     applicable_symbols: frozenset[str] | None = None
-    cross_down_cooldown_days_per_symbol: dict[str, int] = field(
-        default_factory=lambda: {"BTC": 30, "ETH": 30, "SPY": 14}
-    )
-
-    def cooldown_days_for(self, symbol: str) -> int:
-        return cross_down_cooldown_days_for(
-            symbol,
-            per_symbol=self.cross_down_cooldown_days_per_symbol,
-            default=self.cooldown_days,
-        )
+    # Assets that exit together when any one of them crosses down.
+    peer_groups: tuple[tuple[str, ...], ...] = (("SPY",), ("BTC", "ETH"))
+    proceeds: ProceedsRouting = field(default_factory=ProceedsRouting)
 
     def matches(
         self,
@@ -68,7 +54,7 @@ class CrossDownExitRule:
             key = allocation_key_for_symbol(symbol)
             released = max(0.0, float(target.get(key, 0.0)))
             target[key] = 0.0
-            add_stable(target, released)
+            self.proceeds.apply(target, released)
             if released > 0.0:
                 liquidated_symbols.append(symbol)
         intent = portfolio_target_intent(
@@ -117,12 +103,19 @@ def _exit_symbols_for_cross_down(
 ) -> list[str]:
     exit_symbols: list[str] = []
     for symbol in symbols:
-        for peer in _ASSET_CLASS_PEERS.get(symbol, (symbol,)):
+        for peer in _peers_of(symbol, rule=rule):
             if not _is_applicable_symbol(rule, peer):
                 continue
             if peer not in exit_symbols:
                 exit_symbols.append(peer)
     return exit_symbols
+
+
+def _peers_of(symbol: str, *, rule: CrossDownExitRule) -> tuple[str, ...]:
+    for group in rule.peer_groups:
+        if symbol in group:
+            return group
+    return (symbol,)
 
 
 def _is_applicable_symbol(rule: CrossDownExitRule, symbol: str) -> bool:

@@ -27,6 +27,7 @@ from src.services.backtesting.features import (
 )
 from src.services.backtesting.portfolio_rules.base import (
     DIAG_PORTFOLIO_RULE_TRIGGER_ASSETS,
+    DIAG_STARTS_RATIO_COOLDOWN,
 )
 from src.services.backtesting.signals.contracts import StatefulSignalComponent
 from src.services.backtesting.signals.dma_gated_fgi.component import (
@@ -50,8 +51,6 @@ from src.services.backtesting.target_allocation import (
     normalize_target_allocation,
     target_from_current_allocation,
 )
-
-_RATIO_ROTATION_ALLOCATION_PREFIX = "portfolio_eth_btc_ratio_rotation_"
 
 
 @dataclass(frozen=True)
@@ -218,7 +217,7 @@ class FlatMinimumSignalComponent(StatefulSignalComponent):
             btc_dma_state=committed["btc"],
             eth_dma_state=committed["eth"],
         )
-        if ratio_state is not None and _is_ratio_rotation_intent(intent):
+        if ratio_state is not None and _starts_ratio_cooldown(intent):
             self._start_ratio_cooldown(ratio_state.cross_event)
             updated_snapshot = replace(
                 updated_snapshot,
@@ -539,11 +538,8 @@ def _hold_commit_intent(intent: AllocationIntent) -> AllocationIntent:
     )
 
 
-def _is_ratio_rotation_intent(intent: AllocationIntent) -> bool:
-    allocation_name = intent.allocation_name
-    if not isinstance(allocation_name, str):
-        return False
-    return allocation_name.startswith(_RATIO_ROTATION_ALLOCATION_PREFIX)
+def _starts_ratio_cooldown(intent: AllocationIntent) -> bool:
+    return (intent.diagnostics or {}).get(DIAG_STARTS_RATIO_COOLDOWN) is True
 
 
 def _select_observation_state(

@@ -20,17 +20,18 @@ from src.services.backtesting.execution.rule_based.allocation_executor import (
 )
 from src.services.backtesting.portfolio_rules import (
     DEFAULT_PORTFOLIO_RULE_NAMES,
-    DEFAULT_PORTFOLIO_RULES,
 )
 from src.services.backtesting.portfolio_rules import (
     RULE_NAMES as PORTFOLIO_RULE_NAMES,
 )
 from src.services.backtesting.portfolio_rules.base import (
-    PORTFOLIO_RULE_SYMBOLS,
     PortfolioRule,
     PortfolioRuleConfig,
 )
-from src.services.backtesting.portfolio_rules.cross_down_exit import CrossDownExitRule
+from src.services.backtesting.portfolio_rules.components import (
+    PortfolioRuleComponents,
+    SignalSettings,
+)
 from src.services.backtesting.portfolio_rules.decision_policy import (
     PORTFOLIO_RULES_SIGNAL_ID,
     RuleBasedPortfolioDecisionPolicy,
@@ -38,8 +39,6 @@ from src.services.backtesting.portfolio_rules.decision_policy import (
     active_rules,
     build_portfolio_rules_for_params,
     build_risk_guards_for_params,
-    fresh_portfolio_rule,
-    required_rule,
 )
 from src.services.backtesting.portfolio_rules.eth_btc_ratio_rotation import (
     EthBtcRatioRotationRule,
@@ -188,10 +187,12 @@ class RuleBasedPortfolioStrategy(BaseStrategy):
 
     Each day the signal component observes the three DMA signals, the first
     matching rule decides a target allocation, and the executor applies it in
-    full on the same bar.
+    full on the same bar. ``components`` carries the built rules, guards and
+    signal settings; without it they come from ``params``.
     """
 
     total_capital: float
+    components: PortfolioRuleComponents | None = None
     signal_component: FlatMinimumSignalComponent = field(init=False, repr=False)
     decision_policy: RuleBasedPortfolioDecisionPolicy = field(
         init=False,
@@ -219,54 +220,60 @@ class RuleBasedPortfolioStrategy(BaseStrategy):
             if isinstance(self.params, DmaGatedFgiParams)
             else DmaGatedFgiParams.from_public_params(self.params)
         )
-        self.disabled_rules = frozenset(
-            {*self.disabled_rules, *resolved_params.disabled_rules}
-        )
-        self.enabled_rules = (
-            self.enabled_rules
-            if self.enabled_rules is not None
-            else resolved_params.enabled_rules
-        )
-        if self.enabled_rules is None:
-            self.enabled_rules = DEFAULT_PORTFOLIO_RULE_NAMES
         self.params = resolved_params
+        derived_from_params = self.components is None
+        components = self._resolve_components(resolved_params)
+        self.components = components
+        self.disabled_rules = components.disabled_rules
+        self.enabled_rules = components.enabled_rules
         self.execution_engine = RuleBasedAllocationExecutor()
-        rules = build_portfolio_rules_for_params(
-            resolved_params,
-            include_inactive=True,
-        )
         self.decision_policy = RuleBasedPortfolioDecisionPolicy(
-            rules=rules,
-            disabled_rules=self.disabled_rules,
-            enabled_rules=self.enabled_rules,
-            risk_guards=build_risk_guards_for_params(resolved_params),
+            rules=components.rules,
+            disabled_rules=components.disabled_rules,
+            enabled_rules=components.enabled_rules,
+            risk_guards=components.risk_guards,
             config=PortfolioRuleConfig(emit_signals_consulted=True),
             execution_state_provider=lambda: RuleExecutionState(
                 last_trade_date=self.execution_engine.last_trade_date,
                 trade_dates=tuple(self.execution_engine.trade_dates),
             ),
         )
-        metadata_rules = tuple(
-            fresh_portfolio_rule(rule) for rule in DEFAULT_PORTFOLIO_RULES
-        )
-        cross_down_rule = required_rule(metadata_rules, CrossDownExitRule)
-        ratio_rule = required_rule(metadata_rules, EthBtcRatioRotationRule)
-        self.signal_component = FlatMinimumSignalComponent(
-            config=DmaGatedFgiConfig(),
+        self.signal_component = build_signal_component(
+            components.signals,
             signal_id=self.signal_id,
-            ratio_cross_cooldown_days=ratio_rule.cooldown_days,
-            cross_down_cooldown_days_by_symbol={
-                symbol: cross_down_rule.cooldown_days_for(symbol)
-                for symbol in PORTFOLIO_RULE_SYMBOLS
-            },
         )
-        self.public_params = {
-            "signal_id": self.signal_id,
-            **runtime_params_to_public_params(
-                STRATEGY_DMA_FGI_PORTFOLIO_RULES,
-                resolved_params.to_public_params(),
+        self.public_params = {"signal_id": self.signal_id}
+        if derived_from_params:
+            self.public_params.update(
+                runtime_params_to_public_params(
+                    STRATEGY_DMA_FGI_PORTFOLIO_RULES,
+                    resolved_params.to_public_params(),
+                )
+            )
+
+    def _resolve_components(
+        self,
+        params: DmaGatedFgiParams,
+    ) -> PortfolioRuleComponents:
+        if self.components is not None:
+            if self.disabled_rules or self.enabled_rules is not None:
+                raise ValueError(
+                    "Pass rule filters through the components, not the strategy"
+                )
+            return self.components
+        enabled_rules = (
+            self.enabled_rules
+            if self.enabled_rules is not None
+            else params.enabled_rules
+        )
+        return PortfolioRuleComponents(
+            rules=build_portfolio_rules_for_params(params, include_inactive=True),
+            risk_guards=build_risk_guards_for_params(params),
+            disabled_rules=frozenset({*self.disabled_rules, *params.disabled_rules}),
+            enabled_rules=(
+                DEFAULT_PORTFOLIO_RULE_NAMES if enabled_rules is None else enabled_rules
             ),
-        }
+        )
 
     def initialize(
         self,
@@ -396,6 +403,20 @@ class RuleBasedPortfolioStrategy(BaseStrategy):
         }
 
 
+def build_signal_component(
+    settings: SignalSettings,
+    *,
+    signal_id: str,
+) -> FlatMinimumSignalComponent:
+    return FlatMinimumSignalComponent(
+        config=DmaGatedFgiConfig(cross_on_touch=settings.cross_on_touch),
+        signal_id=signal_id,
+        ratio_cross_cooldown_days=settings.ratio_cross_cooldown_days,
+        warmup_lookback_days=settings.warmup_days,
+        cross_down_cooldown_days_by_symbol=settings.dma_cross_cooldown_days,
+    )
+
+
 def default_rule_based_portfolio_params() -> dict[str, JsonValue]:
     return DmaGatedFgiParams().to_public_params()
 
@@ -404,5 +425,6 @@ __all__ = [
     "DMA_GATED_FGI_PUBLIC_PARAM_KEYS",
     "RuleBasedPortfolioStrategy",
     "DmaGatedFgiParams",
+    "build_signal_component",
     "default_rule_based_portfolio_params",
 ]

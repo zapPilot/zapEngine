@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from itertools import pairwise
 from typing import Any
 
 from src.services.backtesting.decision import AllocationIntent, RuleGroup
@@ -19,21 +20,80 @@ CooldownKey = str | tuple[str, str]
 
 
 @dataclass(frozen=True)
+class DeviationTier:
+    """One band of the ratio's distance from its 200-day DMA."""
+
+    name: str
+    # The tier applies from this absolute deviation outwards.
+    threshold: float
+    # Share of the source leg that moves to the destination.
+    rotation_fraction: float
+    cooldown_days: int
+
+
+@dataclass(frozen=True)
+class DeviationLeg:
+    """Which allocation key moves into which when a tier is hit."""
+
+    source: str
+    destination: str
+
+
+@dataclass(frozen=True)
+class _TierMatch:
+    deviation: float
+    tier: DeviationTier
+    leg: DeviationLeg
+
+    @property
+    def cooldown_suffix(self) -> str:
+        return f"{self.tier.name}_to_{self.leg.destination}"
+
+    @property
+    def allocation_name(self) -> str:
+        return f"portfolio_eth_btc_deviation_{self.cooldown_suffix}"
+
+
+@dataclass(frozen=True)
 class EthBtcDeviationDcaRule:
     name: str = "eth_btc_deviation_dca"
     priority: int = 22
-    cooldown_days: int = 7
     rule_group: RuleGroup = "cross"
     description: str = (
         "Mean-revert BTC/ETH allocation when ETH/BTC ratio is far from its 200-day DMA."
     )
-    dca_deviation_threshold: float = 0.50
-    large_deviation_threshold: float = 0.65
-    dca_rotation_fraction: float = 0.25
-    large_rotation_fraction: float = 0.75
-    dca_cooldown_days: int = 14
-    large_cooldown_days: int = 60
-    symmetric_enabled: bool = True
+    # Strongest tier first; each tier has its own cooldown, so a mild move that
+    # just fired does not block a stronger one.
+    tiers: tuple[DeviationTier, ...] = (
+        DeviationTier(
+            name="large",
+            threshold=0.65,
+            rotation_fraction=0.75,
+            cooldown_days=60,
+        ),
+        DeviationTier(
+            name="dca",
+            threshold=0.50,
+            rotation_fraction=0.25,
+            cooldown_days=14,
+        ),
+    )
+    # Ratio far below its DMA: ETH is cheap against BTC, so BTC moves into ETH.
+    below: DeviationLeg | None = DeviationLeg(source="btc", destination="eth")
+    # Ratio far above its DMA: the mirror image. ``None`` turns the leg off.
+    above: DeviationLeg | None = DeviationLeg(source="eth", destination="btc")
+
+    def __post_init__(self) -> None:
+        thresholds = [tier.threshold for tier in self.tiers]
+        if not thresholds or thresholds[-1] <= 0.0:
+            raise ValueError("Deviation tiers need positive thresholds")
+        if any(stronger <= weaker for stronger, weaker in pairwise(thresholds)):
+            raise ValueError("Deviation tiers must be ordered strongest first")
+
+    @property
+    def cooldown_days(self) -> int:
+        """The shortest wait before the rule can fire again (tiers override it)."""
+        return min(tier.cooldown_days for tier in self.tiers)
 
     def matches(
         self,
@@ -42,7 +102,7 @@ class EthBtcDeviationDcaRule:
         config: PortfolioRuleConfig,
     ) -> bool:
         del config
-        return _tier_for_snapshot(snapshot, rule=self) is not None
+        return _match_for_snapshot(snapshot, rule=self) is not None
 
     def cooldown_key(
         self,
@@ -51,8 +111,7 @@ class EthBtcDeviationDcaRule:
         config: PortfolioRuleConfig,
     ) -> CooldownKey:
         del config
-        tier = _require_tier(snapshot, rule=self)
-        return (self.name, tier["cooldown_suffix"])
+        return (self.name, _require_match(snapshot, rule=self).cooldown_suffix)
 
     def cooldown_days_for_snapshot(
         self,
@@ -61,12 +120,7 @@ class EthBtcDeviationDcaRule:
         config: PortfolioRuleConfig,
     ) -> int:
         del config
-        tier = _require_tier(snapshot, rule=self)
-        return (
-            self.large_cooldown_days
-            if tier["tier"] == "large"
-            else self.dca_cooldown_days
-        )
+        return _require_match(snapshot, rule=self).tier.cooldown_days
 
     def build_intent(
         self,
@@ -74,12 +128,13 @@ class EthBtcDeviationDcaRule:
         *,
         config: PortfolioRuleConfig,
     ) -> AllocationIntent:
-        tier = _require_tier(snapshot, rule=self)
+        match = _require_match(snapshot, rule=self)
         target = current_target(snapshot)
-        source_key = str(tier["source_key"])
-        destination_key = str(tier["destination_key"])
-        rotation_fraction = float(tier["rotation_fraction"])
-        rotated = max(0.0, float(target.get(source_key, 0.0))) * rotation_fraction
+        source_key = match.leg.source
+        destination_key = match.leg.destination
+        rotated = (
+            max(0.0, float(target.get(source_key, 0.0))) * match.tier.rotation_fraction
+        )
         target[source_key] = max(0.0, float(target.get(source_key, 0.0)) - rotated)
         target[destination_key] = (
             max(0.0, float(target.get(destination_key, 0.0))) + rotated
@@ -88,102 +143,46 @@ class EthBtcDeviationDcaRule:
             snapshot=snapshot,
             config=config,
             target=target,
-            allocation_name=str(tier["allocation_name"]),
+            allocation_name=match.allocation_name,
             rule_group=self.rule_group,
+            starts_ratio_cooldown=False,
         )
-        diagnostics = dict(intent.diagnostics or {})
+        diagnostics: dict[str, Any] = dict(intent.diagnostics or {})
         diagnostics[DIAG_PORTFOLIO_RULE_COOLDOWN_KEY] = [
             self.name,
-            str(tier["cooldown_suffix"]),
+            match.cooldown_suffix,
         ]
-        diagnostics["eth_btc_ratio_deviation"] = tier["deviation"]
-        diagnostics["portfolio_rule_tier"] = tier["tier"]
+        diagnostics["eth_btc_ratio_deviation"] = match.deviation
+        diagnostics["portfolio_rule_tier"] = match.tier.name
         return replace(intent, diagnostics=diagnostics)
 
 
-def _require_tier(
+def _require_match(
     snapshot: PortfolioSnapshot,
     *,
     rule: EthBtcDeviationDcaRule,
-) -> dict[str, Any]:
-    tier = _tier_for_snapshot(snapshot, rule=rule)
-    if tier is None:
+) -> _TierMatch:
+    match = _match_for_snapshot(snapshot, rule=rule)
+    if match is None:
         raise ValueError("ETH/BTC deviation DCA intent requested without a match")
-    return tier
+    return match
 
 
-def _tier_for_snapshot(
+def _match_for_snapshot(
     snapshot: PortfolioSnapshot,
     *,
     rule: EthBtcDeviationDcaRule,
-) -> dict[str, Any] | None:
+) -> _TierMatch | None:
     deviation = _ratio_deviation(snapshot.eth_btc_ratio_state)
     if deviation is None:
         return None
-    if deviation <= -rule.large_deviation_threshold:
-        return _tier(
-            deviation=deviation,
-            tier="large",
-            source_key="btc",
-            destination_key="eth",
-            rotation_fraction=rule.large_rotation_fraction,
-            allocation_name="portfolio_eth_btc_deviation_large_to_eth",
-            cooldown_suffix="large_to_eth",
-        )
-    if -rule.large_deviation_threshold < deviation <= -rule.dca_deviation_threshold:
-        return _tier(
-            deviation=deviation,
-            tier="dca",
-            source_key="btc",
-            destination_key="eth",
-            rotation_fraction=rule.dca_rotation_fraction,
-            allocation_name="portfolio_eth_btc_deviation_dca_to_eth",
-            cooldown_suffix="dca_to_eth",
-        )
-    if not rule.symmetric_enabled:
-        return None
-    if deviation >= rule.large_deviation_threshold:
-        return _tier(
-            deviation=deviation,
-            tier="large",
-            source_key="eth",
-            destination_key="btc",
-            rotation_fraction=rule.large_rotation_fraction,
-            allocation_name="portfolio_eth_btc_deviation_large_to_btc",
-            cooldown_suffix="large_to_btc",
-        )
-    if rule.dca_deviation_threshold <= deviation < rule.large_deviation_threshold:
-        return _tier(
-            deviation=deviation,
-            tier="dca",
-            source_key="eth",
-            destination_key="btc",
-            rotation_fraction=rule.dca_rotation_fraction,
-            allocation_name="portfolio_eth_btc_deviation_dca_to_btc",
-            cooldown_suffix="dca_to_btc",
-        )
+    for leg, magnitude in ((rule.below, -deviation), (rule.above, deviation)):
+        if leg is None:
+            continue
+        for tier in rule.tiers:
+            if magnitude >= tier.threshold:
+                return _TierMatch(deviation=deviation, tier=tier, leg=leg)
     return None
-
-
-def _tier(
-    *,
-    deviation: float,
-    tier: str,
-    source_key: str,
-    destination_key: str,
-    rotation_fraction: float,
-    allocation_name: str,
-    cooldown_suffix: str,
-) -> dict[str, Any]:
-    return {
-        "deviation": deviation,
-        "tier": tier,
-        "source_key": source_key,
-        "destination_key": destination_key,
-        "rotation_fraction": rotation_fraction,
-        "allocation_name": allocation_name,
-        "cooldown_suffix": cooldown_suffix,
-    }
 
 
 def _ratio_deviation(ratio_state: EthBtcRatioState | None) -> float | None:
@@ -197,4 +196,4 @@ def _ratio_deviation(ratio_state: EthBtcRatioState | None) -> float | None:
     return (ratio_state.ratio - ratio_state.ratio_dma_200) / ratio_state.ratio_dma_200
 
 
-__all__ = ["EthBtcDeviationDcaRule"]
+__all__ = ["DeviationLeg", "DeviationTier", "EthBtcDeviationDcaRule"]

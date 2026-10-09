@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import pytest
 
-from src.services.backtesting.portfolio_rules.base import PortfolioRuleConfig
+from src.services.backtesting.portfolio_rules.base import (
+    PortfolioRuleConfig,
+    ProceedsRouting,
+)
 from src.services.backtesting.portfolio_rules.cross_down_exit import CrossDownExitRule
 from tests.services.backtesting.portfolio_rules.helpers import snapshot, state
 
@@ -182,3 +185,71 @@ def test_cross_down_exit_does_not_fire_when_actionable_cross_is_suppressed() -> 
     )
 
     assert rule.matches(rule_snapshot, config=PortfolioRuleConfig()) is False
+
+
+def test_peer_groups_decide_who_leaves_together() -> None:
+    rule = CrossDownExitRule(peer_groups=(("SPY", "BTC", "ETH"),))
+    rule_snapshot = snapshot(
+        assets={
+            "SPY": state(
+                symbol="SPY",
+                cross_event="cross_down",
+                actionable_cross_event="cross_down",
+            ),
+            "BTC": state(symbol="BTC"),
+            "ETH": state(symbol="ETH"),
+        },
+        current={"btc": 0.30, "eth": 0.30, "spy": 0.30, "stable": 0.10, "alt": 0.0},
+    )
+
+    intent = rule.build_intent(rule_snapshot, config=PortfolioRuleConfig())
+
+    assert intent.target_allocation == pytest.approx(
+        {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0, "alt": 0.0}
+    )
+    assert intent.diagnostics is not None
+    assert intent.diagnostics["portfolio_rule_exit_assets"] == ["SPY", "BTC", "ETH"]
+
+
+def test_an_asset_in_no_peer_group_leaves_alone() -> None:
+    rule = CrossDownExitRule(peer_groups=())
+    rule_snapshot = snapshot(
+        assets={
+            "SPY": state(symbol="SPY"),
+            "BTC": state(
+                symbol="BTC",
+                cross_event="cross_down",
+                actionable_cross_event="cross_down",
+            ),
+            "ETH": state(symbol="ETH"),
+        },
+        current={"btc": 0.40, "eth": 0.30, "spy": 0.20, "stable": 0.10, "alt": 0.0},
+    )
+
+    intent = rule.build_intent(rule_snapshot, config=PortfolioRuleConfig())
+
+    assert intent.target_allocation == pytest.approx(
+        {"btc": 0.0, "eth": 0.30, "spy": 0.20, "stable": 0.50, "alt": 0.0}
+    )
+
+
+def test_proceeds_can_be_routed_instead_of_kept_in_stable() -> None:
+    rule = CrossDownExitRule(proceeds=ProceedsRouting(to=(("SPY", 0.5),)))
+    rule_snapshot = snapshot(
+        assets={
+            "SPY": state(symbol="SPY"),
+            "BTC": state(
+                symbol="BTC",
+                cross_event="cross_down",
+                actionable_cross_event="cross_down",
+            ),
+            "ETH": state(symbol="ETH"),
+        },
+        current={"btc": 0.40, "eth": 0.30, "spy": 0.20, "stable": 0.10, "alt": 0.0},
+    )
+
+    intent = rule.build_intent(rule_snapshot, config=PortfolioRuleConfig())
+
+    assert intent.target_allocation == pytest.approx(
+        {"btc": 0.0, "eth": 0.0, "spy": 0.55, "stable": 0.45, "alt": 0.0}
+    )

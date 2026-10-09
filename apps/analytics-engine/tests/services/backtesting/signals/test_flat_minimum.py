@@ -318,3 +318,79 @@ def test_forced_cross_events_ignore_invalid_entries() -> None:
 
     assert _forced_cross_events(intent) == {"BTC": "cross_down"}
     assert _coerce_optional_float("not-a-number") is None
+
+
+def _observed_ratio_cross_up(component: FlatMinimumSignalComponent) -> FlatMinimumState:
+    portfolio = Portfolio.from_asset_allocation(
+        10_000.0,
+        {"btc": 0.30, "eth": 0.10, "spy": 0.30, "stable": 0.30},
+        {"btc": 100.0, "eth": 100.0, "spy": 100.0},
+    )
+    before = _context(
+        context_date=date(2025, 1, 1), portfolio=portfolio, ratio=0.05, ratio_dma=0.06
+    )
+    after = _context(
+        context_date=date(2025, 1, 2), portfolio=portfolio, ratio=0.07, ratio_dma=0.06
+    )
+    component.initialize(before)
+    component.warmup(before)
+    return component.observe(after)
+
+
+def _ratio_move(
+    *,
+    allocation_name: str,
+    diagnostics: dict[str, object] | None,
+) -> AllocationIntent:
+    return AllocationIntent(
+        action="sell",
+        target_allocation={"eth": 1.0},
+        allocation_name=allocation_name,
+        immediate=True,
+        reason=allocation_name,
+        rule_group="cross",
+        decision_score=0.0,
+        diagnostics=diagnostics,
+    )
+
+
+def test_an_intent_that_starts_the_ratio_cooldown_blocks_the_next_ratio_cross() -> None:
+    component = FlatMinimumSignalComponent(ratio_cross_cooldown_days=5)
+    observed = _observed_ratio_cross_up(component)
+
+    committed = component.apply_intent(
+        current_date=date(2025, 1, 2),
+        snapshot=observed,
+        intent=_ratio_move(
+            allocation_name="any_name_at_all",
+            diagnostics={"starts_ratio_cooldown": True},
+        ),
+    )
+
+    assert committed.eth_btc_ratio_state is not None
+    assert committed.eth_btc_ratio_state.cooldown_state.active is True
+    assert committed.eth_btc_ratio_state.cooldown_state.blocked_zone == "above"
+    assert committed.eth_btc_ratio_state.cooldown_state.remaining_days == 5
+
+
+@pytest.mark.parametrize(
+    "diagnostics",
+    [None, {}, {"starts_ratio_cooldown": False}, {"starts_ratio_cooldown": "yes"}],
+)
+def test_a_ratio_named_intent_without_the_marker_does_not_start_the_cooldown(
+    diagnostics: dict[str, object] | None,
+) -> None:
+    component = FlatMinimumSignalComponent(ratio_cross_cooldown_days=5)
+    observed = _observed_ratio_cross_up(component)
+
+    committed = component.apply_intent(
+        current_date=date(2025, 1, 2),
+        snapshot=observed,
+        intent=_ratio_move(
+            allocation_name="portfolio_eth_btc_ratio_rotation_to_eth",
+            diagnostics=diagnostics,
+        ),
+    )
+
+    assert committed.eth_btc_ratio_state is not None
+    assert committed.eth_btc_ratio_state.cooldown_state.active is False

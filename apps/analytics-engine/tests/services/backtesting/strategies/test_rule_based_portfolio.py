@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import date, timedelta
 from unittest.mock import Mock
 
@@ -18,6 +19,12 @@ from src.services.backtesting.features import (
     ETH_BTC_RATIO_FEATURE,
     ETH_DMA_200_FEATURE,
     SPY_DMA_200_FEATURE,
+)
+from src.services.backtesting.portfolio_rules import DEFAULT_PORTFOLIO_RULES
+from src.services.backtesting.portfolio_rules.base import FgiRegime
+from src.services.backtesting.portfolio_rules.components import (
+    PortfolioRuleComponents,
+    SignalSettings,
 )
 from src.services.backtesting.portfolio_rules.cross_up_equal_weight import (
     CrossUpEqualWeightRule,
@@ -70,8 +77,8 @@ def test_strategy_params_wire_overextension_multipliers_into_rule() -> None:
         if isinstance(rule, DmaOverextensionDcaSellRule)
     )
 
-    assert overextension_rule.overextension_threshold_multiplier_greed == 0.67
-    assert overextension_rule.overextension_threshold_multiplier_extreme_greed == 0.50
+    assert overextension_rule.fgi_threshold_multipliers[FgiRegime.GREED] == 0.67
+    assert overextension_rule.fgi_threshold_multipliers[FgiRegime.EXTREME_GREED] == 0.50
 
 
 def test_strategy_feature_summary_reflects_default_active_rules() -> None:
@@ -1130,3 +1137,72 @@ def _step_signal(
         intent=intent,
     )
     return snapshot
+
+
+def test_the_default_strategy_signals_use_the_documented_cooldowns() -> None:
+    signal = RuleBasedPortfolioStrategy(total_capital=10_000.0).signal_component
+
+    assert signal.cross_down_cooldown_days_by_symbol == {
+        "SPY": 14,
+        "BTC": 30,
+        "ETH": 30,
+    }
+    assert signal.ratio_cross_cooldown_days == 30
+    assert signal.warmup_lookback_days == 14
+    assert signal.config.cross_on_touch is True
+
+
+def test_explicit_components_replace_the_params_derived_ones() -> None:
+    components = PortfolioRuleComponents(rules=DEFAULT_PORTFOLIO_RULES[:3])
+
+    strategy = RuleBasedPortfolioStrategy(total_capital=10_000.0, components=components)
+
+    assert strategy.components is components
+    assert strategy.decision_policy.rules == components.rules
+    assert strategy.disabled_rules == frozenset()
+    assert strategy.enabled_rules is None
+    assert strategy.public_params == {"signal_id": strategy.signal_id}
+    assert strategy.parameters()["enabled_rules"] is None
+    assert strategy.feature_summary()["active_features"] == [
+        "portfolio_level_rules",
+        *(rule.name for rule in components.rules),
+    ]
+
+
+def test_explicit_components_decide_the_signal_settings() -> None:
+    components = replace(
+        PortfolioRuleComponents(rules=DEFAULT_PORTFOLIO_RULES),
+        signals=SignalSettings(
+            warmup_days=20,
+            cross_on_touch=False,
+            dma_cross_cooldown_days={"SPY": 3, "BTC": 4, "ETH": 5},
+            ratio_cross_cooldown_days=6,
+        ),
+    )
+
+    signal = RuleBasedPortfolioStrategy(
+        total_capital=10_000.0, components=components
+    ).signal_component
+
+    assert signal.warmup_lookback_days == 20
+    assert signal.config.cross_on_touch is False
+    assert signal.cross_down_cooldown_days_by_symbol == {"SPY": 3, "BTC": 4, "ETH": 5}
+    assert signal.ratio_cross_cooldown_days == 6
+
+
+@pytest.mark.parametrize(
+    "filters",
+    [
+        {"disabled_rules": frozenset({"cross_down_exit"})},
+        {"enabled_rules": frozenset()},
+    ],
+)
+def test_rule_filters_belong_to_the_components(filters: dict[str, object]) -> None:
+    components = PortfolioRuleComponents(rules=DEFAULT_PORTFOLIO_RULES)
+
+    with pytest.raises(ValueError, match="through the components"):
+        RuleBasedPortfolioStrategy(
+            total_capital=10_000.0,
+            components=components,
+            **filters,  # type: ignore[arg-type]
+        )

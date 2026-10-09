@@ -19,7 +19,9 @@ from src.services.backtesting.decision import (
     RuleGroup,
 )
 from src.services.backtesting.portfolio_rules.base import (
+    DIAG_MATCHED_RULE_NAME,
     DIAG_SIGNALS_CONSULTED,
+    FgiRegime,
     PortfolioRule,
     PortfolioRuleConfig,
     PortfolioSnapshot,
@@ -379,14 +381,29 @@ def test_rule_trace_marks_lower_priority_matches_as_shadowed_by_winner() -> None
     intent = resolve_portfolio_rules_intent(
         snapshot(),
         rules=_as_rules(
-            _FakeRule(name="cross_down_exit"),
-            _FakeRule(name="cross_up_equal_weight"),
+            _FakeRule(name="cross_down_exit", priority=10),
+            _FakeRule(name="cross_up_equal_weight", priority=20),
         ),
     )
 
     assert intent.diagnostics is not None
     trace = intent.diagnostics["portfolio_rule_matches"]
     assert trace[1]["suppressed_by"] == "cross_down_exit"
+
+
+def test_shadowing_follows_the_priorities_of_the_rules_evaluated() -> None:
+    """A rule named like a default rule gets no priority from the registry."""
+    intent = resolve_portfolio_rules_intent(
+        snapshot(),
+        rules=_as_rules(
+            _FakeRule(name="cross_up_equal_weight", priority=5),
+            _FakeRule(name="cross_down_exit", priority=9),
+        ),
+    )
+
+    assert intent.diagnostics is not None
+    trace = intent.diagnostics["portfolio_rule_matches"]
+    assert [row["suppressed_by"] for row in trace] == [None, "cross_up_equal_weight"]
 
 
 def test_hold_intent_emits_signals_consulted_when_enabled() -> None:
@@ -782,8 +799,8 @@ def test_build_portfolio_rules_applies_public_params_and_include_inactive() -> N
     overextension_rule = next(
         rule for rule in all_rules if rule.name == "dma_overextension_dca_sell"
     )
-    assert overextension_rule.overextension_threshold_multiplier_greed == 0.67
-    assert overextension_rule.overextension_threshold_multiplier_extreme_greed == 0.50
+    assert overextension_rule.fgi_threshold_multipliers[FgiRegime.GREED] == 0.67
+    assert overextension_rule.fgi_threshold_multipliers[FgiRegime.EXTREME_GREED] == 0.50
     assert "spy_latch" in [rule.name for rule in all_rules]
 
 
@@ -826,7 +843,26 @@ def test_matched_rule_priority_returns_none_without_matched_rule_diagnostic() ->
                 rule_group="none",
                 decision_score=0.0,
                 diagnostics=None,
-            )
+            ),
+            _as_rules(_FakeRule(name="alpha", priority=7)),
         )
         is None
     )
+
+
+def test_matched_rule_priority_reads_the_priority_of_the_named_rule() -> None:
+    intent = AllocationIntent(
+        action="buy",
+        target_allocation=None,
+        allocation_name=None,
+        immediate=False,
+        reason="alpha",
+        rule_group="none",
+        decision_score=0.0,
+        diagnostics={DIAG_MATCHED_RULE_NAME: "alpha"},
+    )
+
+    rules = _as_rules(_FakeRule(name="alpha", priority=7))
+
+    assert _matched_rule_priority(intent, rules) == 7
+    assert _matched_rule_priority(intent, ()) is None

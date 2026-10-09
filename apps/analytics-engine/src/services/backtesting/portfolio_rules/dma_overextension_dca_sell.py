@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
 from src.services.backtesting.decision import RuleGroup
@@ -10,8 +10,9 @@ from src.services.backtesting.portfolio_rules.base import (
     DcaSellRuleBase,
     FgiRegime,
     PortfolioSnapshot,
+    ProceedsRouting,
+    ProceedsRoutingMixin,
     above_dma_symbols,
-    add_split_proceeds,
     current_fgi_regime_for_symbol,
     normalize_symbol,
 )
@@ -22,7 +23,7 @@ if TYPE_CHECKING:
 
 
 @dataclass(frozen=True)
-class DmaOverextensionDcaSellRule(DcaSellRuleBase):
+class DmaOverextensionDcaSellRule(ProceedsRoutingMixin, DcaSellRuleBase):
     name: str = "dma_overextension_dca_sell"
     priority: int = 30
     cooldown_days: int = 7
@@ -32,13 +33,22 @@ class DmaOverextensionDcaSellRule(DcaSellRuleBase):
     reason: str = "portfolio_dma_overextension_dca_sell"
     sell_step: float = 0.05
     sizing: SizingStrategy = field(default_factory=FlatSizing)
-    spy_share: float = 0.5
-    default_dma_overextension_threshold: float = 0.30
+    # Half of the proceeds buy SPY, the rest stays in stable.
+    proceeds: ProceedsRouting = ProceedsRouting(to=(("SPY", 0.5),))
+    # How far above its DMA each asset may run before it is sold into.
     dma_overextension_thresholds: dict[str, float] = field(
         default_factory=lambda: {"BTC": 0.20, "ETH": 0.50, "SPY": 0.10}
     )
-    overextension_threshold_multiplier_greed: float = 0.50
-    overextension_threshold_multiplier_extreme_greed: float = 0.33
+    # The threshold shrinks in greed, so the sale starts earlier at the top.
+    fgi_threshold_multipliers: dict[FgiRegime, float] = field(
+        default_factory=lambda: {
+            FgiRegime.EXTREME_FEAR: 1.0,
+            FgiRegime.FEAR: 1.0,
+            FgiRegime.NEUTRAL: 1.0,
+            FgiRegime.GREED: 0.50,
+            FgiRegime.EXTREME_GREED: 0.33,
+        }
+    )
 
     @classmethod
     def public_params_section(cls) -> str | None:
@@ -46,13 +56,16 @@ class DmaOverextensionDcaSellRule(DcaSellRuleBase):
 
     @classmethod
     def with_public_params(cls, section: Any) -> DmaOverextensionDcaSellRule:
-        return cls(
-            overextension_threshold_multiplier_greed=(
-                section.overextension_threshold_multiplier_greed
-            ),
-            overextension_threshold_multiplier_extreme_greed=(
-                section.overextension_threshold_multiplier_extreme_greed
-            ),
+        default = cls()
+        return replace(
+            default,
+            fgi_threshold_multipliers={
+                **default.fgi_threshold_multipliers,
+                FgiRegime.GREED: section.overextension_threshold_multiplier_greed,
+                FgiRegime.EXTREME_GREED: (
+                    section.overextension_threshold_multiplier_extreme_greed
+                ),
+            },
         )
 
     def _matching_symbols(self, snapshot: PortfolioSnapshot) -> list[str]:
@@ -63,13 +76,6 @@ class DmaOverextensionDcaSellRule(DcaSellRuleBase):
             > _threshold(symbol, rule=self, snapshot=snapshot)
         ]
 
-    def proceeds_handler(self, target: dict[str, float], sold: float) -> None:
-        add_split_proceeds(
-            target,
-            sold,
-            spy_share=self.spy_share,
-        )
-
 
 def _threshold(
     symbol: str,
@@ -77,18 +83,11 @@ def _threshold(
     rule: DmaOverextensionDcaSellRule,
     snapshot: PortfolioSnapshot,
 ) -> float:
-    base = float(
-        rule.dma_overextension_thresholds.get(
-            normalize_symbol(symbol),
-            rule.default_dma_overextension_threshold,
-        )
-    )
+    base = float(rule.dma_overextension_thresholds[normalize_symbol(symbol)])
     regime = current_fgi_regime_for_symbol(snapshot, symbol)
-    if regime == FgiRegime.EXTREME_GREED:
-        return base * rule.overextension_threshold_multiplier_extreme_greed
-    if regime == FgiRegime.GREED:
-        return base * rule.overextension_threshold_multiplier_greed
-    return base
+    if regime is None:
+        return base
+    return base * rule.fgi_threshold_multipliers[regime]
 
 
 __all__ = ["DmaOverextensionDcaSellRule"]

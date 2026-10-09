@@ -16,19 +16,18 @@ from src.services.backtesting.portfolio_rules.base import (
     FgiRegime,
     PortfolioRuleConfig,
     PortfolioSnapshot,
+    ProceedsRouting,
     _DcaRuleBase,
     add_split_proceeds,
     add_stable,
     allocation_key_for_symbol,
     build_dca_buy_intent,
-    cross_down_cooldown_days_for,
     current_fgi_regime_for_symbol,
     normalize_regime,
     ratio_signals_consulted,
     rule_cooldown_remaining_days,
     signals_consulted_for_symbols,
 )
-from src.services.backtesting.portfolio_rules.cross_down_exit import CrossDownExitRule
 from src.services.backtesting.risk import TradeQuotaGuard
 from src.services.backtesting.signals.ratio_state import EthBtcRatioState
 from tests.services.backtesting.portfolio_rules.helpers import snapshot, state
@@ -129,49 +128,6 @@ def test_portfolio_rule_config_only_contains_cross_cutting_diagnostics_flag() ->
     assert [field.name for field in fields(PortfolioRuleConfig)] == [
         "emit_signals_consulted"
     ]
-
-
-def test_cross_down_cooldown_default_map() -> None:
-    rule = CrossDownExitRule()
-
-    assert rule.cooldown_days_for("BTC") == 30
-    assert rule.cooldown_days_for("ETH") == 30
-    assert rule.cooldown_days_for("SPY") == 14
-
-
-def test_cross_down_cooldown_unknown_symbol_falls_back_to_default() -> None:
-    rule = CrossDownExitRule()
-
-    assert rule.cooldown_days_for("DOGE") == 30
-
-
-def test_cross_down_cooldown_normalizes_symbol_case() -> None:
-    rule = CrossDownExitRule()
-
-    assert rule.cooldown_days_for("spy") == 14
-    assert rule.cooldown_days_for(" btc ") == 30
-
-
-def test_cross_down_cooldown_custom_override() -> None:
-    rule = CrossDownExitRule(
-        cross_down_cooldown_days_per_symbol={"SPY": 14, "BTC": 21},
-        cooldown_days=10,
-    )
-
-    assert rule.cooldown_days_for("SPY") == 14
-    assert rule.cooldown_days_for("BTC") == 21
-    assert rule.cooldown_days_for("ETH") == 10
-
-
-def test_cross_down_cooldown_helper_accepts_rule_local_values() -> None:
-    assert (
-        cross_down_cooldown_days_for(
-            "spy",
-            per_symbol={"SPY": 14},
-            default=30,
-        )
-        == 14
-    )
 
 
 def test_allocation_key_for_symbol_rejects_unknown_asset() -> None:
@@ -317,3 +273,32 @@ def test_dca_rule_base_abstract_hooks_raise_when_not_implemented() -> None:
         DcaSellRuleBase().proceeds_handler({}, 0.10)
     with pytest.raises(NotImplementedError):
         _DcaRuleBase().build_intent(snapshot(), config=PortfolioRuleConfig())
+
+
+def test_proceeds_routing_sends_shares_to_assets_and_the_rest_to_stable() -> None:
+    target = {"spy": 0.10, "btc": 0.20, "stable": 0.30}
+
+    ProceedsRouting(to=(("SPY", 0.5), ("BTC", 0.25))).apply(target, 0.08)
+
+    assert target == pytest.approx({"spy": 0.14, "btc": 0.22, "stable": 0.32})
+
+
+def test_proceeds_routing_with_no_destinations_keeps_everything_in_stable() -> None:
+    target = {"stable": 0.30}
+
+    ProceedsRouting().apply(target, 0.08)
+
+    assert target == pytest.approx({"stable": 0.38})
+
+
+def test_proceeds_routing_ignores_an_empty_sale() -> None:
+    target = {"spy": 0.10}
+
+    ProceedsRouting(to=(("SPY", 0.5),)).apply(target, 0.0)
+
+    assert target == {"spy": 0.10}
+
+
+def test_proceeds_routing_rejects_an_unknown_asset() -> None:
+    with pytest.raises(ValueError, match="Unsupported portfolio rule asset"):
+        ProceedsRouting(to=(("DOGE", 0.5),)).apply({}, 0.10)

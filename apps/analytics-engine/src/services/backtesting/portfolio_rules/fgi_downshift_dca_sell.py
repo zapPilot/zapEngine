@@ -10,7 +10,8 @@ from src.services.backtesting.portfolio_rules.base import (
     DcaSellRuleBase,
     FgiRegime,
     PortfolioSnapshot,
-    add_stable,
+    ProceedsRouting,
+    ProceedsRoutingMixin,
     current_fgi_regime_for_symbol,
     normalize_regime,
     symbols_for_snapshot,
@@ -20,14 +21,9 @@ from src.services.backtesting.sizing.flat import FlatSizing
 if TYPE_CHECKING:
     from src.services.backtesting.sizing.base import SizingStrategy
 
-_GREED_REGIMES = frozenset({FgiRegime.GREED, FgiRegime.EXTREME_GREED})
-_DEFENSIVE_REGIMES = frozenset(
-    {FgiRegime.NEUTRAL, FgiRegime.FEAR, FgiRegime.EXTREME_FEAR}
-)
-
 
 @dataclass(frozen=True)
-class FgiDownshiftDcaSellRule(DcaSellRuleBase):
+class FgiDownshiftDcaSellRule(ProceedsRoutingMixin, DcaSellRuleBase):
     name: str = "fgi_downshift_dca_sell"
     priority: int = 50
     cooldown_days: int = 7
@@ -37,27 +33,33 @@ class FgiDownshiftDcaSellRule(DcaSellRuleBase):
     reason: str = "portfolio_fgi_downshift_dca_sell"
     sell_step: float = 0.05
     sizing: SizingStrategy = field(default_factory=FlatSizing)
+    # A downshift is the previous regime being in ``from_regimes`` and the
+    # current one in ``to_regimes``.
+    from_regimes: frozenset[FgiRegime] = frozenset(
+        {FgiRegime.GREED, FgiRegime.EXTREME_GREED}
+    )
+    to_regimes: frozenset[FgiRegime] = frozenset(
+        {FgiRegime.NEUTRAL, FgiRegime.FEAR, FgiRegime.EXTREME_FEAR}
+    )
+    proceeds: ProceedsRouting = ProceedsRouting()
 
     def _matching_symbols(self, snapshot: PortfolioSnapshot) -> list[str]:
         return [
             symbol
             for symbol in symbols_for_snapshot(snapshot)
-            if _is_downshift(
+            if self._is_downshift(
                 previous=normalize_regime(snapshot.previous_fgi_regime.get(symbol)),
                 current=current_fgi_regime_for_symbol(snapshot, symbol),
             )
         ]
 
-    def proceeds_handler(self, target: dict[str, float], sold: float) -> None:
-        add_stable(target, sold)
-
-
-def _is_downshift(
-    *,
-    previous: FgiRegime | None,
-    current: FgiRegime | None,
-) -> bool:
-    return previous in _GREED_REGIMES and current in _DEFENSIVE_REGIMES
+    def _is_downshift(
+        self,
+        *,
+        previous: FgiRegime | None,
+        current: FgiRegime | None,
+    ) -> bool:
+        return previous in self.from_regimes and current in self.to_regimes
 
 
 __all__ = ["FgiDownshiftDcaSellRule"]
