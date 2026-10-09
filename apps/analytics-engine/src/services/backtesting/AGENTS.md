@@ -21,6 +21,12 @@ The non-default technical-indicator research surface is documented in [TECHNICAL
 - Array order in `rules` is precedence. Nothing is defaulted, so a spec states everything the strategy does. A new rule kind, or a new knob on a kind, is Python in `spec/rules.py` and the rule class, with the generated artifacts regenerated in the same change.
 - References (`reference/*.json`) are pinned in `LOCK.json` by version and behavior hash. A behavior change needs a new `version` and `pnpm strategy-lab spec lock <ref>`; the lock refuses to hide a change. A reference compiles to the same rule objects as the Python defaults and must reproduce the default strategy day by day (`tests/services/backtesting/spec/test_reference_parity.py`).
 
+## Lab data
+
+- Production market data never enters the repo. An operator records it into the git-ignored `.lab/bundles/` with `strategy-lab bundle record`, and a bundle is identified by its `content_sha256`; a result that depends on data names the bundle it ran on.
+- Synthetic bundles exercise code and pin behavior. They are not evidence about how a strategy performs on real markets.
+- Do not assume history exists: read a bundle's coverage first (`strategy-lab bundle coverage`). It says what the data can support, including when it cannot support a holdout.
+
 ## One strategy path
 
 - The live daily suggestion is the last bar of `BacktestingService.replay_model`, which runs the saved config through the same compare path as the API and the published snapshot, over the same `MODEL_WINDOW_DAYS` window. A user's holdings only decide how far they are from that bar's target (`plan_transfers_to_target`).

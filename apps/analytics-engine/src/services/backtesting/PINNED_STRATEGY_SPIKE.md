@@ -36,9 +36,12 @@ agents' edits as described in the handoff. No commit or GitHub write was attempt
   state; Python winners drive selected/forced masks, including other rules.
   Only an executed cross_down_exit updates the rule cooldown date. DMA state is
   checked after observation, warmup, and commit against Python debug state.
-- `record_market_history.py`: capture prepared compare inputs before the engine,
-  including warmup, market features and sentiments; deterministic gzip JSONL;
-  collision check; reject overwrite/out-of-directory output. No snapshot writer.
+- `history.py`: loads the recorded production history, a strategy-lab bundle
+  (`prod:latest`, recorded by an operator with `strategy-lab bundle record`; see
+  `COMMANDS.md`), and refuses prices the codec would conflate. The prepared
+  compare inputs, warmup included, live in the bundle: deterministic gzip JSONL
+  with a manifest and a content hash. Nothing is committed; without a bundle the
+  real-history tests skip and the benchmark stops with the recording command.
 - Tests: existing validation histories, 500-day synthetic stream with missing ETH
   DMA and touch/direct-cross transitions, cooldown edges, peer exits with absent
   peers, alt recycling, empty holdings, epsilon, codec and five mutations.
@@ -217,7 +220,7 @@ uv run pytest tests/scripts/pinned_strategy -q
 uv run python scripts/pinned_strategy/benchmark.py --synthetic
 uv run --with titanoboa==0.2.8 python scripts/pinned_strategy/benchmark.py --backend py-evm
 # Only after explicit approval, using configured prod read-only secrets:
-infisical run --env=prod -- env DATABASE_READ_ONLY=true uv run python scripts/pinned_strategy/record_market_history.py
+node ../../scripts/env/run.mjs --environment prod -- pnpm strategy-lab bundle record --name prod --start 2017-01-01
 uv run python scripts/pinned_strategy/benchmark.py
 # Audit dev dependencies too (the existing security:audit excludes them):
 uv export --locked --no-emit-project --format requirements.txt --no-header --output-file /tmp/pinned-audit.txt

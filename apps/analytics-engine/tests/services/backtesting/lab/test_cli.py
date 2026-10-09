@@ -4,17 +4,26 @@ import json
 import runpy
 import shutil
 import sys
+from contextlib import contextmanager
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 import pytest
 
+from src.services.backtesting.lab import cli
 from src.services.backtesting.lab.cli import main
+from src.services.backtesting.lab.record import RecordRefused
+from src.services.backtesting.lab.synthetic import synthetic_market
 from src.services.backtesting.spec.loader import LOCK_FILENAME, STRATEGIES_DIR
+from src.services.exceptions import MarketDataUnavailableError
 from tests.services.backtesting.spec.helpers import (
     REFERENCE_REF,
     reference_raw,
     with_value,
+)
+from tests.services.backtesting.support.synthetic_services import (
+    SyntheticMarketServices,
 )
 
 
@@ -284,3 +293,274 @@ def test_python_dash_m_runs_the_cli_on_the_committed_strategies(
 
     assert caught.value.code == 0
     assert json.loads(capsys.readouterr().out)["ok"] is True
+
+
+def _bundle_run(
+    capsys: pytest.CaptureFixture[str],
+    bundles: Path,
+    *argv: str,
+) -> tuple[int, dict[str, Any]]:
+    code = main(["--bundles-dir", str(bundles), *argv])
+    return code, json.loads(capsys.readouterr().out)
+
+
+@pytest.fixture
+def synthetic_database(monkeypatch: pytest.MonkeyPatch) -> Any:
+    """Serve the recorder a synthetic market instead of the production database."""
+    market = synthetic_market(seed=3, days=300)
+    service = SyntheticMarketServices(market).build_backtesting_service()
+
+    @contextmanager
+    def database_service() -> Any:
+        yield service
+
+    monkeypatch.setattr(cli, "ensure_read_only", lambda: None)
+    monkeypatch.setattr(cli, "database_service", database_service)
+    return market
+
+
+def _record_args(market: Any, *extra: str) -> tuple[str, ...]:
+    return (
+        "bundle",
+        "record",
+        "--name",
+        "prod",
+        "--start",
+        market.user_start_date.isoformat(),
+        "--end",
+        market.prices[-1]["date"].isoformat(),
+        *extra,
+    )
+
+
+def test_record_writes_a_bundle_that_coverage_can_read_back(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    synthetic_database: Any,
+) -> None:
+    code, recorded = _bundle_run(capsys, tmp_path, *_record_args(synthetic_database))
+    coverage_code, covered = _bundle_run(
+        capsys, tmp_path, "bundle", "coverage", "prod:latest"
+    )
+
+    assert (code, recorded["ok"]) == (0, True)
+    result = recorded["result"]
+    assert result["dry_run"] is False
+    assert recorded["artifacts"] == [result["path"]]
+    assert Path(result["path"]).is_file()
+    assert result["coverage"]["rows"] == result["rows"]
+    assert coverage_code == 0
+    assert covered["result"]["bundle"]["content_sha256"] == result["content_sha256"]
+    assert covered["result"]["coverage"] == result["coverage"]
+
+
+def test_a_dry_run_reports_without_writing(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    synthetic_database: Any,
+) -> None:
+    code, out = _bundle_run(
+        capsys, tmp_path, *_record_args(synthetic_database, "--dry-run")
+    )
+
+    assert code == 0
+    assert out["result"]["dry_run"] is True
+    assert out["result"]["path"] is None
+    assert (out["artifacts"], list(tmp_path.iterdir())) == ([], [])
+    assert out["result"]["coverage"]["complete_window"]
+
+
+def test_record_never_overwrites(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    synthetic_database: Any,
+) -> None:
+    _bundle_run(capsys, tmp_path, *_record_args(synthetic_database))
+
+    code, out = _bundle_run(capsys, tmp_path, *_record_args(synthetic_database))
+
+    assert code == 1
+    assert out["result"]["code"] == "bundle_exists"
+
+
+def test_record_is_refused_outside_read_only_mode(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def refuse() -> None:
+        raise RecordRefused("DATABASE_READ_ONLY must be true to record a bundle")
+
+    monkeypatch.setattr(cli, "ensure_read_only", refuse)
+
+    code, out = _bundle_run(
+        capsys,
+        tmp_path,
+        "bundle",
+        "record",
+        "--name",
+        "prod",
+        "--start",
+        "2025-01-01",
+    )
+
+    assert code == 1
+    assert out["result"]["code"] == "recording_refused"
+
+
+def test_record_checks_the_name_before_touching_the_database(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def forbidden() -> None:
+        raise AssertionError("the database must not be touched")
+
+    monkeypatch.setattr(cli, "ensure_read_only", forbidden)
+
+    code, out = _bundle_run(
+        capsys,
+        tmp_path,
+        "bundle",
+        "record",
+        "--name",
+        "../etc",
+        "--start",
+        "2025-01-01",
+    )
+
+    assert code == 2
+    assert out["result"]["code"] == "invalid_bundle_reference"
+
+
+def test_record_reports_data_the_database_cannot_serve(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Empty:
+        def prepare_market_window(self, **_: Any) -> None:
+            raise MarketDataUnavailableError(
+                "No price data available for BTC", missing_assets=["BTC"]
+            )
+
+    @contextmanager
+    def database_service() -> Any:
+        yield Empty()
+
+    monkeypatch.setattr(cli, "ensure_read_only", lambda: None)
+    monkeypatch.setattr(cli, "database_service", database_service)
+
+    code, out = _bundle_run(
+        capsys,
+        tmp_path,
+        "bundle",
+        "record",
+        "--name",
+        "prod",
+        "--start",
+        "2017-01-01",
+    )
+
+    assert code == 4
+    assert out["result"]["code"] == "data_unavailable"
+    assert "No price data" in out["result"]["message"]
+
+
+def test_coverage_of_a_synthetic_bundle(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    code, out = _bundle_run(
+        capsys,
+        tmp_path,
+        "bundle",
+        "coverage",
+        "synthetic:stress?seed=2&days=300",
+    )
+
+    assert code == 0
+    assert out["result"]["bundle"]["source"] == "synthetic"
+    assert out["result"]["bundle"]["path"] is None
+    assert out["result"]["coverage"]["series"]["btc"]["missing_days"] == 0
+
+
+def test_coverage_of_a_missing_bundle_exits_4(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    code, out = _bundle_run(capsys, tmp_path, "bundle", "coverage", "prod:latest")
+
+    assert code == 4
+    assert out["result"]["code"] == "bundle_not_found"
+
+
+def test_coverage_of_a_damaged_bundle_exits_4(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    broken = tmp_path / "broken.jsonl.gz"
+    broken.write_bytes(b"not a bundle")
+
+    code, out = _bundle_run(capsys, tmp_path, "bundle", "coverage", str(broken))
+
+    assert code == 4
+    assert out["result"]["code"] == "bundle_corrupt"
+
+
+def test_coverage_of_a_malformed_reference_exits_2(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    code, out = _bundle_run(capsys, tmp_path, "bundle", "coverage", "prod")
+
+    assert code == 2
+    assert out["result"]["code"] == "invalid_bundle_reference"
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["bundle", "record", "--start", "2025-01-01"],
+        ["bundle", "record", "--name", "prod", "--start", "not-a-date"],
+        ["bundle"],
+    ],
+)
+def test_bundle_usage_errors_exit_2(argv: list[str]) -> None:
+    with pytest.raises(SystemExit) as caught:
+        main(argv)
+
+    assert caught.value.code == 2
+
+
+def test_the_default_end_is_yesterday(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: dict[str, date] = {}
+
+    class Recorder:
+        def prepare_market_window(self, **kwargs: Any) -> None:
+            seen["end"] = kwargs["end_date"]
+            raise MarketDataUnavailableError("stop here", missing_assets=[])
+
+    @contextmanager
+    def database_service() -> Any:
+        yield Recorder()
+
+    monkeypatch.setattr(cli, "ensure_read_only", lambda: None)
+    monkeypatch.setattr(cli, "database_service", database_service)
+
+    _bundle_run(
+        capsys,
+        tmp_path,
+        "bundle",
+        "record",
+        "--name",
+        "prod",
+        "--start",
+        "2017-01-01",
+    )
+
+    assert seen["end"] == datetime.now(UTC).date() - timedelta(days=1)

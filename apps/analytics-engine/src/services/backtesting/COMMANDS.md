@@ -49,3 +49,17 @@ pnpm --filter @zapengine/analytics-engine strategy-lab spec lock reference/dma_f
 pnpm --filter @zapengine/analytics-engine strategy-lab schema          # regenerate the schema and VOCABULARY.md
 pnpm --filter @zapengine/analytics-engine strategy-lab schema --check  # fail if they are stale
 ```
+
+### Data bundles
+
+A bundle is the pinned market data a strategy is evaluated on: the rows the compare path consumes, a manifest (source, window, data requirements, coverage) and a content hash, in a gzip file under `apps/analytics-engine/.lab/bundles/<name>/` (git-ignored). A reference is `name:latest`, `name:<id>`, a bundle path, or `synthetic:<regimes|stress>?seed=N&days=N`. Synthetic data exercises code and pins behavior; it is never evidence about real markets.
+
+Recording is the only lab step that reads production, so an operator runs it with the environment runner. It refuses unless the service is read-only, takes the same prepared window the compare path takes, and never overwrites a bundle. `--dry-run` prints the coverage without writing.
+
+```bash
+node scripts/env/run.mjs --environment prod -- pnpm --filter @zapengine/analytics-engine strategy-lab bundle record --name prod --start 2017-01-01
+pnpm --filter @zapengine/analytics-engine strategy-lab bundle coverage prod:latest
+pnpm --filter @zapengine/analytics-engine strategy-lab bundle coverage "synthetic:regimes?seed=1&days=400"
+```
+
+Coverage lists, per series, where it starts and ends and its longest gap; the longest stretch where every series the strategy needs is present; and what that stretch can support (a holdout, walk-forward folds, or only a descriptive run). It does not assume history exists: the production database's complete-feature history starts in 2025-04.

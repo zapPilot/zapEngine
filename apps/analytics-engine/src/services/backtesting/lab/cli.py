@@ -18,7 +18,8 @@ Exit codes:
 - 2: the command does not apply to what it was given (argparse usage errors
   use it too);
 - 3: the spec is missing or invalid;
-- 4: data or coverage is insufficient (bundle commands, later);
+- 4: data or coverage is insufficient (a bundle is missing, corrupt or cannot be
+  recorded);
 - 5: a holdout request was refused (holdout commands, later).
 """
 
@@ -29,9 +30,27 @@ import json
 import sys
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from src.services.backtesting.lab.bundle import (
+    BUNDLES_DIR,
+    Bundle,
+    BundleCorruptError,
+    BundleError,
+    BundleExistsError,
+    BundleReferenceError,
+    check_bundle_name,
+    load_bundle,
+)
+from src.services.backtesting.lab.coverage import coverage_of
+from src.services.backtesting.lab.record import (
+    RecordRefused,
+    database_service,
+    ensure_read_only,
+    record_bundle,
+)
 from src.services.backtesting.spec.canonical import (
     LockEntry,
     behavior_hash,
@@ -55,11 +74,13 @@ from src.services.backtesting.spec.schema_export import (
     render_vocabulary,
 )
 from src.services.backtesting.spec.validation import SpecError, SpecIssue
+from src.services.exceptions import MarketDataUnavailableError
 
 EXIT_OK = 0
 EXIT_GATE = 1
 EXIT_NOT_APPLICABLE = 2
 EXIT_SPEC = 3
+EXIT_DATA = 4
 
 
 @dataclass
@@ -135,6 +156,11 @@ def _parser() -> argparse.ArgumentParser:
         default=str(STRATEGIES_DIR),
         help=argparse.SUPPRESS,
     )
+    parser.add_argument(
+        "--bundles-dir",
+        default=str(BUNDLES_DIR),
+        help=argparse.SUPPRESS,
+    )
     commands = parser.add_subparsers(dest="command", required=True)
 
     schema = commands.add_parser(
@@ -168,6 +194,36 @@ def _parser() -> argparse.ArgumentParser:
                 help="Also print the canonical JSON the hash is taken over.",
             )
         command.set_defaults(handler=handler, command_path=["spec", name])
+
+    bundle_commands = commands.add_parser(
+        "bundle", help="Work with market data bundles."
+    ).add_subparsers(dest="bundle_command", required=True)
+    record = bundle_commands.add_parser(
+        "record",
+        help="Record a bundle from the production read-only database (operator).",
+    )
+    record.add_argument("--name", required=True, help="Bundle name, e.g. prod.")
+    record.add_argument(
+        "--start", required=True, type=date.fromisoformat, help="First day wanted."
+    )
+    record.add_argument(
+        "--end",
+        type=date.fromisoformat,
+        help="Last day wanted (default: yesterday, UTC).",
+    )
+    record.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Report the coverage without writing a bundle.",
+    )
+    record.set_defaults(handler=_bundle_record, command_path=["bundle", "record"])
+    coverage = bundle_commands.add_parser(
+        "coverage", help="Report what a bundle covers and what it can support."
+    )
+    coverage.add_argument(
+        "ref", help="name:latest, name:<id>, a bundle path or synthetic:<scenario>."
+    )
+    coverage.set_defaults(handler=_bundle_coverage, command_path=["bundle", "coverage"])
     return parser
 
 
@@ -274,6 +330,88 @@ def _lock(args: argparse.Namespace, directory: Path) -> Outcome:
             "changed": changed,
         },
         artifacts=[str(lock_path)] if changed else [],
+    )
+
+
+def _bundle_error(error: BundleError) -> CliError:
+    if isinstance(error, BundleReferenceError):
+        return CliError(EXIT_NOT_APPLICABLE, "invalid_bundle_reference", str(error))
+    if isinstance(error, BundleExistsError):
+        return CliError(EXIT_GATE, "bundle_exists", str(error))
+    if isinstance(error, BundleCorruptError):
+        return CliError(EXIT_DATA, "bundle_corrupt", str(error))
+    return CliError(EXIT_DATA, "bundle_not_found", str(error))
+
+
+def _bundle_summary(bundle: Bundle) -> dict[str, Any]:
+    manifest = bundle.manifest
+    return {
+        "name": manifest.name,
+        "source": manifest.source,
+        "bundle_id": manifest.bundle_id,
+        "window": {
+            "start": manifest.start.isoformat(),
+            "end": manifest.end.isoformat(),
+        },
+        "content_sha256": manifest.content_sha256,
+        "path": None if bundle.path is None else str(bundle.path),
+    }
+
+
+def _bundle_record(args: argparse.Namespace, directory: Path) -> Outcome:
+    del directory
+    end = args.end or datetime.now(UTC).date() - timedelta(days=1)
+    try:
+        check_bundle_name(args.name)
+        ensure_read_only()
+    except BundleError as error:
+        raise _bundle_error(error) from error
+    except RecordRefused as error:
+        raise CliError(EXIT_GATE, "recording_refused", str(error)) from error
+    try:
+        with database_service() as service:
+            recording = record_bundle(
+                service,
+                name=args.name,
+                start=args.start,
+                end=end,
+                bundles_dir=Path(args.bundles_dir),
+                dry_run=args.dry_run,
+            )
+    except MarketDataUnavailableError as error:
+        raise CliError(EXIT_DATA, "data_unavailable", str(error)) from error
+    except BundleError as error:
+        raise _bundle_error(error) from error
+    manifest = recording.manifest
+    return Outcome(
+        {
+            "name": manifest.name,
+            "bundle_id": manifest.bundle_id,
+            "dry_run": args.dry_run,
+            "rows": recording.rows,
+            "window": {
+                "start": manifest.start.isoformat(),
+                "end": manifest.end.isoformat(),
+            },
+            "path": None if recording.path is None else str(recording.path),
+            "content_sha256": manifest.content_sha256,
+            "coverage": manifest.coverage,
+        },
+        artifacts=[] if recording.path is None else [str(recording.path)],
+    )
+
+
+def _bundle_coverage(args: argparse.Namespace, directory: Path) -> Outcome:
+    del directory
+    try:
+        bundle = load_bundle(args.ref, Path(args.bundles_dir))
+    except BundleError as error:
+        raise _bundle_error(error) from error
+    return Outcome(
+        {
+            "bundle": _bundle_summary(bundle),
+            "coverage": coverage_of(bundle.prices, bundle.sentiments).as_dict(),
+        }
     )
 
 

@@ -131,6 +131,7 @@ def test_exporter_replays_real_strategy_with_synthetic_test_inputs(
 ):
     from scripts.pinned_strategy import export_landing_examples as exporter
     from scripts.pinned_strategy.benchmark import run_compare
+    from src.services.backtesting.lab.bundle import Bundle, build_manifest
     from tests.services.backtesting.support.event_histories import (
         synthetic_event_history,
     )
@@ -177,13 +178,23 @@ def test_exporter_replays_real_strategy_with_synthetic_test_inputs(
     deployment.write_text(json.dumps({"runtimeCodehash": artifact["runtime_codehash"]}))
     track = tmp_path / "track.json"
     track.write_text(json.dumps(published))
-    history_path = tmp_path / "history"
-    history_path.write_text("synthetic-test-only")
+    bundle = Bundle(
+        manifest=build_manifest(
+            name="synthetic-test-only",
+            source="synthetic",
+            prices=history[0],
+            sentiments=history[1],
+            start=history[2],
+            end=history[3],
+            requirements={},
+        ),
+        prices=history[0],
+        sentiments=history[1],
+    )
     monkeypatch.setattr(exporter, "DEPLOYMENTS", deployment)
     monkeypatch.setattr(exporter, "TRACK_RECORD", track)
-    monkeypatch.setattr(exporter, "HISTORY", history_path)
     monkeypatch.setattr(exporter, "OUTPUT", tmp_path / "output.json")
-    monkeypatch.setattr(exporter, "read_history", lambda: history)
+    monkeypatch.setattr(exporter, "recorded_bundle", lambda: bundle)
     payload = exporter.generate(["2025-10-18"])
     assert len(payload["examples"]) == 1
     example = payload["examples"][0]
@@ -236,6 +247,13 @@ def _assert_obs_close(actual: list, expected: list) -> None:
 
 def test_approved_historical_example_before_deployment():
     from scripts.pinned_strategy.export_landing_examples import generate
+    from scripts.pinned_strategy.history import recorded_bundle
+    from src.services.backtesting.lab.bundle import BundleError
+
+    try:
+        recorded_bundle()
+    except BundleError:
+        pytest.skip("No recorded production history; an operator records prod:latest")
 
     before = OUTPUT.read_bytes()
     example = generate(["2025-10-18"], validate_only=True)["examples"][0]
@@ -288,3 +306,17 @@ def test_approved_historical_example_before_deployment():
     ):
         _assert_wad_close(actual, expected)
     assert OUTPUT.read_bytes() == before
+
+
+def test_a_missing_recording_says_how_to_make_one(monkeypatch):
+    from scripts.pinned_strategy import export_landing_examples as exporter
+    from scripts.pinned_strategy import history as history_module
+    from src.services.backtesting.lab.bundle import BundleNotFoundError
+
+    def missing(ref):
+        raise BundleNotFoundError("No bundle named 'prod'")
+
+    monkeypatch.setattr(history_module, "load_bundle", missing)
+
+    with pytest.raises(RuntimeError, match="strategy-lab bundle record"):
+        exporter.replay(["2025-10-18"])
