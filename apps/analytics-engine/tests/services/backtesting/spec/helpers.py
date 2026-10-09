@@ -79,8 +79,9 @@ def _research_add(signal: dict[str, Any]) -> dict[str, Any]:
 
 
 # The twelve research rules of the old ``enabled_rules`` universe, as specs, in
-# the order their priorities ranked them (after every default rule).
-TECHNICAL_RULES: dict[str, dict[str, Any]] = {
+# the order their priorities ranked them (after every default rule). Private: a
+# test that mutated the shared dicts would break every test that ran after it.
+_TECHNICAL_RULES: dict[str, dict[str, Any]] = {
     name: {"id": name, **rule}
     for name, rule in {
         "rsi_bearish_divergence_dca_sell": _research_trim(
@@ -123,6 +124,11 @@ TECHNICAL_RULES: dict[str, dict[str, Any]] = {
 SPY_LATCH = {"kind": "spy_latch", "id": "spy_latch", "follow_through_days": 14}
 
 
+def technical_rules() -> dict[str, dict[str, Any]]:
+    """The twelve research rules as spec JSON, a fresh copy safe to mutate."""
+    return copy.deepcopy(_TECHNICAL_RULES)
+
+
 def spec_for_params(params: Mapping[str, Any]) -> StrategySpec:
     """The spec equivalent to a saved config's public params.
 
@@ -135,7 +141,7 @@ def spec_for_params(params: Mapping[str, Any]) -> StrategySpec:
     enabled = params["enabled_rules"]
     active = set(DEFAULT_PORTFOLIO_RULE_NAMES if enabled is None else enabled)
     active -= set(params["disabled_rules"])
-    universe = {rule["id"]: rule for rule in raw["rules"]} | TECHNICAL_RULES
+    universe = {rule["id"]: rule for rule in raw["rules"]} | technical_rules()
     raw["rules"] = [rule for name, rule in universe.items() if name in active]
     raw["overlays"] = [dict(SPY_LATCH)] if "spy_latch" in active else []
     quota = params["trade_quota"]

@@ -17,9 +17,9 @@ from src.services.backtesting.spec.schema_export import (
 )
 from tests.services.backtesting.spec.helpers import (
     SPY_LATCH,
-    TECHNICAL_RULES,
     reference_raw,
     rule_index,
+    technical_rules,
     with_value,
     without,
 )
@@ -90,7 +90,7 @@ def test_a_null_leg_satisfies_the_schema() -> None:
 
 def _with_research_rules() -> dict[str, Any]:
     raw = reference_raw()
-    raw["rules"] = [*raw["rules"], *TECHNICAL_RULES.values()]
+    raw["rules"] = [*raw["rules"], *technical_rules().values()]
     raw["overlays"] = [dict(SPY_LATCH)]
     raw["guards"] = [
         {
@@ -133,7 +133,7 @@ def test_the_schema_rejects_a_bad_trigger(mutate: Any, fragment: str) -> None:
     raw = _with_research_rules()
     assert raw["rules"][6]["id"] == "rsi_bearish_divergence_dca_sell"
     raw["rules"][6]["trigger"] = dict(
-        TECHNICAL_RULES["rsi_overbought_dca_sell"]["trigger"]
+        technical_rules()["rsi_overbought_dca_sell"]["trigger"]
     )
 
     problems = violations(mutate(raw), spec_json_schema("llm"))

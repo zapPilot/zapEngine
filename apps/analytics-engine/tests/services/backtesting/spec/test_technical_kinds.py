@@ -33,9 +33,9 @@ from src.services.backtesting.spec import (
     parse_spec,
 )
 from tests.services.backtesting.spec.helpers import (
-    TECHNICAL_RULES,
     issues_for,
     reference_raw,
+    technical_rules,
 )
 
 FIRST_RESEARCH_RULE = 6  # the reference has six rules
@@ -43,7 +43,8 @@ FIRST_RESEARCH_RULE = 6  # the reference has six rules
 
 def _raw_with(*names: str) -> dict[str, Any]:
     raw = reference_raw()
-    raw["rules"] = [*raw["rules"], *(copy.deepcopy(TECHNICAL_RULES[n]) for n in names)]
+    research = technical_rules()
+    raw["rules"] = [*raw["rules"], *(research[name] for name in names)]
     return raw
 
 
@@ -51,12 +52,21 @@ def _spec_with(*names: str) -> StrategySpec:
     return parse_spec(_raw_with(*names))
 
 
+def test_the_research_rule_fixture_is_a_fresh_copy_each_time() -> None:
+    first = technical_rules()
+    first["breakout_20d_dca_buy"]["trigger"].clear()
+
+    assert technical_rules()["breakout_20d_dca_buy"]["trigger"] == {
+        "signal": "breakout_20d"
+    }
+
+
 def test_the_helper_lists_the_old_table_in_priority_order() -> None:
-    assert list(TECHNICAL_RULES) == [rule.name for rule in TECHNICAL_EXPERIMENT_RULES]
+    assert list(technical_rules()) == [rule.name for rule in TECHNICAL_EXPERIMENT_RULES]
 
 
 def test_the_twelve_research_rules_compile_to_the_rules_the_old_table_holds() -> None:
-    components = compile_spec(_spec_with(*TECHNICAL_RULES))
+    components = compile_spec(_spec_with(*technical_rules()))
 
     compiled = components.rules[FIRST_RESEARCH_RULE:]
     assert len(compiled) == len(TECHNICAL_EXPERIMENT_RULES) == 12
@@ -70,12 +80,12 @@ def test_the_twelve_research_rules_compile_to_the_rules_the_old_table_holds() ->
 
 
 def test_a_trim_becomes_a_sell_rule_and_an_add_becomes_a_buy_rule() -> None:
-    compiled = compile_spec(_spec_with(*TECHNICAL_RULES)).rules[FIRST_RESEARCH_RULE:]
+    compiled = compile_spec(_spec_with(*technical_rules())).rules[FIRST_RESEARCH_RULE:]
 
     kinds = {
-        name: type(rule) for name, rule in zip(TECHNICAL_RULES, compiled, strict=True)
+        name: type(rule) for name, rule in zip(technical_rules(), compiled, strict=True)
     }
-    for name, rule in TECHNICAL_RULES.items():
+    for name, rule in technical_rules().items():
         expected = (
             TechnicalDcaSellRule
             if rule["kind"] == "technical_trim"
@@ -240,7 +250,7 @@ def test_a_research_rule_cannot_reuse_an_id() -> None:
 
 def test_the_same_signal_may_drive_both_a_trim_and_an_add() -> None:
     raw = _raw_with("breakout_20d_dca_buy")
-    trim = {**TECHNICAL_RULES["breakdown_20d_dca_sell"], "id": "trim_on_breakout"}
+    trim = {**technical_rules()["breakdown_20d_dca_sell"], "id": "trim_on_breakout"}
     trim["trigger"] = {"signal": "breakout_20d"}
     raw["rules"].append(trim)
 
@@ -253,7 +263,7 @@ def test_the_same_signal_may_drive_both_a_trim_and_an_add() -> None:
 
 
 def test_every_level_of_a_research_rule_is_a_tunable_leaf() -> None:
-    spec = _spec_with(*TECHNICAL_RULES)
+    spec = _spec_with(*technical_rules())
 
     leaves = {leaf.pointer: leaf.value for leaf in tunable_leaves(spec)}
 
@@ -278,7 +288,7 @@ def test_every_level_of_a_research_rule_is_a_tunable_leaf() -> None:
     assert not [
         p for p in leaves if p.startswith("/rules[macd_bearish_cross_dca_sell]/trigger")
     ]
-    raw = _spec_with(*TECHNICAL_RULES).model_dump(mode="json")
+    raw = _spec_with(*technical_rules()).model_dump(mode="json")
     for pointer, value in leaves.items():
         assert pointers.get(raw, pointer) == value
 
