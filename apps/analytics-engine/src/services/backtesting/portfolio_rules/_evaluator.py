@@ -9,9 +9,9 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
-from typing import Any
 
 from src.services.backtesting.decision import AllocationIntent
+from src.services.backtesting.domain import ExecutionOutcome
 from src.services.backtesting.portfolio_rules import DEFAULT_PORTFOLIO_RULES
 from src.services.backtesting.portfolio_rules._builders import (
     active_rules,
@@ -191,9 +191,9 @@ class RuleBasedPortfolioDecisionPolicy(DecisionPolicy):
         *,
         context: StrategyContext,
         intent: AllocationIntent,
-        execution: Any,
+        execution: ExecutionOutcome,
     ) -> None:
-        if not getattr(execution, "transfers", ()):
+        if not execution.transfers:
             return
         matched_rule_name = _matched_rule_name(intent)
         if matched_rule_name is None:

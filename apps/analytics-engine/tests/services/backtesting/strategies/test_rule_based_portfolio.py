@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
+from unittest.mock import Mock
 
 import pytest
 
@@ -8,6 +9,7 @@ from src.services.backtesting.decision import AllocationIntent
 from src.services.backtesting.domain import ExecutionOutcome
 from src.services.backtesting.execution.portfolio import Portfolio
 from src.services.backtesting.execution.rule_based.allocation_executor import (
+    AllocationExecutionResult,
     RuleBasedAllocationExecutor,
 )
 from src.services.backtesting.features import (
@@ -162,6 +164,42 @@ def test_strategy_uses_the_atomic_rule_based_executor() -> None:
     strategy = RuleBasedPortfolioStrategy(total_capital=10_000.0)
 
     assert isinstance(strategy.execution_engine, RuleBasedAllocationExecutor)
+
+
+def test_a_hold_without_a_target_never_reaches_the_executor() -> None:
+    strategy = RuleBasedPortfolioStrategy(total_capital=10_000.0)
+    strategy.execution_engine = Mock(spec=RuleBasedAllocationExecutor)
+    intent = AllocationIntent(
+        action="hold",
+        target_allocation=None,
+        allocation_name=None,
+        immediate=False,
+        reason="regime_no_signal",
+        rule_group="none",
+        decision_score=0.0,
+    )
+
+    outcome = strategy._execute(context=Mock(), intent=intent)
+
+    assert outcome == ExecutionOutcome(event=None, transfers=[])
+    strategy.execution_engine.execute.assert_not_called()
+
+
+def test_an_execution_result_without_transfers_becomes_an_empty_outcome() -> None:
+    outcome = RuleBasedPortfolioStrategy._to_execution_outcome(
+        AllocationExecutionResult(
+            target_allocation={"stable": 1.0},
+            allocation_name=None,
+            transfers=None,
+            event="rebalance",
+            drift=0.0,
+            block_reason="blocked",
+        )
+    )
+
+    assert outcome == ExecutionOutcome(
+        event="rebalance", transfers=[], blocked_reason="blocked"
+    )
 
 
 def test_strategy_cross_up_equal_weights_currently_above_assets() -> None:
