@@ -20,7 +20,10 @@ import type {
   VisualSceneSubjectAssignment,
   VisualSubjectCatalog,
 } from './video/storyboard/subject-catalog.js';
-import { ExpiredVisualCheckpointImageError } from './video/visual-checkpoint.js';
+import {
+  ExpiredVisualCheckpointImageError,
+  parseVisualCheckpoint,
+} from './video/visual-checkpoint.js';
 import { VisualPlanningError } from './video/visual-diagnostics.js';
 import {
   EPISODE_VIDEO_VISUAL_VERSION,
@@ -460,6 +463,55 @@ describe('createEpisodeVideoVisualProcessor', () => {
         'phase=dropped-subject subject=subject-noise reason=not-grounded',
       ),
     );
+  });
+
+  it('logs a repaired visual subject as retained without an LLM retry', async () => {
+    const logger = { info: vi.fn() };
+    const processor = createEpisodeVideoVisualProcessor(
+      checkpointDependencies({
+        enrichSearchIntents: vi.fn(async () => enrichmentWithRepairs()),
+        persistDebug: vi.fn().mockResolvedValue(true),
+        logger,
+      }),
+    );
+
+    await processor(job(), source(), context());
+
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'phase=repaired-subject subject=subject-noise field=aliases kind=dropped-invalid',
+      ),
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('retained=true llmRetry=avoided'),
+    );
+  });
+
+  it('keeps repaired subjects through the checkpoint and the visual payload', async () => {
+    const jobContext = context();
+    const processor = createEpisodeVideoVisualProcessor(
+      checkpointDependencies({
+        enrichSearchIntents: vi.fn(async () => enrichmentWithRepairs()),
+        persistDebug: vi.fn().mockResolvedValue(true),
+      }),
+    );
+
+    const result = await processor(job(), source(), jobContext);
+
+    const checkpoint = parseVisualCheckpoint(
+      vi.mocked(jobContext.saveCheckpoint).mock.calls[0]?.[0],
+      {
+        visualVersion: EPISODE_VIDEO_VISUAL_VERSION,
+        sourceHash: job().source_hash,
+      },
+    );
+    expect(checkpoint?.subjectCatalog.repairedSubjects).toEqual(
+      REPAIRED_SUBJECTS,
+    );
+    expect(
+      parseEpisodeVisualPayload(result.visualPayload).subjectCatalog
+        .repairedSubjects,
+    ).toEqual(REPAIRED_SUBJECTS);
   });
 
   it('mirrors an incremental selection into the visual checkpoint', async () => {
@@ -1430,6 +1482,29 @@ function enrichFromSubjectCatalog() {
     subjectCatalog: subjectCatalog(),
     sceneAssignments: sceneAssignments(),
   }));
+}
+
+const REPAIRED_SUBJECTS = [
+  {
+    id: 'subject-noise',
+    field: 'aliases',
+    kind: 'dropped-invalid',
+    value: '中',
+  },
+];
+
+function enrichmentWithRepairs() {
+  return {
+    draft: fixtureEnrichment(storyboard().draft).draft,
+    model: 'openrouter/free',
+    enrichedSceneCount: 0,
+    entityAnchoredSceneCount: 0,
+    subjectCatalog: {
+      ...subjectCatalog(),
+      repairedSubjects: REPAIRED_SUBJECTS,
+    } as VisualSubjectCatalog,
+    sceneAssignments: [],
+  };
 }
 
 function unavailableCatalog() {

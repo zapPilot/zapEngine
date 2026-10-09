@@ -31,7 +31,9 @@ import {
   splitCanonicalSentences,
 } from './sentences.js';
 import {
+  identitySearchQuery,
   isGenericVisualSubjectName,
+  MAX_REPAIRED_SUBJECTS,
   parseVisualSubjectCatalog,
   subjectNames,
   VISUAL_SUBJECT_TYPES,
@@ -42,6 +44,16 @@ import {
   type VisualSubjectCatalog,
   type VisualSubjectDrop,
 } from './subject-catalog.js';
+import {
+  cleanSubjectNameField,
+  containsExactLetterToken,
+  isSingleLetterName,
+  isUsableHint,
+  isUsableVisualSubjectName,
+  subjectLabel,
+  type SubjectNameRepair,
+  tidyName,
+} from './subject-names.js';
 import { normalizeNumericToken, numericTokens } from './validation.js';
 
 const SEARCH_INTENT_REASONING = { enabled: false } as const;
@@ -291,8 +303,10 @@ export function sceneSearchEntities(
   const seen = new Set<string>();
   const entities: string[] = [];
   for (const name of [
-    ...subjects.map((subject) => subject.canonicalName),
-    ...subjects.flatMap((subject) => subject.aliases.slice(0, 1)),
+    ...subjects.map(searchEntityName),
+    ...subjects.flatMap((subject) =>
+      subject.aliases.filter((alias) => alias.length >= 2).slice(0, 1),
+    ),
   ]) {
     const key = name.toLocaleLowerCase('en-US');
     if (seen.has(key)) continue;
@@ -300,6 +314,18 @@ export function sceneSearchEntities(
     entities.push(name);
   }
   return entities.slice(0, MAX_SEARCH_ENTITIES_PER_SCENE);
+}
+
+/**
+ * The name a subject contributes to a scene's ranking. A one-letter canonical
+ * name is no reliable signal, so the subject's identity query stands in for it.
+ * Every entity in the enriched draft and in the persisted plan must be at least
+ * two characters, and the identity query always is.
+ */
+function searchEntityName(subject: VisualSubject): string {
+  return subject.canonicalName.length >= 2
+    ? subject.canonicalName
+    : subject.searchQuery;
 }
 
 async function buildSubjectCatalog(
@@ -348,7 +374,7 @@ export function catalogRepairIssues(error: unknown, raw: unknown): string[] {
           if (issue.path.includes('id'))
             return `subjects id must be lowercase ASCII kebab-case such as subject-gpt-6-1-sol${label}`;
           if (issue.path.includes('canonicalName'))
-            return `canonicalName must be 2–80 characters${label}`;
+            return `canonicalName must be 1–80 characters; a one-character name must be an ASCII letter${label}`;
           return `${issue.path.join('.')}: ${issue.message}${label}`;
         })
       : [errorMessage(error)];
@@ -417,15 +443,11 @@ function validateSubjectCatalogGrounding(
   const scenesById = new Map(
     request.scenes.map((scene) => [scene.sceneId, scene] as const),
   );
-  const wholeEpisodeEvidence = normalizedEntityText(
-    `${request.title}\n${request.scenes
-      .map((scene) => `${scene.text}\n${scene.searchText ?? ''}`)
-      .join('\n')}`,
-  );
+  const wholeEpisodeEvidence = episodeEvidenceText(request);
   for (const subject of catalog.subjects) {
     if (
       !subjectNames(subject).some((name) =>
-        containsEntityPhrase(wholeEpisodeEvidence, normalizedEntityText(name)),
+        nameAppearsIn(name, wholeEpisodeEvidence),
       )
     ) {
       throw new Error(
@@ -507,15 +529,54 @@ async function completeSearchIntentRequest(input: {
   });
 }
 
+/**
+ * Evidence in the two forms a name is matched against. Phrases match the
+ * normalized text; a one-letter brand matches the raw text, because "X" and a
+ * lowercase "x" in "x402" are different things.
+ */
+interface EvidenceText {
+  normalized: string;
+  raw: string;
+}
+
 interface CompactSubjectEvidence {
   requestedPrimaryId: string;
-  wholeEpisodeEvidence: string;
-  scenes: { sceneId: string; text: string }[];
+  wholeEpisodeEvidence: EvidenceText;
+  scenes: { sceneId: string; text: EvidenceText }[];
 }
 
 type CompactSubjectVerdict =
-  | { kept: Record<string, unknown> }
+  | { kept: Record<string, unknown>; repairs: SubjectNameRepair[] }
   | { drop: VisualSubjectDrop };
+
+function evidenceText(value: string): EvidenceText {
+  return {
+    normalized: normalizedEntityText(value),
+    raw: value.normalize('NFKC'),
+  };
+}
+
+function episodeEvidenceText(
+  request: SearchIntentCatalogRequest,
+): EvidenceText {
+  return evidenceText(
+    `${request.title}\n${request.scenes
+      .map((scene) => `${scene.text}\n${scene.searchText ?? ''}`)
+      .join('\n')}`,
+  );
+}
+
+/**
+ * Whether a subject name is evidenced in the text. A one-letter name is the
+ * brand only as the exact token "X", so a lowercase "x" in "x402" or "x-axis"
+ * cannot ground it.
+ */
+function nameAppearsIn(name: string, evidence: EvidenceText): boolean {
+  if (isSingleLetterName(name)) {
+    return containsExactLetterToken(evidence.raw, name);
+  }
+  return containsEntityPhrase(evidence.normalized, normalizedEntityText(name));
+}
 
 /**
  * The unit of failure is the subject, never the catalog. One hallucinated
@@ -537,18 +598,15 @@ function materializeVisualSubjectCatalog(
   const requestedPrimaryId = input['primarySubjectId'];
   const evidence: CompactSubjectEvidence = {
     requestedPrimaryId,
-    wholeEpisodeEvidence: normalizedEntityText(
-      `${request.title}\n${request.scenes
-        .map((scene) => `${scene.text}\n${scene.searchText ?? ''}`)
-        .join('\n')}`,
-    ),
+    wholeEpisodeEvidence: episodeEvidenceText(request),
     scenes: request.scenes.map((scene) => ({
       sceneId: scene.sceneId,
-      text: normalizedEntityText(`${scene.text}\n${scene.searchText ?? ''}`),
+      text: evidenceText(`${scene.text}\n${scene.searchText ?? ''}`),
     })),
   };
 
   const dropped: VisualSubjectDrop[] = [];
+  const repairs: SubjectNameRepair[] = [];
   const kept: Record<string, unknown>[] = [];
   const passthrough: unknown[] = [];
   for (const subject of input['subjects'] as unknown[]) {
@@ -557,8 +615,12 @@ function materializeVisualSubjectCatalog(
       continue;
     }
     const verdict = judgeCompactSubject(subject, evidence);
-    if ('drop' in verdict) dropped.push(verdict.drop);
-    else kept.push(verdict.kept);
+    if ('drop' in verdict) {
+      dropped.push(verdict.drop);
+    } else {
+      kept.push(verdict.kept);
+      repairs.push(...verdict.repairs);
+    }
   }
 
   if (kept.length === 0 && passthrough.length === 0) {
@@ -577,8 +639,15 @@ function materializeVisualSubjectCatalog(
       ...kept.map((subject) => withStoryRole(subject, primarySubjectId)),
       ...passthrough,
     ],
-    ...(dropped.length > 0 ? { droppedSubjects: dropped } : {}),
   };
+  // The catalog layer owns both diagnostics: a key the model supplied itself is
+  // discarded rather than trusted to describe this run.
+  delete output['droppedSubjects'];
+  delete output['repairedSubjects'];
+  if (dropped.length > 0) output['droppedSubjects'] = dropped;
+  if (repairs.length > 0) {
+    output['repairedSubjects'] = repairs.slice(0, MAX_REPAIRED_SUBJECTS);
+  }
   const rawSceneCues = input['sceneCues'] ?? input['scenes'];
   delete output['scenes'];
   if (rawSceneCues !== undefined) output['sceneCues'] = rawSceneCues;
@@ -593,30 +662,101 @@ function judgeCompactSubject(
   const type =
     typeof subject['type'] === 'string' ? subject['type'] : 'unknown';
   const names = rawSubjectNames(subject);
-  const canonicalName = names[0]?.trim() ?? '';
+  const rawCanonical = subject['canonicalName'];
+  const canonicalName =
+    typeof rawCanonical === 'string' ? tidyName(rawCanonical) : '';
 
   const identityDrop = identityDropReason(canonicalName, type);
   if (identityDrop) return dropVerdict(id, names, type, identityDrop);
 
-  // A generic alias ("AI" on NVIDIA) would let the category word ground and
-  // rank the subject; the identity keeps only its real names.
-  const aliases = names
-    .slice(1)
-    .filter((alias) => !isGenericVisualSubjectName(alias));
+  // Repairs are filed under this subject and reported only if it survives. A
+  // generic alias ("AI" on NVIDIA) would let the category word ground and rank
+  // the subject, so it is removed silently, as it always was.
+  const label = subjectLabel(id);
+  const repairs: SubjectNameRepair[] = [];
+  const cleanedAliases =
+    cleanSubjectNameField(
+      subject['aliases'],
+      'aliases',
+      label,
+      { usable: isUsableVisualSubjectName, exclude: [canonicalName] },
+      repairs,
+    ) ?? [];
+  const aliases: string[] = [];
+  for (const alias of cleanedAliases) {
+    if (isGenericVisualSubjectName(alias)) continue;
+    if (
+      isSingleLetterName(alias) &&
+      !nameAppearsIn(alias, evidence.wholeEpisodeEvidence)
+    ) {
+      repairs.push({
+        id: label,
+        field: 'aliases',
+        kind: 'dropped-ungrounded',
+        value: alias,
+      });
+      continue;
+    }
+    aliases.push(alias);
+  }
+
+  // A one-letter brand must itself be written in the episode. Another name for
+  // the same subject does not make a bare letter evidence of anything.
+  if (
+    isSingleLetterName(canonicalName) &&
+    !nameAppearsIn(canonicalName, evidence.wholeEpisodeEvidence)
+  ) {
+    return dropVerdict(id, names, type, 'not-grounded');
+  }
   const groundedNames = [canonicalName, ...aliases];
-  const grounded = groundedNames.some((name) =>
-    containsEntityPhrase(
-      evidence.wholeEpisodeEvidence,
-      normalizedEntityText(name),
-    ),
+  if (
+    !groundedNames.some((name) =>
+      nameAppearsIn(name, evidence.wholeEpisodeEvidence),
+    )
+  ) {
+    return dropVerdict(id, names, type, 'not-grounded');
+  }
+
+  const identityHints = cleanSubjectNameField(
+    subject['identityHints'],
+    'identityHints',
+    label,
+    { usable: isUsableHint },
+    repairs,
   );
-  if (!grounded) return dropVerdict(id, names, type, 'not-grounded');
+  const negativeHints = cleanSubjectNameField(
+    subject['negativeHints'],
+    'negativeHints',
+    label,
+    { usable: isUsableHint },
+    repairs,
+  );
+  // A one-letter brand needs an identity-explicit query such as "X Twitter". A
+  // bare "X" would send the letter alone to image search, which identifies nothing.
+  const rawQualifier = subject['searchQualifier'];
+  const qualifier =
+    typeof rawQualifier === 'string' || rawQualifier === null
+      ? rawQualifier
+      : undefined;
+  if (
+    isSingleLetterName(canonicalName) &&
+    identitySearchQuery(
+      {
+        canonicalName,
+        aliases,
+        type: type as VisualSubject['type'],
+        identityHints: identityHints ?? [],
+        negativeHints: negativeHints ?? [],
+      },
+      qualifier,
+    ) === canonicalName
+  ) {
+    return dropVerdict(id, names, type, 'unsearchable-name');
+  }
 
   const evidenceSceneIds = evidence.scenes
     .filter((scene) =>
-      groundedNames.some((name) =>
-        containsEntityPhrase(scene.text, normalizedEntityText(name)),
-      ),
+      groundedNames.some((name) => nameAppearsIn(name, scene.text)),
     )
     .map((scene) => scene.sceneId);
 
@@ -631,11 +771,11 @@ function judgeCompactSubject(
   return {
     kept: {
       id: subject['id'],
-      canonicalName: subject['canonicalName'],
+      canonicalName,
       type: subject['type'],
       storyRole: subject['storyRole'],
-      identityHints: subject['identityHints'],
-      negativeHints: subject['negativeHints'],
+      identityHints: identityHints ?? subject['identityHints'],
+      negativeHints: negativeHints ?? subject['negativeHints'],
       ...(subject['searchQualifier'] !== undefined
         ? { searchQualifier: subject['searchQualifier'] }
         : {}),
@@ -643,6 +783,7 @@ function judgeCompactSubject(
       evidenceSceneIds,
       officialDomains: [],
     },
+    repairs,
   };
 }
 
@@ -651,6 +792,9 @@ function identityDropReason(
   type: string,
 ): VisualSubjectDrop['reason'] | null {
   if (!canonicalName) return 'missing-canonical-name';
+  if (!isUsableVisualSubjectName(canonicalName)) {
+    return 'invalid-canonical-name';
+  }
   if (!(VISUAL_SUBJECT_TYPES as readonly string[]).includes(type)) {
     return 'invalid-type';
   }
@@ -667,7 +811,7 @@ function dropVerdict(
 ): CompactSubjectVerdict {
   return {
     drop: {
-      id: id.trim().slice(0, 80) || 'unknown',
+      id: subjectLabel(id),
       names: names
         .map((name) => name.trim())
         .filter(Boolean)
@@ -741,8 +885,8 @@ export function buildSubjectCatalogSystemPrompt(): string {
     '- canonicalName and aliases are identity labels. Do not merge competitors or similarly named things.',
     '- Copy canonicalName verbatim from the title or scenes. When both an English and a local-script name are present, use the English spelling for canonicalName and put the local-script spelling in aliases (example: canonicalName "NVIDIA", aliases ["輝達"]). Put descriptive industry, category, role, and physical-context terms only in identityHints.',
     '- identityHints provide ranking and borrowing context, such as industry, product, chain, role or location.',
-    '- Return at most 24 subjects in total, usually 3–12. Choose anchors that best identify the scenes. canonicalName must be 2–80 characters.',
-    '- searchQualifier is null when the name alone identifies the subject (OpenAI), otherwise 1–3 English words, at most 32 characters, with no purely numeric word. Examples: Tether -> USDT, Finloop -> Hong Kong, Dots -> OpenAI. Common words or abbreviated names require a qualifier. Never describe people, actions, settings, or photographic styles.',
+    '- Return at most 24 subjects in total, usually 3–12. Choose anchors that best identify the scenes. canonicalName must be 1–80 characters, and a one-character name must be a single ASCII letter. Copy each name exactly as the source spells it: never lengthen, expand or invent a name to satisfy a length rule (X stays X, not X Corp).',
+    '- searchQualifier is null when the name alone identifies the subject (OpenAI), otherwise 1–3 English words, at most 32 characters, with no purely numeric word. Examples: Tether -> USDT, Finloop -> Hong Kong, Dots -> OpenAI. Common words or abbreviated names require a qualifier, and a one-letter name always does (X -> Twitter). Never describe people, actions, settings, or photographic styles.',
     '- negativeHints are only known name-collision meanings to reject (for example animal, camera, engine); do not list ordinary competitors as negative hints.',
     '- Do not output evidenceSceneIds, image-search queries, or domains on subjects. The application derives scene evidence and final search queries deterministically from the anchor identity.',
     '- Separately, return "scenes": one entry per input sceneId, {"sceneId","subjectId","visualCue"}. subjectId is the catalog subject the scene is most about, or null. visualCue is 2 to 5 English words naming the concrete, photographable moment the narration describes: a place, object, action or event a news photographer could have shot (examples: "stock chart plunge", "chip launch keynote", "courtroom exterior", "container port cranes"). Never a mood, abstraction, caption, or a number the scene does not state. Do not repeat the subject name inside visualCue; this cue only ranks images.',

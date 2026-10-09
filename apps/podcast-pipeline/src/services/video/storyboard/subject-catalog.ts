@@ -7,6 +7,19 @@ import {
   SCENE_ID_PATTERN,
 } from './draft.js';
 import { containsEntityPhrase, englishWords } from './english-text.js';
+import {
+  cleanSubjectNameField,
+  containsExactLetterToken,
+  isSingleLetterName,
+  isUsableHint,
+  isUsableVisualSubjectName,
+  SUBJECT_NAME_FIELDS,
+  SUBJECT_NAME_REPAIR_KINDS,
+  subjectLabel,
+  type SubjectNameField,
+  type SubjectNameRepair,
+  tidyName,
+} from './subject-names.js';
 
 export const VISUAL_SUBJECT_TYPES = [
   'company',
@@ -40,7 +53,20 @@ export const MAX_VISUAL_SUBJECTS = 24;
 export const SUBJECT_ID_PATTERN = /^subject-[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const subjectIdSchema = z.string().regex(SUBJECT_ID_PATTERN);
 const sceneIdSchema = z.string().regex(SCENE_ID_PATTERN);
-const shortTextSchema = z.string().min(2).max(80);
+const hintTextSchema = z.string().min(2).max(80);
+/**
+ * A name is 1–80 characters, and a single character is only ever a one-letter
+ * brand such as "X". Everything longer is left to the repair layer, so every
+ * two-character string already in a stored catalog still parses.
+ */
+const nameSchema = z
+  .string()
+  .min(1)
+  .max(80)
+  .refine((value) => value.length !== 1 || /^[A-Za-z]$/u.test(value), {
+    message: 'a one-character name must be a single ASCII letter',
+  });
+export const MAX_REPAIRED_SUBJECTS = 48;
 const SUBJECT_LIMITS = {
   aliases: 6,
   evidenceSceneIds: MAX_STORYBOARD_SLIDES,
@@ -52,17 +78,17 @@ const SUBJECT_LIMITS = {
 
 const visualSubjectShape = {
   id: subjectIdSchema,
-  canonicalName: shortTextSchema,
+  canonicalName: nameSchema,
   type: z.enum(VISUAL_SUBJECT_TYPES),
-  aliases: z.array(shortTextSchema).max(SUBJECT_LIMITS.aliases).default([]),
+  aliases: z.array(nameSchema).max(SUBJECT_LIMITS.aliases).default([]),
   storyRole: z.enum(VISUAL_SUBJECT_ROLES),
   evidenceSceneIds: z.array(sceneIdSchema).max(SUBJECT_LIMITS.evidenceSceneIds),
   identityHints: z
-    .array(shortTextSchema)
+    .array(hintTextSchema)
     .min(1)
     .max(SUBJECT_LIMITS.identityHints),
   negativeHints: z
-    .array(shortTextSchema)
+    .array(hintTextSchema)
     .max(SUBJECT_LIMITS.negativeHints)
     .default([]),
   officialDomains: z
@@ -110,6 +136,17 @@ export const visualSubjectSchema = z
         message:
           'searchQuery must contain a subject name and only an identity qualifier',
       });
+    } else if (
+      remainder === '' &&
+      name !== undefined &&
+      isSingleLetterName(name)
+    ) {
+      // A bare one-letter query would send "X" to image search with no identity.
+      context.addIssue({
+        code: 'custom',
+        path: ['searchQuery'],
+        message: 'a one-letter name needs an identity qualifier in searchQuery',
+      });
     }
   });
 
@@ -128,10 +165,12 @@ export const visualSceneCueSchema = z
  */
 export const VISUAL_SUBJECT_DROP_REASONS = [
   'missing-canonical-name',
+  'invalid-canonical-name',
   'invalid-type',
   'type-other',
   'generic-term',
   'not-grounded',
+  'unsearchable-name',
   'title-only-no-scene-evidence',
 ] as const;
 
@@ -144,6 +183,20 @@ export const visualSubjectDropSchema = z
   })
   .strict();
 
+/**
+ * One alias or hint the catalog layer removed while the subject it belongs to
+ * stayed in the catalog. Diagnostics only: nothing downstream reads it, so it
+ * never decides whether a catalog is usable.
+ */
+const visualSubjectRepairSchema = z
+  .object({
+    id: z.string().min(1).max(80),
+    field: z.enum(SUBJECT_NAME_FIELDS),
+    kind: z.enum(SUBJECT_NAME_REPAIR_KINDS),
+    value: z.string().max(80),
+  })
+  .strict();
+
 export const visualSubjectCatalogSchema = z
   .object({
     primarySubjectId: subjectIdSchema,
@@ -151,6 +204,10 @@ export const visualSubjectCatalogSchema = z
     droppedSubjects: z
       .array(visualSubjectDropSchema)
       .max(MAX_VISUAL_SUBJECTS)
+      .optional(),
+    repairedSubjects: z
+      .array(visualSubjectRepairSchema)
+      .max(MAX_REPAIRED_SUBJECTS)
       .optional(),
     sceneCues: z
       .array(visualSceneCueSchema)
@@ -346,9 +403,12 @@ export function parseVisualSubjectCatalog(
  * shape drift before strict validation so one verbose completion cannot burn
  * all three visual attempts for an otherwise valid episode.
  *
- * This intentionally does not invent identity content: malformed names, IDs,
- * domains, missing hints, duplicate primary roles, and ungrounded evidence are
- * still rejected by the strict schema / grounding pass.
+ * Aliases and identity hints are cleaned one entry at a time: a value that is
+ * not a usable string, or repeats an earlier one, is dropped and recorded in
+ * `repairedSubjects`, and the rest of the subject survives. A name is never
+ * lengthened, truncated or invented. Malformed names, IDs, domains, missing
+ * hints, duplicate primary roles, and ungrounded evidence are still rejected by
+ * the strict schema / grounding pass.
  */
 export function normalizeVisualSubjectCatalogInput(input: unknown): unknown {
   if (!isRecord(input)) return input;
@@ -358,15 +418,27 @@ export function normalizeVisualSubjectCatalogInput(input: unknown): unknown {
     return input;
   }
 
+  const repairs: SubjectNameRepair[] = [];
   const normalizedInput: Record<string, unknown> = {
     ...input,
-    subjects: subjects.map((subject) =>
-      normalizeVisualSubjectInput(subject, primarySubjectId),
-    ),
+    subjects: subjects.map((subject) => {
+      const normalized = normalizeVisualSubjectInput(subject, primarySubjectId);
+      repairs.push(...normalized.repairs);
+      return normalized.subject;
+    }),
   };
   delete normalizedInput['scenes'];
   const repaired = repairedSceneCues(input['sceneCues'] ?? input['scenes']);
   if (repaired !== undefined) normalizedInput['sceneCues'] = repaired;
+  if (repairs.length > 0) {
+    const earlier = Array.isArray(input['repairedSubjects'])
+      ? input['repairedSubjects']
+      : [];
+    normalizedInput['repairedSubjects'] = [...earlier, ...repairs].slice(
+      0,
+      MAX_REPAIRED_SUBJECTS,
+    );
+  }
   return normalizedInput;
 }
 
@@ -480,35 +552,84 @@ export function isAmbiguousVisualSubject(
 function normalizeVisualSubjectInput(
   input: unknown,
   primarySubjectId: string,
-): unknown {
-  if (!isRecord(input)) return input;
+): { subject: unknown; repairs: SubjectNameRepair[] } {
+  if (!isRecord(input)) return { subject: input, repairs: [] };
   const id = input['id'];
-  const storyRole = normalizedStoryRole(
-    input['storyRole'],
-    id,
-    primarySubjectId,
+  const subjectId = typeof id === 'string' ? subjectLabel(id) : 'unknown';
+  const canonical = input['canonicalName'];
+  const canonicalName =
+    typeof canonical === 'string' ? tidyName(canonical) : canonical;
+  const repairs: SubjectNameRepair[] = [];
+  const aliases = cleanedNameField(
+    input,
+    'aliases',
+    {
+      usable: isUsableVisualSubjectName,
+      exclude: typeof canonicalName === 'string' ? [canonicalName] : [],
+    },
+    SUBJECT_LIMITS.aliases,
+    subjectId,
+    repairs,
+  );
+  const identityHints = cleanedNameField(
+    input,
+    'identityHints',
+    { usable: isUsableHint },
+    SUBJECT_LIMITS.identityHints,
+    subjectId,
+    repairs,
+  );
+  const negativeHints = cleanedNameField(
+    input,
+    'negativeHints',
+    { usable: isUsableHint },
+    SUBJECT_LIMITS.negativeHints,
+    subjectId,
+    repairs,
   );
   return {
-    ...input,
-    storyRole,
-    aliases: capArray(input['aliases'], SUBJECT_LIMITS.aliases),
-    evidenceSceneIds: capArray(
-      input['evidenceSceneIds'],
-      SUBJECT_LIMITS.evidenceSceneIds,
-    ),
-    identityHints: capArray(
-      input['identityHints'],
-      SUBJECT_LIMITS.identityHints,
-    ),
-    negativeHints: capArray(
-      input['negativeHints'],
-      SUBJECT_LIMITS.negativeHints,
-    ),
-    officialDomains: capArray(
-      input['officialDomains'],
-      SUBJECT_LIMITS.officialDomains,
-    ),
+    subject: {
+      ...input,
+      canonicalName,
+      storyRole: normalizedStoryRole(input['storyRole'], id, primarySubjectId),
+      aliases,
+      identityHints,
+      negativeHints,
+      evidenceSceneIds: capArray(
+        input['evidenceSceneIds'],
+        SUBJECT_LIMITS.evidenceSceneIds,
+      ),
+      officialDomains: capArray(
+        input['officialDomains'],
+        SUBJECT_LIMITS.officialDomains,
+      ),
+    },
+    repairs,
   };
+}
+
+/**
+ * Cleans one list field and reports what it removed. A value that is not an
+ * array is returned untouched, so the strict schema still rejects the shape.
+ * Cleaning runs before the cap: an invalid entry must not take a bound slot
+ * that a valid one could have filled.
+ */
+function cleanedNameField(
+  input: Record<string, unknown>,
+  field: SubjectNameField,
+  options: { usable: (name: string) => boolean; exclude?: readonly string[] },
+  limit: number,
+  subjectId: string,
+  repairs: SubjectNameRepair[],
+): unknown {
+  const cleaned = cleanSubjectNameField(
+    input[field],
+    field,
+    subjectId,
+    options,
+    repairs,
+  );
+  return cleaned === null ? input[field] : cleaned.slice(0, limit);
 }
 
 function normalizedStoryRole(
@@ -544,13 +665,13 @@ function disambiguateSubjectIdentity(subject: VisualSubject): VisualSubject {
 
   const originalName = subject.canonicalName;
   const longerAlias = subject.aliases
-    .filter((alias) => normalized(alias).includes(normalized(originalName)))
+    .filter((alias) => aliasExtendsName(alias, originalName))
     .sort((left, right) => right.length - left.length)[0];
   if (longerAlias && normalized(longerAlias) !== normalized(originalName)) {
     return {
       ...subject,
       canonicalName: longerAlias,
-      aliases: uniqueNames([originalName, ...subject.aliases]).filter(
+      aliases: [originalName, ...subject.aliases].filter(
         (alias) => normalized(alias) !== normalized(longerAlias),
       ),
     };
@@ -574,11 +695,22 @@ function disambiguateSubjectIdentity(subject: VisualSubject): VisualSubject {
     // the same strict schema, and a subject that arrived at the bound would
     // otherwise fail that second parse and burn a visual attempt. The original
     // name leads because it is the term the image search still needs.
-    aliases: uniqueNames([originalName, ...subject.aliases]).slice(
+    aliases: [originalName, ...subject.aliases].slice(
       0,
       SUBJECT_LIMITS.aliases,
     ),
   };
+}
+
+/**
+ * Whether an alias is a longer spelling of the original name. Names of two or
+ * more characters match as substrings, which is how "Sol" becomes "Solana". A
+ * one-letter name matches only as its own token: "X" sits inside "Texas
+ * Instruments" and "Exodus" without being either of them.
+ */
+function aliasExtendsName(alias: string, name: string): boolean {
+  if (isSingleLetterName(name)) return containsExactLetterToken(alias, name);
+  return normalized(alias).includes(normalized(name));
 }
 
 function normalized(value: string): string {
@@ -587,14 +719,4 @@ function normalized(value: string): string {
     .toLocaleLowerCase('en-US')
     .replace(/\s+/gu, ' ')
     .trim();
-}
-
-function uniqueNames(values: readonly string[]): string[] {
-  const seen = new Set<string>();
-  return values.filter((value) => {
-    const key = normalized(value);
-    if (!key || seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
 }
