@@ -3,7 +3,7 @@ import {
   type EpisodeSortDirection,
   sortEpisodes,
 } from '@/components/podcast/episodeSorting';
-import type { PlayUnheardMode } from '@/components/podcast/PlayUnheardCard';
+import type { PlayUnheardMode } from '@/components/listen/PlayUnheardButton';
 import type { PodcastEpisode } from '@/integration/podcastFeed';
 import { resolveEpisodeStatus } from '@/integration/podcastProgress';
 

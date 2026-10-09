@@ -5,6 +5,7 @@ import { BridgeTestPanel } from '@/components/invest/BridgeTestPanel';
 import { InvestStepHeader } from '@/components/invest/InvestStepHeader';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { isDevBuild } from '@/config/appCoreEnv';
+import { APP_ROUTES } from '@/integration/navigationModel';
 
 /**
  * Developer-only canonical USDC bridge probe. It is not part of the invest
@@ -12,7 +13,7 @@ import { isDevBuild } from '@/config/appCoreEnv';
  */
 export function BridgeDiagnosticScreen() {
   if (!isDevBuild()) {
-    return <Redirect href="/invest/amount" />;
+    return <Redirect href={APP_ROUTES.today} />;
   }
 
   return (

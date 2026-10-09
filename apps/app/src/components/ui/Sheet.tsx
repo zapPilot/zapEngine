@@ -25,6 +25,8 @@ export interface SheetProps {
   title: string;
   closeLabel: string;
   dismissible?: boolean;
+  eyebrow?: string;
+  footer?: ReactNode;
   children: ReactNode;
 }
 /** RNW Modal owns Escape, focus trapping and focus restoration. */
@@ -34,6 +36,8 @@ export function Sheet({
   title,
   closeLabel,
   dismissible = true,
+  eyebrow,
+  footer,
   children,
 }: SheetProps) {
   const { width } = useWindowDimensions();
@@ -118,9 +122,16 @@ export function Sheet({
             </View>
           ) : null}
           <View className="flex-row items-center gap-3 px-5 py-3">
-            <Text variant="title" heading={2} className="flex-1">
-              {title}
-            </Text>
+            <View className="flex-1 gap-1">
+              {eyebrow ? (
+                <Text variant="label" tone="muted">
+                  {eyebrow}
+                </Text>
+              ) : null}
+              <Text variant="title" heading={2}>
+                {title}
+              </Text>
+            </View>
             <IconButton
               icon={X}
               accessibilityLabel={closeLabel}
@@ -138,6 +149,16 @@ export function Sheet({
           >
             {children}
           </ScrollView>
+          {footer ? (
+            <View
+              className="border-t border-rule bg-ground px-5 pt-4"
+              style={{
+                paddingBottom: Math.max(insets.bottom, tokens.gutter.compact),
+              }}
+            >
+              {footer}
+            </View>
+          ) : null}
         </Animated.View>
       </View>
     </Modal>

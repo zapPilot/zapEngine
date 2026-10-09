@@ -46,6 +46,8 @@ export type NativeFont =
   | 'mono-semibold'
   | 'data';
 export type TypeRole =
+  | 'headline'
+  | 'verdict'
   | 'display-xl'
   | 'display'
   | 'title'

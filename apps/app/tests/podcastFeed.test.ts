@@ -933,7 +933,7 @@ describe('podcast feed client', () => {
 
   it.each([
     ['loc-1', 'zh-Hant', '/podcast/loc-1?lang=zh-Hant'],
-    ['', 'zh-Hant', '/podcast'],
+    ['', 'zh-Hant', '/listen'],
     ['loc-1', '', '/podcast/loc-1'],
     ['loc/one two', 'zh/Hant', '/podcast/loc%2Fone%20two?lang=zh%2FHant'],
   ])(

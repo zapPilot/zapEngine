@@ -57,7 +57,6 @@ import { resolveRouteProtocols } from '@/integration/simulationPreviewModel';
 import {
   calculateHomeRangeChange,
   sliceHomeDailyValuesForRange,
-  useHomeData,
 } from '@/integration/useHomeData';
 import {
   marketSignalsFromDashboard,
@@ -88,7 +87,7 @@ import { balanceRow as fundingRow } from './support/fundingBalanceRow';
 
 const mocks = vi.hoisted(() => ({
   account: { userId: null as string | null, address: null as string | null },
-  pathname: '/home',
+  pathname: '/today',
   push: vi.fn(),
   getBundleViewUserId: vi.fn(() => null as string | null),
   resolve: vi.fn(() => null as string | null),
@@ -200,7 +199,7 @@ function resetMocks() {
   effectCalls.list.length = 0;
   mocks.account.userId = null;
   mocks.account.address = null;
-  mocks.pathname = '/home';
+  mocks.pathname = '/today';
   mocks.getBundleViewUserId.mockReturnValue(null);
   mocks.resolve.mockReturnValue(null);
   mocks.getDepositReview.mockReset();
@@ -1097,80 +1096,6 @@ describe('useHomeData gaps', () => {
       calculateHomeRangeChange([{ total_value_usd: 1 }] as never),
     ).toBeNull();
   });
-
-  it('reports action_required with no reason and others with panel copy', async () => {
-    function suggestion(status: string, reasonCode: string) {
-      return {
-        as_of: '2026-08-22',
-        action: {
-          status,
-          required: status === 'action_required',
-          kind: 'rebalance',
-          reason_code: reasonCode,
-          transfers:
-            status === 'action_required'
-              ? [{ from_bucket: 'stable', to_bucket: 'eth', amount_usd: 1000 }]
-              : [],
-        },
-        context: {
-          portfolio: { total_value: 1000, asset_allocation: {} },
-          target: { allocation: {} },
-          market: { sentiment: 50 },
-          signal: { regime: 'risk_on' },
-          strategy: { stance: 'buy', reason_code: 'ratio', rule_group: 'x' },
-        },
-      } as never;
-    }
-
-    async function readHome(suggestionData: any) {
-      mocks.useLandingPageData.mockReturnValue({
-        data: {
-          net_portfolio_value: 100,
-          last_updated: '2026-08-22T00:00:00Z',
-        },
-        isLoading: false,
-        isError: false,
-        error: null,
-      });
-      mocks.usePortfolioDashboard.mockReturnValue({
-        dashboard: { trends: { daily_values: [] } },
-        isLoading: false,
-        isError: false,
-      });
-      mocks.useStrategySuggestion.mockReturnValue({
-        data: suggestionData,
-        isLoading: false,
-        isError: false,
-      });
-      mocks.useDailyYieldReturns.mockReturnValue({ data: undefined });
-
-      let seen: any = null;
-      function Probe({ onValue }: { onValue: (v: any) => void }) {
-        onValue(useHomeData('user-1', '1M'));
-        return null;
-      }
-      const container = document.createElement('div');
-      document.body.appendChild(container);
-      const root = createRoot(container);
-      await act(async () => {
-        root.render(createElement(Probe, { onValue: (v) => (seen = v) }));
-      });
-      await act(async () => root.unmount());
-      container.remove();
-      return seen;
-    }
-
-    const required = await readHome(
-      suggestion('action_required', 'eth_btc_ratio_rebalance'),
-    );
-    expect(required.data.strategyStatus.status).toBe('action_required');
-    expect(required.data.strategyStatus.reason).toBeNull();
-    expect(required.data.strategyStatus.primaryAction).not.toBeNull();
-
-    const idle = await readHome(suggestion('no_action', 'already_aligned'));
-    expect(idle.data.strategyStatus.status).toBe('no_action');
-    expect(idle.data.strategyStatus.reason).toContain('already aligned');
-  });
 });
 
 // ---------------------------------------------------------------------------
@@ -1852,9 +1777,7 @@ describe('web sync window and ready guards', () => {
           generatedAt: '2026-01-01T00:00:00.000Z',
         });
       });
-      expect(push).toHaveBeenCalledWith(
-        expect.objectContaining({ pathname: '/invest' }),
-      );
+      expect(push).toHaveBeenCalledWith('/today/decision');
     }
     {
       linkCb('https://example.com/nope');

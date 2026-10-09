@@ -69,6 +69,13 @@ function assertIosNativeDependencies(appRoot, env = process.env) {
   const manifestLock = fs.readFileSync(manifestLockPath, 'utf8');
   const details = [];
 
+  if (
+    podVersion(podfileLock, 'react-native-skia') !== null ||
+    podVersion(manifestLock, 'react-native-skia') !== null
+  ) {
+    details.push('react-native-skia must stay excluded from the iOS binary');
+  }
+
   if (podfileLock !== manifestLock) {
     details.push('ios/Podfile.lock does not match ios/Pods/Manifest.lock');
   }

@@ -4,7 +4,7 @@ import { ContentLanguageOptionRows } from '@/components/content/ContentLanguageS
 import { Card } from '@/components/ui/Card';
 import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 
-/** Shared by AccountScreen and AccountScreen.ios — same content-language picker on every platform. */
+/** Shared by the Runtime settings sections — same content-language picker on every platform. */
 export function LanguageSettingsCard() {
   const { t } = useContentLanguage();
 

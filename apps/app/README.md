@@ -3,12 +3,15 @@
 Universal Expo React Native workspace for Zap Pilot across iOS, Android, and web.
 The Electron desktop shell packages this app's static web export.
 
-The iOS App Store build ships podcast plus a read-only portfolio dashboard.
-Home, Portfolio, Activity, and Strategy (today's decision and its market
-signals) can render live analytics, while `.ios.tsx`/`.ios.ts` platform splits
-keep transaction/signing surfaces and their imports out of the iOS binary.
-Send, Wallets, and Invest remain behind the informational iOS read-only route.
-Android and web keep the full DeFi feature set.
+The app has three places: Today, Listen, and Runtime. Decision is a detail page;
+Fund is a root sheet whose execution state survives closing it. Pending signatures
+appear in the dock above navigation and reopen the retained flow.
+
+The iOS App Store build opens Listen and ships podcast plus read-only analytics.
+Today and Decision show the simulated reference strategy, while Portfolio displays
+existing portfolio analytics. Platform splits exclude funding, signing, wallet
+custody controls, the first-run animation, and Skia from the iOS binary. Web and
+Android expose authenticated Fund and wallet controls.
 
 ## Runtime
 
@@ -171,20 +174,19 @@ analytics-engine locally, then repeat the critical items against the static
 export served by `node scripts/serve-web.mjs --port 3100 --build-if-missing`.
 
 - Privy web login works on the target origin.
-- Six tabs render live data where a connected account has data.
-- Invest flow reaches the real deposit-plan preview and wallet signature step.
-- Send flow validates token, chain, amount, and recipient input.
+- Today, Listen, and Runtime are accessible to guests; authenticated actions prompt for login.
+- Fund reaches the real reviewed deposit plan and explicit wallet signature step; closing it pauses later signature prompts.
+- Sign bar reopens pending review, checkpoint, or agent authorization; expired review requires another check.
 - Podcast plays in Chrome through `hls.js` and in Safari through native HLS.
 - Clipboard, route hard refreshes, query parameters, fonts, and icons work.
 - Browser console has no red errors during the above flows.
 
 ## Phase 3 QA Checklist
 
-Cold start, demo tabs, Privy login, live portfolio, range tabs, invest two-step
-signing flow, activity, send validation, account copy/disconnect, podcast
-play/pause/seek, and deep link `zappilotv2://home`.
+Cold start, readable demo data, Privy login, live net worth and Portfolio ranges,
+Fund amount/review/progress, account recovery, wallet controls, podcast
+play/pause/seek, and the supported deep links.
 
-On iOS this checklist covers podcast play/pause/seek, cold start, deep link,
-Privy email sign-in/sign-out, watch-only address entry, and live Home / Portfolio /
-Activity / Strategy analytics. Send, Wallets, and Invest remain informational-only
-routes, and transaction/signing controls do not exist in the iOS binary.
+On iOS verify Listen-first cold start, podcast play/pause/seek, deep links,
+Privy email sign-in/sign-out, watch-only portfolio analytics, and the read-only
+reference decision. Fund, Sign bar, wallet controls, and 3D scenes are absent.

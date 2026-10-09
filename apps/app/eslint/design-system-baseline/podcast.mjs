@@ -59,11 +59,6 @@ export default {
     'zap-ui/no-direct-icon:969c638a2cfcf8a385f1': 1,
     'zap-ui/no-direct-icon:a9bb758435e5ab4af30a': 1,
   },
-  'src/components/podcast/PlayUnheardCard.tsx': {
-    'zap-ui/no-raw-text:71988c4d8e0803ba4519': 1,
-    'zap-ui/no-direct-icon:6983f426aa5296797d07': 1,
-    'zap-ui/no-direct-icon:49f624ee959159d3741b': 1,
-  },
   'src/screens/EpisodeDetailScreen.tsx': {
     'zap-ui/no-raw-text:71988c4d8e0803ba4519': 1,
     'zap-ui/no-direct-icon:92c80201012c67413a09': 2,
@@ -71,16 +66,5 @@ export default {
     'react/jsx-no-literals:b0aa8a6c35b4deec55bc': 1,
     'react/jsx-no-literals:70697411f77785d57099': 1,
     'react/jsx-no-literals:2236d2d3959c4208c7e9': 1,
-  },
-  'src/screens/PodcastScreen.tsx': {
-    'zap-ui/no-raw-text:71988c4d8e0803ba4519': 1,
-    'zap-ui/no-raw-text:3c1c4183a3c0e1ea292d': 1,
-    'zap-ui/no-direct-icon:639da30eea29d586a2e8': 1,
-    'react/jsx-no-literals:9d6aeb4541889a766684': 1,
-    'zap-ui/no-raw-design-values:83b04173f33950545e01': 1,
-    'zap-ui/no-direct-icon:afd044152fd66c041223': 1,
-    'react/jsx-no-literals:30f0ec975df69fa555ee': 1,
-    'zap-ui/no-raw-design-values:c7749e36658f0ef4bc15': 1,
-    'zap-ui/no-direct-icon:1bb80e1050b57e11f821': 1,
   },
 };

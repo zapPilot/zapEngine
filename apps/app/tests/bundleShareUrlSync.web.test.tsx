@@ -8,7 +8,7 @@ import { BundleUrlSync } from '@/integration/bundleShareUrlSync.web';
 const mocks = vi.hoisted(() => ({
   account: { viewingUserId: null as string | null },
   getBundleViewUserId: vi.fn(() => null as string | null),
-  pathname: '/home',
+  pathname: '/today',
   resolve: vi.fn(() => null as string | null),
 }));
 
@@ -60,7 +60,7 @@ async function flushFirstFrame(): Promise<void> {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.account.viewingUserId = null;
-  mocks.pathname = '/home';
+  mocks.pathname = '/today';
   mocks.resolve.mockReturnValue(null);
   mocks.getBundleViewUserId.mockReturnValue(null);
   frames.clear();
@@ -71,7 +71,7 @@ beforeEach(() => {
     return id;
   });
   vi.stubGlobal('cancelAnimationFrame', (id: number) => frames.delete(id));
-  window.history.replaceState({}, '', '/home#section');
+  window.history.replaceState({}, '', '/today#section');
 });
 
 afterEach(async () => {
@@ -89,7 +89,7 @@ describe('BundleUrlSync web', () => {
 
     await flushFirstFrame();
     expect(mocks.resolve).toHaveBeenCalledWith({
-      pathname: '/home',
+      pathname: '/today',
       search: '',
       viewingUserId: null,
     });
@@ -105,7 +105,7 @@ describe('BundleUrlSync web', () => {
     expect(replace).toHaveBeenLastCalledWith(
       window.history.state,
       '',
-      '/home?tab=portfolio&userId=user-1#section',
+      '/today?tab=portfolio&userId=user-1#section',
     );
 
     mocks.pathname = '/portfolio';

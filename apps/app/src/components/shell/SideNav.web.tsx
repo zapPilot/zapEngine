@@ -1,20 +1,22 @@
 import { Link, usePathname } from 'expo-router';
-import { LockKeyhole } from 'lucide-react-native';
 import { View } from 'react-native';
 import { BrandLockup } from '@/components/ui/BrandLockup';
-import { Icon } from '@/components/ui/Icon';
 import { Tap } from '@/components/ui/Tap';
 import { Text } from '@/components/ui/Text';
-import { activeAppTabForPathname } from '@/integration/navigationModel';
+import {
+  APP_ROUTES,
+  activeAppTabForPathname,
+} from '@/integration/navigationModel';
 import { requestAccountConnection } from '@/integration/requestAccountConnection';
 import { useAccount } from '@/integration/useAccount';
 import { truncateAddress } from '@/lib/format';
 import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 import { cn } from '@/lib/cn';
 import { useAppTabs } from './useAppTabs';
-import { NowPlayingBarHost } from './NowPlayingBarHost';
+import { AppDock } from './AppDock';
+import { TabGlyph } from './TabGlyph';
 export function SideNav() {
-  const { tabs, access } = useAppTabs();
+  const { tabs } = useAppTabs();
   const account = useAccount();
   const { t } = useContentLanguage();
   const active = activeAppTabForPathname(usePathname());
@@ -29,10 +31,7 @@ export function SideNav() {
         {tabs.map((tab) => {
           const content = (
             <>
-              <Icon
-                icon={tab.icon}
-                tone={active === tab.name ? 'default' : 'muted'}
-              />
+              <TabGlyph name={tab.name} active={active === tab.name} />
               <Text
                 variant="label"
                 tone={active === tab.name ? 'default' : 'secondary'}
@@ -40,16 +39,13 @@ export function SideNav() {
               >
                 {tab.label}
               </Text>
-              {!tab.accessible ? (
-                <Icon icon={LockKeyhole} size="xs" tone="muted" />
-              ) : null}
             </>
           );
           const classes = cn(
             'min-h-hit flex-row items-center gap-3 rounded-control px-3 py-3',
             active === tab.name && 'bg-well',
           );
-          return tab.accessible ? (
+          return (
             <Link key={tab.name} href={tab.href} asChild>
               <Tap
                 feedback="highlight"
@@ -61,36 +57,23 @@ export function SideNav() {
                 {content}
               </Tap>
             </Link>
-          ) : (
-            <Tap
-              accessibilityRole="button"
-              key={tab.name}
-              feedback="highlight"
-              accessibilityLabel={tab.label}
-              accessibilityHint={tab.hint}
-              onPress={() => requestAccountConnection(access)}
-              className={classes}
-            >
-              {content}
-            </Tap>
           );
         })}
       </View>
       <View className="mt-auto gap-4 pt-8">
-        <NowPlayingBarHost layout="card" />
+        <AppDock layout="card" />
         {account.isConnected ? (
-          <Link href="/account" asChild>
+          <Link href={APP_ROUTES.wallet} asChild>
             <Tap
               accessibilityRole="link"
-              accessibilityLabel={t('tabs.account')}
+              accessibilityLabel={t('account.manageWallets')}
               feedback="highlight"
               className="min-h-hit rounded-control px-3 py-3"
             >
               <Text variant="body-sm" numberOfLines={1}>
-                {account.address ??
-                  (account.address
-                    ? truncateAddress(account.address)
-                    : t('tabs.account'))}
+                {account.address
+                  ? truncateAddress(account.address)
+                  : (account.email ?? t('account.manageWallets'))}
               </Text>
             </Tap>
           </Link>
@@ -98,7 +81,7 @@ export function SideNav() {
           <Tap
             accessibilityRole="button"
             accessibilityLabel={t('common.signIn')}
-            onPress={() => requestAccountConnection(access)}
+            onPress={() => requestAccountConnection(account)}
             feedback="highlight"
             className="min-h-hit justify-center rounded-control border border-rule-2 px-3"
           >

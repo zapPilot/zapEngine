@@ -34,6 +34,7 @@ export default defineKnipConfig(
       // map those back to the dependency, so it false-positives them as unused.
       '@zapengine/app-core',
       '@zapengine/brand-assets',
+      '@zapengine/zap-pilot-story',
       '@zapengine/design-tokens',
       // Knip's Expo plugin treats these optional defaults as required whenever
       // updates and automatic UI style are enabled, even when they are not

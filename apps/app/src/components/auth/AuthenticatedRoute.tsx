@@ -6,7 +6,7 @@ import { useAuthenticatedAction } from '@/providers/AuthenticatedActionProvider'
 
 import { ConnectGatePage } from '@/components/connect/ConnectGatePage';
 import { CONNECT_GATE_COPY } from '@/components/connect/connectGateCopy';
-import { AccountUnavailableCard } from '@/components/home/DemoConnectOverlay';
+import { AccountUnavailableCard } from '@/components/home/AccountUnavailableCard';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { useAccount } from '@/integration/useAccount';
 import { NATIVE_PRIVY_AUTH_COPY } from '@/integration/nativePrivyLogin';

@@ -11,10 +11,12 @@ const DIST_BACKED_PACKAGES = [
   'types',
   'intent-engine',
   'design-tokens',
+  'zap-pilot-story',
+  'story-kit',
 ];
 
 // Mirrors turbo.json `inputs`, which excludes generated sources from hashing.
-const IGNORED_DIRS = new Set(['generated']);
+const IGNORED_DIRS = new Set(['generated', 'test']);
 const NON_EMITTING_SRC = /\.(d\.ts|test\.tsx?|spec\.tsx?)$/;
 
 function listFiles(dir, relative = '') {

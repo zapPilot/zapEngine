@@ -1,1 +1,3 @@
-{ "ignore": ["src/facts/data/**", "**/*.test.ts"] }
+{
+  "ignore": ["src/facts/data/**", "**/*.test.ts", "src/model/__golden__/**"]
+}

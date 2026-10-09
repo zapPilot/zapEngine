@@ -105,7 +105,17 @@ export default defineConfig([
       ? { ...config, plugins: { ...config.plugins, react: guardedReact } }
       : config,
   ),
-  { ignores: ['dist/**', 'coverage/**', '.expo/**', 'bundle-bytecode.js'] },
+  {
+    // Expo prebuild generates these native projects, including Pods and codegen.
+    ignores: [
+      'dist/**',
+      'coverage/**',
+      '.expo/**',
+      'android/**',
+      'ios/**',
+      'bundle-bytecode.js',
+    ],
+  },
   {
     files: ['**/*.{ts,tsx}'],
     rules: { 'no-restricted-imports': ['error', nativeRestrictions] },

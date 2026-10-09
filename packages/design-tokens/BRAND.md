@@ -31,7 +31,7 @@ Status conveys state by geometry: live is filled/solid, in-development is half/d
 
 ## Typography and motion
 
-Archivo Variable supplies display/text and Martian Mono Variable supplies labels/data. Thirteen type roles define weight, width, size, line height and em tracking. Native uses ten named static instances, including MartianMono Data at width 87.5. Noto Sans TC provides renderer CJK fallback. Fonts must resolve from the package rather than copied host assets.
+Archivo Variable supplies display/text and Martian Mono Variable supplies labels/data. Fifteen type roles define weight, width, size, line height and em tracking. Native uses ten named static instances, including MartianMono Data at width 87.5. Noto Sans TC provides renderer CJK fallback. Fonts must resolve from the package rather than copied host assets.
 
 Radii are tag 2, control 6, panel 8, sheet 12 and round 999. Controls are 48/56 px, hit targets at least 44 px. Motion uses timing: enter (0.2,0,0,1), exit (0.4,0,1,1), scene (0.16,1,0.3,1). Press scale is 0.98; springs are retired. Overlay is the only elevation shadow.
 

@@ -12,6 +12,7 @@ export const svgStub = {
   default: shape('svg'),
   Circle: shape('circle'),
   Path: shape('path'),
+  Text: shape('text'),
   Rect: shape('rect'),
   Defs: shape('defs'),
   ClipPath: shape('clipPath'),

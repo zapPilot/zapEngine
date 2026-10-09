@@ -1,0 +1,334 @@
+import { useRouter } from 'expo-router';
+import { useState } from 'react';
+import { View } from 'react-native';
+import { TextField } from '@/components/ui/TextField';
+import { Text } from '@/components/ui/Text';
+import { FundSheet } from './FundSheet';
+import { useFundFlow } from '@/providers/FundFlowProvider';
+import { CONNECT_WALLET_CTA } from '@/components/connect/connectCopy';
+import { CONNECTING_LABEL } from '@/components/connect/connectGateCopy';
+import { QuickAmountChips } from '@/components/invest/QuickAmountChips';
+import { SectorAllocationBar } from '@/components/invest/SectorAllocationBar';
+import { SectorCard } from '@/components/invest/SectorCard';
+import { FundingPlanDisclosure } from '@/components/invest/FundingPlanDisclosure';
+import { Button } from '@/components/ui/Button';
+import { Tap } from '@/components/ui/Tap';
+import { isDevBuild } from '@/config/appCoreEnv';
+import {
+  normalizeAmountInput,
+  quickAmountUsdInput,
+} from '@/integration/investAmountModel';
+import {
+  bpsToPercentInput,
+  normalizePercentInput,
+  percentInputToBps,
+  targetUsd6Shares,
+} from '@/integration/investTargetsModel';
+import {
+  DEFAULT_SECTOR_WEIGHTS,
+  INVEST_SECTORS,
+  isDefaultSectorWeights,
+  sectorUsd6Shares,
+  type InvestSectorId,
+} from '@/integration/investSectorModel';
+import {
+  planFunding,
+  fundingCapacityUsd6,
+  fundingMinimum,
+  fundingMinimumMessage,
+  unavailableChainIds,
+  unavailableFundingChains,
+  fundingBlockerMessage,
+  NATIVE_GAS_RESERVE_USD,
+} from '@/integration/investFundingPlanner';
+import { fundingSourceRows } from '@/integration/investFundingSources';
+import {
+  hlpSpendableUsd6,
+  hlpStandardAccountHint,
+} from '@/integration/hyperliquidPanelModel';
+import { requestAccountConnection } from '@/integration/requestAccountConnection';
+import { useAccount } from '@/integration/useAccount';
+import { useHyperCoreSpendable } from '@/integration/useHlpBalances';
+import { useInvest } from '@/integration/useInvest';
+import { useWalletAssets } from '@/integration/walletTokens';
+import { formatUsd6 } from '@/lib/format';
+import { palette } from '@/lib/palette';
+import { useContentLanguage } from '@/providers/ContentLanguageProvider';
+
+const USD_SYMBOL = '$';
+/**
+ * Stand-in total for the source preview before any amount is typed, used only
+ * when the mix has no HLP and therefore no minimum to preview at. It is not a
+ * floor: the planner needs some positive total to rank funding sources.
+ */
+const NO_MINIMUM_PREVIEW_USD6 = 1_000_000n;
+
+export function FundAmountStep() {
+  const router = useRouter();
+  const fund = useFundFlow();
+  const { t } = useContentLanguage();
+  const account = useAccount();
+  const invest = useInvest();
+  const balances = useWalletAssets(account.address);
+  const [percentEdit, setPercentEdit] = useState<{
+    sectorId: InvestSectorId;
+    text: string;
+  } | null>(null);
+  const hyperCore = useHyperCoreSpendable(account.address);
+  const supply = {
+    rows: balances.chainRows,
+    unavailableChainIds: unavailableChainIds(balances.failedChains),
+    // Loading spends as zero so step 1 never waits on the Hyperliquid API: the
+    // plan starts out bridged and flips to HyperCore when the balance lands.
+    // Only a genuine read failure becomes `null`, which the card explains.
+    hyperCoreSpendableUsd6: hyperCore.isError
+      ? null
+      : (hlpSpendableUsd6(hyperCore.balance) ?? 0n),
+  };
+  const constraints = {
+    preferences: invest.fundingPreferences,
+    gasReserveUsd: NATIVE_GAS_RESERVE_USD,
+  };
+  const minimum = fundingMinimum({
+    demand: {
+      totalUsd6: invest.totalUsd6,
+      allocations: invest.targetAllocations,
+    },
+    supply,
+    constraints,
+  });
+  const minimumUsd6 = minimum.usd6;
+  const amountUsd6 = BigInt(invest.totalUsd6);
+  const capacityUsd6 = fundingCapacityUsd6({
+    allocations: invest.targetAllocations,
+    supply,
+    constraints,
+  });
+  const previewUsd6 = minimumUsd6 > 0n ? minimumUsd6 : NO_MINIMUM_PREVIEW_USD6;
+  const plan = planFunding({
+    demand: {
+      totalUsd6: amountUsd6 > 0n ? invest.totalUsd6 : previewUsd6.toString(),
+      allocations: invest.targetAllocations,
+    },
+    supply,
+    constraints,
+  });
+  const sources = fundingSourceRows({
+    assignments: plan.assignments,
+    supply,
+    preferences: invest.fundingPreferences,
+    gasReserveUsd: NATIVE_GAS_RESERVE_USD,
+  });
+  const chainUnavailable =
+    balances.isError ||
+    unavailableFundingChains(
+      invest.targetAllocations,
+      supply.unavailableChainIds,
+      invest.fundingPreferences,
+    );
+  const canReview =
+    account.isConnected &&
+    !balances.isLoading &&
+    !chainUnavailable &&
+    amountUsd6 >= minimumUsd6 &&
+    capacityUsd6 !== null &&
+    amountUsd6 <= capacityUsd6 &&
+    plan.stages !== null;
+  const quickAmountsDisabled =
+    !account.isConnected ||
+    balances.isLoading ||
+    chainUnavailable ||
+    capacityUsd6 === null ||
+    capacityUsd6 <= 0n;
+  const availableLabel = balances.isLoading
+    ? t('fund.loading')
+    : chainUnavailable || !account.isConnected
+      ? t('fund.unavailable')
+      : capacityUsd6 === null
+        ? t('fund.priceUnavailable')
+        : t('fund.available', { amount: formatUsd6(capacityUsd6) });
+  const amountNotice =
+    amountUsd6 <= 0n
+      ? null
+      : amountUsd6 < minimumUsd6
+        ? fundingMinimumMessage(minimum)
+        : capacityUsd6 !== null && amountUsd6 > capacityUsd6
+          ? t('fund.tooMuch')
+          : plan.blockers[0]
+            ? fundingBlockerMessage(plan.blockers[0])
+            : null;
+  const sectorShares = sectorUsd6Shares(invest.totalUsd6, invest.sectorWeights);
+  const shares = targetUsd6Shares(invest.totalUsd6, invest.targetAllocations);
+  const handlePrimaryAction = () => {
+    if (!account.isConnected) {
+      requestAccountConnection(account);
+      return;
+    }
+    if (chainUnavailable) {
+      void balances.refetch();
+      return;
+    }
+    if (!canReview || !plan.stages) return;
+    invest.setStageDrafts(plan.stages);
+    // Both slots are written every time, including the null branch: this setter
+    // does not clear frozen execution state, so a stale leg would otherwise
+    // survive into a plan that no longer has one.
+    invest.setHyperCoreFundingDraft(
+      plan.hyperCoreLeg
+        ? {
+            source: 'hypercore-spot',
+            requestedUsd6: plan.hyperCoreLeg.usd6,
+            weightBps: plan.hyperCoreLeg.weightBps,
+          }
+        : null,
+    );
+    fund.open();
+  };
+  const primaryLabel = !account.isConnected
+    ? account.isConnecting
+      ? CONNECTING_LABEL
+      : CONNECT_WALLET_CTA
+    : chainUnavailable
+      ? t('fund.retryBalances')
+      : balances.isLoading
+        ? t('fund.loading')
+        : t('fund.review');
+  const footer = (
+    <Button
+      disabled={
+        account.isConnecting ||
+        (account.isConnected && !chainUnavailable && !canReview)
+      }
+      onPress={handlePrimaryAction}
+    >
+      {primaryLabel}
+    </Button>
+  );
+  return (
+    <FundSheet footer={footer}>
+      <View className="pt-5">
+        <Text variant="heading">{t('fund.amountTitle')}</Text>
+        <Text className="font-text mt-2 text-caption text-ink-2">
+          {t('invest.amount.intro')}
+        </Text>
+        <View className="mt-5 rounded-panel border border-rule bg-well p-4">
+          <View className="flex-row items-center justify-between">
+            <Text className="font-mono text-data text-ink-2">
+              {availableLabel}
+            </Text>
+          </View>
+          <View className="mt-2 flex-row items-center">
+            <Text className="mr-2 font-text-semibold text-title text-ink-3">
+              {USD_SYMBOL}
+            </Text>
+            <TextField
+              label={t('fund.amountLabel')}
+              numeric
+              className="min-w-0 flex-1"
+              keyboardType="decimal-pad"
+              placeholder={t('fund.zero')}
+              selectionColor={palette['sign-ink']}
+              value={invest.amountInput}
+              onChangeText={(value) =>
+                invest.setAmountInput(normalizeAmountInput(value))
+              }
+            />
+            <View className="rounded-round bg-well px-3 py-2">
+              <Text className="font-text-semibold text-caption text-ink-2">
+                {t('fund.currency')}
+              </Text>
+            </View>
+          </View>
+          <QuickAmountChips
+            disabled={quickAmountsDisabled}
+            maxAccessibilityLabel={t('fund.maxAmount')}
+            onSelect={(bps) =>
+              invest.setAmountInput(quickAmountUsdInput(capacityUsd6, bps))
+            }
+          />
+        </View>
+
+        <FundingPlanDisclosure
+          plan={plan}
+          sources={sources}
+          hasAmount={amountUsd6 > 0n}
+          isConnected={account.isConnected}
+          hasPreferences={Object.keys(invest.fundingPreferences).length > 0}
+          hyperCoreNote={hlpStandardAccountHint(hyperCore.balance)}
+          onChangePreference={invest.setFundingPreference}
+          onUseRecommended={invest.clearFundingPreferences}
+        />
+        <View className="mt-5 flex-row items-center justify-between">
+          <Text className="font-text-semibold text-body-lg text-ink">
+            {t('fund.mix')}
+          </Text>
+          {!isDefaultSectorWeights(invest.sectorWeights) ? (
+            <Tap
+              accessibilityRole="button"
+              accessibilityLabel={t('invest.amount.resetMix')}
+              onPress={() => {
+                setPercentEdit(null);
+                invest.resetSectorWeights();
+              }}
+            >
+              <Text className="font-mono-medium text-label text-ink">
+                {t('fund.resetMix')}
+              </Text>
+            </Tap>
+          ) : null}
+        </View>
+        <Text className="font-mono-medium mt-2 text-label text-ink-2">
+          {t('invest.amount.defaultMixNote', {
+            crypto: bpsToPercentInput(DEFAULT_SECTOR_WEIGHTS.crypto),
+            stable: bpsToPercentInput(DEFAULT_SECTOR_WEIGHTS.stable),
+          })}
+        </Text>
+        <SectorAllocationBar weights={invest.sectorWeights} />
+        <View className="gap-3">
+          {INVEST_SECTORS.map((sector) => (
+            <SectorCard
+              key={sector.id}
+              sector={sector}
+              totalUsd6={amountUsd6 > 0n ? sectorShares[sector.id] : null}
+              percentInput={
+                percentEdit?.sectorId === sector.id
+                  ? percentEdit.text
+                  : bpsToPercentInput(invest.sectorWeights[sector.id])
+              }
+              positions={sector.positions.map((p) => ({
+                ...p,
+                usd6: shares?.[p.positionId] ?? null,
+              }))}
+              onChangePercent={(raw) => {
+                const text = normalizePercentInput(raw);
+                setPercentEdit({ sectorId: sector.id, text });
+                invest.setSectorWeight(sector.id, percentInputToBps(text));
+              }}
+              onBlurPercent={() => setPercentEdit(null)}
+            />
+          ))}
+        </View>
+        {amountNotice ? (
+          <Text
+            accessibilityRole="alert"
+            className="font-mono-medium mt-3 text-label text-alert"
+          >
+            {amountNotice}
+          </Text>
+        ) : null}
+        {isDevBuild() ? (
+          <Tap
+            accessibilityRole="link"
+            accessibilityLabel={t('fund.diagnostics')}
+            className="mt-4 self-center"
+            onPress={() => router.push('/bridge-diagnostics')}
+          >
+            <Text variant="label" tone="muted">
+              {t('fund.diagnostics')}
+            </Text>
+          </Tap>
+        ) : null}
+      </View>
+    </FundSheet>
+  );
+}

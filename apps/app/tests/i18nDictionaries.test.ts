@@ -1,5 +1,9 @@
+import { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
 import { TRANSLATIONS } from '@/i18n/translations';
+const { DENYLIST } = createRequire(import.meta.url)(
+  '../scripts/assert-ios-bundle-clean.cjs',
+) as { DENYLIST: { term: string }[] };
 const placeholders = (text: string) =>
   [...text.matchAll(/\{([^}]+)\}/g)].map((match) => match[1]).sort();
 /**
@@ -43,4 +47,11 @@ describe('interface dictionaries', () => {
       expect(hits).toEqual([]);
     });
   }
+});
+
+it('does not pull execution markers into iOS through translated messages', () => {
+  for (const [language, dictionary] of Object.entries(TRANSLATIONS))
+    for (const [key, text] of Object.entries(dictionary))
+      for (const { term } of DENYLIST)
+        expect(text, `${language}.${key}`).not.toContain(term);
 });

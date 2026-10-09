@@ -1,3 +1,4 @@
+import { routeReferenceStrategy } from './reference-strategy';
 import { expect, test, type Page } from '@playwright/test';
 const episode = {
   id: 'shell-episode',
@@ -16,6 +17,7 @@ const episode = {
   ],
 };
 async function prepare(page: Page, width: number) {
+  await routeReferenceStrategy(page);
   await page.setViewportSize({ width, height: 900 });
   await page.addInitScript(() =>
     localStorage.setItem('content_language_code', 'en'),
@@ -44,7 +46,7 @@ async function noOverflow(page: Page) {
     page.getByText('Something went wrong', { exact: true }),
   ).toHaveCount(0);
 }
-async function switchTab(page: Page, name: 'Home' | 'Podcast') {
+async function switchTab(page: Page, name: 'Today' | 'Listen') {
   const nav = page.getByRole('navigation', { name: 'Primary', exact: true });
   await nav.getByRole('link', { name, exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/${name.toLowerCase()}$`));
@@ -52,7 +54,7 @@ async function switchTab(page: Page, name: 'Home' | 'Podcast') {
     'aria-current',
     'page',
   );
-  const previous = name === 'Home' ? 'Podcast' : 'Home';
+  const previous = name === 'Today' ? 'Listen' : 'Today';
   await expect(
     nav.getByRole('link', { name: previous, exact: true }),
   ).not.toHaveAttribute('aria-current', 'page');
@@ -63,14 +65,14 @@ test('desktop tabs support repeated round trips without reloading', async ({
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await prepare(page, 1440);
-  await page.goto('/home');
+  await page.goto('/today');
   await expect(
     page.getByRole('navigation', { name: 'Primary', exact: true }),
   ).toBeVisible({ timeout: 45000 });
   await page.evaluate(() => {
     Object.assign(window, { shellNavigationMarker: 'loaded' });
   });
-  for (const name of ['Podcast', 'Home', 'Podcast'] as const)
+  for (const name of ['Listen', 'Today', 'Listen'] as const)
     await switchTab(page, name);
   expect(
     await page.evaluate(
@@ -81,17 +83,17 @@ test('desktop tabs support repeated round trips without reloading', async ({
   ).toBe('loaded');
   expect(errors).toEqual([]);
 });
-test('desktop navigation persists across episode routes and keeps locked guests on their current page', async ({
+test('desktop navigation persists across episode routes and lets guests open all three places', async ({
   page,
 }) => {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await prepare(page, 1440);
-  await page.goto('/podcast');
+  await page.goto('/listen');
   const nav = page.getByRole('navigation', { name: 'Primary', exact: true });
   await expect(nav).toBeVisible({ timeout: 45000 });
   await expect(
-    nav.getByRole('link', { name: 'Podcast', exact: true }),
+    nav.getByRole('link', { name: 'Listen', exact: true }),
   ).toHaveAttribute('aria-current', 'page');
   await expect(
     page.getByRole('tablist', { name: 'App tabs', exact: true }),
@@ -102,25 +104,20 @@ test('desktop navigation persists across episode routes and keeps locked guests 
     .click();
   await expect(page).toHaveURL(/\/podcast\/shell-episode\?lang=en$/);
   await expect(
-    nav.getByRole('link', { name: 'Podcast', exact: true }),
+    nav.getByRole('link', { name: 'Listen', exact: true }),
   ).toHaveAttribute('aria-current', 'page');
   await noOverflow(page);
-  await switchTab(page, 'Home');
-  await switchTab(page, 'Podcast');
-  await switchTab(page, 'Home');
-  await nav.getByRole('button', { name: 'Strategy', exact: true }).click();
+  await switchTab(page, 'Today');
+  await switchTab(page, 'Listen');
+  await switchTab(page, 'Today');
+  await nav.getByRole('link', { name: 'Runtime', exact: true }).click();
+  await expect(page).toHaveURL(/\/runtime$/);
   await expect(
-    page.getByRole('dialog', { name: 'Choose how to connect', exact: true }),
+    page.getByRole('heading', { name: 'Runtime', exact: true }),
   ).toBeVisible();
-  await expect(page).toHaveURL(/\/home$/);
-  await page.keyboard.press('Escape');
-  await expect(page.getByRole('dialog')).toHaveCount(0);
-  await nav.getByRole('button', { name: 'Account', exact: true }).click();
-  await expect(
-    page.getByRole('dialog', { name: 'Choose how to connect', exact: true }),
-  ).toBeVisible();
-  await expect(page).toHaveURL(/\/home$/);
-  await page.keyboard.press('Escape');
+  await expect(page.getByText('11 of 24 parts live')).toBeVisible();
+  await nav.getByRole('link', { name: 'Today', exact: true }).click();
+  await expect(page).toHaveURL(/\/today$/);
   await noOverflow(page);
   expect(errors).toEqual([]);
 });
@@ -130,7 +127,7 @@ test('switches between bottom tabs and the sidebar at the 1024px boundary withou
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await prepare(page, 1023);
-  await page.goto('/podcast');
+  await page.goto('/listen');
   await expect(
     page.getByRole('tablist', { name: 'App tabs', exact: true }),
   ).toBeVisible({ timeout: 45000 });
@@ -146,8 +143,8 @@ test('switches between bottom tabs and the sidebar at the 1024px boundary withou
     await expect(
       page.getByRole('tablist', { name: 'App tabs', exact: true }),
     ).toHaveCount(0);
-    await switchTab(page, 'Home');
-    await switchTab(page, 'Podcast');
+    await switchTab(page, 'Today');
+    await switchTab(page, 'Listen');
     await noOverflow(page);
   }
   expect(errors).toEqual([]);
@@ -158,8 +155,8 @@ for (const width of [390, 1440]) {
     page,
   }) => {
     await prepare(page, width);
-    await page.goto('/podcast');
-    const heading = page.getByRole('heading', { name: 'Podcast', exact: true });
+    await page.goto('/listen');
+    const heading = page.getByRole('heading', { name: 'Listen', exact: true });
     const unheard = page.getByRole('button', {
       name: 'Unheard (1)',
       exact: true,

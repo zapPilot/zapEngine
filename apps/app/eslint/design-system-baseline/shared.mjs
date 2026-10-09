@@ -1,8 +1,5 @@
 // Temporary migration debt. Remove fingerprints as their consumers migrate.
 export default {
-  'src/app/send.tsx': {
-    'react/jsx-no-literals:1b019d29ca6b637675f6': 1,
-  },
   'src/app/unsubscribe.tsx': {
     'zap-ui/no-raw-text:71988c4d8e0803ba4519': 1,
     'react/jsx-no-literals:1fb9c10c9f577a5528fe': 1,
@@ -13,9 +10,6 @@ export default {
   },
   'src/app/wallets.tsx': {
     'react/jsx-no-literals:79f9d500493e6560f307': 1,
-  },
-  'src/components/BottomTabBar.tsx': {
-    'zap-ui/no-raw-text:71988c4d8e0803ba4519': 1,
   },
   'src/components/FinancialFeatureRoute.tsx': {
     'zap-ui/no-raw-text:71988c4d8e0803ba4519': 1,
@@ -49,9 +43,6 @@ export default {
     'react/jsx-no-literals:f260bc11a75aa08d0654': 1,
     'react/jsx-no-literals:4fb295fdb6aad95e31e2': 1,
     'react/jsx-no-literals:382912757963d9cc2754': 1,
-  },
-  'src/components/metrics/MetricsGrid.tsx': {
-    'zap-ui/no-raw-text:71988c4d8e0803ba4519': 1,
   },
   'src/providers/AppProviderShell.tsx': {
     'react/jsx-no-literals:d4c8dcfccba1e413b50a': 1,

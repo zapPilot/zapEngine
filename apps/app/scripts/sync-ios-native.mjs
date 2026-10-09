@@ -1,8 +1,16 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
-import { closeSync, mkdirSync, openSync } from 'node:fs';
+import {
+  accessSync,
+  closeSync,
+  constants,
+  mkdirSync,
+  openSync,
+  readdirSync,
+} from 'node:fs';
 import { createRequire } from 'node:module';
-import { dirname, resolve } from 'node:path';
+import { homedir } from 'node:os';
+import { delimiter, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const require = createRequire(import.meta.url);
@@ -27,6 +35,47 @@ export function resolveCocoaPodsLocaleEnv(env) {
   if (/\.utf-?8$/iu.test(configured ?? '')) return {};
   // LC_ALL is set alongside LANG so an inherited non-UTF-8 LC_CTYPE cannot win.
   return { LANG: UTF8_LOCALE, LC_ALL: UTF8_LOCALE };
+}
+
+function isExecutable(path) {
+  try {
+    accessSync(path, constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Hermes is built from source for this app. Android Studio installs CMake in
+// the SDK, but does not add it to PATH for CocoaPods or desktop app processes.
+export function resolveCocoaPodsToolchainEnv(env) {
+  const currentPath = env.PATH ?? '';
+  if (
+    currentPath
+      .split(delimiter)
+      .some((dir) => dir && isExecutable(join(dir, 'cmake')))
+  ) {
+    return {};
+  }
+  const sdkRoot =
+    env.ANDROID_HOME ||
+    env.ANDROID_SDK_ROOT ||
+    join(homedir(), 'Library', 'Android', 'sdk');
+  const cmakeRoot = join(sdkRoot, 'cmake');
+  let versions;
+  try {
+    versions = readdirSync(cmakeRoot).sort((a, b) =>
+      b.localeCompare(a, 'en', { numeric: true }),
+    );
+  } catch {
+    return {};
+  }
+  const bin = versions
+    .map((version) => join(cmakeRoot, version, 'bin'))
+    .find((dir) => isExecutable(join(dir, 'cmake')));
+  return bin
+    ? { PATH: [bin, currentPath].filter(Boolean).join(delimiter) }
+    : {};
 }
 
 function run(command, args, cwd, logPath, extraEnv = {}) {
@@ -90,6 +139,7 @@ export function syncIosNative({
   run('pod', ['install'], iosRoot, logPath, {
     ...env,
     ...resolveCocoaPodsLocaleEnv(inheritedPodEnv),
+    ...resolveCocoaPodsToolchainEnv(inheritedPodEnv),
   });
 
   assertIosNativeDependencies(appRoot, {

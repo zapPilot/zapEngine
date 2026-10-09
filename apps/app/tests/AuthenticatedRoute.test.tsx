@@ -38,7 +38,7 @@ vi.mock('@/components/connect/ConnectGatePage', () => ({
     </button>
   ),
 }));
-vi.mock('@/components/home/DemoConnectOverlay', () => ({
+vi.mock('@/components/home/AccountUnavailableCard', () => ({
   AccountUnavailableCard: ({ onRetry }: { onRetry: () => void }) => (
     <button type="button" onClick={onRetry}>
       Retry account

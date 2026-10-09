@@ -66,9 +66,9 @@ describe('isHttpsUrl', () => {
 
 describe('isDeepLinkUrl', () => {
   it('matches only the app scheme', () => {
-    expect(isDeepLinkUrl('zappilotv2://invest/confirm', 'zappilotv2')).toBe(
-      true,
-    );
+    expect(
+      isDeepLinkUrl('zappilotv2://today/decision/confirm', 'zappilotv2'),
+    ).toBe(true);
     expect(isDeepLinkUrl('https://zap.example', 'zappilotv2')).toBe(false);
     expect(isDeepLinkUrl(undefined, 'zappilotv2')).toBe(false);
   });

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { expect, it } from 'vitest';
-import paths from './asset-glyphs.json' with { type: 'json' };
+import { ASSET_GLYPH_PATHS as paths } from './asset-glyphs.js';
 import { engineScene } from './engine.js';
 it('keeps the embedded story marks identical to the platform-neutral registry', () => {
   const registry = JSON.parse(

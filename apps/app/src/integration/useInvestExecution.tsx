@@ -14,6 +14,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from 'react';
@@ -171,6 +172,16 @@ export function InvestExecutionProvider({ children }: { children: ReactNode }) {
   const { stageDrafts, hyperCoreFundingDraft } = useInvest();
   const invalidatedDone = useRef(false);
   const previousDraftKey = useRef('');
+  const executionEpoch = useRef(0);
+  const [epoch, setEpoch] = useState(0);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      executionEpoch.current += 1;
+    };
+  }, []);
   const [reviewedSubmission, setReviewedSubmission] =
     useState<ReviewedBatchSubmission | null>(null);
   const [reviewedQueue, setReviewedQueue] = useState<ReviewedQueue>([]);
@@ -181,6 +192,7 @@ export function InvestExecutionProvider({ children }: { children: ReactNode }) {
   // froze: leaving it out lets its amount change while an in-flight execution
   // state survives.
   const executionDraftKey = [
+    account.userId ?? 'none',
     walletAddress?.toLowerCase() ?? 'none',
     stageDraftsKey(stageDrafts),
     `hypercore:${hyperCoreFundingDraft?.requestedUsd6 ?? 'none'}`,
@@ -192,11 +204,17 @@ export function InvestExecutionProvider({ children }: { children: ReactNode }) {
   });
 
   const reset = useCallback(() => {
+    executionEpoch.current += 1;
+    setEpoch(executionEpoch.current);
     invalidatedDone.current = false;
     setReviewedSubmission(null);
     setReviewedQueue([]);
     setReviewedProgress(null);
   }, []);
+  const latestDraftKey = useRef(executionDraftKey);
+  useLayoutEffect(() => {
+    latestDraftKey.current = executionDraftKey;
+  }, [executionDraftKey]);
 
   useEffect(() => {
     if (previousDraftKey.current === '') {
@@ -231,6 +249,7 @@ export function InvestExecutionProvider({ children }: { children: ReactNode }) {
       queue: ReviewedQueue,
       groupIndex: number,
     ): Promise<void> => {
+      const monitoringEpoch = executionEpoch.current;
       if (!wallet.waitForReviewedBatch) {
         setReviewedProgress({
           ...submission,
@@ -246,6 +265,8 @@ export function InvestExecutionProvider({ children }: { children: ReactNode }) {
         callsId: submission.callsId,
         chainId: submission.chainId,
       });
+      if (!mounted.current || executionEpoch.current !== monitoringEpoch)
+        return;
       if (status.status === 'failed') {
         setReviewedProgress((current) =>
           current?.callsId === submission.callsId &&
@@ -285,6 +306,33 @@ export function InvestExecutionProvider({ children }: { children: ReactNode }) {
     [wallet],
   );
 
+  const executeInSession = useCallback(
+    async (
+      input: Omit<
+        Parameters<typeof executeReviewedBatchWithWallet>[0],
+        'wallet'
+      >,
+    ): Promise<ReviewedBatchSubmissionResult> => {
+      const isCurrent = () =>
+        mounted.current &&
+        executionEpoch.current === epoch &&
+        latestDraftKey.current === executionDraftKey;
+      if (!isCurrent())
+        return {
+          status: 'blocked',
+          reason: 'The funding session changed before signing.',
+        };
+      const result = await executeReviewedBatchWithWallet({ wallet, ...input });
+      return isCurrent()
+        ? result
+        : {
+            status: 'blocked',
+            reason: 'The funding session changed while signing.',
+          };
+    },
+    [wallet, epoch, executionDraftKey],
+  );
+
   const submitReviewedBatch = useCallback(
     async (input: {
       plan: ReviewedDepositPlan;
@@ -292,8 +340,7 @@ export function InvestExecutionProvider({ children }: { children: ReactNode }) {
       acknowledgedRiskHash?: string;
       queue?: ReviewedQueue;
     }): Promise<ReviewedBatchSubmissionResult> => {
-      const submission = await executeReviewedBatchWithWallet({
-        wallet,
+      const submission = await executeInSession({
         plan: input.plan,
         review: input.review,
         acknowledgedRiskHash: input.acknowledgedRiskHash,
@@ -312,7 +359,7 @@ export function InvestExecutionProvider({ children }: { children: ReactNode }) {
       void monitorReviewedBatch(submission, queue, 0);
       return submission;
     },
-    [commitReviewedSubmission, monitorReviewedBatch, wallet],
+    [commitReviewedSubmission, monitorReviewedBatch, executeInSession],
   );
 
   const submitNextReviewedBatch = useCallback(
@@ -340,8 +387,7 @@ export function InvestExecutionProvider({ children }: { children: ReactNode }) {
           reason: 'No reviewed batch is waiting for confirmation.',
         };
       }
-      const submission = await executeReviewedBatchWithWallet({
-        wallet,
+      const submission = await executeInSession({
         plan: next.plan,
         review: next.review,
         acknowledgedRiskHash: input?.acknowledgedRiskHash,
@@ -361,10 +407,10 @@ export function InvestExecutionProvider({ children }: { children: ReactNode }) {
     },
     [
       commitReviewedSubmission,
+      executeInSession,
       monitorReviewedBatch,
       reviewedProgress,
       reviewedQueue,
-      wallet,
     ],
   );
 

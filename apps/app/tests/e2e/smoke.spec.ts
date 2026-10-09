@@ -1,3 +1,4 @@
+import { routeReferenceStrategy } from './reference-strategy';
 import { expect, test, type Page } from '@playwright/test';
 
 const PODCAST_FIXTURE = {
@@ -159,23 +160,23 @@ const VIDEO_PODCAST_FIXTURE = {
 const PRIMARY_ROUTES = [
   {
     label: 'Home',
-    path: '/home',
-    url: /\/home$/,
+    path: '/today',
+    url: /\/today$/,
   },
   {
     label: 'Strategy',
-    path: '/strategy',
-    url: /\/strategy$/,
+    path: '/today/decision',
+    url: /\/today\/decision$/,
   },
   {
-    label: 'Podcast',
-    path: '/podcast',
-    url: /\/podcast$/,
+    label: 'Listen',
+    path: '/listen',
+    url: /\/listen$/,
   },
   {
-    label: 'Account',
-    path: '/account',
-    url: /\/account$/,
+    label: 'Runtime',
+    path: '/runtime',
+    url: /\/runtime$/,
   },
 ] as const;
 
@@ -185,7 +186,6 @@ type MediaSessionProbeWindow = Window & {
   __mediaSessionActions?: string[];
 };
 
-const AUTH_REQUIRED_ROUTES = new Set(['/strategy', '/account']);
 const APP_BOOT_TIMEOUT = 45_000;
 const EPISODE_MEDIA_TAB_LABELS = ['Story', 'Classroom', 'Video'] as const;
 
@@ -199,6 +199,7 @@ async function routePodcastCatalog(page: Page): Promise<void> {
 }
 
 async function routePodcastFeed(page: Page): Promise<void> {
+  await routeReferenceStrategy(page);
   await routePodcastCatalog(page);
   await page.route('**/episodes?**', async (route) => {
     await route.fulfill({
@@ -303,21 +304,25 @@ test('renders the web app shell and primary routes without page errors', async (
   await page.setViewportSize({ width: 390, height: 844 });
   await routePodcastFeed(page);
 
-  await test.step('Podcast is the default guest route and all four tabs remain visible', async () => {
+  await test.step('first-time guests can explore and keep the three public places', async () => {
     await page.goto('/');
-    await expect(page).toHaveURL(/\/podcast$/, {
-      timeout: APP_BOOT_TIMEOUT,
-    });
+    await expect(page).toHaveURL(/\/welcome$/, { timeout: APP_BOOT_TIMEOUT });
+    await expect(
+      page.getByRole('button', { name: 'Look around first' }),
+    ).toBeVisible();
+    await page.getByRole('button', { name: 'Look around first' }).click();
+    await expect(page).toHaveURL(/\/today$/);
 
     const tabs = page
       .getByRole('tablist', { name: 'App tabs' })
       .getByRole('tab');
-    await expect(tabs).toHaveCount(4);
-    await expect(tabs).toHaveText(['Home', 'Strategy', 'Podcast', 'Account']);
-    await expect(page.getByRole('tab', { name: 'Podcast' })).toHaveAttribute(
+    await expect(tabs).toHaveCount(3);
+    await expect(tabs).toHaveText(['Today', 'Listen', 'Runtime']);
+    await expect(page.getByRole('tab', { name: 'Today' })).toHaveAttribute(
       'aria-selected',
       'true',
     );
+    await page.getByRole('tab', { name: 'Listen' }).click();
   });
 
   await test.step('Podcast keeps search compact and exposes language completion', async () => {
@@ -358,7 +363,7 @@ test('renders the web app shell and primary routes without page errors', async (
     }
 
     await page.getByRole('button', { name: /中文/ }).click();
-    await expect(page.getByRole('tab', { name: '首頁' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: '今日' })).toBeVisible();
     await expect(page.getByText('語言里程碑')).toHaveCount(0);
     await expect(
       page
@@ -372,7 +377,7 @@ test('renders the web app shell and primary routes without page errors', async (
     await expect(localizedLanguageTrigger).toContainText('中');
     await localizedLanguageTrigger.click();
     await page.getByRole('button', { name: /English/ }).click();
-    await expect(page.getByRole('tab', { name: 'Home' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Today' })).toBeVisible();
   });
 
   await test.step('audio-only episode detail keeps the video player unloaded', async () => {
@@ -401,30 +406,34 @@ test('renders the web app shell and primary routes without page errors', async (
   });
 
   await test.step('guest can open Home and return to Podcast', async () => {
-    await page.goto('/podcast');
-    await page.getByRole('tab', { name: 'Home' }).click();
-    await expect(page).toHaveURL(/\/home$/);
+    await page.goto('/listen');
+    await page.getByRole('tab', { name: 'Today' }).click();
+    await expect(page).toHaveURL(/\/today$/);
     await expectHealthyRoute(page);
     await expect(page.getByText('Sign in to continue')).toHaveCount(0);
-    await expect(page.getByText('Wallet assets')).toBeVisible();
+    await expect(page.getByText('Demo', { exact: true }).first()).toBeVisible();
     await expect(
-      page.getByRole('button', { name: 'Rebalance', exact: true }),
+      page.getByRole('button', { name: 'Fund', exact: true }),
+    ).toBeVisible();
+    await page
+      .getByRole('link', { name: 'Open the decision', exact: true })
+      .click();
+    await expect(page).toHaveURL(/\/today\/decision$/);
+    await expect(
+      page.getByText('Why this decision.', { exact: true }),
     ).toBeVisible();
 
-    await page.getByRole('tab', { name: 'Podcast' }).click();
-    await expect(page).toHaveURL(/\/podcast$/);
+    await page.getByRole('tab', { name: 'Listen' }).click();
+    await expect(page).toHaveURL(/\/listen$/);
   });
 
-  await test.step('locked tabs start sign-in without leaving the guest route', async () => {
-    for (const label of ['Strategy', 'Account'] as const) {
-      await page.goto('/podcast');
-      await page.getByRole('tab', { name: label }).click();
-      await expect(page).toHaveURL(/\/podcast$/);
-      await expect(page.getByRole('tab', { name: 'Podcast' })).toHaveAttribute(
-        'aria-selected',
-        'true',
-      );
-    }
+  await test.step('guests can open Runtime', async () => {
+    await page.getByRole('tab', { name: 'Runtime' }).click();
+    await expect(page).toHaveURL(/\/runtime$/);
+    await expect(
+      page.getByRole('heading', { name: 'Runtime', exact: true }),
+    ).toBeVisible();
+    await expect(page.getByText('11 of 24 parts live')).toBeVisible();
   });
 
   for (const route of PRIMARY_ROUTES) {
@@ -432,11 +441,6 @@ test('renders the web app shell and primary routes without page errors', async (
       await page.goto(route.path);
       await expect(page).toHaveURL(route.url);
       await expectHealthyRoute(page);
-      if (AUTH_REQUIRED_ROUTES.has(route.path)) {
-        await expect(
-          page.getByText('Sign in to continue').first(),
-        ).toBeVisible();
-      }
     });
   }
 
@@ -447,18 +451,14 @@ test('renders the web app shell and primary routes without page errors', async (
     await expect(page.getByText('Sign in to continue')).toBeVisible();
   });
 
-  await test.step('Decision focus route requires authentication without route errors', async () => {
-    await page.goto('/strategy?focus=decision');
-    await expect(page).toHaveURL(/\/strategy\?focus=decision$/);
+  await test.step('old Telegram links redirect to Decision within Today', async () => {
+    await page.goto('/strategy');
+    await expect(page).toHaveURL(/\/today\/decision$/);
     await expectHealthyRoute(page);
-    await expect(page.getByText('Sign in to continue')).toBeVisible();
-  });
-
-  await test.step('Send route', async () => {
-    await page.goto('/send?token=USDC');
-    await expect(page).toHaveURL(/\/send\?token=USDC$/);
-    await expectHealthyRoute(page);
-    await expect(page.getByText('Sign in to continue')).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Today' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
   });
 
   expect(pageErrors).toEqual([]);
@@ -483,8 +483,8 @@ test('registers headset transport actions with the media session', async ({
   });
 
   await routePodcastFeed(page);
-  await page.goto('/podcast');
-  await expect(page).toHaveURL(/\/podcast$/, { timeout: APP_BOOT_TIMEOUT });
+  await page.goto('/listen');
+  await expect(page).toHaveURL(/\/listen$/, { timeout: APP_BOOT_TIMEOUT });
 
   await expect
     .poll(
@@ -555,7 +555,7 @@ test('back button from a deep-linked episode returns to the podcast list', async
 
   await page.getByRole('button', { name: 'Back', exact: true }).click();
 
-  await expect(page).toHaveURL(/\/podcast$/);
+  await expect(page).toHaveURL(/\/listen$/);
 });
 
 test('mobile episode opens on the web with a dismissible app prompt', async ({
@@ -626,8 +626,8 @@ test('choosing a language on the episode detail screen switches the displayed lo
   // "en") so the feed request and the detail route's `?lang=` agree from the
   // start, matching how a real user would already be on this screen before
   // touching the language picker.
-  await page.goto('/podcast');
-  await expect(page).toHaveURL(/\/podcast$/, { timeout: APP_BOOT_TIMEOUT });
+  await page.goto('/listen');
+  await expect(page).toHaveURL(/\/listen$/, { timeout: APP_BOOT_TIMEOUT });
   await page.getByRole('button', { name: 'Choose app language' }).click();
   await page.getByRole('button', { name: /中文/ }).click();
 
@@ -801,7 +801,7 @@ test('complete video stays lazy and falls back to Story after an error', async (
     await route.abort();
   });
 
-  await page.goto('/podcast');
+  await page.goto('/listen');
   const episodeButton = page
     .getByRole('button', { name: 'Open E2E video episode' })
     .first();

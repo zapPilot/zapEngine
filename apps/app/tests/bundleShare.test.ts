@@ -12,15 +12,15 @@ const OWN_ID = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
 const VISITED_ID = '5fc63d4e-4e07-47d8-840b-ccd3420d553f';
 
 describe('buildBundleShareUrl', () => {
-  it('builds <origin>/home?userId=<uuid>', () => {
+  it('builds <origin>/today?userId=<uuid>', () => {
     expect(buildBundleShareUrl('https://v2.zap-pilot.org', OWN_ID)).toBe(
-      `https://v2.zap-pilot.org/home?userId=${OWN_ID}`,
+      `https://v2.zap-pilot.org/today?userId=${OWN_ID}`,
     );
   });
 
   it('normalizes a trailing slash on the origin', () => {
     expect(buildBundleShareUrl('http://localhost:8081/', OWN_ID)).toBe(
-      `http://localhost:8081/home?userId=${OWN_ID}`,
+      `http://localhost:8081/today?userId=${OWN_ID}`,
     );
   });
 });
@@ -47,13 +47,14 @@ describe('resolveShareOrigin', () => {
 
 describe('isBundleSharePath', () => {
   it('accepts the portfolio routes', () => {
-    expect(isBundleSharePath('/home')).toBe(true);
+    expect(isBundleSharePath('/today')).toBe(true);
     expect(isBundleSharePath('/portfolio')).toBe(true);
-    expect(isBundleSharePath('/home/')).toBe(true);
+    expect(isBundleSharePath('/runtime')).toBe(true);
+    expect(isBundleSharePath('/today/')).toBe(true);
   });
 
   it('rejects non-portfolio routes', () => {
-    expect(isBundleSharePath('/podcast')).toBe(false);
+    expect(isBundleSharePath('/listen')).toBe(false);
     expect(isBundleSharePath('/activity')).toBe(false);
     expect(isBundleSharePath('/')).toBe(false);
   });
@@ -63,7 +64,7 @@ describe('resolveBundleUrlSearch', () => {
   it('leaves unrelated routes alone', () => {
     expect(
       resolveBundleUrlSearch({
-        pathname: '/podcast',
+        pathname: '/listen',
         search: '?userId=old',
         viewingUserId: OWN_ID,
       }),
@@ -72,7 +73,7 @@ describe('resolveBundleUrlSearch', () => {
   it('sets the viewed bundle after search or login', () => {
     expect(
       resolveBundleUrlSearch({
-        pathname: '/home',
+        pathname: '/today',
         search: '?x=1',
         viewingUserId: OWN_ID,
       }),
@@ -88,7 +89,7 @@ describe('resolveBundleUrlSearch', () => {
   it('restores the visited param after a tab roundtrip', () => {
     expect(
       resolveBundleUrlSearch({
-        pathname: '/home',
+        pathname: '/today',
         search: '',
         viewingUserId: VISITED_ID,
       }),
@@ -97,7 +98,7 @@ describe('resolveBundleUrlSearch', () => {
   it('does not write an already canonical query', () => {
     expect(
       resolveBundleUrlSearch({
-        pathname: '/home',
+        pathname: '/today',
         search: `?userId=${OWN_ID}`,
         viewingUserId: OWN_ID,
       }),
@@ -106,21 +107,21 @@ describe('resolveBundleUrlSearch', () => {
   it('clears the bundle on logout while preserving other params', () => {
     expect(
       resolveBundleUrlSearch({
-        pathname: '/home',
+        pathname: '/today',
         search: '?userId=old&x=1',
         viewingUserId: null,
       }),
     ).toBe('x=1');
     expect(
       resolveBundleUrlSearch({
-        pathname: '/home',
+        pathname: '/today',
         search: '?userId=old',
         viewingUserId: null,
       }),
     ).toBe('');
     expect(
       resolveBundleUrlSearch({
-        pathname: '/home',
+        pathname: '/today',
         search: '',
         viewingUserId: null,
       }),

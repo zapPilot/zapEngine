@@ -51,6 +51,7 @@ export interface InvestContextValue {
   sectorWeights: SectorWeights;
   setSectorWeight: (sectorId: InvestSectorId, weightBps: number) => void;
   resetSectorWeights: () => void;
+  resetDraft: () => void;
   fundingPreferences: FundingPreferences;
   setFundingPreference: (
     chainId: FundingSourceChainId,
@@ -83,7 +84,7 @@ function withFreezeClear<T>(
 /**
  * Holds the invest-flow draft (amount, target weights, funding tokens) so the
  * amount, route, and progress steps share one source of truth. Wrapped around
- * the `/invest/*` routes via a layout route.
+ * the root Fund flow so drafts survive closing the sheet.
  */
 export function InvestProvider({ children }: { children: ReactNode }) {
   const [amountInput, setAmountInputState] = useState('');
@@ -107,6 +108,12 @@ export function InvestProvider({ children }: { children: ReactNode }) {
     setHyperCoreFundingDraft(null);
     setHlpBaselineUsd6(null);
   }, []);
+  const resetDraft = useCallback(() => {
+    setAmountInputState('');
+    setSectorWeights(DEFAULT_SECTOR_WEIGHTS);
+    setFundingPreferences({});
+    clearFrozenExecution();
+  }, [clearFrozenExecution]);
   const setAmountInput = useCallback(
     (value: string) =>
       withFreezeClear(setAmountInputState, clearFrozenExecution, value),
@@ -155,6 +162,7 @@ export function InvestProvider({ children }: { children: ReactNode }) {
       sectorWeights,
       setSectorWeight,
       resetSectorWeights,
+      resetDraft,
       fundingPreferences,
       setFundingPreference,
       clearFundingPreferences,
@@ -169,6 +177,7 @@ export function InvestProvider({ children }: { children: ReactNode }) {
       sectorWeights,
       setSectorWeight,
       resetSectorWeights,
+      resetDraft,
       fundingPreferences,
       setFundingPreference,
       clearFundingPreferences,

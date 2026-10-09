@@ -378,6 +378,28 @@ export declare const tokens: {
       readonly case: 'none';
       readonly numeric: 'tabular-nums';
     };
+    readonly headline: {
+      readonly size: 36;
+      readonly line: 38;
+      readonly tracking: -0.035;
+      readonly weight: 640;
+      readonly width: 108;
+      readonly family: 'display';
+      readonly native: 'display';
+      readonly case: 'none';
+      readonly numeric: 'normal';
+    };
+    readonly verdict: {
+      readonly size: 64;
+      readonly line: 60;
+      readonly tracking: -0.04;
+      readonly weight: 660;
+      readonly width: 112;
+      readonly family: 'display';
+      readonly native: 'display-xl';
+      readonly case: 'none';
+      readonly numeric: 'normal';
+    };
   };
   readonly radius: {
     readonly tag: 2;
