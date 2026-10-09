@@ -474,23 +474,38 @@ describe('EAS post-install workspace build', () => {
       .map(([name]) => name);
   }
 
-  it('selects every workspace dependency of the app', () => {
-    const { packages } = turboDryRun(postInstallFilter());
+  // turboDryRun shells out to the turbo binary over the whole monorepo graph:
+  // 466ms locally, over the 5s default on CI runners under cache contention
+  // (run 37933799586). Timeout bumps preserve all assertions.
+  it(
+    'selects every workspace dependency of the app',
+    { timeout: 20_000 },
+    () => {
+      const { packages } = turboDryRun(postInstallFilter());
 
-    expect(packages.length).toBeGreaterThan(0);
-    expect(packages).toEqual(expect.arrayContaining(workspaceDependencies()));
-  });
+      expect(packages.length).toBeGreaterThan(0);
+      expect(packages).toEqual(expect.arrayContaining(workspaceDependencies()));
+    },
+  );
 
-  it('builds brand-assets, whose missing dist broke Metro on EAS', () => {
-    expect(turboDryRun(postInstallFilter()).tasks).toContain(
-      '@zapengine/brand-assets#build',
-    );
-  });
+  it(
+    'builds brand-assets, whose missing dist broke Metro on EAS',
+    { timeout: 20_000 },
+    () => {
+      expect(turboDryRun(postInstallFilter()).tasks).toContain(
+        '@zapengine/brand-assets#build',
+      );
+    },
+  );
 
-  it('excludes the app itself so the hook cannot re-enter the app bundle', () => {
-    const { packages, tasks } = turboDryRun(postInstallFilter());
+  it(
+    'excludes the app itself so the hook cannot re-enter the app bundle',
+    { timeout: 20_000 },
+    () => {
+      const { packages, tasks } = turboDryRun(postInstallFilter());
 
-    expect(packages).not.toContain('@zapengine/app');
-    expect(tasks).not.toContain('@zapengine/app#build');
-  });
+      expect(packages).not.toContain('@zapengine/app');
+      expect(tasks).not.toContain('@zapengine/app#build');
+    },
+  );
 });

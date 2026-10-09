@@ -38,7 +38,7 @@ export function takeAppStoreConnectCredentials(env = process.env) {
     privateKey = createPrivateKey(readFileSync(keyPath));
   } catch {
     throw new Error(
-      `APPLE_API_KEY (${keyPath}) is not a readable PEM private key (.p8).`,
+      'APPLE_API_KEY is not a readable PEM private key (.p8). Check the configured path.',
     );
   }
 
