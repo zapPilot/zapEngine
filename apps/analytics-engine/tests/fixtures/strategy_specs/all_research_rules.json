@@ -1,0 +1,306 @@
+{
+  "spec_format": "strategy-spec/1",
+  "id": "all_research_rules",
+  "version": 1,
+  "description": "The reference plus all twelve research rules, the SPY latch and a weekly trade quota: a fixture that pins every spec kind the reference does not use.",
+  "signals": {
+    "warmup_days": 14,
+    "dma": {
+      "feature": "dma_200",
+      "cross_cooldown_days": {
+        "SPY": 14,
+        "BTC": 30,
+        "ETH": 30
+      },
+      "cross_on_touch": true
+    },
+    "ratio": {
+      "cross_cooldown_days": 30
+    }
+  },
+  "rules": [
+    {
+      "kind": "dma_cross_down_exit",
+      "id": "cross_down_exit",
+      "cooldown_days": 30,
+      "peer_groups": [["SPY"], ["BTC", "ETH"]],
+      "proceeds": {
+        "to": []
+      }
+    },
+    {
+      "kind": "dma_cross_up_rebalance",
+      "id": "cross_up_equal_weight",
+      "cooldown_days": 30
+    },
+    {
+      "kind": "ratio_cross_rotation",
+      "id": "eth_btc_ratio_rotation",
+      "cooldown_days": 30,
+      "cross_up": {
+        "sources": ["BTC", "STABLE"],
+        "destination": "ETH"
+      },
+      "cross_down": {
+        "sources": ["ETH"],
+        "destination": "BTC"
+      }
+    },
+    {
+      "kind": "ratio_deviation_rotation",
+      "id": "eth_btc_deviation_dca",
+      "tiers": [
+        {
+          "name": "large",
+          "threshold": 0.65,
+          "rotation_fraction": 0.75,
+          "cooldown_days": 60
+        },
+        {
+          "name": "dca",
+          "threshold": 0.5,
+          "rotation_fraction": 0.25,
+          "cooldown_days": 14
+        }
+      ],
+      "below": {
+        "source": "BTC",
+        "destination": "ETH"
+      },
+      "above": {
+        "source": "ETH",
+        "destination": "BTC"
+      }
+    },
+    {
+      "kind": "dma_overextension_trim",
+      "id": "dma_overextension_dca_sell",
+      "cooldown_days": 7,
+      "sell_step": 0.05,
+      "thresholds": {
+        "SPY": 0.1,
+        "BTC": 0.2,
+        "ETH": 0.5
+      },
+      "fgi_multipliers": {
+        "extreme_fear": 1.0,
+        "fear": 1.0,
+        "neutral": 1.0,
+        "greed": 0.5,
+        "extreme_greed": 0.33
+      },
+      "proceeds": {
+        "to": [
+          {
+            "asset": "SPY",
+            "share": 0.5
+          }
+        ]
+      }
+    },
+    {
+      "kind": "fgi_downshift_trim",
+      "id": "fgi_downshift_dca_sell",
+      "cooldown_days": 7,
+      "sell_step": 0.05,
+      "from_regimes": ["greed", "extreme_greed"],
+      "to_regimes": ["extreme_fear", "fear", "neutral"],
+      "proceeds": {
+        "to": []
+      }
+    },
+    {
+      "kind": "technical_trim",
+      "id": "rsi_bearish_divergence_dca_sell",
+      "cooldown_days": 7,
+      "sell_step": 0.05,
+      "trigger": {
+        "signal": "rsi_bearish_divergence"
+      },
+      "proceeds": {
+        "to": [
+          {
+            "asset": "SPY",
+            "share": 0.5
+          }
+        ]
+      }
+    },
+    {
+      "kind": "technical_trim",
+      "id": "rsi_overbought_dca_sell",
+      "cooldown_days": 7,
+      "sell_step": 0.05,
+      "trigger": {
+        "signal": "rsi_overbought_turning_down",
+        "rsi_at_least": 70.0
+      },
+      "proceeds": {
+        "to": [
+          {
+            "asset": "SPY",
+            "share": 0.5
+          }
+        ]
+      }
+    },
+    {
+      "kind": "technical_trim",
+      "id": "momentum_breakdown_dca_sell",
+      "cooldown_days": 7,
+      "sell_step": 0.05,
+      "trigger": {
+        "signal": "momentum_breakdown",
+        "short_momentum_below": 0.0,
+        "long_momentum_above": 0.0
+      },
+      "proceeds": {
+        "to": [
+          {
+            "asset": "SPY",
+            "share": 0.5
+          }
+        ]
+      }
+    },
+    {
+      "kind": "technical_trim",
+      "id": "volatility_spike_dca_sell",
+      "cooldown_days": 7,
+      "sell_step": 0.05,
+      "trigger": {
+        "signal": "volatility_spike",
+        "thresholds": {
+          "SPY": 0.3,
+          "BTC": 0.8,
+          "ETH": 1.0
+        }
+      },
+      "proceeds": {
+        "to": [
+          {
+            "asset": "SPY",
+            "share": 0.5
+          }
+        ]
+      }
+    },
+    {
+      "kind": "technical_add",
+      "id": "rsi_bullish_divergence_dca_buy",
+      "cooldown_days": 7,
+      "buy_step": 0.05,
+      "trigger": {
+        "signal": "rsi_bullish_divergence"
+      }
+    },
+    {
+      "kind": "technical_add",
+      "id": "rsi_oversold_recovery_dca_buy",
+      "cooldown_days": 7,
+      "buy_step": 0.05,
+      "trigger": {
+        "signal": "rsi_oversold_recovering",
+        "rsi_at_most": 35.0
+      }
+    },
+    {
+      "kind": "technical_trim",
+      "id": "macd_bearish_cross_dca_sell",
+      "cooldown_days": 7,
+      "sell_step": 0.05,
+      "trigger": {
+        "signal": "macd_bearish_cross"
+      },
+      "proceeds": {
+        "to": [
+          {
+            "asset": "SPY",
+            "share": 0.5
+          }
+        ]
+      }
+    },
+    {
+      "kind": "technical_add",
+      "id": "macd_bullish_cross_dca_buy",
+      "cooldown_days": 7,
+      "buy_step": 0.05,
+      "trigger": {
+        "signal": "macd_bullish_cross"
+      }
+    },
+    {
+      "kind": "technical_trim",
+      "id": "bollinger_upper_band_dca_sell",
+      "cooldown_days": 7,
+      "sell_step": 0.05,
+      "trigger": {
+        "signal": "bollinger_upper_band",
+        "zscore_at_least": 2.0
+      },
+      "proceeds": {
+        "to": [
+          {
+            "asset": "SPY",
+            "share": 0.5
+          }
+        ]
+      }
+    },
+    {
+      "kind": "technical_add",
+      "id": "bollinger_lower_band_dca_buy",
+      "cooldown_days": 7,
+      "buy_step": 0.05,
+      "trigger": {
+        "signal": "bollinger_lower_band",
+        "zscore_at_most": -2.0
+      }
+    },
+    {
+      "kind": "technical_add",
+      "id": "breakout_20d_dca_buy",
+      "cooldown_days": 7,
+      "buy_step": 0.05,
+      "trigger": {
+        "signal": "breakout_20d"
+      }
+    },
+    {
+      "kind": "technical_trim",
+      "id": "breakdown_20d_dca_sell",
+      "cooldown_days": 7,
+      "sell_step": 0.05,
+      "trigger": {
+        "signal": "breakdown_20d"
+      },
+      "proceeds": {
+        "to": [
+          {
+            "asset": "SPY",
+            "share": 0.5
+          }
+        ]
+      }
+    }
+  ],
+  "guards": [
+    {
+      "kind": "trade_quota",
+      "min_trade_interval_days": null,
+      "max_trades_7d": 2,
+      "max_trades_30d": null
+    }
+  ],
+  "overlays": [
+    {
+      "kind": "spy_latch",
+      "id": "spy_latch",
+      "follow_through_days": 14
+    }
+  ],
+  "execution": {
+    "mode": "full_target"
+  }
+}

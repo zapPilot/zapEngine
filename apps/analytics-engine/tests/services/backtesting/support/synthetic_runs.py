@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
-from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from datetime import date
@@ -17,6 +14,7 @@ from src.models.backtesting import (
     BacktestResponse,
 )
 from src.services.backtesting.execution.compare import run_compare_v3_on_data
+from src.services.backtesting.lab.golden import trace_summary as golden_summary
 from src.services.backtesting.lab.synthetic import SyntheticMarket
 from src.services.backtesting.strategy_registry import (
     ResolvedSavedStrategyConfig,
@@ -94,46 +92,10 @@ def run_resolved_compare(
     )
 
 
-def matched_rule_name(details: dict[str, Any]) -> str | None:
-    name = details.get("matched_rule_name")
-    return name if isinstance(name, str) else None
-
-
-def decision_trace(response: BacktestResponse, config_id: str) -> list[list[Any]]:
-    """Per-day decision, target, transfers and equity, rounded for stability.
-
-    Only values the engine computes with plain float arithmetic are included;
-    numpy-derived metrics (Sharpe and friends) can differ in the last bit
-    between platforms and are deliberately left out.
-    """
-    trace: list[list[Any]] = []
-    for point in response.timeline:
-        state = point.strategies[config_id]
-        target = state.decision.target_allocation.model_dump()
-        trace.append(
-            [
-                point.market.date.isoformat(),
-                state.decision.action,
-                state.decision.reason,
-                matched_rule_name(state.decision.details),
-                [round(target[key], 6) for key in sorted(target)],
-                [
-                    [t.from_bucket, t.to_bucket, round(t.amount_usd, 4)]
-                    for t in state.execution.transfers
-                ],
-                round(state.portfolio.total_value, 4),
-            ]
-        )
-    return trace
-
-
-def golden_summary(response: BacktestResponse, config_id: str) -> dict[str, Any]:
-    trace = decision_trace(response, config_id)
-    encoded = json.dumps(trace, sort_keys=True, separators=(",", ":"))
-    summary = response.strategies[config_id]
-    return {
-        "trade_count": summary.trade_count,
-        "final_value": round(summary.final_value, 4),
-        "rule_counts": dict(sorted(Counter(str(row[3]) for row in trace).items())),
-        "digest": hashlib.sha256(encoded.encode()).hexdigest(),
-    }
+__all__ = [
+    "DEFAULT_CONFIG_ID",
+    "TOTAL_CAPITAL",
+    "golden_summary",
+    "run_resolved_compare",
+    "run_synthetic_compare",
+]

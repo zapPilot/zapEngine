@@ -14,8 +14,8 @@ Exit codes:
 
 - 0: done;
 - 1: a gate failed (a generated artifact or a lock is out of date, a lock would
-  hide a behavior change, a hard invariant is broken, or a tunable parameter is
-  dead);
+  hide a behavior change, a hard invariant is broken, a tunable parameter is
+  dead, or a spec no longer reproduces its golden);
 - 2: the command does not apply to what it was given (argparse usage errors
   use it too);
 - 3: the spec is missing or invalid;
@@ -35,7 +35,11 @@ from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from src.services.backtesting.lab import evaluation_commands, research_commands
+from src.services.backtesting.lab import (
+    evaluation_commands,
+    golden_commands,
+    research_commands,
+)
 from src.services.backtesting.lab.bundle import (
     LAB_DIR,
     Bundle,
@@ -229,6 +233,7 @@ def _parser() -> argparse.ArgumentParser:
 
     evaluation_commands.add_commands(commands)
     research_commands.add_commands(commands)
+    golden_commands.add_commands(commands)
     return parser
 
 

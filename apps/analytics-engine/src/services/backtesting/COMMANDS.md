@@ -104,3 +104,14 @@ pnpm --filter @zapengine/analytics-engine strategy-lab ledger show --kind sweep 
 **`holdout`** keeps one look at data nobody tuned on. `init` pins a lineage (a family of candidates tuned on the same data) at the last day of the bundle and never moves the pin. `status` says whether a look is allowed: it needs 90 days of data after the pin and an unused look. `look` spends the lineage's only look before it computes anything, then evaluates the candidate against `--reference` (default `reference/dma_fgi`) on the days after the pin. A second look, or an early one, exits 5 whatever the candidate. Whether the edge is enough is a promotion decision, not this command's.
 
 **`ledger`** lists what the lab has tried. Every `eval`, `ablate`, `diff --bundle`, `liveness`, sweep trial and holdout step is appended to `.lab/ledger.jsonl`; `summary` counts entries per kind and the distinct specs (by behavior hash) that set the deflated Sharpe's bar, and `show` prints the latest entries. The file is local and append-only: deleting it forgets attempts, so a result that depends on it should state the count in its pull request.
+
+### Pinned behavior (golden)
+
+The snapshot gate needs production data and a read-only DSN. `golden` is its DSN-free counterpart: it runs a spec on six deterministic synthetic histories (`regimes` and `stress`, seeds 1 to 3, 400 days) and hashes the per-day decisions, targets, transfers and equity (only values the engine computes with plain float arithmetic, so the digests do not move between platforms). The pins live in `tests/fixtures/strategy_specs/golden_traces.json`, with each spec's behavior hash: the production reference, and `all_research_rules.json`, a spec that uses every kind the reference does not (the twelve research rules, the SPY latch, a trade quota).
+
+```bash
+pnpm --filter @zapengine/analytics-engine strategy-lab golden --check   # exit 1 if a spec no longer reproduces its pin
+pnpm --filter @zapengine/analytics-engine strategy-lab golden           # pin the default specs again
+```
+
+A refactor must leave the file untouched. A spec whose behavior changed fails the check before any digest is compared, and the way out is a version bump and a deliberate regeneration with the reason in the commit message, never an edited digest. `--spec` (repeatable) names specs to pin or check, and a spec given as a path is read relative to `apps/analytics-engine`. The same file is read by `tests/services/backtesting/test_engine_golden.py`, which runs the reference through the backtesting service the way the API does, so the file the lab checks and the path production runs cannot disagree.
