@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import json
+from pathlib import Path as FilePath
 from typing import Any
 
 from src.services.backtesting.spec.loader import STRATEGIES_DIR
@@ -15,12 +16,23 @@ from src.services.backtesting.spec.validation import (
 
 REFERENCE_REF = "reference/dma_fgi"
 REFERENCE_PATH = STRATEGIES_DIR / f"{REFERENCE_REF}.json"
+# The reference with every knob and kind added after it, pinned by the golden file.
+V2_VOCABULARY_PATH = (
+    FilePath(__file__).resolve().parents[3]
+    / "fixtures/strategy_specs/v2_vocabulary.json"
+)
 Path = tuple[str | int, ...]
 
 
 def reference_raw() -> dict[str, Any]:
     """The committed reference spec as plain JSON, safe to mutate."""
     raw: dict[str, Any] = json.loads(REFERENCE_PATH.read_text())
+    return copy.deepcopy(raw)
+
+
+def v2_raw() -> dict[str, Any]:
+    """The v2 vocabulary fixture as plain JSON, safe to mutate."""
+    raw: dict[str, Any] = json.loads(V2_VOCABULARY_PATH.read_text())
     return copy.deepcopy(raw)
 
 

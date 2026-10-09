@@ -35,7 +35,10 @@ from src.services.backtesting.portfolio_rules.technical_experiments import (
     TechnicalDcaBuyRule,
     TechnicalDcaSellRule,
 )
+from src.services.backtesting.portfolio_rules.trend_dca_entry import TrendDcaEntryRule
+from src.services.backtesting.portfolio_rules.trend_guard import TrendGuardRule
 from src.services.backtesting.spec.common import (
+    ABSOLUTE_SIZING,
     TUNABLE,
     Asset,
     AssetThresholds,
@@ -47,6 +50,7 @@ from src.services.backtesting.spec.common import (
     RuleCooldown,
     RuleId,
     SellStep,
+    SizingSpec,
     Slug,
     SpecModel,
 )
@@ -78,6 +82,15 @@ class DmaCrossDownExit(SpecModel):
         ),
     )
     proceeds: ProceedsSpec = Field(description="Where the cash from the exits goes.")
+    cooldown_scope: Literal["rule", "trigger_symbol"] = Field(
+        default="rule",
+        description=(
+            "What the cooldown is kept for. `rule`: one cooldown for the whole "
+            "rule, so after any exit another asset's cross down is skipped until "
+            "it ends. `trigger_symbol`: one per asset that crossed, so an exit "
+            "never waits for another asset's."
+        ),
+    )
 
     def to_rule(self, priority: int) -> PortfolioRule:
         return CrossDownExitRule(
@@ -86,11 +99,12 @@ class DmaCrossDownExit(SpecModel):
             cooldown_days=self.cooldown_days,
             peer_groups=tuple(tuple(group) for group in self.peer_groups),
             proceeds=self.proceeds.to_routing(),
+            cooldown_keyed_by_trigger_symbol=self.cooldown_scope == "trigger_symbol",
         )
 
 
 class DmaCrossUpRebalance(SpecModel):
-    """Equal-weights every asset above its DMA when one of them crosses up."""
+    """Moves the portfolio into the assets above their DMA when one of them crosses up."""
 
     kind: Literal["dma_cross_up_rebalance"]
     id: RuleId
@@ -100,12 +114,22 @@ class DmaCrossUpRebalance(SpecModel):
         description="Days an asset that triggered the rule cannot trigger it again.",
         json_schema_extra=TUNABLE,
     )
+    allocation: Literal["equal_weight", "deploy_stable"] = Field(
+        default="equal_weight",
+        description=(
+            "`equal_weight` re-weights the whole portfolio equally across the "
+            "assets above their DMA, which undoes earlier trims and rotations. "
+            "`deploy_stable` keeps every holding and splits only the stable "
+            "equally across those assets."
+        ),
+    )
 
     def to_rule(self, priority: int) -> PortfolioRule:
         return CrossUpEqualWeightRule(
             name=self.id,
             priority=priority,
             cooldown_days=self.cooldown_days,
+            deploy_stable_only=self.allocation == "deploy_stable",
         )
 
 
@@ -212,6 +236,10 @@ class DmaOverextensionTrim(SpecModel):
     id: RuleId
     cooldown_days: RuleCooldown
     sell_step: SellStep
+    sizing: SizingSpec = Field(
+        default=ABSOLUTE_SIZING,
+        description="How `sell_step` is read: of the portfolio, or of the position.",
+    )
     thresholds: AssetThresholds = Field(
         description="How far above its DMA an asset may run before it is sold into.",
     )
@@ -229,6 +257,7 @@ class DmaOverextensionTrim(SpecModel):
             priority=priority,
             cooldown_days=self.cooldown_days,
             sell_step=self.sell_step,
+            sizing=self.sizing.to_sizing(),
             proceeds=self.proceeds.to_routing(),
             dma_overextension_thresholds=self.thresholds.model_dump(),
             fgi_threshold_multipliers={
@@ -245,6 +274,10 @@ class FgiDownshiftTrim(SpecModel):
     id: RuleId
     cooldown_days: RuleCooldown
     sell_step: SellStep
+    sizing: SizingSpec = Field(
+        default=ABSOLUTE_SIZING,
+        description="How `sell_step` is read: of the portfolio, or of the position.",
+    )
     from_regimes: tuple[Regime, ...] = Field(
         min_length=1,
         description="Regimes the asset was in the day before.",
@@ -263,6 +296,7 @@ class FgiDownshiftTrim(SpecModel):
             priority=priority,
             cooldown_days=self.cooldown_days,
             sell_step=self.sell_step,
+            sizing=self.sizing.to_sizing(),
             from_regimes=frozenset(FgiRegime(regime) for regime in self.from_regimes),
             to_regimes=frozenset(FgiRegime(regime) for regime in self.to_regimes),
             proceeds=self.proceeds.to_routing(),
@@ -276,6 +310,10 @@ class TechnicalTrim(SpecModel):
     id: RuleId
     cooldown_days: RuleCooldown
     sell_step: SellStep
+    sizing: SizingSpec = Field(
+        default=ABSOLUTE_SIZING,
+        description="How `sell_step` is read: of the portfolio, or of the position.",
+    )
     trigger: TriggerSpec = Field(
         description="The technical signal, read for each asset that is above its DMA.",
     )
@@ -289,6 +327,7 @@ class TechnicalTrim(SpecModel):
             predicate=self.trigger.to_trigger(),
             cooldown_days=self.cooldown_days,
             sell_step=self.sell_step,
+            sizing=self.sizing.to_sizing(),
             proceeds=self.proceeds.to_routing(),
         )
 
@@ -315,6 +354,30 @@ class TechnicalAdd(SpecModel):
         )
 
 
+class TrendDcaEntry(SpecModel):
+    """Buys into an asset above its DMA in steps, out of stable, up to a weight cap."""
+
+    kind: Literal["trend_dca_entry"]
+    id: RuleId
+    cooldown_days: RuleCooldown
+    buy_step: BuyStep
+    max_weight: float = Field(
+        gt=0.0,
+        le=1.0,
+        description="Share of the portfolio an asset may reach through these purchases.",
+        json_schema_extra=TUNABLE,
+    )
+
+    def to_rule(self, priority: int) -> PortfolioRule:
+        return TrendDcaEntryRule(
+            name=self.id,
+            priority=priority,
+            cooldown_days=self.cooldown_days,
+            buy_step=self.buy_step,
+            max_weight=self.max_weight,
+        )
+
+
 RuleModel = (
     DmaCrossDownExit
     | DmaCrossUpRebalance
@@ -324,6 +387,7 @@ RuleModel = (
     | FgiDownshiftTrim
     | TechnicalTrim
     | TechnicalAdd
+    | TrendDcaEntry
 )
 RuleSpec = Annotated[RuleModel, Field(discriminator="kind")]
 # The tag each model carries, as pydantic reports it in an error location.
@@ -352,7 +416,53 @@ class SpyLatchOverlay(SpecModel):
         )
 
 
-OverlaySpec = SpyLatchOverlay
+class TrendGuardOverlay(SpecModel):
+    """Keeps the portfolio out of assets that stay below their DMA, every day."""
+
+    kind: Literal["trend_guard"]
+    id: Slug = Field(description="Name of the overlay in decision traces.")
+    mode: Literal["block_adds", "force_exit"] = Field(
+        description=(
+            "`block_adds` stops any rule from adding to an asset that counts as "
+            "below its DMA. `force_exit` also sells what is held of it."
+        ),
+    )
+    below_dma_buffer: float = Field(
+        ge=0.0,
+        le=0.5,
+        description=(
+            "How far under its DMA, as a fraction of the DMA, an asset must "
+            "close to count as below."
+        ),
+        json_schema_extra=TUNABLE,
+    )
+    confirm_days: int = Field(
+        ge=1,
+        le=60,
+        description=(
+            "Days in a row an asset must close below that distance before the "
+            "guard acts."
+        ),
+        json_schema_extra=TUNABLE,
+    )
+
+    def to_rule(self, priority: int) -> PortfolioRule:
+        return TrendGuardRule(
+            name=self.id,
+            priority=priority,
+            mode=self.mode,
+            below_dma_buffer=self.below_dma_buffer,
+            confirm_days=self.confirm_days,
+        )
+
+
+OverlayModel = SpyLatchOverlay | TrendGuardOverlay
+OverlaySpec = Annotated[OverlayModel, Field(discriminator="kind")]
+# The tag each overlay model carries, as pydantic reports it in an error location.
+OVERLAY_KINDS: frozenset[str] = frozenset(
+    get_args(model.model_fields["kind"].annotation)[0]
+    for model in get_args(OverlayModel)
+)
 
 
 def _research_description(verb: str, signal: str) -> str:
@@ -374,6 +484,8 @@ __all__ = [
     "DmaCrossUpRebalance",
     "DmaOverextensionTrim",
     "FgiDownshiftTrim",
+    "OVERLAY_KINDS",
+    "OverlayModel",
     "OverlaySpec",
     "REGIME_ORDER",
     "RULE_KINDS",
@@ -384,4 +496,6 @@ __all__ = [
     "SpyLatchOverlay",
     "TechnicalAdd",
     "TechnicalTrim",
+    "TrendDcaEntry",
+    "TrendGuardOverlay",
 ]

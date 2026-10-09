@@ -14,6 +14,7 @@ from src.services.backtesting.spec import load_spec
 from tests.services.backtesting.spec.helpers import REFERENCE_REF, reference_raw
 
 FIXTURE = "tests/fixtures/strategy_specs/all_research_rules.json"
+V2_FIXTURE = "tests/fixtures/strategy_specs/v2_vocabulary.json"
 ONE_HISTORY = (("regimes", 1),)
 
 
@@ -227,9 +228,9 @@ def test_an_unknown_spec_exits_3(tmp_path: Path) -> None:
     assert (code, out["result"]["code"]) == (3, "spec_not_found")
 
 
-def test_the_defaults_name_the_reference_and_the_fixture() -> None:
-    assert golden.DEFAULT_SPECS == (REFERENCE_REF, FIXTURE)
-    assert (golden.APP_ROOT / FIXTURE).is_file()
+def test_the_defaults_name_the_reference_and_the_fixtures() -> None:
+    assert golden.DEFAULT_SPECS == (REFERENCE_REF, FIXTURE, V2_FIXTURE)
+    assert all((golden.APP_ROOT / ref).is_file() for ref in golden.DEFAULT_SPECS[1:])
     assert golden.GOLDEN_PATH == golden.APP_ROOT / (
         "tests/fixtures/strategy_specs/golden_traces.json"
     )

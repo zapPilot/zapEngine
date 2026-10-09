@@ -229,6 +229,98 @@
           "trade_count": 70
         }
       }
+    },
+    "tests/fixtures/strategy_specs/v2_vocabulary.json": {
+      "behavior_hash": "sha256:81ff6853866ce3c9f5da259ca9f7696223da55ed535972f5eb8c11385265c86d",
+      "scenarios": {
+        "regimes?seed=1": {
+          "digest": "c17bdc40258ae9efe523388d4bcaa429d9a8be12b72d065d00a7af57ae3ff227",
+          "final_value": 9060.6089,
+          "rule_counts": {
+            "cross_down_exit": 3,
+            "cross_up_equal_weight": 7,
+            "dma_overextension_dca_sell": 26,
+            "eth_btc_ratio_rotation": 1,
+            "fgi_downshift_dca_sell": 18,
+            "regime_no_signal_hold": 325,
+            "trend_dca_entry": 20
+          },
+          "trade_count": 66
+        },
+        "regimes?seed=2": {
+          "digest": "dc125d5e769f40b3ef4e065e55910a2e1d0f4028c62a7b85a15194e0dccbdc0c",
+          "final_value": 8263.7029,
+          "rule_counts": {
+            "cross_down_exit": 9,
+            "cross_up_equal_weight": 6,
+            "dma_overextension_dca_sell": 70,
+            "eth_btc_ratio_rotation": 1,
+            "fgi_downshift_dca_sell": 29,
+            "regime_no_signal_hold": 249,
+            "trend_dca_entry": 36
+          },
+          "trade_count": 93
+        },
+        "regimes?seed=3": {
+          "digest": "9d4afb24af4bea9e75a97eb94bc7573c040ac135bb593fad39e8fe515d879075",
+          "final_value": 12545.4886,
+          "rule_counts": {
+            "cross_down_exit": 4,
+            "cross_up_equal_weight": 5,
+            "dma_overextension_dca_sell": 33,
+            "eth_btc_ratio_rotation": 3,
+            "fgi_downshift_dca_sell": 24,
+            "regime_no_signal_hold": 297,
+            "trend_dca_entry": 34
+          },
+          "trade_count": 81
+        },
+        "stress?seed=1": {
+          "digest": "7558ed0c0d923be5736f25e751b981b2c319775dd5e7256c7727bf6f74ea0049",
+          "final_value": 10596.6919,
+          "rule_counts": {
+            "cross_down_exit": 3,
+            "cross_up_equal_weight": 6,
+            "dma_overextension_dca_sell": 29,
+            "eth_btc_deviation_dca": 23,
+            "eth_btc_ratio_rotation": 3,
+            "fgi_downshift_dca_sell": 15,
+            "regime_no_signal_hold": 300,
+            "trend_dca_entry": 21
+          },
+          "trade_count": 58
+        },
+        "stress?seed=2": {
+          "digest": "6e0b29a23e450ceed74e020ac16b3285614109ef70b4b953b3bafeb8022262b6",
+          "final_value": 7719.7868,
+          "rule_counts": {
+            "cross_down_exit": 7,
+            "cross_up_equal_weight": 6,
+            "dma_overextension_dca_sell": 74,
+            "eth_btc_deviation_dca": 6,
+            "eth_btc_ratio_rotation": 3,
+            "fgi_downshift_dca_sell": 27,
+            "regime_no_signal_hold": 237,
+            "trend_dca_entry": 40
+          },
+          "trade_count": 110
+        },
+        "stress?seed=3": {
+          "digest": "8d31da1d4cc5c17a298745fb9b522d477075b4c84806a21662a3985395bc30c4",
+          "final_value": 8814.1495,
+          "rule_counts": {
+            "cross_down_exit": 5,
+            "cross_up_equal_weight": 7,
+            "dma_overextension_dca_sell": 64,
+            "eth_btc_deviation_dca": 15,
+            "eth_btc_ratio_rotation": 3,
+            "fgi_downshift_dca_sell": 20,
+            "regime_no_signal_hold": 262,
+            "trend_dca_entry": 24
+          },
+          "trade_count": 65
+        }
+      }
     }
   }
 }

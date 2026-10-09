@@ -228,6 +228,7 @@ actual contract.
 `strategy_specs/` holds the DSN-free pins of strategy specs:
 
 - `all_research_rules.json` is a spec that uses every kind the production reference does not: the twelve research rules, the SPY latch overlay and a weekly trade quota guard.
-- `golden_traces.json` records, for the reference and for that spec, a digest of the per-day decisions, targets, transfers and equity on six synthetic histories, with each spec's behavior hash.
+- `v2_vocabulary.json` is a spec that uses every knob and kind added after the reference was locked: a per-asset exit cooldown, a cross-up that only deploys stable, relative trim sizing, the `trend_dca_entry` kind and the `trend_guard` overlay. It pins the vocabulary, not a strategy anyone runs.
+- `golden_traces.json` records, for the reference and for those specs, a digest of the per-day decisions, targets, transfers and equity on six synthetic histories, with each spec's behavior hash.
 
 `pnpm strategy-lab golden --check` verifies them and `pnpm strategy-lab golden` rewrites them; `tests/services/backtesting/test_engine_golden.py` runs the reference through the backtesting service and requires the same digests. See `COMMANDS.md` in the backtesting service for when a regeneration is allowed.

@@ -5,9 +5,11 @@ from typing import Any
 
 import pytest
 
+from src.services.backtesting.spec import parse_spec
 from src.services.backtesting.spec.loader import STRATEGIES_DIR
 from src.services.backtesting.spec.schema_export import (
     KIND_SEMANTICS,
+    OVERLAY_SEMANTICS,
     SCHEMA_FILENAME,
     TRIGGER_SEMANTICS,
     VOCABULARY_FILENAME,
@@ -20,12 +22,22 @@ from tests.services.backtesting.spec.helpers import (
     reference_raw,
     rule_index,
     technical_rules,
+    v2_raw,
     with_value,
     without,
 )
 from tests.services.backtesting.spec.schema_check import violations
 
 NOISE = {"$ref", "$defs", "title", "default", "discriminator"}
+
+
+def _filled(raw: dict[str, Any]) -> dict[str, Any]:
+    """``raw`` as a spec reads it: every knob a spec left out, at its default.
+
+    The llm schema asks for every field, optional ones included, so a spec that
+    predates a knob satisfies it once the loader has filled the knob in.
+    """
+    return parse_spec(raw).model_dump(mode="json")
 
 
 def _walk(node: Any) -> list[dict[str, Any]]:
@@ -77,7 +89,33 @@ def test_the_full_profile_keeps_the_refs() -> None:
 
 
 def test_the_reference_satisfies_the_schema() -> None:
-    assert violations(reference_raw(), spec_json_schema("llm")) == []
+    assert violations(_filled(reference_raw()), spec_json_schema("llm")) == []
+
+
+def test_a_spec_that_omits_a_later_knob_needs_filling_to_satisfy_the_schema() -> None:
+    schema = spec_json_schema("llm")
+
+    assert violations(reference_raw(), schema) != []
+    assert violations(_filled(reference_raw()), schema) == []
+
+
+def test_the_v2_vocabulary_satisfies_the_schema() -> None:
+    assert violations(_filled(v2_raw()), spec_json_schema("llm")) == []
+
+
+def test_the_llm_profile_keeps_a_knobs_default_as_x_default() -> None:
+    schema = spec_json_schema("llm")
+    kinds = {
+        branch["properties"]["kind"]["const"]: branch["properties"]
+        for branch in schema["properties"]["rules"]["items"]["oneOf"]
+    }
+
+    assert kinds["dma_cross_down_exit"]["cooldown_scope"]["x-default"] == "rule"
+    assert kinds["dma_cross_up_rebalance"]["allocation"]["x-default"] == "equal_weight"
+    assert kinds["dma_overextension_trim"]["sizing"]["x-default"] == {
+        "mode": "absolute"
+    }
+    assert "x-default" not in kinds["dma_cross_down_exit"]["cooldown_days"]
 
 
 def test_a_null_leg_satisfies_the_schema() -> None:
@@ -85,7 +123,7 @@ def test_a_null_leg_satisfies_the_schema() -> None:
     deviation = raw["rules"][rule_index(raw, "ratio_deviation_rotation")]
     deviation["below"] = None
 
-    assert violations(raw, spec_json_schema("llm")) == []
+    assert violations(_filled(raw), spec_json_schema("llm")) == []
 
 
 def _with_research_rules() -> dict[str, Any]:
@@ -104,7 +142,7 @@ def _with_research_rules() -> dict[str, Any]:
 
 
 def test_a_spec_with_every_research_rule_satisfies_the_schema() -> None:
-    assert violations(_with_research_rules(), spec_json_schema("llm")) == []
+    assert violations(_filled(_with_research_rules()), spec_json_schema("llm")) == []
 
 
 @pytest.mark.parametrize(
@@ -198,6 +236,27 @@ def test_every_rule_kind_is_explained() -> None:
 
     assert set(KIND_SEMANTICS) == kinds
     assert all(f"### `{kind}`" in vocabulary for kind in kinds)
+
+
+def test_every_overlay_kind_is_explained() -> None:
+    schema = spec_json_schema("llm")
+    kinds = {
+        branch["properties"]["kind"]["const"]
+        for branch in schema["properties"]["overlays"]["items"]["oneOf"]
+    }
+    vocabulary = render_vocabulary()
+
+    assert set(OVERLAY_SEMANTICS) == kinds == {"spy_latch", "trend_guard"}
+    assert all(f"### `{kind}`" in vocabulary for kind in kinds)
+
+
+def test_the_vocabulary_marks_optional_knobs_with_their_defaults() -> None:
+    vocabulary = render_vocabulary()
+
+    assert '*(optional, default `"rule"`)*' in vocabulary
+    assert '*(optional, default `{"mode": "absolute"}`)*' in vocabulary
+    assert "| `sizing.floor_weight` |" in vocabulary
+    assert 'object, `mode` is `"absolute"` \\| `"relative"`' in vocabulary
 
 
 def test_every_trigger_signal_is_explained() -> None:

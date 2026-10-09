@@ -13,9 +13,10 @@ from itertools import pairwise
 
 from pydantic import ValidationError
 
-from src.services.backtesting.spec.common import ProceedsSpec
+from src.services.backtesting.spec.common import SIZING_MODES, ProceedsSpec
 from src.services.backtesting.spec.model import StrategySpec
 from src.services.backtesting.spec.rules import (
+    OVERLAY_KINDS,
     RULE_KINDS,
     DmaCrossDownExit,
     DmaOverextensionTrim,
@@ -78,13 +79,18 @@ def _structural_issues(error: ValidationError) -> list[SpecIssue]:
     ]
 
 
+_LIST_TAGS = RULE_KINDS | OVERLAY_KINDS
+
+
 def _without_kind_tags(location: tuple[int | str, ...]) -> list[int | str]:
-    """Drop the union tags pydantic inserts: after a list index and after a trigger."""
+    """Drop the union tags pydantic inserts: after a list index, a trigger or a sizing."""
     kept: list[int | str] = []
     for part in location:
-        if kept and isinstance(kept[-1], int) and part in RULE_KINDS:
+        if kept and isinstance(kept[-1], int) and part in _LIST_TAGS:
             continue
         if kept and kept[-1] == "trigger" and part in TRIGGER_SIGNALS:
+            continue
+        if kept and kept[-1] == "sizing" and part in SIZING_MODES:
             continue
         kept.append(part)
     return kept
@@ -101,10 +107,7 @@ def semantic_issues(spec: StrategySpec) -> list[SpecIssue]:
     for index, rule in enumerate(spec.rules):
         issues.extend(_rule_issues(f"/rules/{index}", rule))
     issues.extend(_guard_issues(spec))
-    if len(spec.overlays) > 1:
-        issues.append(
-            SpecIssue("/overlays/1", "duplicate_overlay", "Only one overlay is allowed")
-        )
+    issues.extend(_overlay_issues(spec))
     return issues
 
 
@@ -234,6 +237,18 @@ def _proceeds_issues(pointer: str, proceeds: ProceedsSpec) -> Iterator[SpecIssue
         yield SpecIssue(
             f"{pointer}/to", "proceeds_exceed_one", "Shares add up to more than 1"
         )
+
+
+def _overlay_issues(spec: StrategySpec) -> Iterator[SpecIssue]:
+    seen: set[str] = set()
+    for index, overlay in enumerate(spec.overlays):
+        if overlay.kind in seen:
+            yield SpecIssue(
+                f"/overlays/{index}",
+                "duplicate_overlay",
+                f"Only one {overlay.kind} overlay is allowed",
+            )
+        seen.add(overlay.kind)
 
 
 def _guard_issues(spec: StrategySpec) -> Iterator[SpecIssue]:

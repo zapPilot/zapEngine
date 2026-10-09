@@ -2,7 +2,7 @@
 
 Generated from the spec models (format `strategy-spec/1`) by `pnpm strategy-lab schema`. Do not edit by hand.
 
-A strategy is one JSON document that spells out everything it does: no field has a default, so reading the spec is reading the strategy. It trades SPY, BTC and ETH against stable. Rules are listed in precedence order and the first one that matches, and is off cooldown, decides the day. The machine-readable form is [`strategy-spec.schema.json`](strategy-spec.schema.json).
+A strategy is one JSON document that spells out everything it does: no field has a default, so reading the spec is reading the strategy. The exception is a knob added after the first reference spec: it is marked *optional*, its default is what the strategy did before the knob existed, and leaving it out is the same strategy as spelling the default out. The schema asks for every field, optional ones included. The strategy trades SPY, BTC and ETH against stable. Rules are listed in precedence order and the first one that matches, and is off cooldown, decides the day. The machine-readable form is [`strategy-spec.schema.json`](strategy-spec.schema.json).
 
 ## Top level
 
@@ -34,7 +34,7 @@ Rules in precedence order: the first one that matches and is off cooldown decide
 
 Sells an asset to stable when its price crosses below its 200-day DMA.
 
-Fires on a day an asset's price crosses below its 200-day DMA (the signal's cross cooldown applies). The crossing asset and its peers go to zero and the cash goes to stable, or where `proceeds` routes it.
+Fires on a day an asset's price crosses below its 200-day DMA (the signal's cross cooldown applies). The crossing asset and its peers go to zero and the cash goes to stable, or where `proceeds` routes it. Its own cooldown is kept for the whole rule or for each asset that crossed (`cooldown_scope`).
 
 | Field | Type | Meaning |
 | --- | --- | --- |
@@ -45,17 +45,19 @@ Fires on a day an asset's price crosses below its 200-day DMA (the signal's cros
 | `proceeds.to` | array of object | Assets that receive a share of the proceeds, in order. |
 | `proceeds.to[].asset` | `"SPY"` \| `"BTC"` \| `"ETH"` | Asset that receives part of the proceeds. |
 | `proceeds.to[].share` | number (> 0.0, <= 1.0) | Fraction of the proceeds that goes to the asset. *(tunable)* |
+| `cooldown_scope` | `"rule"` \| `"trigger_symbol"` | What the cooldown is kept for. `rule`: one cooldown for the whole rule, so after any exit another asset's cross down is skipped until it ends. `trigger_symbol`: one per asset that crossed, so an exit never waits for another asset's. *(optional, default `"rule"`)* |
 
 ### `dma_cross_up_rebalance`
 
-Equal-weights every asset above its DMA when one of them crosses up.
+Moves the portfolio into the assets above their DMA when one of them crosses up.
 
-Fires on a day an asset crosses above its DMA. The portfolio is re-weighted equally across every asset currently above its DMA, the rest in stable. The cooldown is tracked per asset that triggered it.
+Fires on a day an asset crosses above its DMA. Under `equal_weight` the portfolio is re-weighted equally across every asset currently above its DMA, the rest in stable; under `deploy_stable` every holding is kept and only the stable is split equally across those assets. The cooldown is tracked per asset that triggered it.
 
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `id` | string `^[a-z][a-z0-9_]{2,47}$` | Name of the rule in decision traces. |
 | `cooldown_days` | integer (>= 0, <= 365) | Days an asset that triggered the rule cannot trigger it again. *(tunable)* |
+| `allocation` | `"equal_weight"` \| `"deploy_stable"` | `equal_weight` re-weights the whole portfolio equally across the assets above their DMA, which undoes earlier trims and rotations. `deploy_stable` keeps every holding and splits only the stable equally across those assets. *(optional, default `"equal_weight"`)* |
 
 ### `ratio_cross_rotation`
 
@@ -99,13 +101,15 @@ Fires when the ETH/BTC ratio sits far from its DMA, whether or not it just cross
 
 Sells a slice of an asset that has run far above its DMA.
 
-Fires when an asset above its DMA is further above than its threshold times the multiplier of its regime (BTC and ETH use the crypto fear and greed index, SPY the macro one). Sells `sell_step` of the portfolio from each such asset.
+Fires when an asset above its DMA is further above than its threshold times the multiplier of its regime (BTC and ETH use the crypto fear and greed index, SPY the macro one). Sells `sell_step` from each such asset: of the portfolio, or of the position under relative `sizing`.
 
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `id` | string `^[a-z][a-z0-9_]{2,47}$` | Name of the rule in decision traces. |
 | `cooldown_days` | integer (>= 0, <= 365) | Days the rule stays off after it trades. *(tunable)* |
-| `sell_step` | number (> 0.0, <= 1.0) | Share of the portfolio sold per matching asset. *(tunable)* |
+| `sell_step` | number (> 0.0, <= 1.0) | Share sold per matching asset: of the portfolio under absolute sizing, of the asset's own position under relative sizing. *(tunable)* |
+| `sizing` | object, `mode` is `"absolute"` \| `"relative"` | How `sell_step` is read: of the portfolio, or of the position. *(optional, default `{"mode": "absolute"}`)* |
+| `sizing.floor_weight` | number (>= 0.0, < 1.0) | With `mode` `"relative"`: Share of the portfolio the asset is never sold below. *(tunable)* |
 | `thresholds` | object | How far above its DMA an asset may run before it is sold into. |
 | `thresholds.SPY` | number (> 0.0, <= 10.0) | Threshold for SPY. *(tunable)* |
 | `thresholds.BTC` | number (> 0.0, <= 10.0) | Threshold for BTC. *(tunable)* |
@@ -125,13 +129,15 @@ Fires when an asset above its DMA is further above than its threshold times the 
 
 Sells a slice of an asset when its fear/greed regime cools off.
 
-Fires when an asset's fear/greed regime was in `from_regimes` the day before and is in `to_regimes` today. Sells `sell_step` of the portfolio from each such asset.
+Fires when an asset's fear/greed regime was in `from_regimes` the day before and is in `to_regimes` today. Sells `sell_step` from each such asset: of the portfolio, or of the position under relative `sizing`.
 
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `id` | string `^[a-z][a-z0-9_]{2,47}$` | Name of the rule in decision traces. |
 | `cooldown_days` | integer (>= 0, <= 365) | Days the rule stays off after it trades. *(tunable)* |
-| `sell_step` | number (> 0.0, <= 1.0) | Share of the portfolio sold per matching asset. *(tunable)* |
+| `sell_step` | number (> 0.0, <= 1.0) | Share sold per matching asset: of the portfolio under absolute sizing, of the asset's own position under relative sizing. *(tunable)* |
+| `sizing` | object, `mode` is `"absolute"` \| `"relative"` | How `sell_step` is read: of the portfolio, or of the position. *(optional, default `{"mode": "absolute"}`)* |
+| `sizing.floor_weight` | number (>= 0.0, < 1.0) | With `mode` `"relative"`: Share of the portfolio the asset is never sold below. *(tunable)* |
 | `from_regimes` | array of `"extreme_fear"` \| `"fear"` \| `"neutral"` \| `"greed"` \| `"extreme_greed"` | Regimes the asset was in the day before. |
 | `to_regimes` | array of `"extreme_fear"` \| `"fear"` \| `"neutral"` \| `"greed"` \| `"extreme_greed"` | Regimes the asset is in today. |
 | `proceeds` | object | Where the cash from the sales goes. |
@@ -143,13 +149,15 @@ Fires when an asset's fear/greed regime was in `from_regimes` the day before and
 
 Sells a slice of an asset above its DMA when a technical signal fires.
 
-A research kind: the reference uses none. Fires when `trigger` holds for an asset that is above its DMA, and sells `sell_step` of the portfolio from each such asset, routing the proceeds as `proceeds` says.
+A research kind: the reference uses none. Fires when `trigger` holds for an asset that is above its DMA, and sells `sell_step` from each such asset (of the portfolio, or of the position under relative `sizing`), routing the proceeds as `proceeds` says.
 
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `id` | string `^[a-z][a-z0-9_]{2,47}$` | Name of the rule in decision traces. |
 | `cooldown_days` | integer (>= 0, <= 365) | Days the rule stays off after it trades. *(tunable)* |
-| `sell_step` | number (> 0.0, <= 1.0) | Share of the portfolio sold per matching asset. *(tunable)* |
+| `sell_step` | number (> 0.0, <= 1.0) | Share sold per matching asset: of the portfolio under absolute sizing, of the asset's own position under relative sizing. *(tunable)* |
+| `sizing` | object, `mode` is `"absolute"` \| `"relative"` | How `sell_step` is read: of the portfolio, or of the position. *(optional, default `{"mode": "absolute"}`)* |
+| `sizing.floor_weight` | number (>= 0.0, < 1.0) | With `mode` `"relative"`: Share of the portfolio the asset is never sold below. *(tunable)* |
 | `trigger` | object, one of the triggers below | The technical signal, read for each asset that is above its DMA. |
 | `proceeds` | object | Where the cash from the sales goes. |
 | `proceeds.to` | array of object | Assets that receive a share of the proceeds, in order. |
@@ -168,6 +176,19 @@ A research kind: the reference uses none. Fires when `trigger` holds for an asse
 | `cooldown_days` | integer (>= 0, <= 365) | Days the rule stays off after it trades. *(tunable)* |
 | `buy_step` | number (> 0.0, <= 1.0) | Share of the portfolio bought per matching asset, out of stable. *(tunable)* |
 | `trigger` | object, one of the triggers below | The technical signal, read for each asset that is above its DMA. |
+
+### `trend_dca_entry`
+
+Buys into an asset above its DMA in steps, out of stable, up to a weight cap.
+
+Fires when an asset is above its DMA, the signal's cross cooldown no longer bars entering it, it holds less than `max_weight` of the portfolio and there is stable to spend. Buys `buy_step` of the portfolio into each such asset out of stable, never taking an asset above `max_weight` (scaled down together when stable is short). It enters in steps where `dma_cross_up_rebalance` enters at once.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | string `^[a-z][a-z0-9_]{2,47}$` | Name of the rule in decision traces. |
+| `cooldown_days` | integer (>= 0, <= 365) | Days the rule stays off after it trades. *(tunable)* |
+| `buy_step` | number (> 0.0, <= 1.0) | Share of the portfolio bought per matching asset, out of stable. *(tunable)* |
+| `max_weight` | number (> 0.0, <= 1.0) | Share of the portfolio an asset may reach through these purchases. *(tunable)* |
 
 ## Triggers
 
@@ -301,13 +322,28 @@ Holds the portfolio instead of trading when a trade-frequency limit is hit.
 
 ## Overlays
 
-`spy_latch` runs after the rules and guards. When SPY crosses up it moves the stable already held into SPY, then keeps routing new stable into SPY for `follow_through_days`.
+Overlays adjust the decision after the rules and guards have made it. They apply in the order listed, at most one of each kind.
 
 ### `spy_latch`
 
 After SPY crosses up, parks fresh stable in SPY for a few days.
 
+When SPY crosses up it moves the stable already held into SPY, then keeps routing new stable into SPY for `follow_through_days`.
+
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `id` | string `^[a-z][a-z0-9_]{2,47}$` | Name of the overlay in decision traces. |
 | `follow_through_days` | integer (>= 1, <= 90) | Days after the cross-up during which new stable goes to SPY. *(tunable)* |
+
+### `trend_guard`
+
+Keeps the portfolio out of assets that stay below their DMA, every day.
+
+Acts every day and has the last word. An asset counts as below its DMA once it has closed more than `below_dma_buffer` under it for `confirm_days` days in a row. `block_adds` undoes any purchase of such an asset (the cash stays in stable); `force_exit` also sells what is held of it. Because it looks at the level, not at the day of the cross, it holds whatever route a position took, and the trade quota guard does not hold a forced exit back.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | string `^[a-z][a-z0-9_]{2,47}$` | Name of the overlay in decision traces. |
+| `mode` | `"block_adds"` \| `"force_exit"` | `block_adds` stops any rule from adding to an asset that counts as below its DMA. `force_exit` also sells what is held of it. |
+| `below_dma_buffer` | number (>= 0.0, <= 0.5) | How far under its DMA, as a fraction of the DMA, an asset must close to count as below. *(tunable)* |
+| `confirm_days` | integer (>= 1, <= 60) | Days in a row an asset must close below that distance before the guard acts. *(tunable)* |

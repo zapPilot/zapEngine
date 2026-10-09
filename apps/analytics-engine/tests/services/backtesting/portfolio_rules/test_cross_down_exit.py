@@ -255,3 +255,25 @@ def test_proceeds_can_be_routed_instead_of_kept_in_stable() -> None:
     assert intent.target_allocation == pytest.approx(
         {"btc": 0.0, "eth": 0.0, "spy": 0.55, "stable": 0.45, "alt": 0.0}
     )
+
+
+def test_the_cooldown_is_kept_for_the_rule_unless_the_spec_says_per_asset() -> None:
+    assert reference_rule("cross_down_exit").cooldown_keyed_by_trigger_symbol is False
+
+
+def test_a_per_asset_cooldown_is_tracked_for_the_assets_that_crossed() -> None:
+    rule = reference_rule("cross_down_exit", cooldown_keyed_by_trigger_symbol=True)
+    rule_snapshot = snapshot(
+        assets={
+            "SPY": state(
+                symbol="SPY",
+                cross_event="cross_down",
+                actionable_cross_event="cross_down",
+            ),
+            "BTC": state(symbol="BTC"),
+            "ETH": state(symbol="ETH"),
+        },
+    )
+
+    assert rule.trigger_symbols_for_cooldown(rule_snapshot) == ["SPY"]
+    assert rule.trigger_symbols_for_cooldown(snapshot()) == []

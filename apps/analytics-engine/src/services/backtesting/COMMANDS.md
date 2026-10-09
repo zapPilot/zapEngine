@@ -107,7 +107,7 @@ pnpm --filter @zapengine/analytics-engine strategy-lab ledger show --kind sweep 
 
 ### Pinned behavior (golden)
 
-The snapshot gate needs production data and a read-only DSN. `golden` is its DSN-free counterpart: it runs a spec on six deterministic synthetic histories (`regimes` and `stress`, seeds 1 to 3, 400 days) and hashes the per-day decisions, targets, transfers and equity (only values the engine computes with plain float arithmetic, so the digests do not move between platforms). The pins live in `tests/fixtures/strategy_specs/golden_traces.json`, with each spec's behavior hash: the production reference, and `all_research_rules.json`, a spec that uses every kind the reference does not (the twelve research rules, the SPY latch, a trade quota).
+The snapshot gate needs production data and a read-only DSN. `golden` is its DSN-free counterpart: it runs a spec on six deterministic synthetic histories (`regimes` and `stress`, seeds 1 to 3, 400 days) and hashes the per-day decisions, targets, transfers and equity (only values the engine computes with plain float arithmetic, so the digests do not move between platforms). The pins live in `tests/fixtures/strategy_specs/golden_traces.json`, with each spec's behavior hash: the production reference; `all_research_rules.json`, a spec that uses every kind the reference does not (the twelve research rules, the SPY latch, a trade quota); and `v2_vocabulary.json`, a spec that uses every knob and kind added after the reference was locked (a per-asset exit cooldown, a deploy-stable cross-up, relative trims, a staged entry, the trend guard).
 
 ```bash
 pnpm --filter @zapengine/analytics-engine strategy-lab golden --check   # exit 1 if a spec no longer reproduces its pin

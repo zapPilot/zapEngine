@@ -6,7 +6,9 @@ change does to the format and an LLM author can be handed one file:
 
 - ``strategy-spec.schema.json``: the schema in the ``llm`` profile (every ref
   inlined, every property required, no unknown keys), the shape structured
-  output modes accept;
+  output modes accept. A knob added after the first reference has a default in
+  the models and is required here too, so an author spells it out; the default
+  is kept as ``x-default``;
 - ``VOCABULARY.md``: every rule kind, field, range and meaning in prose.
 """
 
@@ -21,7 +23,7 @@ Profile = Literal["llm", "full"]
 SCHEMA_FILENAME = "strategy-spec.schema.json"
 VOCABULARY_FILENAME = "VOCABULARY.md"
 _JSON_SCHEMA_DIALECT = "https://json-schema.org/draft/2020-12/schema"
-_NOISE = frozenset({"title", "default", "discriminator"})
+_NOISE = frozenset({"title", "discriminator"})
 _TABLE_HEADER_ROWS = 2
 
 # What each kind does, in the terms an author needs. Fields are listed from the
@@ -30,12 +32,16 @@ KIND_SEMANTICS: dict[str, str] = {
     "dma_cross_down_exit": (
         "Fires on a day an asset's price crosses below its 200-day DMA (the "
         "signal's cross cooldown applies). The crossing asset and its peers go "
-        "to zero and the cash goes to stable, or where `proceeds` routes it."
+        "to zero and the cash goes to stable, or where `proceeds` routes it. "
+        "Its own cooldown is kept for the whole rule or for each asset that "
+        "crossed (`cooldown_scope`)."
     ),
     "dma_cross_up_rebalance": (
-        "Fires on a day an asset crosses above its DMA. The portfolio is "
-        "re-weighted equally across every asset currently above its DMA, the "
-        "rest in stable. The cooldown is tracked per asset that triggered it."
+        "Fires on a day an asset crosses above its DMA. Under `equal_weight` "
+        "the portfolio is re-weighted equally across every asset currently "
+        "above its DMA, the rest in stable; under `deploy_stable` every holding "
+        "is kept and only the stable is split equally across those assets. The "
+        "cooldown is tracked per asset that triggered it."
     ),
     "ratio_cross_rotation": (
         "Fires when the ETH/BTC ratio crosses its own 200-day DMA. A cross up "
@@ -53,25 +59,50 @@ KIND_SEMANTICS: dict[str, str] = {
     "dma_overextension_trim": (
         "Fires when an asset above its DMA is further above than its threshold "
         "times the multiplier of its regime (BTC and ETH use the crypto fear "
-        "and greed index, SPY the macro one). Sells `sell_step` of the "
-        "portfolio from each such asset."
+        "and greed index, SPY the macro one). Sells `sell_step` from each such "
+        "asset: of the portfolio, or of the position under relative `sizing`."
     ),
     "fgi_downshift_trim": (
         "Fires when an asset's fear/greed regime was in `from_regimes` the day "
-        "before and is in `to_regimes` today. Sells `sell_step` of the "
-        "portfolio from each such asset."
+        "before and is in `to_regimes` today. Sells `sell_step` from each such "
+        "asset: of the portfolio, or of the position under relative `sizing`."
     ),
     "technical_trim": (
         "A research kind: the reference uses none. Fires when `trigger` holds "
-        "for an asset that is above its DMA, and sells `sell_step` of the "
-        "portfolio from each such asset, routing the proceeds as `proceeds` "
-        "says."
+        "for an asset that is above its DMA, and sells `sell_step` from each "
+        "such asset (of the portfolio, or of the position under relative "
+        "`sizing`), routing the proceeds as `proceeds` says."
     ),
     "technical_add": (
         "A research kind: the reference uses none. Fires when `trigger` holds "
         "for an asset that is above its DMA, and buys `buy_step` of the "
         "portfolio into each such asset out of stable (scaled down together "
         "when stable is short)."
+    ),
+    "trend_dca_entry": (
+        "Fires when an asset is above its DMA, the signal's cross cooldown no "
+        "longer bars entering it, it holds less than `max_weight` of the "
+        "portfolio and there is stable to spend. Buys `buy_step` of the "
+        "portfolio into each such asset out of stable, never taking an asset "
+        "above `max_weight` (scaled down together when stable is short). It "
+        "enters in steps where `dma_cross_up_rebalance` enters at once."
+    ),
+}
+
+# What each overlay does. Fields are listed from the models.
+OVERLAY_SEMANTICS: dict[str, str] = {
+    "spy_latch": (
+        "When SPY crosses up it moves the stable already held into SPY, then "
+        "keeps routing new stable into SPY for `follow_through_days`."
+    ),
+    "trend_guard": (
+        "Acts every day and has the last word. An asset counts as below its "
+        "DMA once it has closed more than `below_dma_buffer` under it for "
+        "`confirm_days` days in a row. `block_adds` undoes any purchase of such "
+        "an asset (the cash stays in stable); `force_exit` also sells what is "
+        "held of it. Because it looks at the level, not at the day of the "
+        "cross, it holds whatever route a position took, and the trade quota "
+        "guard does not hold a forced exit back."
     ),
 }
 
@@ -131,10 +162,9 @@ _GUARD_SEMANTICS = (
     "`trade_quota` turns the day into a hold when a trade-frequency limit is "
     "reached, whichever rule decided."
 )
-_OVERLAY_SEMANTICS = (
-    "`spy_latch` runs after the rules and guards. When SPY crosses up it moves "
-    "the stable already held into SPY, then keeps routing new stable into SPY "
-    "for `follow_through_days`."
+_OVERLAY_INTRO = (
+    "Overlays adjust the decision after the rules and guards have made it. They "
+    "apply in the order listed, at most one of each kind."
 )
 
 
@@ -173,6 +203,9 @@ def _tighten(node: Any) -> Any:
         return node
     tightened: dict[str, Any] = {}
     for key, value in node.items():
+        if key == "default":
+            tightened["x-default"] = value
+            continue
         if key in _NOISE:
             continue
         if key == "properties":
@@ -194,10 +227,14 @@ def render_vocabulary() -> str:
         "`pnpm strategy-lab schema`. Do not edit by hand.",
         "",
         "A strategy is one JSON document that spells out everything it does: no "
-        "field has a default, so reading the spec is reading the strategy. It "
-        "trades SPY, BTC and ETH against stable. Rules are listed in precedence "
-        "order and the first one that matches, and is off cooldown, decides the "
-        "day. The machine-readable form is "
+        "field has a default, so reading the spec is reading the strategy. The "
+        "exception is a knob added after the first reference spec: it is marked "
+        "*optional*, its default is what the strategy did before the knob "
+        "existed, and leaving it out is the same strategy as spelling the "
+        "default out. The schema asks for every field, optional ones included. "
+        "The strategy trades SPY, BTC and ETH against stable. Rules are listed "
+        "in precedence order and the first one that matches, and is off "
+        "cooldown, decides the day. The machine-readable form is "
         f"[`{SCHEMA_FILENAME}`]({SCHEMA_FILENAME}).",
         "",
         "## Top level",
@@ -231,11 +268,12 @@ def render_vocabulary() -> str:
             *_kind_section(schema["properties"]["guards"]["items"], None, "kind"),
             "## Overlays",
             "",
-            _OVERLAY_SEMANTICS,
+            _OVERLAY_INTRO,
             "",
-            *_kind_section(schema["properties"]["overlays"]["items"], None, "kind"),
         ]
     )
+    for branch in schema["properties"]["overlays"]["items"]["oneOf"]:
+        lines.extend(_kind_section(branch, OVERLAY_SEMANTICS, "kind"))
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -290,6 +328,9 @@ def _flatten(
         meaning = str(child.get("description", ""))
         if child.get("x-tunable"):
             meaning = f"{meaning} *(tunable)*".strip()
+        if "x-default" in child:
+            default = json.dumps(child["x-default"])
+            meaning = f"{meaning} *(optional, default `{default}`)*".strip()
         rows.append((path, _type_label(child), meaning))
         rows.extend(_children(child, path))
     return rows
@@ -298,6 +339,9 @@ def _flatten(
 def _children(node: dict[str, Any], path: str) -> list[tuple[str, str, str]]:
     if "properties" in node:
         return _flatten(node, f"{path}.", set())
+    tag = _union_tag(node)
+    if tag is not None and tag != "signal":
+        return _union_children(node["oneOf"], path, tag)
     item = node.get("items")
     if isinstance(item, dict):
         return _children(item, f"{path}[]")
@@ -312,13 +356,54 @@ def _children(node: dict[str, Any], path: str) -> list[tuple[str, str, str]]:
     return rows
 
 
+def _union_tag(node: dict[str, Any]) -> str | None:
+    """The property that tells the branches of a ``oneOf`` apart, if there is one."""
+    branches = node.get("oneOf")
+    if not branches:
+        return None
+    shared = set.intersection(
+        *(
+            {
+                name
+                for name, child in branch.get("properties", {}).items()
+                if "const" in child
+            }
+            for branch in branches
+        )
+    )
+    return next(iter(sorted(shared)), None)
+
+
+def _union_children(
+    branches: list[dict[str, Any]],
+    path: str,
+    tag: str,
+) -> list[tuple[str, str, str]]:
+    rows: list[tuple[str, str, str]] = []
+    for branch in branches:
+        value = json.dumps(branch["properties"][tag]["const"])
+        rows.extend(
+            (name, label, f"With `{tag}` `{value}`: {meaning}")
+            for name, label, meaning in _flatten(branch, f"{path}.", set())
+            if name != f"{path}.{tag}"
+        )
+    return rows
+
+
 def _type_label(node: dict[str, Any]) -> str:
     if "const" in node:
         return f"`{json.dumps(node['const'])}`"
     if "enum" in node:
         return " \\| ".join(f"`{json.dumps(value)}`" for value in node["enum"])
     if "oneOf" in node:
-        return "object, one of the triggers below"
+        tag = _union_tag(node)
+        if tag is None or tag == "signal":
+            return "object, one of the triggers below"
+        values = " \\| ".join(
+            f"`{json.dumps(branch['properties'][tag]['const'])}`"
+            for branch in node["oneOf"]
+        )
+        return f"object, `{tag}` is {values}"
     if "anyOf" in node:
         return " \\| ".join(_type_label(option) for option in node["anyOf"])
     kind = node["type"]
@@ -346,6 +431,7 @@ def _bounds(node: dict[str, Any]) -> str:
 
 __all__ = [
     "KIND_SEMANTICS",
+    "OVERLAY_SEMANTICS",
     "SCHEMA_FILENAME",
     "TRIGGER_SEMANTICS",
     "VOCABULARY_FILENAME",

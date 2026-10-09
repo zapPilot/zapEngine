@@ -27,6 +27,9 @@ class CrossDownExitRule:
     # Assets that exit together when any one of them crosses down.
     peer_groups: tuple[tuple[str, ...], ...]
     proceeds: ProceedsRouting
+    # One cooldown per asset that crossed, instead of one for the whole rule: an
+    # exit then never waits for another asset's cooldown.
+    cooldown_keyed_by_trigger_symbol: bool
     rule_group: RuleGroup = "cross"
     description: str = "Exit any asset that crosses below DMA; proceeds remain stable."
 
@@ -80,6 +83,9 @@ class CrossDownExitRule:
             "cross_down",
         )
         return replace(intent, diagnostics=diagnostics)
+
+    def trigger_symbols_for_cooldown(self, snapshot: PortfolioSnapshot) -> list[str]:
+        return _cross_down_symbols(snapshot)
 
 
 def _cross_down_symbols(snapshot: PortfolioSnapshot) -> list[str]:

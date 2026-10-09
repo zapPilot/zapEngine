@@ -192,6 +192,15 @@
                   "to"
                 ],
                 "type": "object"
+              },
+              "cooldown_scope": {
+                "x-default": "rule",
+                "description": "What the cooldown is kept for. `rule`: one cooldown for the whole rule, so after any exit another asset's cross down is skipped until it ends. `trigger_symbol`: one per asset that crossed, so an exit never waits for another asset's.",
+                "enum": [
+                  "rule",
+                  "trigger_symbol"
+                ],
+                "type": "string"
               }
             },
             "required": [
@@ -199,13 +208,14 @@
               "id",
               "cooldown_days",
               "peer_groups",
-              "proceeds"
+              "proceeds",
+              "cooldown_scope"
             ],
             "type": "object"
           },
           {
             "additionalProperties": false,
-            "description": "Equal-weights every asset above its DMA when one of them crosses up.",
+            "description": "Moves the portfolio into the assets above their DMA when one of them crosses up.",
             "properties": {
               "kind": {
                 "const": "dma_cross_up_rebalance",
@@ -222,12 +232,22 @@
                 "minimum": 0,
                 "type": "integer",
                 "x-tunable": true
+              },
+              "allocation": {
+                "x-default": "equal_weight",
+                "description": "`equal_weight` re-weights the whole portfolio equally across the assets above their DMA, which undoes earlier trims and rotations. `deploy_stable` keeps every holding and splits only the stable equally across those assets.",
+                "enum": [
+                  "equal_weight",
+                  "deploy_stable"
+                ],
+                "type": "string"
               }
             },
             "required": [
               "kind",
               "id",
-              "cooldown_days"
+              "cooldown_days",
+              "allocation"
             ],
             "type": "object"
           },
@@ -484,11 +504,55 @@
                 "x-tunable": true
               },
               "sell_step": {
-                "description": "Share of the portfolio sold per matching asset.",
+                "description": "Share sold per matching asset: of the portfolio under absolute sizing, of the asset's own position under relative sizing.",
                 "exclusiveMinimum": 0.0,
                 "maximum": 1.0,
                 "type": "number",
                 "x-tunable": true
+              },
+              "sizing": {
+                "x-default": {
+                  "mode": "absolute"
+                },
+                "description": "How `sell_step` is read: of the portfolio, or of the position.",
+                "oneOf": [
+                  {
+                    "additionalProperties": false,
+                    "description": "A sale is a share of the portfolio. This is how every sale read before sizing existed.",
+                    "properties": {
+                      "mode": {
+                        "const": "absolute",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "mode"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "description": "A sale is a share of the asset's own position, and it never cuts into a core.",
+                    "properties": {
+                      "mode": {
+                        "const": "relative",
+                        "type": "string"
+                      },
+                      "floor_weight": {
+                        "description": "Share of the portfolio the asset is never sold below.",
+                        "exclusiveMaximum": 1.0,
+                        "minimum": 0.0,
+                        "type": "number",
+                        "x-tunable": true
+                      }
+                    },
+                    "required": [
+                      "mode",
+                      "floor_weight"
+                    ],
+                    "type": "object"
+                  }
+                ]
               },
               "thresholds": {
                 "additionalProperties": false,
@@ -618,6 +682,7 @@
               "id",
               "cooldown_days",
               "sell_step",
+              "sizing",
               "thresholds",
               "fgi_multipliers",
               "proceeds"
@@ -645,11 +710,55 @@
                 "x-tunable": true
               },
               "sell_step": {
-                "description": "Share of the portfolio sold per matching asset.",
+                "description": "Share sold per matching asset: of the portfolio under absolute sizing, of the asset's own position under relative sizing.",
                 "exclusiveMinimum": 0.0,
                 "maximum": 1.0,
                 "type": "number",
                 "x-tunable": true
+              },
+              "sizing": {
+                "x-default": {
+                  "mode": "absolute"
+                },
+                "description": "How `sell_step` is read: of the portfolio, or of the position.",
+                "oneOf": [
+                  {
+                    "additionalProperties": false,
+                    "description": "A sale is a share of the portfolio. This is how every sale read before sizing existed.",
+                    "properties": {
+                      "mode": {
+                        "const": "absolute",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "mode"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "description": "A sale is a share of the asset's own position, and it never cuts into a core.",
+                    "properties": {
+                      "mode": {
+                        "const": "relative",
+                        "type": "string"
+                      },
+                      "floor_weight": {
+                        "description": "Share of the portfolio the asset is never sold below.",
+                        "exclusiveMaximum": 1.0,
+                        "minimum": 0.0,
+                        "type": "number",
+                        "x-tunable": true
+                      }
+                    },
+                    "required": [
+                      "mode",
+                      "floor_weight"
+                    ],
+                    "type": "object"
+                  }
+                ]
               },
               "from_regimes": {
                 "description": "Regimes the asset was in the day before.",
@@ -727,6 +836,7 @@
               "id",
               "cooldown_days",
               "sell_step",
+              "sizing",
               "from_regimes",
               "to_regimes",
               "proceeds"
@@ -754,11 +864,55 @@
                 "x-tunable": true
               },
               "sell_step": {
-                "description": "Share of the portfolio sold per matching asset.",
+                "description": "Share sold per matching asset: of the portfolio under absolute sizing, of the asset's own position under relative sizing.",
                 "exclusiveMinimum": 0.0,
                 "maximum": 1.0,
                 "type": "number",
                 "x-tunable": true
+              },
+              "sizing": {
+                "x-default": {
+                  "mode": "absolute"
+                },
+                "description": "How `sell_step` is read: of the portfolio, or of the position.",
+                "oneOf": [
+                  {
+                    "additionalProperties": false,
+                    "description": "A sale is a share of the portfolio. This is how every sale read before sizing existed.",
+                    "properties": {
+                      "mode": {
+                        "const": "absolute",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "mode"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "description": "A sale is a share of the asset's own position, and it never cuts into a core.",
+                    "properties": {
+                      "mode": {
+                        "const": "relative",
+                        "type": "string"
+                      },
+                      "floor_weight": {
+                        "description": "Share of the portfolio the asset is never sold below.",
+                        "exclusiveMaximum": 1.0,
+                        "minimum": 0.0,
+                        "type": "number",
+                        "x-tunable": true
+                      }
+                    },
+                    "required": [
+                      "mode",
+                      "floor_weight"
+                    ],
+                    "type": "object"
+                  }
+                ]
               },
               "trigger": {
                 "description": "The technical signal, read for each asset that is above its DMA.",
@@ -1061,6 +1215,7 @@
               "id",
               "cooldown_days",
               "sell_step",
+              "sizing",
               "trigger",
               "proceeds"
             ],
@@ -1357,6 +1512,50 @@
               "trigger"
             ],
             "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "Buys into an asset above its DMA in steps, out of stable, up to a weight cap.",
+            "properties": {
+              "kind": {
+                "const": "trend_dca_entry",
+                "type": "string"
+              },
+              "id": {
+                "description": "Name of the rule in decision traces.",
+                "pattern": "^[a-z][a-z0-9_]{2,47}$",
+                "type": "string"
+              },
+              "cooldown_days": {
+                "description": "Days the rule stays off after it trades.",
+                "maximum": 365,
+                "minimum": 0,
+                "type": "integer",
+                "x-tunable": true
+              },
+              "buy_step": {
+                "description": "Share of the portfolio bought per matching asset, out of stable.",
+                "exclusiveMinimum": 0.0,
+                "maximum": 1.0,
+                "type": "number",
+                "x-tunable": true
+              },
+              "max_weight": {
+                "description": "Share of the portfolio an asset may reach through these purchases.",
+                "exclusiveMinimum": 0.0,
+                "maximum": 1.0,
+                "type": "number",
+                "x-tunable": true
+              }
+            },
+            "required": [
+              "kind",
+              "id",
+              "cooldown_days",
+              "buy_step",
+              "max_weight"
+            ],
+            "type": "object"
           }
         ]
       },
@@ -1429,32 +1628,81 @@
     "overlays": {
       "description": "Adjustments applied to the decision after the rules and guards.",
       "items": {
-        "additionalProperties": false,
-        "description": "After SPY crosses up, parks fresh stable in SPY for a few days.",
-        "properties": {
-          "kind": {
-            "const": "spy_latch",
-            "type": "string"
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "description": "After SPY crosses up, parks fresh stable in SPY for a few days.",
+            "properties": {
+              "kind": {
+                "const": "spy_latch",
+                "type": "string"
+              },
+              "id": {
+                "description": "Name of the overlay in decision traces.",
+                "pattern": "^[a-z][a-z0-9_]{2,47}$",
+                "type": "string"
+              },
+              "follow_through_days": {
+                "description": "Days after the cross-up during which new stable goes to SPY.",
+                "maximum": 90,
+                "minimum": 1,
+                "type": "integer",
+                "x-tunable": true
+              }
+            },
+            "required": [
+              "kind",
+              "id",
+              "follow_through_days"
+            ],
+            "type": "object"
           },
-          "id": {
-            "description": "Name of the overlay in decision traces.",
-            "pattern": "^[a-z][a-z0-9_]{2,47}$",
-            "type": "string"
-          },
-          "follow_through_days": {
-            "description": "Days after the cross-up during which new stable goes to SPY.",
-            "maximum": 90,
-            "minimum": 1,
-            "type": "integer",
-            "x-tunable": true
+          {
+            "additionalProperties": false,
+            "description": "Keeps the portfolio out of assets that stay below their DMA, every day.",
+            "properties": {
+              "kind": {
+                "const": "trend_guard",
+                "type": "string"
+              },
+              "id": {
+                "description": "Name of the overlay in decision traces.",
+                "pattern": "^[a-z][a-z0-9_]{2,47}$",
+                "type": "string"
+              },
+              "mode": {
+                "description": "`block_adds` stops any rule from adding to an asset that counts as below its DMA. `force_exit` also sells what is held of it.",
+                "enum": [
+                  "block_adds",
+                  "force_exit"
+                ],
+                "type": "string"
+              },
+              "below_dma_buffer": {
+                "description": "How far under its DMA, as a fraction of the DMA, an asset must close to count as below.",
+                "maximum": 0.5,
+                "minimum": 0.0,
+                "type": "number",
+                "x-tunable": true
+              },
+              "confirm_days": {
+                "description": "Days in a row an asset must close below that distance before the guard acts.",
+                "maximum": 60,
+                "minimum": 1,
+                "type": "integer",
+                "x-tunable": true
+              }
+            },
+            "required": [
+              "kind",
+              "id",
+              "mode",
+              "below_dma_buffer",
+              "confirm_days"
+            ],
+            "type": "object"
           }
-        },
-        "required": [
-          "kind",
-          "id",
-          "follow_through_days"
-        ],
-        "type": "object"
+        ]
       },
       "type": "array"
     },

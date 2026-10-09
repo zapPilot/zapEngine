@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import date
@@ -112,6 +113,50 @@ class PortfolioRule(Protocol):
 # jscpd:ignore-end
 
 
+class PostIntentOverlay(ABC):
+    """A rule that never decides a day: it only adjusts what the rules decided.
+
+    It matches nothing, so no cooldown or rule priority applies to it, and the
+    evaluator calls its ``apply_post_intent_adjustments`` on the day's intent
+    after the rules and guards have run. A subclass says what the adjustment is.
+    """
+
+    def matches(
+        self,
+        snapshot: PortfolioSnapshot,
+        *,
+        config: PortfolioRuleConfig,
+    ) -> bool:
+        del snapshot, config
+        return False
+
+    def build_intent(
+        self,
+        snapshot: PortfolioSnapshot,
+        *,
+        config: PortfolioRuleConfig,
+    ) -> AllocationIntent:
+        del snapshot, config
+        raise ValueError(f"{type(self).__name__} only supports post-intent adjustments")
+
+    def apply_post_intent_adjustments(
+        self,
+        *,
+        intent: AllocationIntent,
+        snapshot: PortfolioSnapshot,
+        config: PortfolioRuleConfig,
+    ) -> AllocationIntent:
+        del config
+        return self._adjust(intent, snapshot)
+
+    @abstractmethod
+    def _adjust(
+        self,
+        intent: AllocationIntent,
+        snapshot: PortfolioSnapshot,
+    ) -> AllocationIntent: ...
+
+
 class DecisionPolicy(Protocol):
     """Decision policy that maps a signal snapshot to an allocation intent."""
 
@@ -144,6 +189,12 @@ def above_dma_symbols(snapshot: PortfolioSnapshot) -> list[str]:
         for symbol in symbols_for_snapshot(snapshot)
         if snapshot.assets[symbol].zone == "above"
     ]
+
+
+def reentry_blocked(snapshot: PortfolioSnapshot, symbol: str) -> bool:
+    """The signal's cross cooldown still bars entering ``symbol`` above its DMA."""
+    cooldown = snapshot.assets[symbol].cooldown_state
+    return cooldown.active and cooldown.blocked_zone == "above"
 
 
 def current_target(snapshot: PortfolioSnapshot) -> dict[str, float]:
@@ -557,6 +608,7 @@ __all__ = [
     "PortfolioRule",
     "PortfolioRuleConfig",
     "PortfolioSnapshot",
+    "PostIntentOverlay",
     "ProceedsRouting",
     "ProceedsRoutingMixin",
     "above_dma_symbols",
@@ -570,6 +622,7 @@ __all__ = [
     "normalize_symbol",
     "portfolio_target_intent",
     "ratio_signals_consulted",
+    "reentry_blocked",
     "rule_cooldown_remaining_days",
     "signals_consulted_for_symbols",
     "symbols_for_snapshot",

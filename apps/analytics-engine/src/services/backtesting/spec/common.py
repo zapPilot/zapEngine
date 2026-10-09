@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from src.services.backtesting.portfolio_rules.base import ProceedsRouting
+from src.services.backtesting.sizing.base import SizingStrategy
+from src.services.backtesting.sizing.flat import FlatSizing
+from src.services.backtesting.sizing.weights import RelativeSizing
 
 Asset = Literal["SPY", "BTC", "ETH"]
 # An asset or the cash bucket.
@@ -32,7 +35,10 @@ SellStep = Annotated[
     Field(
         gt=0.0,
         le=1.0,
-        description="Share of the portfolio sold per matching asset.",
+        description=(
+            "Share sold per matching asset: of the portfolio under absolute "
+            "sizing, of the asset's own position under relative sizing."
+        ),
         json_schema_extra=TUNABLE,
     ),
 ]
@@ -51,6 +57,41 @@ class SpecModel(BaseModel):
     """Base of every spec model: unknown keys are errors, values are immutable."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
+
+
+class AbsoluteSizingSpec(SpecModel):
+    """A sale is a share of the portfolio. This is how every sale read before sizing existed."""
+
+    mode: Literal["absolute"]
+
+    def to_sizing(self) -> SizingStrategy:
+        return FlatSizing()
+
+
+class RelativeSizingSpec(SpecModel):
+    """A sale is a share of the asset's own position, and it never cuts into a core."""
+
+    mode: Literal["relative"]
+    floor_weight: float = Field(
+        ge=0.0,
+        lt=1.0,
+        description="Share of the portfolio the asset is never sold below.",
+        json_schema_extra=TUNABLE,
+    )
+
+    def to_sizing(self) -> SizingStrategy:
+        return RelativeSizing(floor_weight=self.floor_weight)
+
+
+SizingModel = AbsoluteSizingSpec | RelativeSizingSpec
+SizingSpec = Annotated[SizingModel, Field(discriminator="mode")]
+# What a trim that does not name its sizing does: the way sales always read.
+ABSOLUTE_SIZING = AbsoluteSizingSpec(mode="absolute")
+# The tag each model carries, as pydantic reports it in an error location.
+SIZING_MODES: frozenset[str] = frozenset(
+    get_args(model.model_fields["mode"].annotation)[0]
+    for model in get_args(SizingModel)
+)
 
 
 class AssetCooldowns(SpecModel):
@@ -156,6 +197,8 @@ class ProceedsSpec(SpecModel):
 
 
 __all__ = [
+    "ABSOLUTE_SIZING",
+    "AbsoluteSizingSpec",
     "Asset",
     "AssetCooldowns",
     "AssetThresholds",
@@ -165,9 +208,13 @@ __all__ = [
     "ProceedsSpec",
     "Regime",
     "RegimeMultipliers",
+    "RelativeSizingSpec",
     "RuleCooldown",
     "RuleId",
+    "SIZING_MODES",
     "SellStep",
+    "SizingModel",
+    "SizingSpec",
     "Slug",
     "TUNABLE",
     "SpecModel",

@@ -4,6 +4,12 @@ The behavior hash covers everything that changes what the strategy does and
 nothing else: the spec's name, version and description are left out, so
 renaming or re-describing a strategy keeps its hash while any change to a rule,
 a number or the order of rules changes it.
+
+A knob added to the format after a spec was written has a default that
+reproduces what the strategy did before the knob existed, and a knob at its
+default is left out of the canonical form. So adding a knob never changes the
+hash of a spec that does not use it, and spelling out the default is the same
+strategy as leaving it out.
 """
 
 from __future__ import annotations
@@ -22,7 +28,9 @@ _HASH_EXCLUDED = {"id", "version", "description"}
 
 
 def canonical_json(spec: StrategySpec) -> str:
-    payload = spec.model_dump(mode="json", exclude=_HASH_EXCLUDED)
+    payload = spec.model_dump(
+        mode="json", exclude=_HASH_EXCLUDED, exclude_defaults=True
+    )
     return json.dumps(
         payload,
         sort_keys=True,
