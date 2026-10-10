@@ -53,4 +53,15 @@ describe('DeBankFetcher token validation coverage', () => {
       }),
     );
   });
+
+  it('names the failing fields in the strict error so Sentry scopes the schema fix', async () => {
+    const fetcher = new DeBankFetcher({ strictErrors: true });
+    mockDeBankResponse(fetcher, [
+      validToken({ amount: 'not-a-number', chain: '' }),
+    ]);
+
+    await expect(fetcher.fetchWalletTokenList(walletAddress)).rejects.toThrow(
+      /DeBank token list validation failed: .*0\.amount/,
+    );
+  });
 });
