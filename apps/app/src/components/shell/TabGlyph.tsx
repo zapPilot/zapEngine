@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { tokens } from '@zapengine/design-tokens/tokens';
 import type { AppTabName } from '@/integration/navigationModel';
@@ -24,7 +25,9 @@ export function TabGlyph({
       width={tokens.size.icon.lg}
       height={tokens.size.icon.lg}
       viewBox={[0, 0, 24, 24].join(' ')}
-      accessible={false}
+      {...(Platform.OS === 'web'
+        ? { 'aria-hidden': true }
+        : { accessible: false })}
       fill={NO_FILL}
       stroke={color}
       strokeWidth={tokens.line.strong}

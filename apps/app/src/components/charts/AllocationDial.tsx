@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { tokens } from '@zapengine/design-tokens/tokens';
 import type { SleeveAllocation } from '@/integration/todayModel';
@@ -21,7 +22,14 @@ export function AllocationDial({
   let offset = 0;
   const viewBox = [0, 0, 48, 48].join(' ');
   return (
-    <Svg width={size} height={size} viewBox={viewBox} accessible={false}>
+    <Svg
+      width={size}
+      height={size}
+      viewBox={viewBox}
+      {...(Platform.OS === 'web'
+        ? { 'aria-hidden': true }
+        : { accessible: false })}
+    >
       <Circle
         cx={24}
         cy={24}

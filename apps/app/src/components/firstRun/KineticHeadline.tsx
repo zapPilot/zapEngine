@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Animated, Easing, View } from 'react-native';
+import { Animated, Easing, Platform, View } from 'react-native';
 import Svg, { Text as SvgText, Path } from 'react-native-svg';
 import { tokens } from '@zapengine/design-tokens/tokens';
 import { Text } from '@/components/ui/Text';
@@ -55,7 +55,9 @@ export function KineticHeadline() {
         viewBox={SVG_BOX}
         width="100%"
         height={HEADLINE.line + tokens.space[2]}
-        accessible={false}
+        {...(Platform.OS === 'web'
+          ? { 'aria-hidden': true }
+          : { accessible: false })}
       >
         <SvgText
           x={0}
@@ -77,7 +79,9 @@ export function KineticHeadline() {
         viewBox={UNDERLINE_BOX}
         width={tokens.size.control.lg * 5}
         height={tokens.space[6]}
-        accessible={false}
+        {...(Platform.OS === 'web'
+          ? { 'aria-hidden': true }
+          : { accessible: false })}
       >
         <AnimatedPath
           d={LINE_PATH}

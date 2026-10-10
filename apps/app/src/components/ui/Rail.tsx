@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import Svg, { Line } from 'react-native-svg';
 import { tokens } from '@zapengine/design-tokens/tokens';
 import { palette } from '@/lib/palette';
@@ -7,7 +8,13 @@ export function Rail({
   color = status === 'live' ? palette.ink : palette['rule-2'],
 }: StatusPrimitiveProps) {
   return (
-    <Svg width="100%" height={tokens.line.rail} accessible={false}>
+    <Svg
+      width="100%"
+      height={tokens.line.rail}
+      {...(Platform.OS === 'web'
+        ? { 'aria-hidden': true }
+        : { accessible: false })}
+    >
       <Line
         x1={0}
         y1={tokens.line.rail / 2}

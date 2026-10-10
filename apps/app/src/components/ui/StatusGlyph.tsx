@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import { useId } from 'react';
 import Svg, { Circle, ClipPath, Defs, Rect } from 'react-native-svg';
 import { tokens } from '@zapengine/design-tokens/tokens';
@@ -18,7 +19,9 @@ export function StatusGlyph({
       width={tokens.size.icon.xs}
       height={tokens.size.icon.xs}
       viewBox={[0, 0, 12, 12].join(' ')}
-      accessible={false}
+      {...(Platform.OS === 'web'
+        ? { 'aria-hidden': true }
+        : { accessible: false })}
     >
       <Defs>
         <ClipPath id={clip}>

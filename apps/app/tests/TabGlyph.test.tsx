@@ -3,6 +3,7 @@ import { expect, it, vi } from 'vitest';
 import { TabGlyph } from '@/components/shell/TabGlyph';
 import { APP_TAB_NAMES } from '@/integration/navigationModel';
 import { palette } from '@/lib/palette';
+vi.mock('react-native', () => ({ Platform: { OS: 'ios' } }));
 vi.mock(
   'react-native-svg',
   async () => (await import('./support/svgStub')).svgStub,
