@@ -1,18 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useEtlJobPolling } from '@zapengine/app-core/hooks/wallet/useEtlJobPolling';
 import { useUserWallets } from '@zapengine/app-core/hooks/queries/wallet/useUserWallets';
 import { useAccount } from '@/integration/useAccount';
-import {
-  DEFAULT_HOME_RANGE,
-  type HomeRange,
-  useHomeData,
-} from '@/integration/useHomeData';
+import { DEFAULT_HOME_RANGE, useHomeData } from '@/integration/useHomeData';
 /** Net-worth loading stays independent of strategy evaluation and replay loading. */
 export function useTodayPortfolio() {
   const account = useAccount();
-  const [range, setRange] = useState<HomeRange>(DEFAULT_HOME_RANGE);
   const { state: etl, startPolling, triggerEtl } = useEtlJobPolling();
-  const result = useHomeData(account.viewingUserId, range, {
+  const result = useHomeData(account.viewingUserId, DEFAULT_HOME_RANGE, {
     isResolvingSubject: account.isResolvingViewingUser,
     isEtlInProgress: account.isOwnBundle && etl.isInProgress,
   });
@@ -42,5 +37,5 @@ export function useTodayPortfolio() {
     if (account.userId && account.address)
       void triggerEtl(account.userId, account.address);
   };
-  return { account, range, setRange, result, etl, retryImport, addresses };
+  return { account, result, etl, retryImport, addresses };
 }

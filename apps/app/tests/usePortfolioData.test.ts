@@ -116,6 +116,7 @@ describe('usePortfolioData', () => {
       valueChangeUsd: null,
       latestSnapshotChangePct: null,
       trendPoints: [],
+      attribution: null,
       allocation: [],
     });
     expect(result.data).not.toHaveProperty('lastRebalancedLabel');
@@ -151,6 +152,7 @@ describe('usePortfolioData', () => {
       valueChangeUsd: null,
       latestSnapshotChangePct: null,
       trendPoints: [],
+      attribution: null,
       allocation: [],
     });
     expect(result.data).not.toHaveProperty('lastRebalancedLabel');
@@ -342,6 +344,12 @@ describe('usePortfolioData', () => {
       { kind: 'protocol', label: 'Aave', valueUsd: 30 },
       { kind: 'residual', valueUsd: 20 },
     ]);
+    expect(result.data?.attribution).toMatchObject({
+      netChangeUsd: 50,
+      protocolUsd: 30,
+      attributedDays: 1,
+      totalDays: 1,
+    });
   });
 
   it('uses the selected 3M window for attribution', () => {

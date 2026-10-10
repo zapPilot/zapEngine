@@ -58,7 +58,7 @@ export const en = {
   'home.liquidationRiskA11y': 'Liquidation risk, {buffer} to liquidation',
   'home.liquidationRiskPositionA11y':
     '{protocol}, {collateral} to {debt}, {buffer} to liquidation, HF {healthRate}',
-  'home.walletAssets': 'Wallet assets',
+  'home.walletAssets': 'Available to invest · live on-chain',
   'home.assetsIdleAcross': 'Idle across {count} wallet(s)',
   'home.assetsEmptyTitle': 'No supported assets found',
   'home.assetsEmptyBody':
@@ -138,7 +138,7 @@ export const zhHant = {
   'home.liquidationRiskA11y': '清算風險, {buffer} 距清算',
   'home.liquidationRiskPositionA11y':
     '{protocol}, {collateral} to {debt}, {buffer} 距清算, HF {healthRate}',
-  'home.walletAssets': '錢包資產',
+  'home.walletAssets': '可投入餘額 · 鏈上即時',
   'home.assetsIdleAcross': '閒置於 {count} 個錢包',
   'home.assetsEmptyTitle': '找不到支援的資產',
   'home.assetsEmptyBody':
@@ -217,7 +217,7 @@ export const ja = {
   'home.liquidationRiskA11y': '清算リスク, {buffer} 清算まで',
   'home.liquidationRiskPositionA11y':
     '{protocol}, {collateral} to {debt}, {buffer} 清算まで, HF {healthRate}',
-  'home.walletAssets': 'ウォレット資産',
+  'home.walletAssets': '投資可能残高 · オンチェーン即時',
   'home.assetsIdleAcross': '{count} 件のウォレットで未運用',
   'home.assetsEmptyTitle': '対応資産が見つかりません',
   'home.assetsEmptyBody':

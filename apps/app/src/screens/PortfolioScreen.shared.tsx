@@ -9,6 +9,8 @@ import { PortfolioTrendChart } from '@/components/charts/PortfolioTrendChart';
 import { StatGrid } from '@/components/ui/StatGrid';
 
 import { HomeIncomeCard } from '@/components/home/HomeIncomeCard';
+import { HomeAttributionBreakdown } from '@/components/home/HomeAttributionBreakdown';
+import { summarizeRangeAttribution } from '@/integration/rangeAttribution';
 import { useHomeIncome } from '@/integration/useHomeIncome';
 import { SharePortfolioButton } from '@/components/share/SharePortfolioButton';
 import { DisplayUsdValue } from '@/components/ui/DisplayUsdValue';
@@ -41,6 +43,7 @@ const DEMO_PORTFOLIO: PortfolioViewData = {
   latestSnapshotChangePct: DEMO.portfolio.changePctToday,
   latestSnapshotDate: DEMO.home.latestSnapshotDate,
   trendPoints: DEMO.home.trendPoints,
+  attribution: summarizeRangeAttribution(DEMO.home.trendPoints),
 };
 
 const METRIC_TRANSLATION_KEYS: Readonly<Record<string, TranslationKey>> = {
@@ -158,6 +161,7 @@ export function PortfolioScreen() {
             </Text>
           )}
         </View>
+        <HomeAttributionBreakdown summary={portfolio?.attribution ?? null} />
       </View>
 
       {loading && portfolio === null ? (

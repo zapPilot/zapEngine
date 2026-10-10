@@ -68,6 +68,7 @@ it.each(['ios', 'web'])(
       platformOS,
       isConnected: platformOS === 'ios',
       netWorth: 100,
+      netWorthLoading: false,
       userId: 'owner',
     });
     expect(current.source).toBe('reference');
@@ -84,6 +85,7 @@ it('uses personal decisions for funded connected wallets and forwards their fail
     platformOS: 'web',
     isConnected: true,
     netWorth: 100,
+    netWorthLoading: false,
     userId: 'owner',
   });
   expect(current.source).toBe('personal');
@@ -97,6 +99,7 @@ it('uses personal decisions for funded connected wallets and forwards their fail
     platformOS: 'web',
     isConnected: true,
     netWorth: 100,
+    netWorthLoading: false,
     userId: 'owner',
   });
   expect(current.suggestion).toBeNull();
@@ -110,9 +113,42 @@ it('keeps unfunded portfolios on reference and forwards reference failure withou
     platformOS: 'android',
     isConnected: true,
     netWorth: 0,
+    netWorthLoading: false,
     userId: 'owner',
   });
   expect(current.source).toBe('reference');
   expect(current.suggestion).toBeNull();
   expect(current.isError).toBe(true);
+});
+it('holds a connected wallet on loading until its balance arrives, so the simulation never flashes first', async () => {
+  const input = {
+    platformOS: 'web',
+    isConnected: true,
+    netWorth: null,
+    netWorthLoading: true,
+    userId: 'owner',
+  };
+  m.reference.isError = true;
+  await render(input);
+  expect(current.isLoading).toBe(true);
+  expect(current.isError).toBe(false);
+  expect(current.suggestion).toBeNull();
+  expect(current.packet).toBeNull();
+  await render({ ...input, netWorthLoading: false });
+  expect(current.isLoading).toBe(false);
+  expect(current.suggestion).toBe(m.reference.data.suggestion);
+  expect(current.isError).toBe(true);
+});
+it.each([
+  { platformOS: 'ios', isConnected: true },
+  { platformOS: 'web', isConnected: false },
+])('never holds %o', async (session) => {
+  await render({
+    ...session,
+    netWorth: null,
+    netWorthLoading: true,
+    userId: 'owner',
+  });
+  expect(current.isLoading).toBe(false);
+  expect(current.suggestion).toBe(m.reference.data.suggestion);
 });

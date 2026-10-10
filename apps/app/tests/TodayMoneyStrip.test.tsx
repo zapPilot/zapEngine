@@ -2,7 +2,7 @@
 import { act, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { NetWorthCard } from '@/components/today/NetWorthCard';
+import { TodayMoneyStrip } from '@/components/today/TodayMoneyStrip';
 import type { useTodayPortfolio } from '@/components/today/useTodayPortfolio';
 import { accountFixtures } from './support/accountFixtures';
 const m = vi.hoisted(() => ({
@@ -38,7 +38,7 @@ vi.mock('@/providers/AuthenticatedActionProvider', () => ({
 }));
 vi.mock('@/providers/ContentLanguageProvider', async () => {
   const { en } = await import('./support/i18nHarness');
-  return { useContentLanguage: () => ({ t: en }) };
+  return { useContentLanguage: () => ({ t: en, languageCode: 'en' }) };
 });
 vi.mock('@/components/ui/Tap', async () => ({
   Tap: (await import('./support/reactNativeStub')).reactNativeStub.Pressable,
@@ -49,11 +49,8 @@ vi.mock('@/components/ui/Card', () => ({
 vi.mock('@/components/ui/Skeleton', () => ({
   SkeletonBlock: () => <span data-skeleton />,
 }));
-vi.mock('@/components/charts/PortfolioTrendChart', () => ({
-  PortfolioTrendChart: () => <span data-chart />,
-}));
-vi.mock('@/integration/useHomeData', () => ({
-  HOME_RANGE_OPTIONS: ['1D', '1W', '1M', '3M', '1Y'],
+vi.mock('@/components/charts/Sparkline', () => ({
+  Sparkline: () => <span data-spark />,
 }));
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -66,8 +63,6 @@ beforeEach(() => {
   m.available = true;
   portfolio = {
     account: accountFixtures.ownBundle(),
-    range: '1M',
-    setRange: vi.fn(),
     etl: {
       jobId: null,
       status: 'idle',
@@ -104,7 +99,7 @@ async function mount() {
   host = document.createElement('div');
   document.body.append(host);
   root = createRoot(host);
-  await act(async () => root.render(<NetWorthCard portfolio={portfolio} />));
+  await act(async () => root.render(<TodayMoneyStrip portfolio={portfolio} />));
   return host;
 }
 async function press(label: string) {
@@ -126,11 +121,48 @@ it('shows readable demo amounts and routes Fund through authentication', async (
   await press('View portfolio');
   expect(m.push).toHaveBeenCalledWith('/portfolio');
 });
+const trend = [
+  { date: '2026-10-07', total_value_usd: 90 },
+  { date: '2026-10-08', total_value_usd: 95 },
+  { date: '2026-10-09', total_value_usd: 100 },
+];
+it('leads with the change since the last snapshot and a month of shape', async () => {
+  portfolio.result.data.home.trendPoints = trend;
+  await mount();
+  const sparkline = '[data-testid="today-sparkline"]';
+  expect(host.textContent).toContain('+$5.00');
+  expect(host.textContent).toContain('+5.3%');
+  expect(host.textContent).not.toContain('+$1.00');
+  expect(host.textContent).toContain('vs yesterday');
+  expect(host.textContent).toContain('Snapshot ');
+  expect(host.querySelector(sparkline)).not.toBeNull();
+  expect(host.querySelector('[data-spark]')).not.toBeNull();
+  expect(
+    host.querySelector(
+      'button[aria-label="Net worth, $100.00, View portfolio"]',
+    ),
+  ).not.toBeNull();
+});
+it('names the earlier snapshot when the last two are days apart', async () => {
+  portfolio.result.data.home.trendPoints = [
+    { date: '2026-10-05', total_value_usd: 90 },
+    { date: '2026-10-09', total_value_usd: 100 },
+  ];
+  await mount();
+  expect(host.textContent).toContain('Since ');
+  expect(host.textContent).not.toContain('vs yesterday');
+});
+it('shows dashes instead of a change before two snapshots exist', async () => {
+  await mount();
+  expect(host.textContent).not.toContain('vs yesterday');
+  expect(host.querySelector('[data-testid="today-sparkline"]')).toBeNull();
+});
 it('keeps net worth visible while the chart is loading', async () => {
   portfolio.result.trend.isLoading = true;
   await mount();
   expect(host.textContent).toContain('$100');
   expect(host.querySelector('[data-skeleton]')).not.toBeNull();
+  expect(host.querySelector('[data-testid="today-sparkline"]')).toBeNull();
 });
 it('makes public bundle funding unavailable without hiding the value', async () => {
   portfolio.account = accountFixtures.bundleView();
@@ -169,7 +201,7 @@ it.each(['failed', 'completed', 'pending'] as const)(
     if (status === 'failed') {
       await press('Retry');
       expect(portfolio.retryImport).toHaveBeenCalledOnce();
-    } else expect(host.querySelector('[data-chart]')).toBeNull();
+    } else expect(host.querySelector('[data-spark]')).toBeNull();
   },
 );
 it('does not suggest retrying an ownership rejection', async () => {

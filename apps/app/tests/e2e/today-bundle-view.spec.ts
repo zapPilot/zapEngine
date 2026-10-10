@@ -258,7 +258,14 @@ test('public bundle view renders Home read-only for a logged-out visitor', async
   await expect(page.getByRole('button', { name: NET_WORTH_LABEL })).toBeVisible(
     { timeout: APP_BOOT_TIMEOUT },
   );
-  await expect(page.getByTestId('portfolio-trend-chart')).toBeVisible();
+  // Today leads with the day's change and a month of shape; the range chart
+  // and its controls live on Portfolio.
+  await expect(page.getByTestId('today-sparkline')).toBeVisible();
+  await expect(page.getByText('+$1,510.48', { exact: true })).toBeVisible();
+  await expect(page.getByTestId('portfolio-trend-chart')).toHaveCount(0);
+  await expect(page.getByRole('tablist', { name: 'Chart range' })).toHaveCount(
+    0,
+  );
   // Proves the v3 suggestion stub was consumed: the strategy card resolves to
   // its no-action title instead of sitting in a skeleton.
   await expect(page.getByText('Hold.', { exact: true })).toBeVisible();
@@ -282,6 +289,10 @@ test('public bundle view renders Home read-only for a logged-out visitor', async
     .getByRole('button', { name: 'View portfolio', exact: true })
     .click();
   await expect(page).toHaveURL(/\/portfolio/);
+  await expect(page.getByTestId('portfolio-trend-chart')).toBeVisible();
+  await expect(
+    page.getByRole('tablist', { name: 'Chart range' }),
+  ).toBeVisible();
   await expect(
     page.getByRole('button', { name: 'Share portfolio' }),
   ).toBeVisible();
@@ -320,18 +331,18 @@ test('a slow dashboard no longer holds back the balance headline', async ({
   // Home's queries all fire on the same mount as this label, so waiting for it
   // starts the budget below at the moment the dashboard request is issued
   // rather than paying for the app shell's boot twice.
-  await expect(page.getByRole('tablist', { name: 'Chart range' })).toBeVisible({
-    timeout: APP_BOOT_TIMEOUT,
-  });
+  await expect(
+    page.getByRole('button', { name: 'View portfolio', exact: true }),
+  ).toBeVisible({ timeout: APP_BOOT_TIMEOUT });
 
   await expect(page.getByRole('button', { name: NET_WORTH_LABEL })).toBeVisible(
     { timeout: SECTION_INDEPENDENCE_BUDGET },
   );
   // Still nothing from the dashboard: the balance won the race outright.
-  await expect(page.getByTestId('portfolio-trend-chart')).toHaveCount(0);
+  await expect(page.getByTestId('today-sparkline')).toHaveCount(0);
 
-  // And the delayed stub really was the one in play — the chart still arrives.
-  await expect(page.getByTestId('portfolio-trend-chart')).toBeVisible({
+  // And the delayed stub really was the one in play — the sparkline still arrives.
+  await expect(page.getByTestId('today-sparkline')).toBeVisible({
     timeout: SLOW_DASHBOARD_DELAY * 2,
   });
 

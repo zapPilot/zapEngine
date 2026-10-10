@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   formatSignedPct,
+  formatSignedPoints,
   formatTokenBalance,
   formatUsd6,
   truncateAddress,
@@ -12,6 +13,9 @@ describe('format branch coverage', () => {
     expect(formatSignedPct(1.25, 2)).toBe('+1.25%');
     expect(formatSignedPct(-1.25, 2)).toBe('−1.25%');
     expect(formatSignedPct(0, 2)).toBe('0.00%');
+    expect(formatSignedPoints(10.34)).toBe('+10.3');
+    expect(formatSignedPoints(-6.4)).toBe('−6.4');
+    expect(formatSignedPoints(0)).toBe('0.0');
   });
 
   it('formats every token balance state and safely handles invalid balances', () => {

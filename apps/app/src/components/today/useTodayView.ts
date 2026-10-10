@@ -12,6 +12,9 @@ export function useTodayView() {
     platformOS: Platform.OS,
     isConnected: account.isConnected,
     netWorth: portfolio.result.data.home.totalBalance,
+    netWorthLoading:
+      (portfolio.result.balance.isLoading || account.isResolvingViewingUser) &&
+      !account.isUserResolutionFailed,
     userId: account.viewingUserId,
   });
   const fund = useFundFlow();

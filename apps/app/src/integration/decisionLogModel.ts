@@ -69,3 +69,52 @@ export function decisionLogEntries(
   flush();
   return rows.reverse();
 }
+const MS_PER_DAY = 86_400_000;
+export type RhythmDay = { date: string; fired: boolean | null };
+/**
+ * The last `days` calendar days of the reference strategy. Transfer days survive
+ * server sampling, so a day after the first observation with no transfer is a
+ * hold; days before it are unknown.
+ */
+export function decisionRhythm(
+  response: BacktestResponse,
+  rules: readonly { name: string; number: number }[],
+  days = 30,
+): {
+  days: RhythmDay[];
+  moves: Extract<DecisionLogEntry, { kind: 'rule' }>[];
+} {
+  const id = referenceStrategyId(response);
+  const lastDate = response.timeline.at(-1)?.market.date;
+  const end = Date.parse(lastDate ?? '');
+  if (id === null || Number.isNaN(end)) return { days: [], moves: [] };
+  const fired = new Map<string, boolean>();
+  for (const day of response.timeline) {
+    const point = day.strategies[id];
+    if (point) fired.set(day.market.date, point.execution.transfers.length > 0);
+  }
+  const first = fired.keys().next().value;
+  const window: RhythmDay[] = Array.from({ length: days }, (_, index) => {
+    const date = new Date(end - (days - 1 - index) * MS_PER_DAY)
+      .toISOString()
+      .slice(0, 10);
+    const known = fired.get(date);
+    return {
+      date,
+      fired:
+        known !== undefined
+          ? known
+          : first !== undefined && date > first
+            ? false
+            : null,
+    };
+  });
+  const start = window[0]!.date;
+  return {
+    days: window,
+    moves: decisionLogEntries(response, rules).filter(
+      (row): row is Extract<DecisionLogEntry, { kind: 'rule' }> =>
+        row.kind === 'rule' && row.date >= start,
+    ),
+  };
+}

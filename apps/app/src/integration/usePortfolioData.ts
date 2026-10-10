@@ -15,6 +15,10 @@ import {
   netPortfolioValueFrom,
   toTrendPoints,
 } from '@/integration/portfolioMetrics';
+import {
+  summarizeRangeAttribution,
+  type RangeAttributionSummary,
+} from '@/integration/rangeAttribution';
 import { formatOr, formatPct, formatSignedPct } from '@/lib/format';
 
 interface Metric {
@@ -31,6 +35,7 @@ export interface PortfolioViewData {
   latestSnapshotChangePct: number | null;
   latestSnapshotDate: string | null;
   trendPoints: DailyValuePoint[];
+  attribution: RangeAttributionSummary | null;
   metrics: Metric[];
   allocation: { label: string; pct: number; color: string }[];
 }
@@ -102,6 +107,7 @@ function unavailablePortfolioData(): PortfolioViewData {
     latestSnapshotChangePct: null,
     latestSnapshotDate: null,
     trendPoints: [],
+    attribution: null,
     metrics: [
       unavailableMetric('Value change'),
       unavailableMetric('Current APY', 'neutral'),
@@ -149,6 +155,10 @@ export function usePortfolioData(
     () =>
       attachDailyAttribution(toTrendPoints(snapshots), attributionQuery.data),
     [attributionQuery.data, snapshots],
+  );
+  const attribution = useMemo(
+    () => summarizeRangeAttribution(trendPoints),
+    [trendPoints],
   );
 
   // userId still resolving, or the query hasn't produced a dashboard yet.
@@ -260,6 +270,7 @@ export function usePortfolioData(
     latestSnapshotChangePct: latestSnapshotChange?.pct ?? null,
     latestSnapshotDate: lastDay?.date ?? null,
     trendPoints,
+    attribution,
     metrics,
     allocation,
   };
