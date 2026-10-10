@@ -156,7 +156,6 @@ function triggerEvidenceLine(
   if (rule?.startsWith('cross_') || rule?.startsWith('dma_overextension_')) {
     return dmaEvidence(signal?.dma);
   }
-  if (rule === 'spy_latch') return dmaEvidence(signal?.spy_dma, 'SPY');
   if (rule?.startsWith('fgi_')) return fgiEvidence(data);
   return null;
 }
@@ -176,10 +175,9 @@ function dmaEvidence(
   dma: NonNullable<
     DailySuggestionSubset['context']['signal']['details']
   >['dma'],
-  fixedAsset?: string,
 ): string[] | null {
   if (dma?.dma_200 == null) return null;
-  const asset = fixedAsset ?? dma.outer_dma_asset;
+  const asset = dma.outer_dma_asset;
   return [
     `${asset ? `${humanizeSlug(asset).toUpperCase()} · ` : ''}200-DMA ${dma.dma_200.toFixed(2)}${formatDistance(dma.distance)}${formatCross(dma.cross_event)}`,
   ];
@@ -204,13 +202,10 @@ function checksBlock(data: DailySuggestionSubset): string {
   const regimeLabel = humanizeSlug(regime);
   const indicator = triggeredIndicator(data);
   const cooldown = formatCooldown(indicator);
-  const details = data.context.strategy.details;
-  const quota = formatQuota(details);
   return [
     '*CHECKS*',
     `FGI ${score ?? 'unavailable'}${label ? ` (${label})` : ''} · Regime ${REGIME_EMOJI[regime] ?? '⚪'} ${regimeLabel}`,
     `Cooldown: ${cooldown}`,
-    quota,
   ].join('\n');
 }
 
@@ -222,26 +217,9 @@ function formatCooldown(
   return `active, ${indicator.cooldown_remaining_days}d remaining`;
 }
 
-function formatQuota(
-  details: DailySuggestionSubset['context']['strategy']['details'],
-): string {
-  if (details?.enabled == null) return 'Quota: data unavailable';
-  const trades =
-    details.trades_7d != null && details.max_trades_7d != null
-      ? `Trades 7d: ${details.trades_7d}/${details.max_trades_7d}`
-      : 'Trades 7d: unavailable';
-  return [
-    trades,
-    details.next_trade_date ? `next trade ${details.next_trade_date}` : null,
-  ]
-    .filter(Boolean)
-    .join(' · ');
-}
-
 function triggeredIndicator(data: DailySuggestionSubset) {
   const rule = data.context.strategy.details?.matched_rule_name;
   if (rule?.startsWith('eth_btc_')) return data.context.signal.details?.ratio;
-  if (rule === 'spy_latch') return data.context.signal.details?.spy_dma;
   return data.context.signal.details?.dma;
 }
 

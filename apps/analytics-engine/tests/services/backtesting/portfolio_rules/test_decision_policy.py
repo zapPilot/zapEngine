@@ -19,7 +19,6 @@ from src.services.backtesting.decision import (
     RuleGroup,
 )
 from src.services.backtesting.portfolio_rules.base import (
-    DIAG_MATCHED_RULE_NAME,
     DIAG_SIGNALS_CONSULTED,
     PortfolioRule,
     PortfolioRuleConfig,
@@ -31,9 +30,7 @@ from src.services.backtesting.portfolio_rules.cooldown_tracker import (
 from src.services.backtesting.portfolio_rules.decision_policy import (
     RuleBasedPortfolioDecisionPolicy,
     RuleExecutionContext,
-    RuleExecutionState,
     RulesEvaluator,
-    _matched_rule_priority,
     build_portfolio_snapshot,
     resolve_portfolio_rules_intent,
 )
@@ -119,7 +116,6 @@ class _ObservingRule(_FakeRule):
     def __init__(self, *, name: str) -> None:
         super().__init__(name=name)
         self.observed = False
-        self.recorded: AllocationIntent | None = None
 
     def observe(
         self,
@@ -130,9 +126,6 @@ class _ObservingRule(_FakeRule):
         del snapshot, config
         self.observed = True
 
-    def record_intent(self, intent: AllocationIntent) -> None:
-        self.recorded = intent
-
 
 class _ResettableRule(_ObservingRule):
     def __init__(self, *, name: str) -> None:
@@ -141,58 +134,6 @@ class _ResettableRule(_ObservingRule):
 
     def reset(self) -> None:
         self.reset_called = True
-
-
-class _BlockingGuard:
-    name = "blocking_guard"
-    priority = 35
-    description = "would block if invoked"
-    called = False
-
-    def allow(
-        self,
-        intent: AllocationIntent,
-        snapshot: PortfolioSnapshot,
-        *,
-        config: PortfolioRuleConfig,
-    ) -> AllocationIntent | None:
-        del snapshot, config
-        self.called = True
-        return AllocationIntent(
-            action="hold",
-            target_allocation=None,
-            allocation_name=None,
-            immediate=False,
-            reason="blocked",
-            rule_group="none",
-            decision_score=0.0,
-            diagnostics=dict(intent.diagnostics or {}),
-        )
-
-
-class _TraceReplacingGuard:
-    name = "trace_replacing_guard"
-    priority = 0
-    description = "blocks and emits replacement diagnostics"
-
-    def allow(
-        self,
-        intent: AllocationIntent,
-        snapshot: PortfolioSnapshot,
-        *,
-        config: PortfolioRuleConfig,
-    ) -> AllocationIntent | None:
-        del intent, snapshot, config
-        return AllocationIntent(
-            action="hold",
-            target_allocation=None,
-            allocation_name=None,
-            immediate=False,
-            reason="blocked_by_trace_guard",
-            rule_group="none",
-            decision_score=0.0,
-            diagnostics={"replacement": True},
-        )
 
 
 class _PostAdjustmentRule(_FakeRule):
@@ -371,11 +312,11 @@ def test_hold_intent_emits_signals_consulted_when_enabled() -> None:
     assert intent.diagnostics[DIAG_SIGNALS_CONSULTED]["btc.zone"] == "above"
 
 
-def test_rules_evaluator_observes_and_records_components() -> None:
+def test_rules_evaluator_lets_each_rule_observe_the_day() -> None:
     rule = _ObservingRule(name="alpha")
     evaluator = RulesEvaluator(rules=(cast(PortfolioRule, rule),))
 
-    intent = evaluator.evaluate(
+    evaluator.evaluate(
         FlatMinimumState(
             spy_dma_state=None,
             btc_dma_state=state(symbol="BTC"),
@@ -392,7 +333,6 @@ def test_rules_evaluator_observes_and_records_components() -> None:
     )
 
     assert rule.observed is True
-    assert rule.recorded is intent
 
 
 def test_rules_evaluator_applies_post_intent_adjustment_hooks() -> None:
@@ -417,84 +357,6 @@ def test_rules_evaluator_applies_post_intent_adjustment_hooks() -> None:
     assert intent.reason == "post_adjusted_reason"
     assert intent.diagnostics is not None
     assert intent.diagnostics["post_adjusted"] is True
-
-
-def test_rules_evaluator_skips_lower_priority_guard_for_known_matched_rule() -> None:
-    rule = _FakeRule(name="cross_down_exit")
-    guard = _BlockingGuard()
-
-    intent = RulesEvaluator(
-        rules=(cast(PortfolioRule, rule),),
-        risk_guards=(guard,),
-    ).evaluate(
-        FlatMinimumState(
-            spy_dma_state=None,
-            btc_dma_state=state(symbol="BTC"),
-            eth_dma_state=None,
-            current_asset_allocation={
-                "btc": 0.0,
-                "eth": 0.0,
-                "spy": 0.0,
-                "stable": 1.0,
-                "alt": 0.0,
-            },
-        ),
-        RuleExecutionContext(),
-    )
-
-    assert intent.reason == "fake_cross_down_exit_reason"
-    assert guard.called is False
-
-
-def test_rules_evaluator_preserves_rule_trace_when_guard_replaces_intent() -> None:
-    intent = RulesEvaluator(
-        rules=(cast(PortfolioRule, _FakeRule(name="cross_up_equal_weight")),),
-        risk_guards=(_TraceReplacingGuard(),),
-    ).evaluate(
-        FlatMinimumState(
-            spy_dma_state=None,
-            btc_dma_state=state(symbol="BTC"),
-            eth_dma_state=None,
-            current_asset_allocation={
-                "btc": 0.0,
-                "eth": 0.0,
-                "spy": 0.0,
-                "stable": 1.0,
-                "alt": 0.0,
-            },
-        ),
-        RuleExecutionContext(),
-    )
-
-    assert intent.reason == "blocked_by_trace_guard"
-    assert intent.diagnostics is not None
-    assert intent.diagnostics["replacement"] is True
-    assert intent.diagnostics["portfolio_rule_matches"][0]["rule_name"] == (
-        "cross_up_equal_weight"
-    )
-
-
-def test_rules_evaluator_applies_guard_when_matched_rule_priority_is_unknown() -> None:
-    intent = RulesEvaluator(
-        rules=(cast(PortfolioRule, _FakeRule(name="unknown_rule")),),
-        risk_guards=(_TraceReplacingGuard(),),
-    ).evaluate(
-        FlatMinimumState(
-            spy_dma_state=None,
-            btc_dma_state=state(symbol="BTC"),
-            eth_dma_state=None,
-            current_asset_allocation={
-                "btc": 0.0,
-                "eth": 0.0,
-                "spy": 0.0,
-                "stable": 1.0,
-                "alt": 0.0,
-            },
-        ),
-        RuleExecutionContext(),
-    )
-
-    assert intent.reason == "blocked_by_trace_guard"
 
 
 def test_policy_record_execution_ignores_non_executed_or_unmatched_intents() -> None:
@@ -584,63 +446,7 @@ def test_policy_reset_clears_context_and_resets_components() -> None:
     assert policy._ctx.previous_fgi_regime == {}
     assert policy._ctx.cycle_open_per_symbol == {}
     assert policy._ctx.cooldown_tracker.last_executed == {}
-    assert policy._ctx.execution_state == RuleExecutionState()
     assert rule.reset_called is True
-
-
-def test_policy_tracks_local_execution_state_when_no_provider_is_set() -> None:
-    policy = RuleBasedPortfolioDecisionPolicy(rules=_as_rules(_FakeRule(name="alpha")))
-
-    policy.decide(
-        FlatMinimumState(
-            spy_dma_state=None,
-            btc_dma_state=state(symbol="BTC"),
-            eth_dma_state=None,
-            current_asset_allocation={
-                "btc": 0.0,
-                "eth": 0.0,
-                "spy": 0.0,
-                "stable": 1.0,
-                "alt": 0.0,
-            },
-            current_date=date(2025, 5, 2),
-        )
-    )
-
-    assert policy._ctx.execution_state == RuleExecutionState(
-        last_trade_date=date(2025, 5, 2),
-        trade_dates=(date(2025, 5, 2),),
-    )
-
-
-def test_policy_uses_external_execution_state_without_mutating_local_trade_dates() -> (
-    None
-):
-    policy = RuleBasedPortfolioDecisionPolicy(
-        rules=_as_rules(_FakeRule(name="alpha")),
-        execution_state_provider=lambda: RuleExecutionState(
-            last_trade_date=date(2025, 5, 1),
-            trade_dates=(date(2025, 5, 1),),
-        ),
-    )
-
-    policy.decide(
-        FlatMinimumState(
-            spy_dma_state=None,
-            btc_dma_state=state(symbol="BTC"),
-            eth_dma_state=None,
-            current_asset_allocation={
-                "btc": 0.0,
-                "eth": 0.0,
-                "spy": 0.0,
-                "stable": 1.0,
-                "alt": 0.0,
-            },
-            current_date=date(2025, 5, 2),
-        )
-    )
-
-    assert policy._ctx.execution_state.trade_dates == (date(2025, 5, 1),)
 
 
 def test_policy_updates_cycle_state_from_spy_and_crypto_crosses() -> None:
@@ -734,40 +540,3 @@ def test_build_portfolio_snapshot_reports_missing_crypto_summary_as_none() -> No
     assert portfolio_snapshot.macro_fgi_value == pytest.approx(75.0)
     assert portfolio_snapshot.crypto_fgi_regime is None
     assert portfolio_snapshot.crypto_fgi_value is None
-
-
-def test_matched_rule_priority_returns_none_without_matched_rule_diagnostic() -> None:
-    assert (
-        _matched_rule_priority(
-            AllocationIntent(
-                action="hold",
-                target_allocation=None,
-                allocation_name=None,
-                immediate=False,
-                reason="hold",
-                rule_group="none",
-                decision_score=0.0,
-                diagnostics=None,
-            ),
-            _as_rules(_FakeRule(name="alpha", priority=7)),
-        )
-        is None
-    )
-
-
-def test_matched_rule_priority_reads_the_priority_of_the_named_rule() -> None:
-    intent = AllocationIntent(
-        action="buy",
-        target_allocation=None,
-        allocation_name=None,
-        immediate=False,
-        reason="alpha",
-        rule_group="none",
-        decision_score=0.0,
-        diagnostics={DIAG_MATCHED_RULE_NAME: "alpha"},
-    )
-
-    rules = _as_rules(_FakeRule(name="alpha", priority=7))
-
-    assert _matched_rule_priority(intent, rules) == 7
-    assert _matched_rule_priority(intent, ()) is None

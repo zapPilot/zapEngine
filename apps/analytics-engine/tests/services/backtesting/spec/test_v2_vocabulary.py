@@ -24,9 +24,6 @@ from src.services.backtesting.portfolio_rules.dma_overextension_dca_sell import 
 from src.services.backtesting.portfolio_rules.fgi_downshift_dca_sell import (
     FgiDownshiftDcaSellRule,
 )
-from src.services.backtesting.portfolio_rules.technical_experiments import (
-    TechnicalDcaSellRule,
-)
 from src.services.backtesting.portfolio_rules.trend_dca_entry import TrendDcaEntryRule
 from src.services.backtesting.portfolio_rules.trend_guard import TrendGuardRule
 from src.services.backtesting.sizing import FlatSizing, RelativeSizing
@@ -42,7 +39,6 @@ from tests.services.backtesting.spec.helpers import (
     issues_for,
     reference_raw,
     rule_index,
-    technical_rules,
     v2_raw,
     with_value,
 )
@@ -182,19 +178,7 @@ def test_the_v2_fixture_compiles_every_knob_and_kind() -> None:
 def test_overlays_follow_the_rules_in_the_order_listed() -> None:
     names = [rule.name for rule in compile_spec(parse_spec(v2_raw())).rules]
 
-    assert names[-3:] == ["trend_dca_entry", "spy_latch", "trend_guard"]
-
-
-def test_a_technical_trim_can_be_sized_by_the_position() -> None:
-    raw = reference_raw()
-    trim = technical_rules()["rsi_bearish_divergence_dca_sell"]
-    trim["sizing"] = {"mode": "relative", "floor_weight": 0.2}
-    raw["rules"].append(trim)
-
-    rule = compile_spec(parse_spec(raw)).rules[-1]
-
-    assert isinstance(rule, TechnicalDcaSellRule)
-    assert rule.sizing == RelativeSizing(floor_weight=0.2)
+    assert names[-2:] == ["trend_dca_entry", "trend_guard"]
 
 
 def test_the_filled_form_of_a_spec_parses_back_to_the_same_strategy() -> None:
@@ -250,33 +234,33 @@ def test_the_trend_guard_refuses_out_of_range_values(
 ) -> None:
     raw = v2_raw()
 
-    with_value(raw, ("overlays", 1, field), value)
+    with_value(raw, ("overlays", 0, field), value)
 
-    assert _pointers(raw) == [(f"/overlays/1/{field}", code)]
+    assert _pointers(raw) == [(f"/overlays/0/{field}", code)]
 
 
-def test_an_unknown_overlay_kind_points_at_the_overlay() -> None:
+def test_an_unknown_overlay_kind_points_at_its_kind() -> None:
     raw = v2_raw()
 
-    with_value(raw, ("overlays", 1, "kind"), "moon_phase")
+    with_value(raw, ("overlays", 0, "kind"), "moon_phase")
 
-    assert _pointers(raw) == [("/overlays/1", "union_tag_invalid")]
+    assert _pointers(raw) == [("/overlays/0/kind", "literal_error")]
 
 
-def test_the_two_overlay_kinds_may_sit_together_but_not_twice() -> None:
+def test_an_overlay_kind_may_appear_only_once() -> None:
     assert issues_for(v2_raw()) == []
     raw = v2_raw()
-    raw["overlays"].append({**raw["overlays"][1], "id": "another_guard"})
+    raw["overlays"].append({**raw["overlays"][0], "id": "another_guard"})
 
-    assert _pointers(raw) == [("/overlays/2", "duplicate_overlay")]
+    assert _pointers(raw) == [("/overlays/1", "duplicate_overlay")]
 
 
 def test_an_overlay_cannot_reuse_a_rule_id() -> None:
     raw = v2_raw()
 
-    with_value(raw, ("overlays", 1, "id"), "trend_dca_entry")
+    with_value(raw, ("overlays", 0, "id"), "trend_dca_entry")
 
-    assert _pointers(raw) == [("/overlays/1/id", "duplicate_id")]
+    assert _pointers(raw) == [("/overlays/0/id", "duplicate_id")]
 
 
 @pytest.mark.parametrize(

@@ -51,18 +51,6 @@ def reference_rule(name: str, **overrides: Any) -> Any:
     return replace(rule, **overrides) if overrides else rule  # type: ignore[type-var]
 
 
-def spy_latch_rule(**overrides: Any) -> Any:
-    """A SPY latch as the spec's ``spy_latch`` overlay compiles it (14 days)."""
-    from src.services.backtesting.portfolio_rules.spy_latch import SpyLatchRule
-
-    settings: dict[str, Any] = {
-        "name": "spy_latch",
-        "priority": 25,
-        "follow_through_days": 14,
-    }
-    return SpyLatchRule(**{**settings, **overrides})
-
-
 def reference_strategy(
     *,
     components: PortfolioRuleComponents | None = None,

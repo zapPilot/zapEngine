@@ -23,7 +23,6 @@ from src.services.backtesting.portfolio_rules.components import (
 from src.services.backtesting.portfolio_rules.decision_policy import (
     PORTFOLIO_RULES_SIGNAL_ID,
     RuleBasedPortfolioDecisionPolicy,
-    RuleExecutionState,
 )
 from src.services.backtesting.portfolio_rules.eth_btc_ratio_rotation import (
     EthBtcRatioRotationRule,
@@ -46,8 +45,8 @@ class RuleBasedPortfolioStrategy(BaseStrategy):
 
     Each day the signal component observes the three DMA signals, the first
     matching rule decides a target allocation, and the executor applies it in
-    full on the same bar. ``components`` carries the compiled rules, guards and
-    signal settings of the strategy spec named by ``spec_ref``.
+    full on the same bar. ``components`` carries the compiled rules and signal
+    settings of the strategy spec named by ``spec_ref``.
     """
 
     total_capital: float
@@ -72,12 +71,7 @@ class RuleBasedPortfolioStrategy(BaseStrategy):
         self.execution_engine = RuleBasedAllocationExecutor()
         self.decision_policy = RuleBasedPortfolioDecisionPolicy(
             rules=self.components.rules,
-            risk_guards=self.components.risk_guards,
             config=PortfolioRuleConfig(emit_signals_consulted=True),
-            execution_state_provider=lambda: RuleExecutionState(
-                last_trade_date=self.execution_engine.last_trade_date,
-                trade_dates=tuple(self.execution_engine.trade_dates),
-            ),
         )
         self.signal_component = build_signal_component(
             self.components.signals,
@@ -95,7 +89,6 @@ class RuleBasedPortfolioStrategy(BaseStrategy):
         self.decision_policy.reset()
         self.signal_component.reset()
         self.signal_component.initialize(context)
-        self.execution_engine.reset()
 
     def warmup_day(self, context: StrategyContext) -> None:
         self.signal_component.warmup(context)

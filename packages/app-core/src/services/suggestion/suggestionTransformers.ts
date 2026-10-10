@@ -26,7 +26,6 @@ const REASON_LABELS: Record<string, string> = {
   eth_btc_ratio_rebalance: 'ETH/BTC rotation is out of balance.',
   eth_outperforming_btc: 'ETH is still outperforming BTC.',
   interval_wait: 'Minimum rebalance interval has not elapsed yet.',
-  trade_quota_min_interval_active: 'Trade quota cooldown is still active.',
 };
 
 export interface DerivedTradeAction {

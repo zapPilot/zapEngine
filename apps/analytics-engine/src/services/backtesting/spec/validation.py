@@ -16,7 +16,6 @@ from pydantic import ValidationError
 from src.services.backtesting.spec.common import SIZING_MODES, ProceedsSpec
 from src.services.backtesting.spec.model import StrategySpec
 from src.services.backtesting.spec.rules import (
-    OVERLAY_KINDS,
     RULE_KINDS,
     DmaCrossDownExit,
     DmaOverextensionTrim,
@@ -25,9 +24,7 @@ from src.services.backtesting.spec.rules import (
     RatioDeviationRotation,
     RotationLeg,
     RuleModel,
-    TechnicalTrim,
 )
-from src.services.backtesting.spec.triggers import TRIGGER_SIGNALS
 
 _SHARE_TOLERANCE = 1e-9
 
@@ -79,16 +76,11 @@ def _structural_issues(error: ValidationError) -> list[SpecIssue]:
     ]
 
 
-_LIST_TAGS = RULE_KINDS | OVERLAY_KINDS
-
-
 def _without_kind_tags(location: tuple[int | str, ...]) -> list[int | str]:
-    """Drop the union tags pydantic inserts: after a list index, a trigger or a sizing."""
+    """Drop the union tags pydantic inserts: after a rule's index, or a sizing."""
     kept: list[int | str] = []
     for part in location:
-        if kept and isinstance(kept[-1], int) and part in _LIST_TAGS:
-            continue
-        if kept and kept[-1] == "trigger" and part in TRIGGER_SIGNALS:
+        if kept and isinstance(kept[-1], int) and part in RULE_KINDS:
             continue
         if kept and kept[-1] == "sizing" and part in SIZING_MODES:
             continue
@@ -106,7 +98,6 @@ def semantic_issues(spec: StrategySpec) -> list[SpecIssue]:
     issues.extend(_duplicate_ids(spec))
     for index, rule in enumerate(spec.rules):
         issues.extend(_rule_issues(f"/rules/{index}", rule))
-    issues.extend(_guard_issues(spec))
     issues.extend(_overlay_issues(spec))
     return issues
 
@@ -134,7 +125,7 @@ def _rule_issues(pointer: str, rule: RuleModel) -> Iterator[SpecIssue]:
         yield from _rotation_leg_issues(f"{pointer}/cross_down", rule.cross_down)
     elif isinstance(rule, RatioDeviationRotation):
         yield from _deviation_issues(pointer, rule)
-    elif isinstance(rule, DmaOverextensionTrim | TechnicalTrim):
+    elif isinstance(rule, DmaOverextensionTrim):
         yield from _proceeds_issues(f"{pointer}/proceeds", rule.proceeds)
     elif isinstance(rule, FgiDownshiftTrim):
         yield from _fgi_downshift_issues(pointer, rule)
@@ -249,21 +240,6 @@ def _overlay_issues(spec: StrategySpec) -> Iterator[SpecIssue]:
                 f"Only one {overlay.kind} overlay is allowed",
             )
         seen.add(overlay.kind)
-
-
-def _guard_issues(spec: StrategySpec) -> Iterator[SpecIssue]:
-    for index, guard in enumerate(spec.guards):
-        pointer = f"/guards/{index}"
-        if index > 0:
-            yield SpecIssue(
-                pointer, "duplicate_guard", "Only one trade_quota guard is allowed"
-            )
-        if (
-            guard.min_trade_interval_days is None
-            and guard.max_trades_7d is None
-            and guard.max_trades_30d is None
-        ):
-            yield SpecIssue(pointer, "empty_guard", "A guard needs at least one limit")
 
 
 __all__ = [

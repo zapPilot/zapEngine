@@ -4,8 +4,6 @@ See @../AGENTS.md for analytics-service boundaries.
 
 Historical iteration records live in [ITERATION_LOG.md](./ITERATION_LOG.md); the current operator workflow lives in [ITERATION_PLAYBOOK.md](./ITERATION_PLAYBOOK.md) and [COMMANDS.md](./COMMANDS.md). Keep changing operational steps there instead of duplicating them in agent context.
 
-The non-default technical-indicator research surface is documented in [TECHNICAL_SIGNALS.md](./TECHNICAL_SIGNALS.md).
-
 ## Strategy isolation
 
 - `RuleBasedPortfolioStrategy` uses the stable wire id `dma_fgi_portfolio_rules`; code identity and wire identity intentionally differ.
@@ -20,8 +18,8 @@ The non-default technical-indicator research surface is documented in [TECHNICAL
 - A strategy spec (`src/config/strategies/**/*.json`, format `strategy-spec/1`) is declarative JSON validated by the models in `spec/`. The models are the single source of truth: `strategy-spec.schema.json` and `VOCABULARY.md` are generated from them (`pnpm strategy-lab schema`; `--check` fails on drift) and must not be edited by hand.
 - Array order in `rules` is precedence. Nothing is defaulted, so a spec states everything the strategy does. A new rule kind, or a new knob on a kind, is Python in `spec/rules.py` and the rule class, with the generated artifacts regenerated in the same change.
 - A knob added to an existing kind after a reference was locked has a default that reproduces what the strategy did before, and the canonical form leaves a knob at its default out (`spec/canonical.py`), so adding a knob never changes the hash of a spec that does not use it. A knob that cannot have such a default is a new kind. The generated schema still asks for every field, so an author spells each knob out.
-- Research rules are spec kinds too: `technical_trim` and `technical_add` take a `trigger` (a technical signal and the level it fires at; `TECHNICAL_SIGNALS.md`). A new signal is a trigger in `portfolio_rules/technical_triggers.py` and `spec/triggers.py`, with the generated artifacts regenerated in the same change.
-- Behavior is also pinned DSN-free: `tests/fixtures/strategy_specs/golden_traces.json` holds digests of the reference, of a spec that uses every research kind, and of one that uses every knob and kind added after the reference was locked, each on six synthetic histories (`pnpm strategy-lab golden --check`). A refactor must leave it untouched; an intentional change regenerates it in the same commit, with the version bump and the reason, never to silence a refactor.
+- The format keeps a `guards` key that must be an empty list: the trade-quota guard and the research rule kinds were removed, and the key stays so that the behavior hash of every locked spec stays what it was.
+- Behavior is also pinned DSN-free: `tests/fixtures/strategy_specs/golden_traces.json` holds digests of the reference and of a spec that uses every knob and kind added after the reference was locked, each on six synthetic histories (`pnpm strategy-lab golden --check`). A refactor must leave it untouched; an intentional change regenerates it in the same commit, with the version bump and the reason, never to silence a refactor.
 - References (`reference/*.json`) are pinned in `LOCK.json` by version and behavior hash. A behavior change needs a new `version` and `pnpm strategy-lab spec lock <ref>`; the lock refuses to hide a change. The registry builds the rule-based strategy from the reference itself (`strategy_registry.reference_spec`), so the reference is what production runs; `golden --check` and `tests/services/backtesting/test_engine_golden.py` pin its decisions day by day.
 
 ## Evaluating a strategy
@@ -38,7 +36,7 @@ Use `strategy-lab` (`COMMANDS.md`) and the agent skill `.agents/skills/strategy-
 ## Promoting a candidate
 
 - A reference changes only through a promotion. `strategy-lab promote` weighs a candidate against `src/config/strategies/PROMOTION_POLICY.json` (real data only, the default assumptions, no dead parameter, the validation events and golden pins, the walk-forward folds judged against the production reference, the deflated Sharpe, and the lineage's single holdout look) and writes `.lab/promotions/<id>.json`. Only a `promotable` verdict opens the pull request that bumps `reference/dma_fgi.json`.
-- A candidate that only simplifies the reference (it removes rules, overlays, guards or optional parameters, or changes a categorical choice, and moves no number) may take the structural track, `promote --track structural`: no sweep and no holdout look, the same prerequisites, and instead it must not trail the reference on the real bundle by more than the policy's `structural` margins, nor in the median over the policy's fixed synthetic suite. Moving any number is the search track.
+- A candidate that only simplifies the reference (it removes rules, overlays or optional parameters, or changes a categorical choice, and moves no number) may take the structural track, `promote --track structural`: no sweep and no holdout look, the same prerequisites, and instead it must not trail the reference on the real bundle by more than the policy's `structural` margins, nor in the median over the policy's fixed synthetic suite. Moving any number is the search track.
 - The policy is the bar. Changing a threshold is a reviewed change of its own, never part of a promotion, and never done to make a candidate pass.
 
 ## Lab data
@@ -50,7 +48,7 @@ Use `strategy-lab` (`COMMANDS.md`) and the agent skill `.agents/skills/strategy-
 ## One strategy path
 
 - The live daily suggestion is the last bar of `BacktestingService.replay_model`, which runs the saved config through the same compare path as the API and the published snapshot, over the same `MODEL_WINDOW_DAYS` window. A user's holdings only decide how far they are from that bar's target (`plan_transfers_to_target`).
-- There must be no live-only strategy entrypoint, no per-request strategy rebuild, and no live-only copy of cooldown, quota or rule state. If a decision differs between live and compare, the fix is in the shared path, never in a second one. `tests/services/strategy/test_daily_suggestion_parity.py` is the guard.
+- There must be no live-only strategy entrypoint, no per-request strategy rebuild, and no live-only copy of cooldown or rule state. If a decision differs between live and compare, the fix is in the shared path, never in a second one. `tests/services/strategy/test_daily_suggestion_parity.py` is the guard.
 - The user is asked to move only on a day the model itself traded (`action.required`); between signals the model holds, so asking would be noise.
 
 ## Honest assumptions

@@ -12,8 +12,7 @@ from src.services.backtesting.portfolio_rules.eth_btc_deviation_dca import (
     DeviationLeg,
     DeviationTier,
 )
-from src.services.backtesting.portfolio_rules.spy_latch import SpyLatchRule
-from src.services.backtesting.risk import TradeQuotaGuard
+from src.services.backtesting.portfolio_rules.trend_guard import TrendGuardRule
 from src.services.backtesting.spec import compile_spec, parse_spec
 from tests.services.backtesting.spec.helpers import reference_raw, rule_index
 from tests.services.backtesting.support.reference_rules import reference_rule
@@ -43,45 +42,38 @@ def test_reordering_the_spec_reorders_the_rules() -> None:
     ]
 
 
+TREND_GUARD = {
+    "kind": "trend_guard",
+    "id": "trend_guard",
+    "mode": "force_exit",
+    "below_dma_buffer": 0.02,
+    "confirm_days": 3,
+}
+
+
 def test_an_overlay_follows_the_rules() -> None:
     raw = reference_raw()
-    raw["overlays"] = [
-        {"kind": "spy_latch", "id": "spy_latch", "follow_through_days": 21}
-    ]
+    raw["overlays"] = [TREND_GUARD]
 
-    latch = _compiled(raw)[-1]
+    guard = _compiled(raw)[-1]
 
-    assert latch == SpyLatchRule(name="spy_latch", priority=70, follow_through_days=21)
+    assert guard == TrendGuardRule(
+        name="trend_guard",
+        priority=70,
+        mode="force_exit",
+        below_dma_buffer=0.02,
+        confirm_days=3,
+    )
 
 
 def test_each_compile_builds_fresh_rules() -> None:
     raw = reference_raw()
-    raw["overlays"] = [
-        {"kind": "spy_latch", "id": "spy_latch", "follow_through_days": 14}
-    ]
+    raw["overlays"] = [TREND_GUARD]
 
     first = _compiled(raw)[-1]
     second = _compiled(raw)[-1]
 
     assert first is not second
-
-
-def test_a_guard_becomes_a_trade_quota_guard() -> None:
-    raw = reference_raw()
-    raw["guards"] = [
-        {
-            "kind": "trade_quota",
-            "min_trade_interval_days": 2,
-            "max_trades_7d": 3,
-            "max_trades_30d": None,
-        }
-    ]
-
-    components = compile_spec(parse_spec(raw))
-
-    assert components.risk_guards == (
-        TradeQuotaGuard(min_trade_interval_days=2, max_trades_7d=3),
-    )
 
 
 def test_signals_compile_to_signal_settings() -> None:

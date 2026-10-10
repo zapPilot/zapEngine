@@ -25,8 +25,8 @@ happens in the lab, and the reference changes only through a promotion.
    it prints is the iteration log entry of the promotion.
 
 **The structural path.** A candidate that only simplifies the reference skips
-steps 3 to 5: it removes rules (the rest keep their order), overlays, guards,
-optional parameters or list entries, or changes a categorical choice (an exit's
+steps 3 to 5: it removes rules (the rest keep their order), overlays, optional
+parameters or list entries, or changes a categorical choice (an exit's
 `cooldown_scope`, where proceeds go), and moves no number. Run steps 1 and 2,
 then `promote --track structural --bundle prod:latest` (no sweep, no lineage).
 It must not trail the reference on the real bundle by more than the policy's
@@ -94,7 +94,7 @@ Nothing here can be decided on synthetic data.
 Changing the reference (the end of Track A, or any deliberate behavior change):
 
 1. Edit the reference spec, `src/config/strategies/reference/dma_fgi.json`:
-   rules, their order (precedence), sizing and risk guards. The spec is the only
+   rules, their order (precedence), sizing and overlays. The spec is the only
    place the strategy's behavior lives. A rule kind or knob the spec cannot yet
    say is Python in `spec/rules.py` and the rule class, with the generated schema
    and `VOCABULARY.md` regenerated in the same change. A behavior change needs a

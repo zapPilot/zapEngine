@@ -51,10 +51,6 @@ def components(spec: StrategySpec) -> dict[str, StrategySpec]:
         variants[f"overlay:{overlay.id}"] = spec.model_copy(
             update={"overlays": spec.overlays[:index] + spec.overlays[index + 1 :]}
         )
-    for index, guard in enumerate(spec.guards):
-        variants[f"guard:{guard.kind}"] = spec.model_copy(
-            update={"guards": spec.guards[:index] + spec.guards[index + 1 :]}
-        )
     return variants
 
 

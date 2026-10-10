@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import date
+from dataclasses import dataclass
 
 from src.services.backtesting.decision import AllocationIntent
 from src.services.backtesting.execution.rebalance_calculator import (
@@ -28,16 +27,8 @@ class AllocationExecutionResult:
 # jscpd:ignore-end
 
 
-@dataclass
 class RuleBasedAllocationExecutor:
     """Execute each matched allocation intent in full on the current bar."""
-
-    last_trade_date: date | None = field(default=None, init=False)
-    trade_dates: list[date] = field(default_factory=list, init=False)
-
-    def reset(self) -> None:
-        self.trade_dates = []
-        self.last_trade_date = None
 
     def execute(
         self,
@@ -62,10 +53,6 @@ class RuleBasedAllocationExecutor:
             price=context.portfolio_price,
             target_allocation=target_allocation,
         )
-        if transfers:
-            self.last_trade_date = context.date
-            self.trade_dates.append(context.date)
-
         return AllocationExecutionResult(
             target_allocation=target_allocation,
             allocation_name=intent.allocation_name,

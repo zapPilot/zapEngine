@@ -13,7 +13,6 @@ from src.services.backtesting.lab.cli import main
 from src.services.backtesting.spec import load_spec
 from tests.services.backtesting.spec.helpers import REFERENCE_REF, reference_raw
 
-FIXTURE = "tests/fixtures/strategy_specs/all_research_rules.json"
 V2_FIXTURE = "tests/fixtures/strategy_specs/v2_vocabulary.json"
 ONE_HISTORY = (("regimes", 1),)
 
@@ -51,18 +50,6 @@ def test_the_golden_file_has_a_pin_for_every_history_of_every_default_spec() -> 
             golden.scenario_key(scenario, seed) for scenario, seed in golden.SCENARIOS
         ]
         assert entry["behavior_hash"].startswith("sha256:")
-
-
-def test_the_fixture_spec_uses_the_kinds_the_reference_does_not() -> None:
-    reference = load_spec(REFERENCE_REF)
-    fixture = load_spec(str(golden.APP_ROOT / FIXTURE))
-
-    assert fixture.rules[: len(reference.rules)] == reference.rules
-    assert {rule.kind for rule in fixture.rules} - {
-        rule.kind for rule in reference.rules
-    } == {"technical_trim", "technical_add"}
-    assert [overlay.kind for overlay in fixture.overlays] == ["spy_latch"]
-    assert [guard.kind for guard in fixture.guards] == ["trade_quota"]
 
 
 def test_a_golden_is_written_then_checked(tmp_path: Path, quick: None) -> None:
@@ -149,10 +136,10 @@ def test_a_spec_the_file_does_not_record_fails_the_gate(
     file = tmp_path / "golden.json"
     _invoke("golden", "--file", str(file), "--spec", REFERENCE_REF)
 
-    code, out = _invoke("golden", "--check", "--file", str(file), "--spec", FIXTURE)
+    code, out = _invoke("golden", "--check", "--file", str(file), "--spec", V2_FIXTURE)
 
     assert (code, out["result"]["code"]) == (1, "golden_not_recorded")
-    assert FIXTURE in out["result"]["message"]
+    assert V2_FIXTURE in out["result"]["message"]
 
 
 @pytest.mark.parametrize(
@@ -200,14 +187,16 @@ def test_an_unusable_file_is_not_silently_overwritten(
 
 def test_writing_one_spec_keeps_the_others(tmp_path: Path, quick: None) -> None:
     file = tmp_path / "golden.json"
-    _invoke("golden", "--file", str(file), "--spec", REFERENCE_REF, "--spec", FIXTURE)
+    _invoke(
+        "golden", "--file", str(file), "--spec", REFERENCE_REF, "--spec", V2_FIXTURE
+    )
     before = golden.read(file)
 
     _, out = _invoke("golden", "--file", str(file), "--spec", REFERENCE_REF)
 
     assert out["result"]["written"] == [REFERENCE_REF]
     assert golden.read(file) == before
-    assert list(before) == [REFERENCE_REF, FIXTURE]
+    assert list(before) == [REFERENCE_REF, V2_FIXTURE]
 
 
 def test_a_path_spec_is_read_relative_to_the_app_wherever_the_command_runs(
@@ -215,9 +204,11 @@ def test_a_path_spec_is_read_relative_to_the_app_wherever_the_command_runs(
 ) -> None:
     monkeypatch.chdir(tmp_path)
 
-    code, out = _invoke("golden", "--file", str(tmp_path / "g.json"), "--spec", FIXTURE)
+    code, out = _invoke(
+        "golden", "--file", str(tmp_path / "g.json"), "--spec", V2_FIXTURE
+    )
 
-    assert (code, out["result"]["written"]) == (0, [FIXTURE])
+    assert (code, out["result"]["written"]) == (0, [V2_FIXTURE])
 
 
 def test_an_unknown_spec_exits_3(tmp_path: Path) -> None:
@@ -229,7 +220,7 @@ def test_an_unknown_spec_exits_3(tmp_path: Path) -> None:
 
 
 def test_the_defaults_name_the_reference_and_the_fixtures() -> None:
-    assert golden.DEFAULT_SPECS == (REFERENCE_REF, FIXTURE, V2_FIXTURE)
+    assert golden.DEFAULT_SPECS == (REFERENCE_REF, V2_FIXTURE)
     assert all((golden.APP_ROOT / ref).is_file() for ref in golden.DEFAULT_SPECS[1:])
     assert golden.GOLDEN_PATH == golden.APP_ROOT / (
         "tests/fixtures/strategy_specs/golden_traces.json"

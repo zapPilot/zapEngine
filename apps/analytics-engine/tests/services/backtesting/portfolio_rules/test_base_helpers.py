@@ -23,7 +23,6 @@ from src.services.backtesting.portfolio_rules.base import (
     rule_cooldown_remaining_days,
     signals_consulted_for_symbols,
 )
-from src.services.backtesting.risk import TradeQuotaGuard
 from src.services.backtesting.signals.ratio_state import EthBtcRatioState
 from tests.services.backtesting.portfolio_rules.helpers import snapshot, state
 from tests.services.backtesting.support.reference_rules import reference_rules
@@ -79,10 +78,6 @@ def test_the_reference_rules_are_ranked_by_their_position_in_the_spec() -> None:
         ("dma_overextension_dca_sell", 50),
         ("fgi_downshift_dca_sell", 60),
     ]
-
-
-def test_trade_quota_guard_runs_before_every_rule() -> None:
-    assert TradeQuotaGuard().priority == 0
 
 
 def test_proceeds_routing_splits_the_proceeds_between_its_shares_and_stable() -> None:
@@ -258,7 +253,7 @@ def test_dca_rule_base_abstract_hooks_raise_when_not_implemented() -> None:
     with pytest.raises(NotImplementedError):
         DcaSellRuleBase().proceeds_handler({}, 0.10)
     with pytest.raises(NotImplementedError):
-        _DcaRuleBase().build_intent(snapshot(), config=PortfolioRuleConfig())
+        _DcaRuleBase()._matching_symbols(snapshot())
 
 
 def test_proceeds_routing_sends_shares_to_assets_and_the_rest_to_stable() -> None:

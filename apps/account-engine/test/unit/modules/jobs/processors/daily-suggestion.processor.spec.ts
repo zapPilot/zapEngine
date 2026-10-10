@@ -178,7 +178,7 @@ describe('DailySuggestionProcessor', () => {
             status: 'blocked',
             required: false,
             kind: null,
-            reason_code: 'trade_quota',
+            reason_code: 'cooldown',
             transfers: [],
           },
         }),

@@ -3,7 +3,7 @@
 ``/rules/3/cooldown_days`` is a plain JSON pointer. ``/rules[eth_btc_deviation_dca]/
 cooldown_days`` names the same value by the rule's id, which survives reordering
 and is what diffs, liveness reports and sweep spaces show. A bracketed key
-matches an element's ``id``, or its ``kind`` (guards have no id).
+matches an element's ``id``.
 """
 
 from __future__ import annotations
@@ -14,7 +14,6 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 _KEYED = re.compile(r"^([^\[\]]+)\[([^\[\]]+)\]$")
-_KEY_FIELDS = ("id", "kind")
 
 
 class PointerError(ValueError):
@@ -79,9 +78,7 @@ def _step(node: Any, token: str, pointer: str) -> Any:
 def _element(items: Any, key: str, pointer: str) -> Any:
     if isinstance(items, Sequence) and not isinstance(items, str):
         for item in items:
-            if isinstance(item, Mapping) and any(
-                item.get(field) == key for field in _KEY_FIELDS
-            ):
+            if isinstance(item, Mapping) and item.get("id") == key:
                 return item
     raise PointerError(f"'{pointer}': nothing is named '{key}'")
 

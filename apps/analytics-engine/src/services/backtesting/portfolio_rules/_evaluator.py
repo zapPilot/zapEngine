@@ -1,14 +1,13 @@
 """RulesEvaluator and RuleBasedPortfolioDecisionPolicy.
 
 Top-level orchestration: builds the per-day snapshot, runs the first-match
-resolver, applies risk guards, then post-intent adjustments. The policy
-class wraps the evaluator with stateful execution-context tracking.
+resolver, then the post-intent adjustments. The policy class wraps the
+evaluator with stateful execution-context tracking.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 
 from src.services.backtesting.decision import AllocationIntent
 from src.services.backtesting.domain import ExecutionOutcome
@@ -17,7 +16,6 @@ from src.services.backtesting.portfolio_rules._matcher import (
 )
 from src.services.backtesting.portfolio_rules._post_processing import (
     _apply_post_intent_adjustments,
-    _apply_risk_guards,
     _matched_rule_name,
     _rule_for_name,
 )
@@ -25,17 +23,13 @@ from src.services.backtesting.portfolio_rules._snapshot_builder import (
     _advance_context,
     build_portfolio_snapshot,
 )
-from src.services.backtesting.portfolio_rules._types import (
-    RuleExecutionContext,
-    RuleExecutionState,
-)
+from src.services.backtesting.portfolio_rules._types import RuleExecutionContext
 from src.services.backtesting.portfolio_rules.base import (
     DecisionPolicy,
     PortfolioRule,
     PortfolioRuleConfig,
     PortfolioSnapshot,
 )
-from src.services.backtesting.risk import RiskGuard, RiskGuardResult
 from src.services.backtesting.signals.flat_minimum import FlatMinimumState
 from src.services.backtesting.strategies.base import StrategyContext
 
@@ -47,7 +41,6 @@ class RulesEvaluator:
     """Evaluate portfolio rules against an explicit execution context."""
 
     rules: tuple[PortfolioRule, ...]
-    risk_guards: tuple[RiskGuard, ...] = ()
     config: PortfolioRuleConfig = field(default_factory=PortfolioRuleConfig)
 
     def evaluate(
@@ -59,8 +52,6 @@ class RulesEvaluator:
             snapshot,
             previous_fgi_regime=ctx.previous_fgi_regime,
             cycle_open_per_symbol=ctx.cycle_open_per_symbol,
-            last_trade_date=ctx.execution_state.last_trade_date,
-            trade_dates=ctx.execution_state.trade_dates,
         )
         self._observe_components(portfolio_snapshot)
         intent = resolve_portfolio_rules_intent(
@@ -69,38 +60,13 @@ class RulesEvaluator:
             config=self.config,
             cooldown_tracker=ctx.cooldown_tracker,
         )
-        risk_result = self._apply_risk_guards(intent, portfolio_snapshot)
-        intent = self._apply_post_intent_adjustments(
-            risk_result.intent,
-            portfolio_snapshot,
-        )
-        self._record_intent(intent)
-        return intent
+        return self._apply_post_intent_adjustments(intent, portfolio_snapshot)
 
     def _observe_components(self, snapshot: PortfolioSnapshot) -> None:
-        for component in (*self.rules, *self.risk_guards):
-            observe = getattr(component, "observe", None)
+        for rule in self.rules:
+            observe = getattr(rule, "observe", None)
             if callable(observe):
                 observe(snapshot, config=self.config)
-
-    def _record_intent(self, intent: AllocationIntent) -> None:
-        for component in (*self.rules, *self.risk_guards):
-            record_intent = getattr(component, "record_intent", None)
-            if callable(record_intent):
-                record_intent(intent)
-
-    def _apply_risk_guards(
-        self,
-        intent: AllocationIntent,
-        snapshot: PortfolioSnapshot,
-    ) -> RiskGuardResult:
-        return _apply_risk_guards(
-            intent,
-            snapshot,
-            risk_guards=self.risk_guards,
-            config=self.config,
-            rules=self.rules,
-        )
 
     def _apply_post_intent_adjustments(
         self,
@@ -121,9 +87,7 @@ class RuleBasedPortfolioDecisionPolicy(DecisionPolicy):
 
     rules: tuple[PortfolioRule, ...]
     decision_policy_id: str = "dma_fgi_portfolio_rules_policy"
-    risk_guards: tuple[RiskGuard, ...] = ()
     config: PortfolioRuleConfig = field(default_factory=PortfolioRuleConfig)
-    execution_state_provider: Callable[[], RuleExecutionState] | None = None
     _ctx: RuleExecutionContext = field(
         default_factory=RuleExecutionContext,
         init=False,
@@ -136,37 +100,20 @@ class RuleBasedPortfolioDecisionPolicy(DecisionPolicy):
 
     def reset(self) -> None:
         self._ctx = RuleExecutionContext()
-        for component in (*self.rules, *self.risk_guards):
-            reset = getattr(component, "reset", None)
+        for rule in self.rules:
+            reset = getattr(rule, "reset", None)
             if callable(reset):
                 reset()
 
     def decide(self, snapshot: FlatMinimumState) -> AllocationIntent:
-        ctx = replace(
-            self._ctx,
-            execution_state=self._resolve_execution_state(),
-        )
+        ctx = self._ctx
         self._evaluator = self._build_evaluator()
         intent = self._evaluator.evaluate(snapshot, ctx)
-        self._ctx = _advance_context(
-            ctx,
-            intent,
-            snapshot=snapshot,
-            track_local_execution_state=self.execution_state_provider is None,
-        )
+        self._ctx = _advance_context(ctx, snapshot=snapshot)
         return intent
 
-    def _resolve_execution_state(self) -> RuleExecutionState:
-        if self.execution_state_provider is not None:
-            return self.execution_state_provider()
-        return self._ctx.execution_state
-
     def _build_evaluator(self) -> RulesEvaluator:
-        return RulesEvaluator(
-            rules=self.rules,
-            risk_guards=self.risk_guards,
-            config=self.config,
-        )
+        return RulesEvaluator(rules=self.rules, config=self.config)
 
     def record_execution(
         self,

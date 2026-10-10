@@ -69,7 +69,6 @@ export const DailySuggestionSubsetSchema = z.object({
             })
             .nullish(),
           dma: indicatorSchema,
-          spy_dma: indicatorSchema,
         })
         .nullish(),
     }),
@@ -86,16 +85,6 @@ export const DailySuggestionSubsetSchema = z.object({
       details: z
         .object({
           matched_rule_name: nullableString,
-          enabled: z.boolean().nullish(),
-          min_trade_interval_days: nullableNumber,
-          max_trades_7d: nullableNumber,
-          max_trades_30d: nullableNumber,
-          trades_7d: nullableNumber,
-          trades_30d: nullableNumber,
-          days_since_last_trade: nullableNumber,
-          last_trade_date: nullableString,
-          next_trade_date: nullableString,
-          block_reason: nullableString,
         })
         .nullish(),
     }),

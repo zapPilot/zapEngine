@@ -1,7 +1,7 @@
 """What changed between two specs, and where the change first shows.
 
-``spec_diff`` is structural: it addresses rules, overlays and guards by name, not
-by position, so moving a rule is one change and not a cascade of edits.
+``spec_diff`` is structural: it addresses rules and overlays by id, not by
+position, so moving a rule is one change and not a cascade of edits.
 ``compare_on_bundle`` runs both specs over the same data and finds the first day
 their decisions part ways, which is where to look when a change moves the
 numbers.
@@ -20,8 +20,8 @@ from src.services.backtesting.lab.report import normalize
 from src.services.backtesting.lab.runner import EvalConfig, prepare, run_specs
 from src.services.backtesting.spec import StrategySpec, behavior_hash, spec_ref
 
-# Lists of objects that are addressed by a field, not by position.
-_KEYED_LISTS = {"rules": "id", "overlays": "id", "guards": "kind"}
+# Lists of objects that are addressed by their ``id``, not by position.
+_KEYED_LISTS = frozenset({"rules", "overlays"})
 BASE = "base"
 CANDIDATE = "candidate"
 
@@ -79,20 +79,19 @@ def _diff_value(
     if isinstance(before, Mapping) and isinstance(after, Mapping):
         _diff_object(pointer, before, after, changes)
     elif key in _KEYED_LISTS:
-        _diff_keyed(pointer, _KEYED_LISTS[key], before, after, changes)
+        _diff_keyed(pointer, before, after, changes)
     else:
         changes.append(SpecChange(pointer, "changed", before=before, after=after))
 
 
 def _diff_keyed(
     pointer: str,
-    field: str,
     before: Sequence[Mapping[str, Any]],
     after: Sequence[Mapping[str, Any]],
     changes: list[SpecChange],
 ) -> None:
-    old = {item[field]: item for item in before}
-    new = {item[field]: item for item in after}
+    old = {item["id"]: item for item in before}
+    new = {item["id"]: item for item in after}
     for name in [*old, *(name for name in new if name not in old)]:
         item_pointer = f"{pointer}[{name}]"
         if name not in new:

@@ -6,7 +6,6 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 
 from src.services.backtesting.portfolio_rules.base import PortfolioRule
-from src.services.backtesting.risk import RiskGuard
 
 
 @dataclass(frozen=True)
@@ -24,14 +23,13 @@ class SignalSettings:
 
 @dataclass(frozen=True)
 class PortfolioRuleComponents:
-    """Rules, guards and signal settings of one rule-based strategy.
+    """Rules and signal settings of one rule-based strategy.
 
     ``rules`` is in precedence order: the first rule that matches and is off
     cooldown decides. A strategy spec compiles to exactly this.
     """
 
     rules: tuple[PortfolioRule, ...]
-    risk_guards: tuple[RiskGuard, ...]
     signals: SignalSettings
 
 

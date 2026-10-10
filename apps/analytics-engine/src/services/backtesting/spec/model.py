@@ -56,30 +56,6 @@ class Signals(SpecModel):
     ratio: RatioSignal
 
 
-class TradeQuotaGuardSpec(SpecModel):
-    """Holds the portfolio instead of trading when a trade-frequency limit is hit."""
-
-    kind: Literal["trade_quota"]
-    min_trade_interval_days: int | None = Field(
-        ge=1,
-        le=365,
-        description="Least days between two trades; null for no limit.",
-        json_schema_extra=TUNABLE,
-    )
-    max_trades_7d: int | None = Field(
-        ge=1,
-        le=365,
-        description="Most trades in any 7 days; null for no limit.",
-        json_schema_extra=TUNABLE,
-    )
-    max_trades_30d: int | None = Field(
-        ge=1,
-        le=365,
-        description="Most trades in any 30 days; null for no limit.",
-        json_schema_extra=TUNABLE,
-    )
-
-
 class Execution(SpecModel):
     mode: Literal["full_target"] = Field(
         description="A matched rule moves the portfolio to its target in full.",
@@ -110,8 +86,11 @@ class StrategySpec(SpecModel):
             "cooldown decides the day."
         ),
     )
-    guards: tuple[TradeQuotaGuardSpec, ...] = Field(
-        description="Limits applied after a rule has decided.",
+    guards: tuple[()] = Field(
+        description=(
+            "Always empty. The format once had guards; the key stays so that the "
+            "behavior hash of every locked spec stays what it was."
+        ),
     )
     overlays: tuple[OverlaySpec, ...] = Field(
         description="Adjustments applied to the decision after the rules and guards.",
@@ -126,5 +105,4 @@ __all__ = [
     "SPEC_FORMAT",
     "Signals",
     "StrategySpec",
-    "TradeQuotaGuardSpec",
 ]

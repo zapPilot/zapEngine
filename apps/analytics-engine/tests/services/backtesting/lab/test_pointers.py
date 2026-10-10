@@ -22,11 +22,11 @@ def test_a_rule_can_be_named_by_its_id() -> None:
     assert pointers.get(raw, "/rules[eth_btc_deviation_dca]/tiers/0/name") == "large"
 
 
-def test_a_guard_is_named_by_its_kind() -> None:
+def test_an_overlay_is_named_by_its_id() -> None:
     raw = reference_raw()
-    raw["guards"] = [{"kind": "trade_quota", "max_trades_7d": 3}]
+    raw["overlays"] = [{"kind": "trend_guard", "id": "guard", "confirm_days": 3}]
 
-    assert pointers.get(raw, "/guards[trade_quota]/max_trades_7d") == 3
+    assert pointers.get(raw, "/overlays[guard]/confirm_days") == 3
 
 
 def test_setting_returns_a_copy_and_leaves_the_original() -> None:

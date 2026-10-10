@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from datetime import date
 
 from src.services.backtesting.decision import AllocationIntent
@@ -28,9 +28,6 @@ from src.services.backtesting.signals.dma_gated_fgi.types import (
     CrossEvent,
     DmaMarketState,
     SignalId,
-)
-from src.services.backtesting.signals.technical import (
-    build_technical_signal_snapshot,
 )
 from src.services.backtesting.strategies.base import (
     StrategyContext,
@@ -113,10 +110,6 @@ class DmaGatedFgiSignalComponent(StatefulSignalComponent):
             regime_history=self._regime_history,
         )
         market_state = self._runtime.observe(signal_context)
-        market_state = replace(
-            market_state,
-            technical=build_technical_signal_snapshot(signal_context.price_history),
-        )
         self._regime_history.append(market_state.fgi_regime)
         return market_state
 

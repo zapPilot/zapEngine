@@ -52,7 +52,7 @@ def test_each_rule_is_counted_from_the_traces() -> None:
 
 
 def test_a_decision_by_something_else_credits_no_rule() -> None:
-    days = [day(0, details={"matched_rule_name": "trade_quota"})]
+    days = [day(0, details={"matched_rule_name": "regime_no_signal_hold"})]
 
     stats = rule_attribution(days, ["exit"]).rules
 
@@ -61,20 +61,28 @@ def test_a_decision_by_something_else_credits_no_rule() -> None:
 
 def test_overlay_adjustments_are_counted_by_name() -> None:
     days = [
-        day(0, details={"post_intent_adjustments": ["latch_redeploy"]}),
+        day(0, details={"post_intent_adjustments": ["trend_guard_force_exit"]}),
         day(
             1,
-            details={"post_intent_adjustments": ["latch_absorb", "latch_redeploy"]},
+            details={
+                "post_intent_adjustments": [
+                    "trend_guard_block_adds",
+                    "trend_guard_force_exit",
+                ]
+            },
         ),
         day(2),
     ]
 
     attribution = rule_attribution(days, [])
 
-    assert attribution.adjustments == {"latch_redeploy": 2, "latch_absorb": 1}
+    assert attribution.adjustments == {
+        "trend_guard_force_exit": 2,
+        "trend_guard_block_adds": 1,
+    }
     assert attribution.as_dict()["adjustments"] == {
-        "latch_absorb": 1,
-        "latch_redeploy": 2,
+        "trend_guard_block_adds": 1,
+        "trend_guard_force_exit": 2,
     }
 
 

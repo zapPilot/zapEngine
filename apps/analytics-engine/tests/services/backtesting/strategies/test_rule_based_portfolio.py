@@ -26,7 +26,6 @@ from src.services.backtesting.portfolio_rules.components import (
 from src.services.backtesting.portfolio_rules.decision_policy import (
     RuleBasedPortfolioDecisionPolicy,
 )
-from src.services.backtesting.risk import TradeQuotaGuard
 from src.services.backtesting.signals.dma_gated_fgi.types import (
     DmaCooldownState,
     DmaMarketState,
@@ -969,48 +968,6 @@ def test_cross_up_equal_weight_per_symbol_cooldown_requires_actual_transfers() -
 
     assert first_btc_cross_up.reason == "portfolio_cross_up_equal_weight"
     assert retry_btc_cross_up.reason == "portfolio_cross_up_equal_weight"
-
-
-def _with_trade_quota() -> RuleBasedPortfolioStrategy:
-    return reference_strategy(
-        components=replace(
-            reference_components(),
-            risk_guards=(
-                TradeQuotaGuard(
-                    min_trade_interval_days=3, max_trades_7d=None, max_trades_30d=None
-                ),
-            ),
-        )
-    )
-
-
-def test_strategy_wires_the_trade_quota_guard_of_its_components() -> None:
-    strategy = _with_trade_quota()
-
-    assert [guard.name for guard in strategy.decision_policy.risk_guards] == [
-        "trade_quota",
-    ]
-
-
-def test_policy_receives_executor_trade_dates_for_quota_guards() -> None:
-    strategy = _with_trade_quota()
-    strategy.execution_engine.trade_dates.append(date(2025, 1, 1))
-    strategy.execution_engine.last_trade_date = date(2025, 1, 1)
-
-    intent = strategy.decision_policy.decide(
-        _flat_state(
-            btc=state(
-                symbol="BTC",
-                zone="below",
-                dma_distance=-0.05,
-                fgi_regime="extreme_fear",
-            ),
-            current={"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0, "alt": 0.0},
-            current_date=date(2025, 1, 2),
-        )
-    )
-
-    assert intent.reason == "trade_quota_min_interval_active"
 
 
 def _execution_context(context_date: date) -> StrategyContext:

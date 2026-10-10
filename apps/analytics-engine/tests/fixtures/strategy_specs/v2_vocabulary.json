@@ -130,11 +130,6 @@
   "guards": [],
   "overlays": [
     {
-      "kind": "spy_latch",
-      "id": "spy_latch",
-      "follow_through_days": 14
-    },
-    {
       "kind": "trend_guard",
       "id": "trend_guard",
       "mode": "force_exit",

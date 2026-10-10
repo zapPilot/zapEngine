@@ -41,12 +41,10 @@ SCENARIOS: tuple[tuple[Scenario, int], ...] = (
     ("stress", 3),
 )
 STRATEGY = "strategy"
-# What a golden pins by default: the production reference, one spec that uses
-# every research kind, the SPY latch overlay and the trade quota guard, and one
-# that uses every knob and kind added after the reference was locked.
+# What a golden pins by default: the production reference, and one spec that
+# uses every knob and kind added after the reference was locked.
 DEFAULT_SPECS = (
     "reference/dma_fgi",
-    "tests/fixtures/strategy_specs/all_research_rules.json",
     "tests/fixtures/strategy_specs/v2_vocabulary.json",
 )
 

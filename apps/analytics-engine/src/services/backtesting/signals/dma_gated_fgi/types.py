@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import date
 from typing import Literal
 
 from src.services.backtesting.signals.dma_gated_fgi.regime_classifier import (
     RegimeSource,
 )
-from src.services.backtesting.signals.technical import TechnicalSignalSnapshot
 
 Zone = Literal["above", "below", "at"]
 BlockedZone = Literal["above", "below"]
@@ -63,7 +62,6 @@ class DmaMarketState:
     macro_fear_greed_value: float | None = None
     macro_fear_greed_regime: str | None = None
     macro_fear_greed_regime_source: RegimeSource | None = None
-    technical: TechnicalSignalSnapshot = field(default_factory=TechnicalSignalSnapshot)
 
     @property
     def price_above_dma(self) -> bool:

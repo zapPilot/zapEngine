@@ -42,7 +42,6 @@ const suggestionEvidenceSchema = z.looseObject({
         .looseObject({
           ratio: indicatorSchema,
           dma: indicatorSchema,
-          spy_dma: indicatorSchema,
         })
         .nullish(),
     }),
@@ -50,12 +49,6 @@ const suggestionEvidenceSchema = z.looseObject({
       details: z
         .looseObject({
           matched_rule_name: optionalString,
-          enabled: z.boolean().nullish(),
-          max_trades_7d: optionalNumber,
-          max_trades_30d: optionalNumber,
-          trades_7d: optionalNumber,
-          trades_30d: optionalNumber,
-          next_trade_date: optionalString,
         })
         .nullish(),
     }),
@@ -91,7 +84,7 @@ export interface EvidenceMetric {
   value: string;
 }
 export interface TriggerEvidence {
-  kind: 'ratio' | 'dma' | 'spy_dma' | 'fgi' | 'none';
+  kind: 'ratio' | 'dma' | 'fgi' | 'none';
   ruleName: string | null;
   ruleLabel: string;
   metrics: EvidenceMetric[];
@@ -99,15 +92,6 @@ export interface TriggerEvidence {
 }
 export interface GuardStates {
   cooldown: { active: boolean; remainingDays: number | null } | 'unavailable';
-  quota:
-    | {
-        trades7d: number | null;
-        maxTrades7d: number | null;
-        trades30d: number | null;
-        maxTrades30d: number | null;
-        nextTradeDate: string | null;
-      }
-    | 'unavailable';
 }
 export type RuleTraceStatus =
   | 'fired'
@@ -167,20 +151,6 @@ export function deriveTriggerEvidence(input: unknown): TriggerEvidence {
       ]),
     };
   }
-  if (rule === 'spy_latch') {
-    const spy = details?.spy_dma;
-    return {
-      kind: 'spy_dma',
-      ruleName: rule,
-      ruleLabel: humanize(rule),
-      chartSeriesId: 'spy',
-      metrics: compactMetrics([
-        ['200-DMA', spy?.dma_200],
-        ['Distance', percent(spy?.distance)],
-        ['Cross', spy?.cross_event],
-      ]),
-    };
-  }
   if (rule.startsWith('fgi_')) {
     const market = data.context.market;
     const score = market?.macro_fear_greed?.score ?? market?.sentiment;
@@ -203,15 +173,12 @@ export function deriveTriggerEvidence(input: unknown): TriggerEvidence {
 
 export function deriveGuardStates(input: unknown): GuardStates {
   const parsed = suggestionEvidenceSchema.safeParse(input);
-  if (!parsed.success) return { cooldown: 'unavailable', quota: 'unavailable' };
+  if (!parsed.success) return { cooldown: 'unavailable' };
   const data = parsed.data;
   const rule = data.context.strategy.details?.matched_rule_name;
   const indicator = rule?.startsWith('eth_btc_')
     ? data.context.signal.details?.ratio
-    : rule === 'spy_latch'
-      ? data.context.signal.details?.spy_dma
-      : data.context.signal.details?.dma;
-  const strategy = data.context.strategy.details;
+    : data.context.signal.details?.dma;
   return {
     cooldown:
       indicator?.cooldown_active == null
@@ -219,16 +186,6 @@ export function deriveGuardStates(input: unknown): GuardStates {
         : {
             active: indicator.cooldown_active,
             remainingDays: indicator.cooldown_remaining_days ?? null,
-          },
-    quota:
-      strategy?.enabled == null
-        ? 'unavailable'
-        : {
-            trades7d: strategy.trades_7d ?? null,
-            maxTrades7d: strategy.max_trades_7d ?? null,
-            trades30d: strategy.trades_30d ?? null,
-            maxTrades30d: strategy.max_trades_30d ?? null,
-            nextTradeDate: strategy.next_trade_date ?? null,
           },
   };
 }

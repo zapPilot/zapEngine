@@ -76,26 +76,23 @@ def test_a_leaf_carries_its_value_and_bounds(spec) -> None:
     assert (flag.value, flag.low, flag.high) == (True, None, None)
 
 
-def test_overlays_and_guards_are_tunable_when_present() -> None:
+def test_an_overlay_is_tunable_when_present() -> None:
     raw = reference_raw()
     raw["overlays"] = [
-        {"kind": "spy_latch", "id": "spy_latch", "follow_through_days": 14}
-    ]
-    raw["guards"] = [
         {
-            "kind": "trade_quota",
-            "min_trade_interval_days": 3,
-            "max_trades_7d": None,
-            "max_trades_30d": 8,
+            "kind": "trend_guard",
+            "id": "trend_guard",
+            "mode": "force_exit",
+            "below_dma_buffer": 0.02,
+            "confirm_days": 3,
         }
     ]
 
     pointers_ = [leaf.pointer for leaf in tunable_leaves(parse_spec(raw))]
 
-    assert "/overlays[spy_latch]/follow_through_days" in pointers_
-    assert "/guards[trade_quota]/min_trade_interval_days" in pointers_
-    assert "/guards[trade_quota]/max_trades_30d" in pointers_
-    assert "/guards[trade_quota]/max_trades_7d" not in pointers_
+    assert "/overlays[trend_guard]/below_dma_buffer" in pointers_
+    assert "/overlays[trend_guard]/confirm_days" in pointers_
+    assert "/overlays[trend_guard]/mode" not in pointers_
 
 
 def _leaf(value, **bounds) -> Leaf:

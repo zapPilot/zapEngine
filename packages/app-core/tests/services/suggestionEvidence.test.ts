@@ -29,15 +29,11 @@ function fixture(rule: string, asset?: string) {
             cooldown_remaining_days: 2,
             fgi_slope: -0.1,
           },
-          spy_dma: { dma_200: 600, cooldown_active: false },
         },
       },
       strategy: {
         details: {
           matched_rule_name: rule,
-          enabled: true,
-          trades_7d: 1,
-          max_trades_7d: 3,
           // Backend shape (portfolio_rules/_matcher.py): one object per rule.
           cooldown_skipped_rules: [
             {
@@ -98,7 +94,6 @@ describe('suggestion evidence', () => {
     ['eth_btc_ratio_rotation', 'ratio', 'eth_btc'],
     ['cross_down_exit', 'dma', 'btc'],
     ['dma_overextension_dca_sell', 'dma', 'eth'],
-    ['spy_latch', 'spy_dma', 'spy'],
     ['fgi_downshift_dca_sell', 'fgi', null],
   ])('maps %s to evidence and chart series', (rule, kind, series) => {
     const evidence = deriveTriggerEvidence(
@@ -109,14 +104,15 @@ describe('suggestion evidence', () => {
 
   it('degrades malformed evidence safely', () => {
     expect(deriveTriggerEvidence({ nope: true }).kind).toBe('none');
-    expect(deriveGuardStates({ nope: true }).quota).toBe('unavailable');
+    expect(deriveGuardStates({ nope: true })).toEqual({
+      cooldown: 'unavailable',
+    });
   });
 
   it('derives guard state and allocation rows', () => {
     const data = fixture('dma_overextension_dca_sell');
-    expect(deriveGuardStates(data)).toMatchObject({
+    expect(deriveGuardStates(data)).toEqual({
       cooldown: { active: true, remainingDays: 2 },
-      quota: { trades7d: 1, maxTrades7d: 3 },
     });
     expect(deriveAllocationDiff(data)).toEqual({
       before: [
@@ -217,36 +213,27 @@ describe('suggestion evidence', () => {
     ]);
   });
 
-  it('selects ratio, SPY, and DMA guard indicators and exposes unavailable states', () => {
+  it('omits the distance metric when the backend sends no distance', () => {
+    const data = fixture('eth_btc_ratio_rotation');
+    data.context.signal.details.ratio = {
+      ratio: 0.04,
+      ratio_dma_200: 0.038,
+    } as never;
+    expect(deriveTriggerEvidence(data).metrics).toEqual([
+      { label: 'Ratio', value: '0.04' },
+      { label: '200-DMA', value: '0.038' },
+    ]);
+  });
+
+  it('selects ratio and DMA guard indicators and exposes the unavailable state', () => {
     expect(
       deriveGuardStates(fixture('eth_btc_ratio_rotation')).cooldown,
     ).toEqual({ active: false, remainingDays: null });
-    expect(deriveGuardStates(fixture('spy_latch')).cooldown).toEqual({
-      active: false,
-      remainingDays: null,
-    });
 
     const unavailable = fixture('cross_up');
     unavailable.context.signal.details.dma = {} as never;
-    unavailable.context.strategy.details.enabled = null as never;
     expect(deriveGuardStates(unavailable)).toEqual({
       cooldown: 'unavailable',
-      quota: 'unavailable',
-    });
-  });
-
-  it('fills missing quota counters with null when quota is enabled', () => {
-    const data = fixture('cross_up');
-    data.context.strategy.details = {
-      matched_rule_name: 'cross_up',
-      enabled: false,
-    } as never;
-    expect(deriveGuardStates(data).quota).toEqual({
-      trades7d: null,
-      maxTrades7d: null,
-      trades30d: null,
-      maxTrades30d: null,
-      nextTradeDate: null,
     });
   });
 
@@ -278,7 +265,7 @@ describe('suggestion evidence', () => {
       value: '+10.0%',
     });
     expect(
-      deriveGuardStates(fixture('dma_overextension_dca_sell')).quota,
+      deriveGuardStates(fixture('dma_overextension_dca_sell')).cooldown,
     ).not.toBe('unavailable');
   });
 
