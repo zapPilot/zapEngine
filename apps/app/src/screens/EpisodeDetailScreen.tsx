@@ -33,7 +33,6 @@ import {
 } from '@/integration/podcastFeed';
 import type {
   PodcastEpisode,
-  PodcastLanguageClassroomKeyword,
   PodcastLanguageClassroomLesson,
 } from '@/integration/podcastFeed';
 import { mergeEpisodeProgress } from '@/integration/podcastProgress';
@@ -93,7 +92,7 @@ function EpisodeHeroCard({ episode }: { episode: PodcastEpisode }) {
   return (
     <Card className="overflow-hidden p-5">
       <View className="absolute -right-7 top-5 h-28 w-28 rounded-round border border-rule-2 bg-well" />
-      <Text className="font-text-semibold text-title leading-[31px] text-ink">
+      <Text className="pr-16 font-text-semibold text-title leading-[31px] text-ink">
         {episode.title}
       </Text>
       <View className="mt-4 flex-row flex-wrap items-center gap-2">
@@ -114,14 +113,6 @@ function EpisodeHeroCard({ episode }: { episode: PodcastEpisode }) {
       <EpisodeDownloadStatus episode={episode} />
     </Card>
   );
-}
-
-function keywordSupportingText(
-  keyword: PodcastLanguageClassroomKeyword,
-): string {
-  return [keyword.reading, keyword.meaning, keyword.note]
-    .filter((item): item is string => item !== null && item.trim() !== '')
-    .join(' · ');
 }
 
 function LanguageClassroomSection({
@@ -157,14 +148,26 @@ function LanguageClassroomSection({
               {lesson.keywords.map((keyword) => (
                 <View
                   key={`${keyword.term}-${keyword.meaning}`}
-                  className="max-w-[260px] rounded-panel bg-well px-3 py-2"
+                  className="min-w-[200px] grow basis-[45%] rounded-panel bg-well px-3 py-2"
                 >
                   <Text className="font-text-semibold text-body-sm text-ink">
                     {keyword.term}
                   </Text>
-                  <Text className="font-mono-medium mt-1 text-label leading-[15px] text-ink-2">
-                    {keywordSupportingText(keyword)}
-                  </Text>
+                  {keyword.reading !== null && keyword.reading.trim() !== '' ? (
+                    <Text className="font-text mt-1 text-body-sm leading-5 text-ink-2">
+                      {keyword.reading}
+                    </Text>
+                  ) : null}
+                  {keyword.meaning !== null && keyword.meaning.trim() !== '' ? (
+                    <Text className="font-text mt-1 text-body-sm leading-5 text-ink-2">
+                      {keyword.meaning}
+                    </Text>
+                  ) : null}
+                  {keyword.note !== null && keyword.note.trim() !== '' ? (
+                    <Text className="font-text mt-1 text-body-sm leading-5 text-ink-3">
+                      {keyword.note}
+                    </Text>
+                  ) : null}
                 </View>
               ))}
             </View>

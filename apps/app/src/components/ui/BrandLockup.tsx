@@ -1,6 +1,6 @@
 import { tokens } from '@zapengine/design-tokens/tokens';
 import glyphs from '@zapengine/design-tokens/brand/glyphs.json';
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { ZapLogo } from './ZapLogo';
 import { palette } from '@/lib/palette';
@@ -17,7 +17,9 @@ export function BrandLockup({ heading }: { heading?: 1 } = {}) {
     >
       <ZapLogo size={tokens.size.icon.xl} />
       <Svg
-        accessible={false}
+        {...(Platform.OS === 'web'
+          ? { 'aria-hidden': true }
+          : { accessible: false })}
         height={height}
         width={(height * wordmark.viewBox[2]!) / wordmark.viewBox[3]!}
         viewBox={wordmark.viewBox.join(' ')}
