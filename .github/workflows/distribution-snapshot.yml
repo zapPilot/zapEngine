@@ -59,11 +59,13 @@ jobs:
         run: |
           echo "PREVIOUS_POSTS=$(node -e "const s=require('./$ARTIFACT'); process.stdout.write(String(s.funnel.posts))")" >> "$GITHUB_ENV"
 
-      # This CLI imports the @zapengine/types runtime package through its
-      # published dist/ exports. A clean Actions checkout has no dist/ tree
-      # after pnpm install, so build that dependency before invoking tsx.
-      - name: Build distribution snapshot runtime dependency
-        run: pnpm --filter @zapengine/types build
+      # This CLI imports the @zapengine/types runtime package and the
+      # @zapengine/zap-pilot-story brand copy through their published dist/
+      # exports. A clean Actions checkout has no dist/ tree after pnpm install,
+      # so build those dependencies before invoking tsx. Use turbo so the
+      # story-kit transitive dependency builds first.
+      - name: Build distribution snapshot runtime dependencies
+        run: pnpm turbo run build --filter=@zapengine/types --filter=@zapengine/zap-pilot-story
 
       # Run the package command directly under the env rail rather than through
       # turbo: turbo's strict env mode strips SUPABASE_* before the child starts.
