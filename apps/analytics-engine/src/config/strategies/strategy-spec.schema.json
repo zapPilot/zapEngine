@@ -265,10 +265,18 @@
                 "type": "string"
               },
               "cooldown_days": {
-                "description": "Days the rule stays off after it trades.",
-                "maximum": 365,
-                "minimum": 0,
-                "type": "integer",
+                "anyOf": [
+                  {
+                    "maximum": 365,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "x-default": null,
+                "description": "Days the rule stays off after it trades. Null: no cooldown of its own, so the ratio signal's cross cooldown (`signals.ratio`), which every rotation starts, is what holds the next rotation back.",
                 "x-tunable": true
               },
               "cross_up": {

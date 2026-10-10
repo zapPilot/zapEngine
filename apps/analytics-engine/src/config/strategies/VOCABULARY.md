@@ -69,7 +69,7 @@ Fires when the ETH/BTC ratio crosses its own 200-day DMA. A cross up sweeps `cro
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `id` | string `^[a-z][a-z0-9_]{2,47}$` | Name of the rule in decision traces. |
-| `cooldown_days` | integer (>= 0, <= 365) | Days the rule stays off after it trades. *(tunable)* |
+| `cooldown_days` | integer (>= 0, <= 365) \| null | Days the rule stays off after it trades. Null: no cooldown of its own, so the ratio signal's cross cooldown (`signals.ratio`), which every rotation starts, is what holds the next rotation back. *(tunable)* *(optional, default `null`)* |
 | `cross_up` | object | Move when the ratio crosses above its DMA (ETH is the stronger leg). |
 | `cross_up.sources` | array of `"SPY"` \| `"BTC"` \| `"ETH"` \| `"STABLE"` | Holdings swept into the destination. |
 | `cross_up.destination` | `"SPY"` \| `"BTC"` \| `"ETH"` \| `"STABLE"` | Holding that receives everything. |

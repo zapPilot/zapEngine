@@ -21,6 +21,9 @@ from src.services.backtesting.portfolio_rules.cross_up_equal_weight import (
 from src.services.backtesting.portfolio_rules.dma_overextension_dca_sell import (
     DmaOverextensionDcaSellRule,
 )
+from src.services.backtesting.portfolio_rules.eth_btc_ratio_rotation import (
+    EthBtcRatioRotationRule,
+)
 from src.services.backtesting.portfolio_rules.fgi_downshift_dca_sell import (
     FgiDownshiftDcaSellRule,
 )
@@ -295,3 +298,37 @@ def test_every_number_the_new_kinds_add_is_a_tunable_leaf() -> None:
         "/overlays[trend_guard]/below_dma_buffer",
         "/overlays[trend_guard]/confirm_days",
     } <= leaves
+
+
+def _ratio_rotation(raw: dict[str, Any]) -> dict[str, Any]:
+    rule: dict[str, Any] = raw["rules"][rule_index(raw, "ratio_cross_rotation")]
+    return rule
+
+
+def test_a_ratio_rotation_may_leave_its_cooldown_to_the_ratio_signal() -> None:
+    raw = reference_raw()
+    del _ratio_rotation(raw)["cooldown_days"]
+
+    spec = parse_spec(raw)
+    rule = compile_spec(spec).rules[rule_index(raw, "ratio_cross_rotation")]
+
+    assert isinstance(rule, EthBtcRatioRotationRule)
+    assert rule.cooldown_days == 0
+    assert "/rules[eth_btc_ratio_rotation]/cooldown_days" not in {
+        leaf.pointer for leaf in tunable_leaves(spec)
+    }
+    assert behavior_hash(spec) != behavior_hash(load_spec(REFERENCE_REF))
+
+
+def test_a_null_ratio_cooldown_is_the_same_strategy_as_leaving_it_out() -> None:
+    omitted = reference_raw()
+    del _ratio_rotation(omitted)["cooldown_days"]
+    null = reference_raw()
+    _ratio_rotation(null)["cooldown_days"] = None
+
+    assert behavior_hash(parse_spec(omitted)) == behavior_hash(parse_spec(null))
+
+
+def test_the_reference_states_its_ratio_cooldown_so_its_hash_holds() -> None:
+    assert _ratio_rotation(reference_raw())["cooldown_days"] == 30
+    assert '"cooldown_days":30' in canonical_json(load_spec(REFERENCE_REF))

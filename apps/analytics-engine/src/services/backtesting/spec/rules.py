@@ -139,7 +139,17 @@ class RatioCrossRotation(SpecModel):
 
     kind: Literal["ratio_cross_rotation"]
     id: RuleId
-    cooldown_days: RuleCooldown
+    cooldown_days: int | None = Field(
+        default=None,
+        ge=0,
+        le=365,
+        description=(
+            "Days the rule stays off after it trades. Null: no cooldown of its "
+            "own, so the ratio signal's cross cooldown (`signals.ratio`), which "
+            "every rotation starts, is what holds the next rotation back."
+        ),
+        json_schema_extra=TUNABLE,
+    )
     cross_up: RotationLeg = Field(
         description="Move when the ratio crosses above its DMA (ETH is the stronger leg).",
     )
@@ -151,7 +161,7 @@ class RatioCrossRotation(SpecModel):
         return EthBtcRatioRotationRule(
             name=self.id,
             priority=priority,
-            cooldown_days=self.cooldown_days,
+            cooldown_days=self.cooldown_days or 0,
             up_sources=_keys(self.cross_up.sources),
             up_destination=self.cross_up.destination.lower(),
             down_sources=_keys(self.cross_down.sources),
