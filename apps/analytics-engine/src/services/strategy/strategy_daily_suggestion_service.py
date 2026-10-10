@@ -358,6 +358,18 @@ class StrategyDailySuggestionService:
             )
             for snapshot_date, feature_row in warmup_extra_data_by_date.items()
         }
+        # Warmup days must price every asset the current portfolio is valued
+        # with (mirrors the backtest data provider, which drops such dates).
+        incomplete_dates = {
+            snapshot_date
+            for snapshot_date, price_map in warmup_price_map_by_date.items()
+            if snapshot_date != current_date
+            and not current_price_map.keys() <= price_map.keys()
+        }
+        for snapshot_date in incomplete_dates:
+            del warmup_price_map_by_date[snapshot_date]
+            del warmup_extra_data_by_date[snapshot_date]
+            warmup_price_by_date.pop(snapshot_date, None)
         warmup_price_map_by_date.setdefault(current_date, dict(current_price_map))
         return _DailySuggestionMarketData(
             current_date=current_date,

@@ -899,6 +899,52 @@ def test_load_market_data_missing_price_raises() -> None:
         service._load_market_data(resolved_config=resolved_config, lookback_days=90)
 
 
+def test_load_market_data_drops_warmup_dates_missing_current_assets(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Warmup days lacking an asset the current map prices must be excluded."""
+    from src.services.backtesting.features import MarketDataRequirements
+
+    service, mocks = _service()
+    current = date(2024, 1, 3)
+    mocks["token_price_service"].get_latest_price = lambda _: SimpleNamespace(
+        date=current.isoformat(), price_usd=50_000.0
+    )
+    mocks["token_price_service"].get_price_history = lambda **_: [
+        SimpleNamespace(date=d.isoformat(), price_usd=49_000.0)
+        for d in (date(2024, 1, 1), date(2024, 1, 2), current)
+    ]
+    mocks["sentiment_service"].get_current_sentiment_sync = lambda: SimpleNamespace(
+        status="Greed", value=72
+    )
+    mocks["sentiment_service"].get_daily_sentiment_aggregates = lambda **_: []
+    monkeypatch.setattr(
+        service,
+        "_load_required_market_features_by_date",
+        lambda **_: (
+            {
+                date(2024, 1, 1): {"eth_price_usd": 2_900.0},
+                date(2024, 1, 2): {},
+                current: {"eth_price_usd": 3_000.0},
+            },
+            None,
+        ),
+    )
+    resolved_config = SimpleNamespace(
+        primary_asset="BTC",
+        market_data_requirements=MarketDataRequirements(),
+        warmup_lookback_days=0,
+    )
+
+    market_data = service._load_market_data(
+        resolved_config=resolved_config, lookback_days=90
+    )
+
+    assert set(market_data.warmup_price_map_by_date) == {date(2024, 1, 1), current}
+    assert set(market_data.warmup_extra_data_by_date) == {date(2024, 1, 1), current}
+    assert date(2024, 1, 2) not in market_data.warmup_price_by_date
+
+
 def test_build_price_map_includes_eth_price() -> None:
     """Cover line 380: eth_price is not None adds eth to price_map."""
     result = StrategyDailySuggestionService._build_price_map(
