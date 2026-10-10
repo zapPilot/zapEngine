@@ -129,3 +129,26 @@ it('names its input and exposes validation errors as alerts', async () => {
     'Enter a valid address',
   );
 });
+
+it('keeps the step eyebrow and action footer outside the scroll content', async () => {
+  const page = await mount(
+    <Sheet
+      visible
+      title="Fund"
+      eyebrow="Step 1 / 3"
+      closeLabel="Close"
+      onClose={vi.fn()}
+      footer={<button>Review</button>}
+    >
+      <span>Amount fields</span>
+    </Sheet>,
+  );
+  expect(page.textContent).toContain('Step 1 / 3');
+  const footer = [...page.querySelectorAll('button')].find(
+    (button) => button.textContent === 'Review',
+  )!;
+  const content = [...page.querySelectorAll('span')].find(
+    (span) => span.textContent === 'Amount fields',
+  )!;
+  expect(footer.parentElement).not.toBe(content.parentElement);
+});

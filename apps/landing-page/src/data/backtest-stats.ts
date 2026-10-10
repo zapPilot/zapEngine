@@ -95,11 +95,6 @@ export function backtestSubtitle(): string {
   return `${SNAPSHOT.windowDays}-day strategy snapshot as of ${SNAPSHOT.referenceDate}. ${SNAPSHOT.displayName} vs ${DCA.display_name}, daily signal evaluation, ${SNAPSHOT.raw.tradeCount} simulated trades.`;
 }
 
-/** Trade activity of the reference strategy, as simulated in the backtest. */
-export function referenceTradeSummary(): string {
-  return `${SNAPSHOT.raw.tradeCount} simulated trades over the ${SNAPSHOT.windowDays}-day backtest`;
-}
-
 /**
  * Discloses the backtest's modelling assumptions before the usual caveat: it
  * fills each trade the day after its signal, credits an assumed yield on

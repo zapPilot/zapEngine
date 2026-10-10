@@ -58,15 +58,9 @@ export function useDesktopBridge(): void {
       return;
     }
 
-    const offProposal = bridge.onRebalanceProposal((proposal) => {
-      router.push({
-        pathname: '/invest',
-        params: {
-          proposalDriftPercent: String(proposal.driftPercent),
-          proposalGeneratedAt: proposal.generatedAt,
-        },
-      });
-    });
+    const offProposal = bridge.onRebalanceProposal(() =>
+      router.push('/today/decision'),
+    );
 
     const offDeepLink = bridge.onDeepLink((url) => {
       if (!url.startsWith(DEEP_LINK_PREFIX)) {

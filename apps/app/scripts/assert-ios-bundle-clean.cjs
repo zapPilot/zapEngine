@@ -49,6 +49,31 @@ const DENYLIST = [
 // Keep the non-iOS action/screen implementations here even though their .ios
 // siblings are expected: Metro must resolve the platform file, not include both.
 const SOURCE_DENYLIST = [
+  {
+    label: 'story execution facts and Android model',
+    patterns: [
+      '/zap-pilot-story/dist/facts/capabilities.js',
+      '/zap-pilot-story/dist/facts/index.js',
+      '/zap-pilot-story/dist/model/',
+    ],
+  },
+  {
+    label: 'non-iOS Fund execution',
+    patterns: [
+      '/src/providers/FundFlowProvider.tsx',
+      '/src/components/fund/FundSheetHost.tsx',
+      '/src/components/fund/useFundExecutionController.ts',
+      '/src/components/fund/useHyperCoreLegPlan.ts',
+    ],
+  },
+  {
+    label: 'Android Skia renderer',
+    patterns: [
+      '/@shopify/react-native-skia/',
+      '/src/components/runtime-model/RuntimeModelCanvas.tsx',
+      '/src/components/runtime-model/skia/',
+    ],
+  },
   { label: 'Android Play updates', patterns: ['/expo-in-app-updates/'] },
   {
     label: 'wallet provider context',
@@ -86,8 +111,16 @@ const SOURCE_DENYLIST = [
     ],
   },
   {
-    label: 'non-iOS Home execution row',
-    patterns: ['/src/components/home/HomeActionRow.tsx'],
+    label: 'non-iOS wallet chip',
+    patterns: [
+      '/src/components/today/WalletChip.tsx',
+      '/src/components/runtime/RuntimeWalletSection.tsx',
+      '/src/components/runtime/RuntimeYouSection.tsx',
+      '/src/components/runtime/useDeleteAccount.ts',
+      '/src/screens/RuntimeAlertsScreen.tsx',
+      '/src/screens/FirstRunScreen.tsx',
+      '/src/components/firstRun/',
+    ],
   },
   {
     label: 'non-iOS protocol brand icon',
@@ -95,14 +128,7 @@ const SOURCE_DENYLIST = [
   },
   {
     label: 'non-iOS financial screens',
-    patterns: [
-      '/src/screens/SendScreen.tsx',
-      '/src/screens/WalletsScreen.tsx',
-      '/src/screens/StrategyScreen.tsx',
-      '/src/screens/invest/InvestAmountScreen.tsx',
-      '/src/screens/invest/InvestProgressScreen.tsx',
-      '/src/screens/invest/InvestRouteScreen.tsx',
-    ],
+    patterns: ['/src/screens/WalletsScreen.tsx'],
   },
   {
     label: 'non-iOS invest/wallet integration',

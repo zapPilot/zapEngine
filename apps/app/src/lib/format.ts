@@ -58,9 +58,13 @@ export function splitUsd(value: number): { whole: string; fraction: string } {
   return { whole, fraction: `.${fraction}` };
 }
 
-export function formatSignedPct(value: number, decimals = 1): string {
+export function formatSignedPoints(value: number, decimals = 1): string {
   const sign = value > 0 ? '+' : value < 0 ? '−' : '';
-  return `${sign}${Math.abs(value).toFixed(decimals)}%`;
+  return `${sign}${Math.abs(value).toFixed(decimals)}`;
+}
+
+export function formatSignedPct(value: number, decimals = 1): string {
+  return `${formatSignedPoints(value, decimals)}%`;
 }
 
 export function formatPct(value: number, decimals = 1): string {

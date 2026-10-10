@@ -1,12 +1,21 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatSignedPct, formatTokenBalance, formatUsd6 } from '@/lib/format';
+import {
+  formatSignedPct,
+  formatSignedPoints,
+  formatTokenBalance,
+  formatUsd6,
+  truncateAddress,
+} from '@/lib/format';
 
 describe('format branch coverage', () => {
   it('formats positive, negative, and zero signed percentages', () => {
     expect(formatSignedPct(1.25, 2)).toBe('+1.25%');
     expect(formatSignedPct(-1.25, 2)).toBe('−1.25%');
     expect(formatSignedPct(0, 2)).toBe('0.00%');
+    expect(formatSignedPoints(10.34)).toBe('+10.3');
+    expect(formatSignedPoints(-6.4)).toBe('−6.4');
+    expect(formatSignedPoints(0)).toBe('0.0');
   });
 
   it('formats every token balance state and safely handles invalid balances', () => {
@@ -26,4 +35,10 @@ describe('format branch coverage', () => {
     expect(formatUsd6('1235000')).toBe('$1.24');
     expect(formatUsd6(-1_235_000n)).toBe('-$1.24');
   });
+});
+
+it('keeps wallet labels compact with default and explicit address lengths', () => {
+  expect(truncateAddress('0x1234567890abcdef')).toBe('0x1234…cdef');
+  expect(truncateAddress('0x1234567890abcdef', 4, 2)).toBe('0x12…ef');
+  expect(truncateAddress('')).toBe('');
 });

@@ -12,7 +12,9 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "predev": "pnpm -w turbo run build --filter=@zapengine/podcast-pipeline^... --ui=stream --output-logs=new-only",
     "dev": "tsx watch src/index.ts",
+    "predev:worker": "pnpm run predev",
     "dev:worker": "tsx watch src/worker.ts",
     "titles:repair": "tsx src/services/title-repair-cli.ts",
     "social:publish": "tsx src/social/cli.ts",
@@ -70,7 +72,8 @@
     "react": "catalog:",
     "satori": "0.28.0",
     "sharp": "0.35.5",
-    "zod": "catalog:"
+    "zod": "catalog:",
+    "@zapengine/zap-pilot-story": "workspace:*"
   },
   "devDependencies": {
     "@types/fluent-ffmpeg": "^2.1.27",

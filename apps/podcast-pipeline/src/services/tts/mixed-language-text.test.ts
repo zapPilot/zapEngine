@@ -131,7 +131,14 @@ describe('mixed-language plan', () => {
     )!;
     expect(
       plan.flatMap((p) => (p.kind === 'speech' && p.english ? [p.text] : [])),
-    ).toEqual(['Zap Podcast', 'DeFi', 'Zap Pilot']);
+    ).toEqual([
+      'Zap Podcast',
+      'Your strategy',
+      'your machine',
+      'your wallet',
+      'Zap Pilot',
+      'Zap Pilot',
+    ]);
     expect(plan[0]).toEqual(
       expect.objectContaining({ kind: 'speech', english: false }),
     );

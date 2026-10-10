@@ -5,3 +5,5 @@ coverage
 .turbo
 .jscpd
 *.tsbuildinfo
+
+src/model/__golden__

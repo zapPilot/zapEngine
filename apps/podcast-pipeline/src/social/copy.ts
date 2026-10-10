@@ -1,8 +1,9 @@
 import { readFile } from 'node:fs/promises';
 
+import { SLOGAN } from '@zapengine/zap-pilot-story/brand';
 import { z } from 'zod';
 
-import { SOCIAL_BRAND_CTA_BY_LANGUAGE } from '../brand/cta.js';
+import { socialLandingUrl, socialSignOff } from '../brand/cta.js';
 import { errorMessage } from '../lib/errorMessage.js';
 import {
   buildJsonModeChatParams,
@@ -30,10 +31,12 @@ import {
   type SocialEpisode,
   type SocialLanguageCode,
 } from './types.js';
+import {
+  trimTweetTextToWeightedLength,
+  weightedTweetLength,
+  X_TOTAL_MAX_WEIGHTED_LENGTH,
+} from './x-text.js';
 
-const X_TOTAL_MAX_WEIGHTED_LENGTH = 280;
-const X_URL_WEIGHT = 23;
-const URL_PATTERN = /https?:\/\/[^\s]+/giu;
 const SINGLE_URL_PATTERN = /https?:\/\/[^\s]+/iu;
 // Loose on purpose: ETH/DeFi/EIP-style terms are legitimate and inflate the
 // ratio of a short title, so this only catches wholesale language drift.
@@ -41,64 +44,11 @@ const MAX_LATIN_LETTER_RATIO = 0.35;
 const ACCENTED_LATIN_PATTERN = /[À-ɏ]/u;
 const LATIN_LETTER_PATTERN = /[A-Za-z]/gu;
 
-export function weightedTweetLength(value: string): number {
-  let length = 0;
-  let previousEnd = 0;
-
-  for (const match of value.matchAll(URL_PATTERN)) {
-    length += weightedCharacterLength(value.slice(previousEnd, match.index));
-    length += X_URL_WEIGHT;
-    previousEnd = match.index + match[0].length;
-  }
-
-  return length + weightedCharacterLength(value.slice(previousEnd));
-}
-
-function weightedCharacterLength(value: string): number {
-  return Array.from(value).reduce(
-    (length, character) => length + (isCjkCharacter(character) ? 2 : 1),
-    0,
-  );
-}
-
-function isCjkCharacter(character: string): boolean {
-  const codePoint = character.codePointAt(0)!;
-  return (
-    (codePoint >= 0x1100 && codePoint <= 0x11ff) ||
-    (codePoint >= 0x2e80 && codePoint <= 0x4dbf) ||
-    (codePoint >= 0x4e00 && codePoint <= 0x9fff) ||
-    (codePoint >= 0xa960 && codePoint <= 0xa97f) ||
-    (codePoint >= 0xac00 && codePoint <= 0xd7ff) ||
-    (codePoint >= 0xf900 && codePoint <= 0xfaff) ||
-    (codePoint >= 0xfe30 && codePoint <= 0xfe4f) ||
-    (codePoint >= 0xff00 && codePoint <= 0xffef) ||
-    (codePoint >= 0x20000 && codePoint <= 0x323af)
-  );
-}
-
 function xTextMaxWeightedLength(languageCode: SocialLanguageCode): number {
   return (
     X_TOTAL_MAX_WEIGHTED_LENGTH -
-    weightedTweetLength(`\n\n${SOCIAL_BRAND_CTA_BY_LANGUAGE[languageCode]}`)
+    weightedTweetLength(`\n\n${socialSignOff(languageCode)}`)
   );
-}
-
-export function trimTweetTextToWeightedLength(
-  value: string,
-  maximum: number,
-): string {
-  const trimmed = value.trim();
-  if (weightedTweetLength(trimmed) <= maximum) return trimmed;
-
-  let length = 0;
-  const output: string[] = [];
-  for (const character of Array.from(trimmed)) {
-    const characterLength = weightedCharacterLength(character);
-    if (length + characterLength > maximum) break;
-    output.push(character);
-    length += characterLength;
-  }
-  return output.join('').trimEnd();
 }
 
 export function latinLetterRatio(value: string): number {
@@ -132,6 +82,7 @@ function xTextSchema(languageCode: SocialLanguageCode): z.ZodType<string> {
   const maximum = xTextMaxWeightedLength(languageCode);
   return languageLine(languageCode)
     .superRefine((text, context) => {
+      addNoSloganIssue(text, context);
       if (SINGLE_URL_PATTERN.test(text)) {
         context.addIssue({
           code: 'custom',
@@ -145,15 +96,21 @@ function xTextSchema(languageCode: SocialLanguageCode): z.ZodType<string> {
 
 function threadsTextSchema(
   languageCode: SocialLanguageCode,
+  episodeId: string,
 ): z.ZodType<string> {
   const line = languageLine(languageCode);
   const publishedLine =
     languageCode === 'zh-Hant' ? line.transform(convertTextToZhTW) : line;
   return publishedLine.superRefine((text, context) => {
     addNoUrlIssue(text, context);
-    const maximum =
+    addNoSloganIssue(text, context);
+    const maximum = Math.min(
+      320,
       THREADS_TOTAL_MAX_CHARACTERS -
-      Array.from(`\n\n${SOCIAL_BRAND_CTA_BY_LANGUAGE[languageCode]}`).length;
+        Array.from(
+          `\n\n${socialSignOff(languageCode, socialLandingUrl({ episodeId, platform: 'threads', languageCode }))}`,
+        ).length,
+    );
     const length = Array.from(text).length;
     if (length > maximum) {
       context.addIssue({
@@ -165,6 +122,7 @@ function threadsTextSchema(
 }
 
 const RednoteBodySchema = SimplifiedChineseLine.superRefine((body, context) => {
+  addNoSloganIssue(body, context);
   if (!SINGLE_URL_PATTERN.test(body)) return;
   context.addIssue({
     code: 'custom',
@@ -189,6 +147,7 @@ const ALL_COPY_BLOCKS: SocialCopyBlocks = {
 function generatedSocialCopySchema(
   languageCode: SocialLanguageCode,
   blocks: SocialCopyBlocks,
+  episodeId: string,
 ) {
   const line = languageLine(languageCode);
   const x = z.object({
@@ -197,7 +156,7 @@ function generatedSocialCopySchema(
   });
   const threads = z.object({
     hookType: z.enum(SOCIAL_HOOK_TYPES),
-    text: threadsTextSchema(languageCode),
+    text: threadsTextSchema(languageCode, episodeId),
   });
   // Unknown legacy fields (including the retired per-platform title) are
   // stripped by Zod. Durable queued payloads can drain safely, while the typed
@@ -207,8 +166,8 @@ function generatedSocialCopySchema(
     body:
       languageCode === 'zh-Hant'
         ? RednoteBodySchema
-        : line.superRefine(addNoUrlIssue),
-    hashtags: z.array(line).min(3).max(5),
+        : line.superRefine(addNoUrlIssue).superRefine(addNoSloganIssue),
+    hashtags: z.array(line.superRefine(addNoSloganIssue)).min(3).max(5),
   });
   const youtube = z.object({
     hookType: z.enum(SOCIAL_HOOK_TYPES),
@@ -296,6 +255,21 @@ function languageLine(languageCode: SocialLanguageCode): z.ZodType<string> {
     });
 }
 
+// Any separator counts, so a paraphrased period, comma, semicolon or dash still matches.
+const SEPARATED_SLOGAN_PATTERN =
+  /your\s+strategy\W+your\s+machine\W+your\s+wallet/u;
+function addNoSloganIssue(value: string, context: z.RefinementCtx): void {
+  const text = value.normalize('NFKC').replace(/\s+/gu, ' ').toLowerCase();
+  if (
+    text.includes(SLOGAN.toLowerCase()) ||
+    SEPARATED_SLOGAN_PATTERN.test(text)
+  )
+    context.addIssue({
+      code: 'custom',
+      message: 'Brand slogan is appended by the publisher; never generate it.',
+    });
+}
+
 function addNoUrlIssue(value: string, context: z.RefinementCtx): void {
   if (!SINGLE_URL_PATTERN.test(value)) return;
   context.addIssue({
@@ -340,8 +314,13 @@ export function parseGeneratedSocialCopy(
   raw: string,
   languageCode: SocialLanguageCode = 'zh-Hant',
   blocks: SocialCopyBlocks = ALL_COPY_BLOCKS,
+  episodeId = '00000000-0000-4000-8000-000000000000',
 ): GeneratedSocialCopy {
-  const parsed = generatedSocialCopySchema(languageCode, blocks).parse(
+  const parsed = generatedSocialCopySchema(
+    languageCode,
+    blocks,
+    episodeId,
+  ).parse(
     unwrapNestedJsonPayload(JSON.parse(stripJsonFence(raw.trim())), [
       'x',
       'threads',
@@ -448,7 +427,12 @@ export async function generateSocialCopy(input: {
       }
 
       return {
-        copy: parseGeneratedSocialCopy(content, languageCode, blocks),
+        copy: parseGeneratedSocialCopy(
+          content,
+          languageCode,
+          blocks,
+          input.episode.id,
+        ),
         model: completion.model ?? config.model,
       };
     } catch (error) {

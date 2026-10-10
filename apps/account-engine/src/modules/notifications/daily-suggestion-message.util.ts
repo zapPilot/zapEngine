@@ -74,7 +74,7 @@ function formatDecisionPacketMessage(data: DailySuggestionSubset): string {
     targetBlock(data),
     triggerBlock(data),
     checksBlock(data),
-    '[Open strategy](https://v2.zap-pilot.org/strategy)',
+    '[Open decision](https://v2.zap-pilot.org/today/decision)',
   ].join('\n\n');
 }
 

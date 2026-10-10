@@ -8,7 +8,7 @@ describe('Motion landing', () => {
       Array.from(container.querySelectorAll('main section')).map((s) => s.id),
     ).toEqual(['engine', 'replay', 'join']);
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
-      'Rules decide. You sign.',
+      'Your strategy. Your machine. Your wallet.',
     );
     expect(
       screen.getByText('A runtime for programmable portfolios'),

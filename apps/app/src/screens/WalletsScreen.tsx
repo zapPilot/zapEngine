@@ -49,7 +49,7 @@ export function WalletsScreen() {
             accessibilityLabel={t('common.back')}
             onPress={() => {
               if (router.canGoBack()) router.back();
-              else router.replace('/account');
+              else router.replace('/runtime?section=wallet');
             }}
           />
         }

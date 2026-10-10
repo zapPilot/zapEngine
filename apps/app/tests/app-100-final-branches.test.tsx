@@ -22,7 +22,6 @@ import {
   type StageDraft,
 } from '@/integration/investTargetsModel';
 import { attachDailyAttribution } from '@/integration/portfolioMetrics';
-import { strategyStatusFromSuggestion } from '@/integration/useHomeData';
 import { useAccount as useIosAccount } from '@/integration/useAccount.ios';
 import type { HyperCoreFundingDraft } from '@/integration/useInvest';
 import type { ChainTokenBalanceRow } from '@/integration/walletTokens';
@@ -262,28 +261,6 @@ describe('app-100 final: attribution edges', () => {
 // ---------------------------------------------------------------------------
 // useHomeData: strategy fear/greed falls back to null when missing
 // ---------------------------------------------------------------------------
-
-describe('app-100 final: strategy status sentiment', () => {
-  function suggestion(sentiment: unknown) {
-    return {
-      action: { status: 'no_action' },
-      context: {
-        signal: { regime: 'calm' },
-        market: { sentiment },
-      },
-    } as never;
-  }
-
-  it('maps a missing sentiment to null fear/greed', () => {
-    const result = strategyStatusFromSuggestion(suggestion(null));
-    expect(result.fearGreed).toBeNull();
-    expect(result.reason).toBe('panel copy');
-  });
-
-  it('forwards a present sentiment value', () => {
-    expect(strategyStatusFromSuggestion(suggestion(72)).fearGreed).toBe(72);
-  });
-});
 
 // ---------------------------------------------------------------------------
 // useAccount.ios: async race guards

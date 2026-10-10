@@ -21,19 +21,19 @@ export declare const tokens: {
       readonly scrim: 'rgba(17, 17, 17, 0.4)';
     };
     readonly night: {
-      readonly ground: '#0e0f11';
-      readonly sheet: '#16171a';
-      readonly well: '#1c1d21';
-      readonly ink: '#eeeeea';
-      readonly 'ink-2': '#b9b9b3';
-      readonly 'ink-3': '#989892';
-      readonly rule: 'rgba(238,238,234,.14)';
-      readonly 'rule-2': 'rgba(238,238,234,.34)';
-      readonly grid: 'rgba(238,238,234,.045)';
-      readonly sign: '#4058ff';
-      readonly 'sign-ink': '#9aa6ff';
-      readonly 'on-sign': '#ffffff';
-      readonly 'sign-wash': 'rgba(64,88,255,.14)';
+      readonly ground: '#0c0b09';
+      readonly sheet: '#141310';
+      readonly well: '#1b1915';
+      readonly ink: '#ebe4d2';
+      readonly 'ink-2': '#b9b3a7';
+      readonly 'ink-3': '#9d9789';
+      readonly rule: 'rgba(235,228,210,.11)';
+      readonly 'rule-2': 'rgba(235,228,210,.28)';
+      readonly grid: 'rgba(235,228,210,.035)';
+      readonly sign: '#c8ab72';
+      readonly 'sign-ink': '#d9c398';
+      readonly 'on-sign': '#15120b';
+      readonly 'sign-wash': 'rgba(200,171,114,.12)';
       readonly up: '#5bd18b';
       readonly down: '#ff7a66';
       readonly alert: '#ff7a66';
@@ -53,8 +53,8 @@ export declare const tokens: {
       readonly spy: '#6e7686';
       readonly stable: '#3fa38b';
       readonly eth: '#a7a2ee';
-      readonly btc: '#f3b54e';
-      readonly alt: '#e3d9ca';
+      readonly btc: '#ffaf6e';
+      readonly alt: '#d8d6e1';
     };
   };
   readonly material: {
@@ -70,14 +70,14 @@ export declare const tokens: {
       readonly shadow: 'rgba(17,17,17,.2)';
     };
     readonly night: {
-      readonly top: '#2b2c31';
-      readonly front: '#1f2024';
-      readonly left: '#17181b';
-      readonly edge: 'rgba(238,238,234,.16)';
-      readonly 'ink-top': '#f4f4f0';
-      readonly 'ink-front': '#c9c9c3';
-      readonly 'ink-left': '#a3a39d';
-      readonly floor: 'rgba(238,238,234,.065)';
+      readonly top: '#2d2a25';
+      readonly front: '#211f1b';
+      readonly left: '#181714';
+      readonly edge: 'rgba(235,228,210,.16)';
+      readonly 'ink-top': '#f2ecdf';
+      readonly 'ink-front': '#cbc5b8';
+      readonly 'ink-left': '#a39d91';
+      readonly floor: 'rgba(235,228,210,.065)';
       readonly shadow: 'rgba(0,0,0,.6)';
     };
   };
@@ -377,6 +377,28 @@ export declare const tokens: {
       readonly native: 'mono';
       readonly case: 'none';
       readonly numeric: 'tabular-nums';
+    };
+    readonly headline: {
+      readonly size: 36;
+      readonly line: 38;
+      readonly tracking: -0.035;
+      readonly weight: 640;
+      readonly width: 108;
+      readonly family: 'display';
+      readonly native: 'display';
+      readonly case: 'none';
+      readonly numeric: 'normal';
+    };
+    readonly verdict: {
+      readonly size: 64;
+      readonly line: 60;
+      readonly tracking: -0.04;
+      readonly weight: 660;
+      readonly width: 112;
+      readonly family: 'display';
+      readonly native: 'display-xl';
+      readonly case: 'none';
+      readonly numeric: 'normal';
     };
   };
   readonly radius: {

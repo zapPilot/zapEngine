@@ -1,5 +1,8 @@
-import paths from '../model/asset-glyphs.json' with { type: 'json' };
-export type Sleeve = keyof typeof paths;
+import {
+  ASSET_GLYPH_PATHS as paths,
+  type Sleeve,
+} from '../model/asset-glyphs.js';
+export type { Sleeve } from '../model/asset-glyphs.js';
 export function AssetGlyph({ asset }: { asset: Sleeve }) {
   return (
     <svg className="zp-asset-glyph" viewBox="0 0 24 24" aria-hidden="true">

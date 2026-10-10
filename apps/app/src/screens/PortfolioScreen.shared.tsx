@@ -8,6 +8,10 @@ import { AllocationSummary } from '@/components/ui/AllocationSummary';
 import { PortfolioTrendChart } from '@/components/charts/PortfolioTrendChart';
 import { StatGrid } from '@/components/ui/StatGrid';
 
+import { HomeIncomeCard } from '@/components/home/HomeIncomeCard';
+import { HomeAttributionBreakdown } from '@/components/home/HomeAttributionBreakdown';
+import { summarizeRangeAttribution } from '@/integration/rangeAttribution';
+import { useHomeIncome } from '@/integration/useHomeIncome';
 import { SharePortfolioButton } from '@/components/share/SharePortfolioButton';
 import { DisplayUsdValue } from '@/components/ui/DisplayUsdValue';
 import { Callout } from '@/components/ui/Callout';
@@ -39,6 +43,7 @@ const DEMO_PORTFOLIO: PortfolioViewData = {
   latestSnapshotChangePct: DEMO.portfolio.changePctToday,
   latestSnapshotDate: DEMO.home.latestSnapshotDate,
   trendPoints: DEMO.home.trendPoints,
+  attribution: summarizeRangeAttribution(DEMO.home.trendPoints),
 };
 
 const METRIC_TRANSLATION_KEYS: Readonly<Record<string, TranslationKey>> = {
@@ -60,6 +65,7 @@ export function PortfolioScreen() {
     isResolvingUser: account.isResolvingViewingUser,
   });
 
+  const income = useHomeIncome(account.viewingUserId);
   const isDemo = account.isDemo;
   const portfolio = isDemo ? DEMO_PORTFOLIO : result.data;
   const loading = !isDemo && result.isLoading;
@@ -85,7 +91,7 @@ export function PortfolioScreen() {
             accessibilityLabel={t('common.back')}
             onPress={() => {
               if (router.canGoBack()) router.back();
-              else router.replace('/home');
+              else router.replace('/today');
             }}
           />
         }
@@ -155,6 +161,7 @@ export function PortfolioScreen() {
             </Text>
           )}
         </View>
+        <HomeAttributionBreakdown summary={portfolio?.attribution ?? null} />
       </View>
 
       {loading && portfolio === null ? (
@@ -184,6 +191,12 @@ export function PortfolioScreen() {
           />
         </View>
       </View>
+      <HomeIncomeCard
+        income={income.income}
+        borrowingRisk={income.borrowingRisk}
+        isLoading={income.isLoading}
+        isError={income.isError}
+      />
     </ScreenScrollView>
   );
 }

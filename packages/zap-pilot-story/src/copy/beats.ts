@@ -1,20 +1,37 @@
 import {
+  oneLiner,
+  PUNCHLINE,
+  sloganLines,
+  punchlineLines,
+} from '../brand/index.js';
+import {
   capabilityTotal,
   statusCount,
   engineDecision,
 } from '../facts/index.js';
-import type { CapabilityId } from '../facts/capabilities.js';
+import type {
+  CapabilityId,
+  CapabilityRef,
+  SharedCapabilityRef,
+  CapabilityStatus,
+} from '../facts/capabilities.js';
 import { defendActivity, startSplitBody } from './replay.js';
 const decision = engineDecision();
+const planned = <T extends CapabilityRef<'planned'>>(ref: T): T => ref;
+const HERO_CHIPS = [
+  { text: 'Open-source reference strategy', capability: 'open-source' },
+  { text: 'Positions at your own address', capability: 'no-zap-pilot-vault' },
+  { text: 'Checked before you sign', capability: 'pre-sign-checks' },
+  { text: 'Runs on your machine', capability: 'self-hosting' },
+] as const satisfies readonly { text: string; capability: CapabilityRef }[];
 export const HERO = {
   eyebrow: 'A runtime for programmable portfolios',
-  lines: [
-    ['Rules', 'decide.'],
-    ['You', 'sign.|s'],
-  ],
-  body: 'Zap Pilot is building a runtime for programmable portfolios. Rules you can read become transactions only your wallet can sign — with no Zap Pilot vault in between.',
+  lines: sloganLines(),
+  body: `${oneLiner()} ${PUNCHLINE} Rules you can read become transactions only your wallet can sign — with no Zap Pilot vault in between.`,
+  badge: 'self-hosting',
+  chips: HERO_CHIPS,
   note: 'On iPhone today: podcast + read-only portfolio',
-};
+} as const;
 export interface StageBeat {
   start: number;
   end: number;
@@ -23,7 +40,9 @@ export interface StageBeat {
   lines: string[][];
   sub: string;
   capability: CapabilityId;
-  badge?: CapabilityId;
+  badge?: SharedCapabilityRef;
+  title?: string;
+  tally?: CapabilityStatus;
 }
 export const STAGES: readonly StageBeat[] = [
   {
@@ -31,11 +50,8 @@ export const STAGES: readonly StageBeat[] = [
     end: 0.11,
     name: 'Parts',
     kick: 'The runtime · three parts',
-    lines: [
-      ['Your', 'strategy.'],
-      ['Your', 'machine.|o'],
-      ['Your', 'wallet.|s'],
-    ],
+    lines: [],
+    title: 'Three parts',
     sub: '',
     capability: 'reference-strategy',
   },
@@ -71,7 +87,8 @@ export const STAGES: readonly StageBeat[] = [
     lines: [],
     sub: `BTC and ETH go to zero. The S&P 500 sleeve holds at ${decision.spyPercent}%.`,
     capability: 'reference-strategy',
-    badge: 'tokenized-equities',
+    title: 'Target allocation',
+    badge: planned('tokenized-equities'),
   },
   {
     start: 0.53,
@@ -84,7 +101,7 @@ export const STAGES: readonly StageBeat[] = [
     ],
     sub: 'Today, plans are built only for deposits you request.',
     capability: 'rebalance-plans',
-    badge: 'rebalance-plans',
+    badge: planned('rebalance-plans'),
   },
   {
     start: 0.61,
@@ -100,23 +117,22 @@ export const STAGES: readonly StageBeat[] = [
     end: 0.89,
     name: 'Sign',
     kick: '06 · Sign',
-    lines: [
-      ['Nothing', 'moves'],
-      ['until', 'you', 'sign.|s'],
-    ],
-    sub: 'Your wallet signs the batch, with no Zap Pilot vault in between. Hyperliquid steps use a device key you approve once.',
+    lines: punchlineLines(),
+    sub: 'Nothing moves until you sign. Your wallet signs the batch, with no Zap Pilot vault in between. Hyperliquid steps use a device key you approve once.',
     capability: 'wallet-signing',
   },
   {
     start: 0.89,
     end: 1.01,
     name: 'Status',
-    kick: `Status · ${statusCount('live')} of ${capabilityTotal()} live`,
+    kick: 'Status',
+    tally: 'live',
     lines: [
       ['Solid', 'runs', 'today.'],
       ['Wireframe|o', 'doesn’t', 'yet.'],
     ],
     sub: 'Running on your machine, your own policy and unattended runs are planned.',
+    badge: planned(['self-hosting', 'policy-engine', 'unattended-runs']),
     capability: 'self-hosting',
   },
 ];
@@ -129,6 +145,7 @@ export const CHAPTER_COPY = [
   {
     title: 'Start',
     rule: 'Starting split',
+    capability: planned('tokenized-equities'),
     body: startSplitBody(),
   },
   {
@@ -148,6 +165,7 @@ export const CHAPTER_COPY = [
   },
   {
     title: 'Into the S&P 500',
+    capability: planned('tokenized-equities'),
     rule: 'Rule 2',
     body: 'Only SPY is above its average, so all the risk goes there: a sleeve Zap Pilot can’t execute yet.',
   },
@@ -157,3 +175,8 @@ export const CHAPTER_COPY = [
     body: 'BTC and ETH close back above their averages. An equal split again, trimmed into strength.',
   },
 ] as const;
+
+export const stageKick = (beat: StageBeat): string =>
+  beat.tally
+    ? `${beat.kick} · ${statusCount(beat.tally)} of ${capabilityTotal()} ${beat.tally}`
+    : beat.kick;

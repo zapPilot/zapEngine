@@ -1,0 +1,162 @@
+export const en = {
+  'runtime.partsLive': '{live} of {total} parts live',
+  'runtime.subtitle': 'Your strategy. Your machine. Your wallet.',
+  'runtime.strategy': 'Your strategy',
+  'runtime.machine': 'Your machine',
+  'runtime.wallet': 'Your wallet',
+  'runtime.you': 'You',
+  'runtime.hosted': 'Hosted by Zap Pilot',
+  'runtime.hostedBody':
+    'Evaluates the reference strategy daily and builds the deposit plans you start.',
+  'runtime.alerts': 'Alerts · Telegram',
+  'runtime.reference': 'Reference strategy · evaluated daily',
+  'runtime.replay': 'Open the replay',
+  'runtime.hypothetical':
+    'Hypothetical backtest. It fills each trade the day after its signal, assumes a yield on stablecoin balances only, and includes a sleeve that cannot be executed yet.',
+  'runtime.rulesRoi': 'Rules ROI',
+  'runtime.dcaRoi': 'DCA ROI',
+  'runtime.maxDd': 'Max drawdown',
+  'runtime.status.live': 'Live',
+  'runtime.status.research': 'Research',
+  'runtime.status.in-development': 'In development',
+  'runtime.status.planned': 'Planned',
+  'runtime.capability.strategy-lab': 'Strategy lab',
+  'runtime.detail.strategy-lab': 'Write and replay your own rules.',
+  'runtime.capability.strategy-versioning': 'Versioning',
+  'runtime.detail.strategy-versioning':
+    'Keep a configuration fixed. The current reference configuration can change in place.',
+  'runtime.capability.strategy-publishing': 'Publishing',
+  'runtime.detail.strategy-publishing':
+    'Publish a strategy with a verifiable track record.',
+  'runtime.capability.local-drift-check': 'Mac drift check',
+  'runtime.detail.local-drift-check':
+    'Checks for drift and sends notifications. Never signs.',
+  'runtime.capability.self-hosting': 'Local runtime',
+  'runtime.detail.self-hosting': 'Evaluate and plan on hardware you control.',
+  'runtime.capability.unattended-runs': 'Unattended runs',
+  'runtime.detail.unattended-runs':
+    'Requires scoped on-chain permissions you can revoke.',
+  'runtime.capability.snapshot-chain': 'Snapshot chain',
+  'runtime.detail.snapshot-chain':
+    'Linked daily snapshots, currently unsigned and for one reference address.',
+  'runtime.capability.verifiable-rule': 'On-chain rule check',
+  'runtime.detail.verifiable-rule':
+    'Research for independently recomputing the cross-down exit.',
+  'runtime.capability.wallet-signing': 'Wallet signing',
+  'runtime.detail.wallet-signing':
+    'Atomic batches on supported wallets; step by step on others.',
+  'runtime.capability.device-agent-key': 'Device agent key',
+  'runtime.detail.device-agent-key':
+    'Stored on this device. Its approval may not expire.',
+  'runtime.capability.policy-engine': 'Policy engine',
+  'runtime.detail.policy-engine':
+    'Limits, allowlists and revocation before unattended signing.',
+  'runtime.capability.withdrawals': 'Withdrawals',
+  'runtime.detail.withdrawals':
+    'Not available in the app yet. Positions remain at your address.',
+} as const;
+export const zhHant = {
+  'runtime.partsLive': '{total} 項中有 {live} 項已上線',
+  'runtime.subtitle': '你的策略、你的機器、你的錢包。',
+  'runtime.strategy': '你的策略',
+  'runtime.machine': '你的機器',
+  'runtime.wallet': '你的錢包',
+  'runtime.you': '你',
+  'runtime.hosted': '由 Zap Pilot 託管',
+  'runtime.hostedBody': '每日評估參考策略，並建立由你啟動的入金計畫。',
+  'runtime.alerts': '提醒 · Telegram',
+  'runtime.reference': '參考策略 · 每日評估',
+  'runtime.replay': '開啟回放',
+  'runtime.hypothetical':
+    '假設性回測：每筆交易在訊號出現後一天成交，僅假設穩定幣部位可獲得收益，並包含尚無法執行的配置。',
+  'runtime.rulesRoi': '規則報酬',
+  'runtime.dcaRoi': '定投報酬',
+  'runtime.maxDd': '最大回撤',
+  'runtime.status.live': '已上線',
+  'runtime.status.research': '研究中',
+  'runtime.status.in-development': '開發中',
+  'runtime.status.planned': '規劃中',
+  'runtime.capability.strategy-lab': '策略實驗室',
+  'runtime.detail.strategy-lab': '撰寫並回放自己的規則。',
+  'runtime.capability.strategy-versioning': '版本管理',
+  'runtime.detail.strategy-versioning':
+    '固定配置版本。目前的參考策略配置仍可能直接更新。',
+  'runtime.capability.strategy-publishing': '策略發布',
+  'runtime.detail.strategy-publishing': '發布具可驗證紀錄的策略。',
+  'runtime.capability.local-drift-check': 'Mac 偏離檢查',
+  'runtime.detail.local-drift-check': '檢查配置偏離並通知，不會簽名。',
+  'runtime.capability.self-hosting': '本機執行環境',
+  'runtime.detail.self-hosting': '在自己掌控的硬體上評估與規劃。',
+  'runtime.capability.unattended-runs': '無人值守執行',
+  'runtime.detail.unattended-runs': '需要可撤銷且有範圍限制的鏈上權限。',
+  'runtime.capability.snapshot-chain': '快照鏈',
+  'runtime.detail.snapshot-chain':
+    '每日串接快照，目前未簽名且僅涵蓋一個參考地址。',
+  'runtime.capability.verifiable-rule': '鏈上規則驗證',
+  'runtime.detail.verifiable-rule': '研究如何獨立重算向下穿越的退出規則。',
+  'runtime.capability.wallet-signing': '錢包簽名',
+  'runtime.detail.wallet-signing':
+    '支援的錢包可原子批次執行，其他錢包逐步簽名。',
+  'runtime.capability.device-agent-key': '裝置 agent 金鑰',
+  'runtime.detail.device-agent-key': '儲存在此裝置，授權可能不會到期。',
+  'runtime.capability.policy-engine': '政策引擎',
+  'runtime.detail.policy-engine':
+    '無人值守簽名前需有額度、允許清單與撤銷機制。',
+  'runtime.capability.withdrawals': '提款',
+  'runtime.detail.withdrawals': 'App 尚未提供提款，持倉仍在自己的地址。',
+} as const;
+export const ja = {
+  'runtime.partsLive': '{total} 項目中 {live} 項目が稼働',
+  'runtime.subtitle': 'あなたの戦略。あなたのマシン。あなたのウォレット。',
+  'runtime.strategy': 'あなたの戦略',
+  'runtime.machine': 'あなたのマシン',
+  'runtime.wallet': 'あなたのウォレット',
+  'runtime.you': 'あなた',
+  'runtime.hosted': 'Zap Pilot がホスト',
+  'runtime.hostedBody':
+    '参照戦略を毎日評価し、あなたが開始する入金計画を作成。',
+  'runtime.alerts': '通知 · Telegram',
+  'runtime.reference': '参照戦略 · 毎日評価',
+  'runtime.replay': 'リプレイを開く',
+  'runtime.hypothetical':
+    '仮想バックテストです。各取引はシグナルの翌日に約定するものとし、利回りはステーブルコインの残高にのみ仮定し、まだ実行できない配分を含みます。',
+  'runtime.rulesRoi': 'ルール収益率',
+  'runtime.dcaRoi': '積立収益率',
+  'runtime.maxDd': '最大ドローダウン',
+  'runtime.status.live': '稼働中',
+  'runtime.status.research': '研究中',
+  'runtime.status.in-development': '開発中',
+  'runtime.status.planned': '計画中',
+  'runtime.capability.strategy-lab': '戦略ラボ',
+  'runtime.detail.strategy-lab': '自分のルールを作成してリプレイ。',
+  'runtime.capability.strategy-versioning': 'バージョン管理',
+  'runtime.detail.strategy-versioning':
+    '設定を固定。現在の参照設定は更新されることがあります。',
+  'runtime.capability.strategy-publishing': '戦略公開',
+  'runtime.detail.strategy-publishing': '検証可能な実績とともに戦略を公開。',
+  'runtime.capability.local-drift-check': 'Mac の乖離チェック',
+  'runtime.detail.local-drift-check': '乖離を確認して通知。署名は行いません。',
+  'runtime.capability.self-hosting': 'ローカル実行環境',
+  'runtime.detail.self-hosting': '自分のハードウェアで評価と計画。',
+  'runtime.capability.unattended-runs': '無人実行',
+  'runtime.detail.unattended-runs':
+    '取り消し可能な範囲限定のオンチェーン権限が必要。',
+  'runtime.capability.snapshot-chain': 'スナップショットチェーン',
+  'runtime.detail.snapshot-chain':
+    '毎日の連結スナップショット。現在は未署名で参照アドレス一つが対象。',
+  'runtime.capability.verifiable-rule': 'オンチェーンルール検証',
+  'runtime.detail.verifiable-rule':
+    '下抜けによる退出ルールを独立して再計算する研究。',
+  'runtime.capability.wallet-signing': 'ウォレット署名',
+  'runtime.detail.wallet-signing':
+    '対応ウォレットでは一括実行、それ以外は段階ごとに署名。',
+  'runtime.capability.device-agent-key': 'デバイスのエージェント鍵',
+  'runtime.detail.device-agent-key':
+    'このデバイスに保存。承認には有効期限がない場合があります。',
+  'runtime.capability.policy-engine': 'ポリシーエンジン',
+  'runtime.detail.policy-engine':
+    '無人署名前の上限、許可リスト、取り消し機構。',
+  'runtime.capability.withdrawals': '出金',
+  'runtime.detail.withdrawals':
+    'アプリではまだ利用できません。ポジションは自分のアドレスにあります。',
+} as const;

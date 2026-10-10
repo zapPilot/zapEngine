@@ -6,12 +6,25 @@ import { BottomTabBar } from '@/components/shell/BottomTabBar';
 import { AppTabBar } from '@/components/shell/AppTabBar';
 const mocks = vi.hoisted(() => ({
   connect: vi.fn().mockResolvedValue('cancelled'),
-  accessible: false,
   desktop: false,
+}));
+vi.mock('@/providers/FundFlowProvider', () => ({
+  useFundFlow: () => ({
+    available: true,
+    visible: false,
+    step: 'amount',
+    signRequest: null,
+    open: vi.fn(),
+    close: vi.fn(),
+  }),
 }));
 vi.mock(
   'react-native',
   async () => (await import('./support/reactNativeStub')).reactNativeStub,
+);
+vi.mock(
+  'react-native-svg',
+  async () => (await import('./support/svgStub')).svgStub,
 );
 vi.mock(
   'lucide-react-native',
@@ -27,13 +40,7 @@ vi.mock('@/providers/ContentLanguageProvider', async () => {
   const { en } = await import('./support/i18nHarness');
   return { useContentLanguage: () => ({ t: en }) };
 });
-vi.mock('@/integration/useTabAccess', () => ({
-  useTabAccess: () => ({
-    connect: mocks.connect,
-    isAccessible: (name: string) =>
-      mocks.accessible || name === 'home' || name === 'podcast',
-  }),
-}));
+
 vi.mock('@/hooks/useBreakpoint', () => ({
   useBreakpoint: () => ({ hasSideNav: mocks.desktop }),
 }));
@@ -49,7 +56,6 @@ afterEach(async () => {
   await act(async () => root?.unmount());
   host?.remove();
   vi.clearAllMocks();
-  mocks.accessible = false;
   mocks.desktop = false;
 });
 async function mount(node: ReactNode) {
@@ -62,8 +68,8 @@ async function mount(node: ReactNode) {
 function props() {
   return {
     state: {
-      index: 2,
-      routes: ['home', 'strategy', 'podcast', 'account'].map((name) => ({
+      index: 1,
+      routes: ['today', 'listen', 'runtime'].map((name) => ({
         key: name,
         name,
       })),
@@ -74,36 +80,36 @@ function props() {
     },
   };
 }
-it('keeps the four labelled tabs and opens login for locked tabs without navigating', async () => {
+it('offers all three places to guests and emits navigation events', async () => {
   const navigation = props();
   const page = await mount(<BottomTabBar {...navigation} />);
   expect(
     page.querySelector('[role="tablist"]')?.getAttribute('aria-label'),
   ).toBe('App tabs');
-  expect(page.querySelectorAll('[role="tab"]')).toHaveLength(4);
+  expect(page.querySelectorAll('[role="tab"]')).toHaveLength(3);
   expect(
-    page.querySelector('[aria-label="Podcast"]')?.getAttribute('aria-selected'),
+    page.querySelector('[aria-label="Listen"]')?.getAttribute('aria-selected'),
   ).toBe('true');
-  await act(async () =>
-    page.querySelector<HTMLButtonElement>('[aria-label="Strategy"]')!.click(),
-  );
-  expect(mocks.connect).toHaveBeenCalledOnce();
-  expect(navigation.navigation.navigate).not.toHaveBeenCalled();
-  await act(async () =>
-    page.querySelector<HTMLButtonElement>('[aria-label="Home"]')!.click(),
-  );
-  expect(navigation.navigation.navigate).toHaveBeenCalledWith('home');
+  for (const [label, name] of [
+    ['Runtime', 'runtime'],
+    ['Today', 'today'],
+  ]) {
+    await act(async () =>
+      page.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`)!.click(),
+    );
+    expect(navigation.navigation.navigate).toHaveBeenLastCalledWith(name);
+  }
+  expect(mocks.connect).not.toHaveBeenCalled();
 });
 it('respects prevented navigation and does not navigate again to the selected tab', async () => {
-  mocks.accessible = true;
   const navigation = props();
   navigation.navigation.emit.mockReturnValue({ defaultPrevented: true });
   const page = await mount(<BottomTabBar {...navigation} />);
   await act(async () =>
-    page.querySelector<HTMLButtonElement>('[aria-label="Home"]')!.click(),
+    page.querySelector<HTMLButtonElement>('[aria-label="Today"]')!.click(),
   );
   await act(async () =>
-    page.querySelector<HTMLButtonElement>('[aria-label="Podcast"]')!.click(),
+    page.querySelector<HTMLButtonElement>('[aria-label="Listen"]')!.click(),
   );
   expect(navigation.navigation.navigate).not.toHaveBeenCalled();
 });

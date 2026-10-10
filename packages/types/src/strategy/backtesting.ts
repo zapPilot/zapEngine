@@ -36,8 +36,6 @@ export const BacktestRequestSchema = z.object({
   end_date: z.string().nullable().optional(),
   days: z.number().int().nullable().optional(),
   total_capital: z.number().positive(),
-  emit_decision_log: z.boolean().optional(),
-  decision_log_dir: z.string().nullable().optional(),
   assumptions: BacktestAssumptionsSchema.nullable().optional(),
   configs: z.array(BacktestCompareConfigV3Schema).min(1),
 });
@@ -194,7 +192,6 @@ export const BacktestResponseSchema = z.object({
   timeline: z.array(BacktestTimelinePointSchema),
   window: BacktestWindowInfoSchema.nullable().optional(),
   data_freshness: MarketDataFreshnessSchema.nullable().optional(),
-  decision_log_path: z.string().nullable().optional(),
 });
 
 export const BacktestStrategyCatalogEntryV3Schema = z.object({

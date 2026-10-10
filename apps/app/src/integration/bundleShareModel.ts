@@ -2,7 +2,7 @@
  * Pure model for sharing a portfolio bundle. Two concerns live here so they
  * can be unit-tested without a browser or React:
  *
- * 1. Building the shareable link (`<origin>/home?userId=<uuid>`).
+ * 1. Building the shareable link (`<origin>/today?userId=<uuid>`).
  * 2. Keeping the web address bar in sync with the displayed bundle.
  *
  * The bundle view already reads `?userId=` (see `bundleViewModel.ts`); this
@@ -13,7 +13,7 @@
 export const DEFAULT_APP_WEB_ORIGIN = 'https://v2.zap-pilot.org';
 
 /** Routes that render a portfolio and may carry the shareable `?userId=`. */
-const BUNDLE_SHARE_PATHS = ['/home', '/portfolio'] as const;
+const BUNDLE_SHARE_PATHS = ['/today', '/portfolio', '/runtime'] as const;
 
 export function isBundleSharePath(pathname: string): boolean {
   const normalized =
@@ -35,9 +35,9 @@ export function resolveShareOrigin(
   return trimmed ? trimmed : DEFAULT_APP_WEB_ORIGIN;
 }
 
-/** Build the canonical share link for a bundle: `<origin>/home?userId=<uuid>`. */
+/** Build the canonical share link for a bundle: `<origin>/today?userId=<uuid>`. */
 export function buildBundleShareUrl(origin: string, userId: string): string {
-  const url = new URL(`${resolveShareOrigin(origin)}/home`);
+  const url = new URL(`${resolveShareOrigin(origin)}/today`);
   url.searchParams.set('userId', userId);
   return url.toString();
 }

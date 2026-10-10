@@ -1,10 +1,12 @@
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
+
+import { runScriptWithEasStub } from './support/easCliStub';
 
 const appRoot = fileURLToPath(new URL('..', import.meta.url));
 const repoRoot = path.resolve(appRoot, '../..');
@@ -14,11 +16,6 @@ const submitScript = path.join(
   appRoot,
   'scripts',
   'submit-production-build.mjs',
-);
-const preflightScript = path.join(
-  appRoot,
-  'scripts',
-  'assert-ios-remote-version.mjs',
 );
 
 function readAppFile(...segments: string[]): string {
@@ -80,18 +77,6 @@ function readIosBaseline(): IosReleaseBaseline {
   return baseline.ios ?? {};
 }
 
-// Called from a describe body, so it throws instead of asserting: an `expect`
-// failure outside a test is not reported against anything.
-function readIosBuildNumberFloor(): number {
-  const floor = readIosBaseline().ascBuildNumberFloor;
-
-  if (typeof floor !== 'number') {
-    throw new Error('release-baselines.json has no ios.ascBuildNumberFloor.');
-  }
-
-  return floor;
-}
-
 /**
  * Runs `scripts/eas.mjs` against a stub `pnpm` on PATH that echoes its argv, so
  * the wrapper's argument handling is observable without contacting EAS.
@@ -114,71 +99,6 @@ function runWrapperWithStubbedPnpm(
       PATH: `${binDir}:${process.env.PATH}`,
     },
   }).trim();
-}
-
-function runScriptWithEasStub(
-  scriptPath: string,
-  scriptArgs: string[],
-  extraEnv: Record<string, string | undefined>,
-): {
-  status: number | null;
-  stdout: string;
-  stderr: string;
-  calls: string;
-} {
-  const binDir = mkdtempSync(path.join(tmpdir(), 'eas-stub-bin-'));
-  const callsDir = mkdtempSync(path.join(tmpdir(), 'eas-calls-'));
-  const callsLog = path.join(callsDir, 'calls.log');
-  writeFileSync(callsLog, '', { encoding: 'utf8' });
-
-  // Stub pnpm: logs "$*" to EAS_CALLS_LOG and prints canned JSON based on $3
-  // which is the EAS subcommand after `dlx eas-cli@<version>`.
-  const pnpmScript = `#!/bin/sh
-echo "$*" >> "$EAS_CALLS_LOG"
-case "$3" in
-  build)
-    printf '%s' "$EAS_BUILD_JSON"
-    ;;
-  build:view)
-    printf '%s' "$EAS_BUILD_VIEW_JSON"
-    ;;
-  build:version:get)
-    printf '%s' "$EAS_BUILD_VERSION_JSON"
-    ;;
-  submit)
-    printf '%s' "$EAS_SUBMIT_JSON"
-    ;;
-  *)
-    printf '%s' "$EAS_DEFAULT_JSON"
-    ;;
-esac
-`;
-  writeFileSync(path.join(binDir, 'pnpm'), pnpmScript, { mode: 0o755 });
-
-  const result = spawnSync(process.execPath, [scriptPath, ...scriptArgs], {
-    encoding: 'utf8',
-    env: {
-      ...process.env,
-      CI: undefined,
-      EAS_CALLS_LOG: callsLog,
-      EAS_BUILD_JSON: '',
-      EAS_BUILD_VIEW_JSON: '',
-      EAS_BUILD_VERSION_JSON: '',
-      EAS_SUBMIT_JSON: '',
-      EAS_DEFAULT_JSON: '',
-      ...extraEnv,
-      PATH: `${binDir}:${process.env.PATH}`,
-    },
-  });
-
-  const calls = readFileSync(callsLog, 'utf8');
-
-  return {
-    status: result.status,
-    stdout: result.stdout ?? '',
-    stderr: result.stderr ?? '',
-    calls,
-  };
 }
 
 describe('EAS CLI version single source of truth', () => {
@@ -289,7 +209,7 @@ describe('build-production captures exact build ID', () => {
 
     const { status, stderr, calls } = runScriptWithEasStub(
       buildScript,
-      ['ios'],
+      ['android'],
       {
         CI: 'true',
         EAS_BUILD_JSON: buildJson,
@@ -301,7 +221,7 @@ describe('build-production captures exact build ID', () => {
     expect(stderr).toContain('CANCELED');
     expect(stderr).toContain('expected FINISHED');
     expect(readFileSync(githubOutput, 'utf8')).toBe('');
-    expect(calls).toContain('build --platform ios');
+    expect(calls).toContain('build --platform android');
   });
 
   it('fails when no build ID is returned', () => {
@@ -322,13 +242,41 @@ describe('build-production captures exact build ID', () => {
   });
 
   it('fails when EAS returns non-array JSON', () => {
-    const { status, stderr } = runScriptWithEasStub(buildScript, ['ios'], {
+    const { status, stderr } = runScriptWithEasStub(buildScript, ['android'], {
       CI: 'true',
       EAS_BUILD_JSON: JSON.stringify({ id: 'not-an-array' }),
     });
 
     expect(status).toBe(1);
     expect(stderr).toContain('was not an array');
+  });
+});
+
+describe('build-production iOS boundary', () => {
+  it('refuses iOS so a build cannot bypass the version preflight', () => {
+    const { status, stderr, calls } = runScriptWithEasStub(
+      buildScript,
+      ['ios'],
+      { CI: 'true' },
+    );
+
+    expect(status).toBe(1);
+    expect(stderr).toContain('ios:release');
+    expect(calls).toBe('');
+  });
+
+  it('has no side effects when imported', () => {
+    const importer = path.join(
+      mkdtempSync(path.join(tmpdir(), 'eas-import-')),
+      'import.mjs',
+    );
+    writeFileSync(importer, `import ${JSON.stringify(buildScript)};\n`);
+
+    const { status, stdout, calls } = runScriptWithEasStub(importer, [], {});
+
+    expect(status).toBe(0);
+    expect(stdout).toBe('');
+    expect(calls).toBe('');
   });
 });
 
@@ -416,6 +364,8 @@ describe('submit-production-build validates exact build', () => {
       `dlx eas-cli@${easCliVersion()} submit --platform ios --profile production --id build-id-999 --non-interactive`,
     );
     expect(calls).not.toContain('build:list');
+    // Submission never touches versions: only the view and the submit call.
+    expect(lines).toHaveLength(2);
   });
 
   it('never calls build:list', () => {
@@ -436,73 +386,13 @@ describe('submit-production-build validates exact build', () => {
   });
 });
 
-describe('iOS remote version preflight', () => {
-  // Derived from the committed baseline so a lineage change (a different App
-  // Store listing, and therefore a different floor) does not silently turn
-  // these behavioural cases into no-ops. The literal floor stays pinned by
-  // 'records the App Store Connect build floor used by CI preflight' below.
-  const floor = readIosBuildNumberFloor();
-
-  it('fails when EAS remote is below the App Store Connect floor', () => {
-    const versionJson = JSON.stringify({ buildNumber: String(floor - 1) });
-
-    const { status, stderr } = runScriptWithEasStub(preflightScript, [], {
-      CI: 'true',
-      EAS_BUILD_VERSION_JSON: versionJson,
-    });
-
-    expect(status).toBe(1);
-    expect(stderr).toContain('below');
-    expect(stderr).toContain(`floor ${floor}`);
-  });
-
-  it('passes when remote equals the floor', () => {
-    const versionJson = JSON.stringify({ buildNumber: String(floor) });
-
-    const { status, stdout } = runScriptWithEasStub(preflightScript, [], {
-      CI: 'true',
-      EAS_BUILD_VERSION_JSON: versionJson,
-    });
-
-    expect(status).toBe(0);
-    expect(stdout).toContain('preflight passed');
-    expect(stdout).toContain(String(floor));
-  });
-
-  it('fails with a distinct message when remote is not initialized', () => {
-    const versionJson = JSON.stringify({});
-
-    const { status, stderr } = runScriptWithEasStub(preflightScript, [], {
-      CI: 'true',
-      EAS_BUILD_VERSION_JSON: versionJson,
-    });
-
-    expect(status).toBe(1);
-    expect(stderr).toContain('not initialized');
-    expect(stderr).toContain('ios:version:init');
-  });
-
-  it('passes when remote is above the floor', () => {
-    const versionJson = JSON.stringify({ buildNumber: String(floor + 23) });
-
-    const { status, stdout } = runScriptWithEasStub(preflightScript, [], {
-      CI: 'true',
-      EAS_BUILD_VERSION_JSON: versionJson,
-    });
-
-    expect(status).toBe(0);
-    expect(stdout).toContain(String(floor + 23));
-  });
-});
-
 describe('iOS release version safety', () => {
   it('records the App Store Connect build floor used by CI preflight', () => {
     // 204 is the final Flutter release 2.0.4 (204) on ASC app 6749248542, the
     // listing this app continues.
-    expect(readIosBaseline()).toMatchObject({
-      appVersion: '3.0.1',
-      ascBuildNumberFloor: 204,
-    });
+    expect(readIosBaseline().ascBuildNumberFloor).toBe(204);
+    // Dynamic state lives in App Store Connect, not in Git.
+    expect(readIosBaseline()).not.toHaveProperty('appVersion');
   });
 
   it('splits build and submit jobs so a submit retry cannot rebuild', () => {
@@ -584,23 +474,38 @@ describe('EAS post-install workspace build', () => {
       .map(([name]) => name);
   }
 
-  it('selects every workspace dependency of the app', () => {
-    const { packages } = turboDryRun(postInstallFilter());
+  // turboDryRun shells out to the turbo binary over the whole monorepo graph:
+  // 466ms locally, over the 5s default on CI runners under cache contention
+  // (run 37933799586). Timeout bumps preserve all assertions.
+  it(
+    'selects every workspace dependency of the app',
+    { timeout: 20_000 },
+    () => {
+      const { packages } = turboDryRun(postInstallFilter());
 
-    expect(packages.length).toBeGreaterThan(0);
-    expect(packages).toEqual(expect.arrayContaining(workspaceDependencies()));
-  });
+      expect(packages.length).toBeGreaterThan(0);
+      expect(packages).toEqual(expect.arrayContaining(workspaceDependencies()));
+    },
+  );
 
-  it('builds brand-assets, whose missing dist broke Metro on EAS', () => {
-    expect(turboDryRun(postInstallFilter()).tasks).toContain(
-      '@zapengine/brand-assets#build',
-    );
-  });
+  it(
+    'builds brand-assets, whose missing dist broke Metro on EAS',
+    { timeout: 20_000 },
+    () => {
+      expect(turboDryRun(postInstallFilter()).tasks).toContain(
+        '@zapengine/brand-assets#build',
+      );
+    },
+  );
 
-  it('excludes the app itself so the hook cannot re-enter the app bundle', () => {
-    const { packages, tasks } = turboDryRun(postInstallFilter());
+  it(
+    'excludes the app itself so the hook cannot re-enter the app bundle',
+    { timeout: 20_000 },
+    () => {
+      const { packages, tasks } = turboDryRun(postInstallFilter());
 
-    expect(packages).not.toContain('@zapengine/app');
-    expect(tasks).not.toContain('@zapengine/app#build');
-  });
+      expect(packages).not.toContain('@zapengine/app');
+      expect(tasks).not.toContain('@zapengine/app#build');
+    },
+  );
 });

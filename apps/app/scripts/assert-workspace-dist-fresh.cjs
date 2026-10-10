@@ -11,10 +11,15 @@ const DIST_BACKED_PACKAGES = [
   'types',
   'intent-engine',
   'design-tokens',
+  'zap-pilot-story',
+  'story-kit',
 ];
 
 // Mirrors turbo.json `inputs`, which excludes generated sources from hashing.
-const IGNORED_DIRS = new Set(['generated']);
+const IGNORED_DIRS = new Set(['generated', 'test']);
+// `tsc` emits path aliases verbatim; `tsc-alias` rewrites them afterwards. Under
+// `tsc --watch` a bundle can start in the gap and see raw `@core/*` imports.
+const UNREWRITTEN_ALIAS = /\b(?:from|import)\s*\(?\s*['"]@core\//;
 const NON_EMITTING_SRC = /\.(d\.ts|test\.tsx?|spec\.tsx?)$/;
 
 function listFiles(dir, relative = '') {
@@ -62,8 +67,14 @@ function inspectPackage(packageDir) {
       !fs.existsSync(path.join(distDir, file.rel.replace(/\.tsx?$/, '.js'))),
   );
 
+  const unrewrittenAlias = (listFiles(distDir) ?? []).some(
+    (file) =>
+      file.rel.endsWith('.js') &&
+      UNREWRITTEN_ALIAS.test(fs.readFileSync(file.absolute, 'utf8')),
+  );
+
   return {
-    missingEmit,
+    missingEmit: missingEmit || unrewrittenAlias,
     contentDrift:
       newestMtimeMs(emitting) > newestMtimeMs(listFiles(distDir) ?? []),
   };
@@ -92,7 +103,8 @@ function assertWorkspaceDistFresh(appRoot) {
     throw new Error(
       [
         '',
-        'Workspace package output is missing files — Metro cannot resolve them:',
+        'Workspace package output is missing files or has un-rewritten `@core/*`',
+        'imports (tsc-alias has not finished) — Metro cannot resolve them:',
         ...missing.map((name) => `  packages/${name}/dist`),
         '',
         'Rebuild, then bundle again:',

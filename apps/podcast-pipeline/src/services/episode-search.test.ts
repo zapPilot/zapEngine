@@ -21,6 +21,16 @@ vi.mock('./db.js', async (importOriginal) => {
 });
 
 describe('rankEpisodeSearchResults', () => {
+  it('indexes editorial bodies without the universal brand sign-off', () => {
+    const episode = row({
+      title: 'Market liquidity',
+      language_code: 'en',
+      script: packagePodcastScript('Banks explain liquidity.', 'en'),
+    });
+    expect(rankEpisodeSearchResults([episode], 'wallet', 20)).toEqual([]);
+    expect(rankEpisodeSearchResults([episode], 'strategy', 20)).toEqual([]);
+    expect(rankEpisodeSearchResults([episode], 'banks', 20)).toHaveLength(1);
+  });
   it('returns no results for punctuation-only queries and empty titles', () => {
     expect(
       rankEpisodeSearchResults(

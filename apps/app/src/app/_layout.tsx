@@ -27,7 +27,7 @@ export default function RootLayout(): ReactElement | null {
           ...DarkTheme,
           colors: {
             ...DarkTheme.colors,
-            primary: tokens.mode.night['ink'],
+            primary: tokens.mode.night['sign-ink'],
             background: tokens.mode.night['ground'],
             card: tokens.mode.night['sheet'],
             text: tokens.mode.night.ink,

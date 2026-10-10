@@ -31,6 +31,10 @@ from src.services.backtesting.execution.compare import (
     materialize_compare_request,
     run_compare_v3_on_data,
 )
+from src.services.backtesting.execution.result_cache import (
+    CompareResultCache,
+    compare_result_key,
+)
 from src.services.backtesting.features import MarketDataRequirements
 from src.services.backtesting.strategy_registry import (
     ResolvedSavedStrategyConfig,
@@ -376,7 +380,9 @@ class BacktestingService:
         strategy_config_store: StrategyConfigStore | None = None,
         stock_price_service: StockPriceService | None = None,
         macro_fear_greed_service: MacroFearGreedDatabaseService | None = None,
+        result_cache: CompareResultCache | None = None,
     ):
+        self.result_cache = result_cache or CompareResultCache()
         self.data_provider = BacktestDataProvider(
             token_price_service=token_price_service,
             sentiment_service=sentiment_service,
@@ -411,13 +417,26 @@ class BacktestingService:
                     "effective_end_date": window.effective.end_date.isoformat(),
                 },
             )
-        response = runner(
-            prices=prepared.prices,
-            sentiments=prepared.sentiments,
-            request=request,
-            user_start_date=prepared.user_start_date,
-            resolved_configs=resolved_configs,
-            window=window,
+
+        def compute() -> BacktestResponse:
+            return runner(
+                prices=prepared.prices,
+                sentiments=prepared.sentiments,
+                request=request,
+                user_start_date=prepared.user_start_date,
+                resolved_configs=resolved_configs,
+                window=window,
+            )
+
+        response = self.result_cache.get_or_compute(
+            compare_result_key(
+                request,
+                resolved_configs,
+                prepared.prices,
+                prepared.sentiments,
+                window,
+            ),
+            compute,
         )
         # The runner doesn't know about freshness — patch it in here so the
         # downstream consumer (frontend) sees a single end-to-end response.

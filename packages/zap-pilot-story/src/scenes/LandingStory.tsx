@@ -6,7 +6,8 @@ import {
   useThrottledFrame,
   useReducedMotion,
 } from '@zapengine/story-kit/react';
-import { HERO, JOIN, STAGES } from '../copy/beats.js';
+import { PartRows } from './PartRows.js';
+import { HERO, JOIN, STAGES, stageKick } from '../copy/beats.js';
 import {
   capabilityTotal,
   statusCount,
@@ -21,7 +22,7 @@ import { StatusBadge } from './StatusBadge.js';
 import { jumpEngine } from './scroll.js';
 type Mode = 'poster' | 'scroll' | 'loop' | 'still';
 const heroLines = parseKinetic(HERO.lines);
-heroLines[1]!.underline = 'signature';
+heroLines.at(-1)!.underline = 'signature';
 export function LandingStory({
   heroActions,
   heroNote,
@@ -131,6 +132,9 @@ export function LandingStory({
                 reveal={true}
               />
             </h1>
+            <p className="zp-hero-status">
+              Your machine · <StatusBadge capability={HERO.badge} />
+            </p>
             <p className="zp-hero-p">{HERO.body}</p>
             <div className="zp-hero-cta">
               {heroActions}
@@ -142,10 +146,7 @@ export function LandingStory({
                 ▶ Run the engine
               </button>
             </div>
-            <div className="zp-hero-n">
-              {heroNote}
-              <StatusBadge capability="self-hosting" />
-            </div>
+            <div className="zp-hero-n">{heroNote}</div>
           </div>
           <div
             style={{
@@ -202,15 +203,18 @@ export function LandingStory({
         <ol className="zp-stage-list">
           {STAGES.map((beat) => (
             <li key={beat.name}>
-              <p className="zp-lbl">{beat.kick}</p>
+              <p className="zp-lbl">{stageKick(beat)}</p>
               <h2>
                 {beat.lines
                   .flat()
                   .join(' ')
-                  .replaceAll(/\|[osm]/g, '') || 'Target allocation'}
+                  .replaceAll(/\|[osm]/g, '') || beat.title}
               </h2>
+              {beat.name === 'Parts' && <PartRows />}
               <p>{beat.sub}</p>
-              <StatusBadge capability={beat.badge ?? beat.capability} />
+              {beat.name !== 'Parts' && (
+                <StatusBadge capability={beat.badge ?? beat.capability} />
+              )}
             </li>
           ))}
         </ol>

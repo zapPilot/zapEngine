@@ -109,7 +109,7 @@ describe('runSharpCropStage', () => {
       const offset = (y * info.width + x) * info.channels;
       return Array.from(data.subarray(offset, offset + info.channels));
     };
-    expect(pixel(0, 0)).toEqual([16, 16, 20]);
+    expect(pixel(0, 0)).toEqual([12, 11, 9]);
     expect(pixel(54, 48)).toEqual([200, 40, 40]);
   });
 

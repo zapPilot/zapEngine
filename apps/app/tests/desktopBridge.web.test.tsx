@@ -98,13 +98,7 @@ describe('useDesktopBridge web', () => {
       bridge.linkListener?.('zappilotv2:////portfolio');
     });
 
-    expect(mocks.push).toHaveBeenNthCalledWith(1, {
-      pathname: '/invest',
-      params: {
-        proposalDriftPercent: '7.25',
-        proposalGeneratedAt: '2026-09-15T00:00:00.000Z',
-      },
-    });
+    expect(mocks.push).toHaveBeenNthCalledWith(1, '/today/decision');
     expect(mocks.push).toHaveBeenNthCalledWith(2, '/portfolio');
 
     await act(async () => root?.unmount());

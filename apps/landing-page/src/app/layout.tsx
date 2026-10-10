@@ -1,3 +1,4 @@
+import { BRAND_NAME } from '@zapengine/zap-pilot-story/brand';
 import type { Metadata } from 'next';
 import localFont from 'next/font/local';
 import { GoogleAnalytics } from '@next/third-parties/google';
@@ -33,15 +34,7 @@ export const metadata: Metadata = {
     title: meta.title,
     description: meta.description,
     url: 'https://zap-pilot.org',
-    siteName: MESSAGES.common.brandName,
-    images: [
-      {
-        url: '/zap-pilot-logo.svg',
-        width: 1200,
-        height: 630,
-        alt: meta.imageAlt,
-      },
-    ],
+    siteName: BRAND_NAME,
     locale: 'en_US',
     type: 'website',
   },
@@ -49,7 +42,6 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: meta.title,
     description: meta.description,
-    images: ['/zap-pilot-logo.svg'],
   },
   icons: {
     icon: '/zap-pilot-icon.svg',

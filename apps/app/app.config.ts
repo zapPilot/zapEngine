@@ -57,6 +57,14 @@ const config: ExpoConfig = {
   slug: 'zap-pilot-mobile-v2',
   owner: 'davidtnfsh',
   scheme: appScheme,
+  // Committed lower bound for the App Version. iOS store builds raise it when
+  // App Store Connect has closed it: scripts/ios-release.mjs rewrites this line
+  // inside the release checkout (never committed) and verifies it with
+  // `eas config`. It must stay a plain string literal on one line: the EAS
+  // worker re-evaluates this file and EAS records the CLI-side value, so
+  // anything computed here would let the two diverge. Do not add `ios.version`;
+  // it would override this value in the IPA but not in the EAS record.
+  // Android's versionName uses this value as-is.
   version: '3.0.1',
   orientation: 'portrait',
   userInterfaceStyle: 'dark',

@@ -20,11 +20,11 @@ export function Chip({
       accessibilityState={{ ...props.accessibilityState, selected }}
       className={cn(
         'min-h-hit items-center justify-center rounded-round px-3',
-        selected ? 'bg-well' : 'bg-transparent',
+        selected ? 'bg-sign-wash' : 'bg-transparent',
         className,
       )}
     >
-      <Text variant="label" tone={selected ? 'default' : 'muted'}>
+      <Text variant="label" tone={selected ? 'sign' : 'muted'}>
         {label}
       </Text>
     </Tap>

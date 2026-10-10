@@ -1,54 +1,59 @@
-export type AppTabName = 'home' | 'strategy' | 'podcast' | 'account';
+export const APP_ROUTES = {
+  today: '/today',
+  decision: '/today/decision',
+  listen: '/listen',
+  runtime: '/runtime',
+  wallet: '/runtime?section=wallet',
+  alerts: '/runtime/alerts',
+  portfolio: '/portfolio',
+  wallets: '/wallets',
+  welcome: '/welcome',
+} as const;
 
-export const DEFAULT_APP_TAB: AppTabName = 'podcast';
-export const DEFAULT_APP_TAB_PATH = '/podcast' as const;
+export const APP_TAB_NAMES = ['today', 'listen', 'runtime'] as const;
+export type AppTabName = (typeof APP_TAB_NAMES)[number];
 
-export const APP_TAB_NAMES: readonly AppTabName[] = [
-  'home',
-  'strategy',
-  'podcast',
-  'account',
-];
-
-const GUEST_ACCESSIBLE_TABS = new Set<AppTabName>(['home', 'podcast']);
-
-export function isTabAccessible(
-  tabName: AppTabName,
-  isConnected: boolean,
-): boolean {
-  return isConnected || GUEST_ACCESSIBLE_TABS.has(tabName);
+export function defaultTabFor(platform: string): AppTabName {
+  return platform === 'ios' ? 'listen' : 'today';
 }
 
 export function activeAppTabForPathname(pathname: string): AppTabName | null {
   const path = pathname.replace(/\?.*$/, '').replace(/\/$/, '');
   if (
-    path === '/home' ||
-    path === '/portfolio' ||
-    path === '/send' ||
-    path === '/invest' ||
-    path.startsWith('/invest/')
+    path === APP_ROUTES.today ||
+    path.startsWith(`${APP_ROUTES.today}/`) ||
+    path === APP_ROUTES.portfolio
   )
-    return 'home';
-  if (path === '/strategy') return 'strategy';
+    return 'today';
   if (
-    path === '/podcast' ||
-    path.startsWith('/podcast/') ||
+    path === APP_ROUTES.listen ||
     path === '/e' ||
-    path.startsWith('/e/')
+    path.startsWith('/e/') ||
+    path.startsWith('/podcast/')
   )
-    return 'podcast';
-  if (path === '/account' || path === '/wallets') return 'account';
+    return 'listen';
+  if (
+    path === APP_ROUTES.runtime ||
+    path.startsWith(`${APP_ROUTES.runtime}/`) ||
+    path === APP_ROUTES.wallets
+  )
+    return 'runtime';
   return null;
 }
+
 export function resolveLandingPath({
   platformOS,
   hasBundleView,
   wasSignedIn,
+  hasSeenFirstRun,
 }: {
   platformOS: string;
   hasBundleView: boolean;
   wasSignedIn: boolean;
-}): '/home' | '/podcast' {
-  if (hasBundleView) return '/home';
-  return platformOS !== 'ios' && wasSignedIn ? '/home' : '/podcast';
+  hasSeenFirstRun: boolean;
+}): '/today' | '/listen' | '/welcome' {
+  if (hasBundleView) return APP_ROUTES.today;
+  if (platformOS === 'ios') return APP_ROUTES.listen;
+  if (wasSignedIn || hasSeenFirstRun) return APP_ROUTES.today;
+  return APP_ROUTES.welcome;
 }

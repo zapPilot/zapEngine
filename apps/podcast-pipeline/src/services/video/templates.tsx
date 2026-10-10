@@ -177,37 +177,12 @@ function OutroTemplate({
       }}
     >
       <img
-        alt="Zap Pilot"
+        alt={outro.title}
         src={logoDataUri}
-        width={700}
-        height={194}
-        style={{ objectFit: 'contain' }}
+        width={portraitCanvasWidth}
+        height={portraitCanvasHeight}
+        style={{ position: 'absolute', top: 0, left: 0, objectFit: 'contain' }}
       />
-      <div
-        style={{
-          display: 'flex',
-          marginTop: 104,
-          maxWidth: 1_880,
-          fontSize: 92,
-          fontWeight: 700,
-          lineHeight: 1.3,
-          textAlign: 'center',
-        }}
-      >
-        {outro.title}
-      </div>
-      <div
-        style={{
-          display: 'flex',
-          marginTop: 64,
-          color: colors.accent,
-          fontSize: 60,
-          fontWeight: 700,
-          letterSpacing: 6,
-        }}
-      >
-        {outro.callToAction}
-      </div>
       <div
         style={{
           display: 'flex',

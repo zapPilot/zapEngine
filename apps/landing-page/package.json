@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "postinstall": "fumadocs-mdx",
+    "predev": "pnpm -w turbo run build --filter=@zapengine/landing-page^... --env-mode=loose --ui=stream --output-logs=new-only",
     "dev": "next dev --port 3000",
     "build": "next build",
     "start": "next start --port 3000",

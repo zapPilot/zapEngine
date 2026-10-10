@@ -1,8 +1,5 @@
 // Temporary design-system debt: exact normalized-node fingerprint counts. Remove after the UI migration.
 export default {
-  'src/app/invest/_layout.tsx': {
-    'react/jsx-no-literals:4f4917940eefe1b0879d': 1,
-  },
   'src/components/invest/BridgeTestPanel.tsx': {
     'zap-ui/no-raw-text:71988c4d8e0803ba4519': 1,
     'zap-ui/no-raw-text:3c1c4183a3c0e1ea292d': 1,
@@ -85,7 +82,6 @@ export default {
     'zap-ui/no-direct-icon:327934afe09e0f054862': 1,
     'zap-ui/no-direct-icon:5d3186ca97a9cc0fca76': 1,
     'zap-ui/no-direct-icon:59748a64819fa8ad47c7': 1,
-    'zap-ui/no-raw-design-values:481c2417e8cffb7b56c3': 1,
   },
   'src/components/invest/QuickAmountChips.tsx': {
     'zap-ui/no-raw-text:71988c4d8e0803ba4519': 1,
@@ -105,11 +101,6 @@ export default {
     'react/jsx-no-literals:45989de49fb7f66dfe17': 1,
     'react/jsx-no-literals:164c1ac037278b645efe': 1,
   },
-  'src/components/invest/StepHeader.tsx': {
-    'zap-ui/no-raw-text:71988c4d8e0803ba4519': 1,
-    'zap-ui/no-direct-icon:06308413020b79d34833': 1,
-    'zap-ui/no-direct-icon:791b150df7e5e87db7e7': 1,
-  },
   'src/components/invest/SwapArrowDivider.tsx': {
     'zap-ui/no-direct-icon:b2dccfd8918356bf7b14': 1,
     'zap-ui/no-direct-icon:f07373d2b8a5d8f29eb4': 1,
@@ -117,11 +108,6 @@ export default {
   'src/components/invest/TokenSelectorPill.tsx': {
     'zap-ui/no-raw-text:71988c4d8e0803ba4519': 1,
     'zap-ui/no-direct-icon:eb3634f9dbd3c3f0ac01': 1,
-  },
-  'src/components/invest/WizardDoneCard.tsx': {
-    'react/jsx-no-literals:76c5505ff2e27ef40a7f': 1,
-    'react/jsx-no-literals:894cc94d71dd86747a2f': 1,
-    'react/jsx-no-literals:59db822072cbfa5079d9': 1,
   },
   'src/components/invest/simulation/SimulationApprovalCard.tsx': {
     'zap-ui/no-raw-text:71988c4d8e0803ba4519': 1,
@@ -238,55 +224,5 @@ export default {
     'react/jsx-no-literals:f0815094a29c93e85eb4': 1,
     'react/jsx-no-literals:16048e09c3cced7281fd': 1,
     'react/jsx-no-literals:b203799611bb8ba3673e': 1,
-  },
-  'src/screens/invest/InvestAmountScreen.tsx': {
-    'zap-ui/no-raw-text:71988c4d8e0803ba4519': 1,
-    'zap-ui/no-raw-text:3c1c4183a3c0e1ea292d': 1,
-    'react/jsx-no-literals:4f4917940eefe1b0879d': 1,
-    'react/jsx-no-literals:37d3a5a6f1af680cc3f6': 1,
-    'react/jsx-no-literals:84d92710e52dd21cb0d7': 1,
-    'react/jsx-no-literals:973c0080b6b90117f68b': 1,
-    'react/jsx-no-literals:a28a420355b76b363ed5': 1,
-    'react/jsx-no-literals:246b1856377570915135': 1,
-    'react/jsx-no-literals:ee36e59a8a4557b9f822': 1,
-    'zap-ui/no-raw-design-values:ed6d0dd7721879ee48d5': 1,
-    'react/jsx-no-literals:a26cdf3a6e709124385d': 1,
-    'react/jsx-no-literals:a2ee93e02169897a0cf7': 1,
-    'react/jsx-no-literals:9c560a4089c1d5d4812c': 1,
-    'react/jsx-no-literals:daee7606b339f3c33907': 1,
-    'react/jsx-no-literals:a20d039532357da8eb47': 1,
-    'react/jsx-no-literals:9f8c0b0fd13c26764c59': 1,
-  },
-  'src/screens/invest/InvestProgressScreen.tsx': {
-    'zap-ui/no-raw-text:71988c4d8e0803ba4519': 1,
-    'react/jsx-no-literals:4f4917940eefe1b0879d': 2,
-    'react/jsx-no-literals:12fbf33a47e79c30bff2': 1,
-    'react/jsx-no-literals:a9766a216a02c6e1dc30': 1,
-    'react/jsx-no-literals:59f447714c43ee5a3aa6': 1,
-    'react/jsx-no-literals:617b46768f4b45c6da50': 1,
-    'react/jsx-no-literals:e09ce7565fd16e20006f': 1,
-    'react/jsx-no-literals:ec3c04161528bafe7315': 1,
-    'react/jsx-no-literals:e9630d3eaa4e91c9de48': 1,
-    'react/jsx-no-literals:0158116a27932210747d': 1,
-    'react/jsx-no-literals:080cb7ee0c9a52fdb4db': 1,
-    'react/jsx-no-literals:dc62471fceed432cae64': 1,
-    'react/jsx-no-literals:81de124a8f7f55e57ea1': 1,
-    'react/jsx-no-literals:27c6b315ccf2877e6cdc': 1,
-    'react/jsx-no-literals:1b50446289e5d109b656': 1,
-    'react/jsx-no-literals:46bd36d15ace19ef0dac': 1,
-  },
-  'src/screens/invest/InvestRouteScreen.tsx': {
-    'zap-ui/no-raw-text:71988c4d8e0803ba4519': 1,
-    'react/jsx-no-literals:dd4932b02efd8636bc4b': 1,
-    'react/jsx-no-literals:81b34ab456aadab53a35': 1,
-    'react/jsx-no-literals:6cb1f2b35efac5b8cbee': 1,
-    'react/jsx-no-literals:b92ff7f6880ee852987f': 1,
-    'react/jsx-no-literals:e3a4acaabcbdedee99f2': 1,
-    'react/jsx-no-literals:874722aec7d4a94417bb': 1,
-    'react/jsx-no-literals:61a6bd99b4d456bea002': 1,
-    'react/jsx-no-literals:63b6ca385cc71b2f7ec3': 1,
-    'react/jsx-no-literals:3a856d872ac8a39cb46b': 1,
-    'react/jsx-no-literals:87058ee5d6414fb5bba1': 1,
-    'react/jsx-no-literals:a595df6d2b306cbbe2a5': 1,
   },
 };

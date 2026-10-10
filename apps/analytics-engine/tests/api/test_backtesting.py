@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from datetime import date
+from pathlib import Path
 from typing import Any, cast
+from unittest.mock import MagicMock
 
 import pytest
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 
 from src.main import app
 from src.models.backtesting import (
@@ -30,8 +32,11 @@ from src.models.backtesting import (
     TimelinePoint,
     TransferRecord,
 )
+from src.services.backtesting.execution import compare as compare_module
 from src.services.backtesting.strategy_registry import list_strategy_recipes
 from src.services.dependencies import get_backtesting_service
+from src.services.strategy.backtesting_service import BacktestingService
+from tests.services.backtesting.support import price_series, sentiment_map
 
 
 class MockBacktestingService:
@@ -492,3 +497,60 @@ async def test_backtesting_compare_v3_returns_400_for_unusable_window(
 
     assert response.status_code == 400
     assert "No usable backtest data available" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_backtesting_compare_v3_http_cannot_choose_or_trigger_decision_log(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """HTTP callers must not reach the decision-log writer or pick its directory."""
+    original_writer = compare_module.write_decision_log
+    writer_dirs: list[Path] = []
+
+    def recording_writer(**kwargs: Any) -> Path:
+        writer_dirs.append(kwargs["output_dir"])
+        return original_writer(**kwargs)
+
+    monkeypatch.setattr(compare_module, "write_decision_log", recording_writer)
+    # Real service and real compare runner over synthetic data, so any write the
+    # HTTP path could trigger would actually happen.
+    service = BacktestingService(
+        token_price_service=MagicMock(),
+        sentiment_service=MagicMock(),
+    )
+    service.data_provider.fetch_token_prices = MagicMock(  # type: ignore[method-assign]
+        return_value=price_series(days=5)
+    )
+    service.data_provider.fetch_sentiments = MagicMock(  # type: ignore[method-assign]
+        return_value=sentiment_map(days=5, label="greed", value=70)
+    )
+    attacker_dir = tmp_path / "attacker"
+    payload = _compare_payload(
+        start_date="2025-01-01",
+        end_date="2025-01-05",
+        days=None,
+        decision_log_dir=str(attacker_dir),
+        emit_decision_log=True,
+    )
+
+    app.dependency_overrides[get_backtesting_service] = lambda: service
+    try:
+        # Own client: this test does not touch the database, so it skips the
+        # db_session-backed `client` fixture.
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.post(
+                "/api/v3/backtesting/compare?emit_decision_log=true",
+                json=payload,
+            )
+    finally:
+        app.dependency_overrides.pop(get_backtesting_service, None)
+
+    assert response.status_code == 200, response.text
+    assert writer_dirs == [], (
+        f"HTTP compare reached the decision-log writer: {writer_dirs}"
+    )
+    assert not attacker_dir.exists()
+    assert "decision_log_path" not in response.json()

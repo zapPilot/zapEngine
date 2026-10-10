@@ -7,8 +7,10 @@ import {
 } from '@/integration/desktopBridge';
 import { BundleUrlSync } from '@/integration/bundleShareUrlSync';
 import { getBundleShareOrigin } from '@/integration/bundleShareOrigin';
-import { InvestProvider } from '@/integration/useInvest.ios';
-import { InvestExecutionProvider } from '@/integration/useInvestExecution.ios';
+import {
+  FundFlowProvider,
+  useFundFlow,
+} from '@/providers/FundFlowProvider.ios';
 
 const UUID = '5fc63d4e-4e07-47d8-840b-ccd3420d553f';
 
@@ -27,16 +29,16 @@ describe('native platform adapters', () => {
     expect(getBundleShareOrigin()).toMatch(/^https:\/\//);
   });
 
-  it('lets both iOS provider stubs pass their children through', () => {
+  it('keeps the iOS Fund provider inert', () => {
     const child = { marker: 'child' } as never;
-    const investElement = InvestProvider({ children: child }) as ReactElement<{
+    const element = FundFlowProvider({ children: child }) as ReactElement<{
       children: unknown;
     }>;
-    const investExecutionElement = InvestExecutionProvider({
-      children: child,
-    }) as ReactElement<{ children: unknown }>;
-    expect(investElement.props.children).toBe(child);
-    expect(investExecutionElement.props.children).toBe(child);
+    expect(element.props.children).toBe(child);
+    expect(useFundFlow().available).toBe(false);
+    expect(useFundFlow().signRequest).toBeNull();
+    useFundFlow().open();
+    useFundFlow().close();
   });
 });
 

@@ -5,15 +5,21 @@ import { getBundleViewUserId } from '@/integration/bundleViewParam';
 import { resolveLandingPath } from '@/integration/navigationModel';
 import { useAccount } from '@/integration/useAccount';
 import { loadSessionHint } from '@/storage/sessionHintStorage';
+import { loadFirstRunSeen } from '@/storage/firstRunStorage';
 import { BootScreen } from '@/components/shell/BootScreen';
 export default function Index() {
   const router = useRouter();
   const account = useAccount();
-  const [hint, setHint] = useState<boolean | null>(null);
+  const [boot, setBoot] = useState<{ hint: boolean; seen: boolean } | null>(
+    null,
+  );
   useEffect(() => {
     let active = true;
-    void loadSessionHint().then((value) => {
-      if (active) setHint(value);
+    void Promise.all([
+      loadSessionHint(),
+      Platform.OS === 'ios' ? Promise.resolve(true) : loadFirstRunSeen(),
+    ]).then(([hint, seen]) => {
+      if (active) setBoot({ hint, seen });
     });
     return () => {
       active = false;
@@ -22,10 +28,11 @@ export default function Index() {
   const href = resolveLandingPath({
     platformOS: Platform.OS,
     hasBundleView: getBundleViewUserId() !== null,
-    wasSignedIn: account.isConnected || hint === true,
+    wasSignedIn: account.isConnected || boot?.hint === true,
+    hasSeenFirstRun: boot?.seen === true,
   });
   useEffect(() => {
-    if (hint !== null) router.replace(href);
-  }, [router, href, hint]);
+    if (boot !== null) router.replace(href);
+  }, [router, href, boot]);
   return <BootScreen />;
 }

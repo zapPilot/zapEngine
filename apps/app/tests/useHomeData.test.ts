@@ -197,7 +197,6 @@ describe('useHomeData', () => {
 
     expect(result).toMatchObject({ isLoading: true, isError: false });
     expect(result.data.home.totalBalance).toBeNull();
-    expect(result.data.strategyStatus).toBeNull();
     expect(useLandingPageDataMock).toHaveBeenCalledWith(null, false, true);
   });
 
@@ -206,7 +205,6 @@ describe('useHomeData', () => {
 
     expect(result).toMatchObject({ isLoading: false, isError: false });
     expect(result.data.home.totalBalance).toBe(DEMO.home.totalBalance);
-    expect(result.data.strategyStatus).toMatchObject({ status: 'no_action' });
     expect(usePortfolioDashboardMock).toHaveBeenCalledWith(undefined, {
       trend_days: 7,
       metrics: ['trend'],
@@ -225,7 +223,6 @@ describe('useHomeData', () => {
       rangeChangeUsd: null,
       trendPoints: [],
     });
-    expect(result.data.strategyStatus).toBeNull();
     expect(usePortfolioDashboardMock).toHaveBeenCalledWith('user-123', {
       trend_days: 30,
       metrics: ['trend'],
@@ -343,7 +340,7 @@ describe('Home section states', () => {
     last_updated: '2026-08-22T00:00:00.000Z',
   };
 
-  it('lets the balance land while the chart and the strategy card wait', () => {
+  it('lets the balance land while the chart waits', () => {
     useLandingPageDataMock.mockReturnValue(landingResult({ data: snapshot }));
     usePortfolioDashboardMock.mockReturnValue({
       dashboard: null,
@@ -360,7 +357,6 @@ describe('Home section states', () => {
 
     expect(result.balance).toEqual({ isLoading: false, isError: false });
     expect(result.trend).toEqual({ isLoading: true, isError: false });
-    expect(result.strategy).toEqual({ isLoading: true, isError: false });
     expect(result.isLoading).toBe(true);
     expect(result.data.home.totalBalance).toBe(130);
   });
@@ -379,7 +375,6 @@ describe('Home section states', () => {
 
     expect(result.balance.isError).toBe(true);
     expect(result.trend.isError).toBe(true);
-    expect(result.strategy.isError).toBe(false);
     expect(result.isError).toBe(true);
   });
 
@@ -388,7 +383,6 @@ describe('Home section states', () => {
 
     expect(result.balance.isLoading).toBe(true);
     expect(result.trend.isLoading).toBe(true);
-    expect(result.strategy.isLoading).toBe(true);
   });
 
   it('reads the balance straight off the landing response', () => {

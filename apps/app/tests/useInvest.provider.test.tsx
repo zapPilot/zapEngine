@@ -194,4 +194,33 @@ describe('InvestProvider', () => {
     ).toBe(5_700);
     expect(harness.current().stageDrafts).toEqual([]);
   });
+  it('resets the whole draft, including funding preferences and execution snapshots', async () => {
+    const harness = await render();
+    await act(async () => {
+      harness.current().setAmountInput('40');
+      harness.current().setSectorWeight('stable', 0);
+      harness.current().setFundingPreference(8453, 'ETH');
+      harness.current().setStageDrafts([draft]);
+      harness.current().setHyperCoreFundingDraft({
+        source: 'hypercore-spot',
+        requestedUsd6: '10',
+        weightBps: 2400,
+      });
+      harness.current().setHlpBaselineUsd6('100');
+    });
+    await act(async () => harness.current().resetDraft());
+    expect(harness.current().amountInput).toBe('');
+    expect(harness.current().amountUsd).toBe(0);
+    expect(harness.current().totalUsd6).toBe('0');
+    expect(harness.current().fundingPreferences).toEqual({});
+    expect(harness.current().stageDrafts).toEqual([]);
+    expect(harness.current().hyperCoreFundingDraft).toBeNull();
+    expect(harness.current().hlpBaselineUsd6).toBeNull();
+    expect(
+      harness
+        .current()
+        .targetAllocations.find((entry) => entry.positionId === 'hlp')
+        ?.weightBps,
+    ).toBe(5700);
+  });
 });

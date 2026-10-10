@@ -4,7 +4,7 @@ import {
   appendBrandCta,
   BRAND_CTA_VERSION,
   socialLandingUrl,
-  videoBrandCtaFor,
+  videoBrandOutro,
   ZAP_PILOT_SITE_LABEL,
   ZAP_PILOT_SITE_URL,
 } from './cta.js';
@@ -32,12 +32,10 @@ describe('Zap Pilot brand CTA', () => {
     );
   });
 
-  it('localizes the video headline while preserving the same destination', () => {
-    expect(videoBrandCtaFor('zh-Hant')).toEqual({
-      title: '更多市场洞察与工具',
+  it('uses the canonical slogan as the video headline on the same destination', () => {
+    expect(videoBrandOutro()).toEqual({
+      title: 'Your strategy. Your machine. Your wallet.',
       callToAction: 'www.zap-pilot.org',
     });
-    expect(videoBrandCtaFor('ja').callToAction).toBe('www.zap-pilot.org');
-    expect(videoBrandCtaFor('en').callToAction).toBe('www.zap-pilot.org');
   });
 });

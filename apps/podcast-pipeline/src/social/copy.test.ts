@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { appendBrandCta } from '../brand/cta.js';
+import { socialSignOff } from '../brand/cta.js';
+import { applyPlatformCta } from './platforms.js';
+import { weightedTweetLength } from './x-text.js';
 
 const llmMocks = vi.hoisted(() => ({
   createOpenRouterChatCompletion: vi.fn(),
@@ -18,7 +20,6 @@ import {
   generateSocialCopy as generateSocialCopyImpl,
   latinLetterRatio,
   parseGeneratedSocialCopy,
-  weightedTweetLength,
 } from './copy.js';
 import { SocialCopyGenerationError } from './publish-error.js';
 import type { GeneratedSocialCopy } from './types.js';
@@ -136,7 +137,7 @@ describe('generateSocialCopy', () => {
     });
 
     expect(result).toMatchObject({
-      copy: { x: { text: '中'.repeat(125) } },
+      copy: { x: { text: '中'.repeat(104) } },
       model: 'openrouter/free',
     });
     expect(llmMocks.getOpenRouterConfig).toHaveBeenCalledWith({
@@ -185,9 +186,9 @@ describe('generateSocialCopy', () => {
       'Allowed hookType values: question, contrarian, surprising_number, breaking_event, explainer, prediction, risk_warning, comparison.',
     );
 
-    const published = appendBrandCta(result.copy.x!.text, 'zh-Hant');
+    const published = applyPlatformCta('x', result.copy.x!.text, 'zh-Hant');
     expect(published).toBe(
-      `${'中'.repeat(125)}\n\n官網 https://www.zap-pilot.org`,
+      `${'中'.repeat(104)}\n\n${socialSignOff('zh-Hant')}`,
     );
     expect(weightedTweetLength(published)).toBe(280);
   });
@@ -770,16 +771,16 @@ describe('parseGeneratedSocialCopy', () => {
     expect(copy.x!.text).toBe('短文案');
   });
 
-  it('accepts X text at the 250 weighted-unit limit', () => {
+  it('accepts X text at the 208 weighted-unit limit', () => {
     expect(
       parseGeneratedSocialCopy(socialCopyJson('中'.repeat(125))).x!.text,
-    ).toHaveLength(125);
+    ).toHaveLength(104);
   });
 
   it('trims X text over the weighted-unit limit instead of rejecting it', () => {
     const copy = parseGeneratedSocialCopy(socialCopyJson('中'.repeat(126)));
-    expect(copy.x!.text).toBe('中'.repeat(125));
-    expect(weightedTweetLength(copy.x!.text)).toBe(250);
+    expect(copy.x!.text).toBe('中'.repeat(104));
+    expect(weightedTweetLength(copy.x!.text)).toBe(208);
   });
 
   it('rejects an X URL because the publisher owns platform CTA policy', () => {

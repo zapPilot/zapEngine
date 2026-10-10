@@ -1,8 +1,5 @@
 // Temporary design-system debt: exact normalized-node fingerprint counts. Remove after the UI migration.
 export default {
-  'src/components/account/DeleteAccountCard.tsx': {
-    'zap-ui/no-raw-text:71988c4d8e0803ba4519': 1,
-  },
   'src/components/account/LanguageSettingsCard.tsx': {
     'zap-ui/no-raw-text:71988c4d8e0803ba4519': 1,
   },
@@ -64,16 +61,6 @@ export default {
     'zap-ui/no-direct-icon:a45626c4a8a90a72918c': 1,
     'react/jsx-no-literals:cc4859cfe3376f00d562': 1,
     'react/jsx-no-literals:b8a55e8a5382873e1d3e': 2,
-  },
-  'src/screens/AccountScreen.ios.tsx': {
-    'zap-ui/no-raw-text:71988c4d8e0803ba4519': 1,
-    'zap-ui/no-raw-text:3c1c4183a3c0e1ea292d': 1,
-    'react/jsx-no-literals:ee36e59a8a4557b9f822': 1,
-    'zap-ui/no-raw-design-values:ed6d0dd7721879ee48d5': 1,
-  },
-  'src/screens/AccountScreen.tsx': {
-    'zap-ui/no-raw-text:71988c4d8e0803ba4519': 1,
-    'zap-ui/no-direct-icon:7aeb9d006837d65f7c81': 1,
   },
   'src/screens/WalletsScreen.tsx': {
     'zap-ui/no-raw-text:71988c4d8e0803ba4519': 1,

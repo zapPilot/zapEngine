@@ -44,6 +44,7 @@ Canonical procedures live in [docs/android-release.md](./docs/android-release.md
 
 - `scripts/eas.mjs` is the single pinned EAS CLI entry point.
 - Store builds use `autoIncrement`; failed build attempts can consume store version numbers, so release workflow concurrency/cancellation semantics are load-bearing.
+- The iOS App Version is decided by `scripts/ios-release.mjs` against App Store Connect. `version` in `app.config.ts` must stay a plain literal, never add `ios.version`, and submission never changes versions.
 - Submission selects the intended finished production/store build by ID. Do not replace that logic with an unfiltered `eas submit --latest`.
 
 ## Native workspace freshness

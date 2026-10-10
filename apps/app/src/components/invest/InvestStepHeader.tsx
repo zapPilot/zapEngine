@@ -17,7 +17,7 @@ export function InvestStepHeader({
       step={step}
       onBack={() => router.back()}
       backLabel={t('common.back')}
-      onClose={() => router.dismissTo('/home')}
+      onClose={() => router.dismissTo('/today')}
       closeLabel={t('common.close')}
     />
   );

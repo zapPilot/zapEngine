@@ -5,7 +5,6 @@ import {
   backtestSubtitle,
   buildBacktestStats,
   buildComparisonRows,
-  referenceTradeSummary,
 } from '../backtest-stats';
 import strategySnapshot from '../strategy-snapshot.json';
 import { formatPercent } from '@/lib/formatPercent';
@@ -86,13 +85,6 @@ describe('backtest copy', () => {
     expect(disclaimer).toContain(
       'Past performance does not guarantee future results.',
     );
-  });
-
-  it('summarizes the reference strategy trades from the fixture', () => {
-    expect(referenceTradeSummary()).toBe(
-      `${STRATEGY.trade_count} simulated trades over the ${strategySnapshot.window_days}-day backtest`,
-    );
-    expect(referenceTradeSummary()).not.toMatch(/\d+ trades in \d+ days/);
   });
 
   it('names both strategies in the headline', () => {

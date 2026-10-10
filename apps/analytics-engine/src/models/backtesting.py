@@ -259,7 +259,6 @@ class BacktestResponse(BaseModel):
     timeline: list[TimelinePoint]
     window: BacktestWindowInfo | None = None
     data_freshness: MarketDataFreshness | None = None
-    decision_log_path: str | None = None
 
 
 class BacktestCompareConfigV3(BaseModel):
@@ -320,8 +319,6 @@ class BacktestCompareRequestV3(BaseModel):
     end_date: date | None = None
     days: int | None = None
     total_capital: float = Field(default=10000.0, gt=0.0)
-    emit_decision_log: bool = False
-    decision_log_dir: str | None = None
     assumptions: BacktestAssumptions | None = Field(
         default=None,
         description="Execution and yield assumptions; the defaults apply when omitted.",

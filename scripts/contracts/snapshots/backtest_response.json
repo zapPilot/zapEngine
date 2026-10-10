@@ -135,16 +135,6 @@
         }
       ]
     },
-    "decision_log_path": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
     "strategies": {
       "additionalProperties": {
         "additionalProperties": false,

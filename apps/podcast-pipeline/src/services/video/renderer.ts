@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 
+import { tokens } from '@zapengine/design-tokens/tokens';
 import sharp from 'sharp';
 
 import { throwIfAborted } from '../../lib/abort.js';
@@ -72,7 +73,7 @@ export async function composeVerticalThumbnail(
       width: input.width,
       height: input.height,
       channels: 3,
-      background: '#101014',
+      background: tokens.mode.night.ground,
     },
   })
     .composite([

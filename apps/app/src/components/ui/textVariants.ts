@@ -1,4 +1,6 @@
 export const textVariants = {
+  headline: 'font-display text-headline',
+  verdict: 'font-display-xl text-verdict',
   'display-xl': 'font-display-xl text-display-xl',
   display: 'font-display text-display',
   title: 'font-display text-title',

@@ -91,4 +91,18 @@ describe('iOS native dependency Release guard', () => {
       assertIosNativeDependencies(appRoot, releaseEnvironment),
     ).toThrow(/Podfile\.lock does not match ios\/Pods\/Manifest\.lock/u);
   });
+
+  it('blocks Skia in either generated iOS lockfile', () => {
+    const skiaLock = `${matchingLock}  - react-native-skia (2.6.2):\n`;
+    for (const [podfile, manifest] of [
+      [skiaLock, skiaLock],
+      [matchingLock, skiaLock],
+      [skiaLock, matchingLock],
+    ]) {
+      writeLocks(podfile!, manifest!);
+      expect(() =>
+        assertIosNativeDependencies(appRoot, releaseEnvironment),
+      ).toThrow(/Skia|skia/u);
+    }
+  });
 });

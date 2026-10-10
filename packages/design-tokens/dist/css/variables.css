@@ -135,6 +135,22 @@
   --type-data-family: var(--font-mono);
   --type-data-case: none;
   --type-data-numeric: tabular-nums;
+  --type-headline-size: 36px;
+  --type-headline-line: 38px;
+  --type-headline-tracking: -0.035em;
+  --type-headline-weight: 640;
+  --type-headline-width: 108%;
+  --type-headline-family: var(--font-display);
+  --type-headline-case: none;
+  --type-headline-numeric: normal;
+  --type-verdict-size: 64px;
+  --type-verdict-line: 60px;
+  --type-verdict-tracking: -0.04em;
+  --type-verdict-weight: 660;
+  --type-verdict-width: 112%;
+  --type-verdict-family: var(--font-display);
+  --type-verdict-case: none;
+  --type-verdict-numeric: normal;
 }
 :root,
 [data-theme='paper'] {
@@ -174,19 +190,19 @@
 }
 [data-theme='night'],
 .dark {
-  --ground: #0e0f11;
-  --sheet: #16171a;
-  --well: #1c1d21;
-  --ink: #eeeeea;
-  --ink-2: #b9b9b3;
-  --ink-3: #989892;
-  --rule: rgba(238, 238, 234, 0.14);
-  --rule-2: rgba(238, 238, 234, 0.34);
-  --grid: rgba(238, 238, 234, 0.045);
-  --sign: #4058ff;
-  --sign-ink: #9aa6ff;
-  --on-sign: #ffffff;
-  --sign-wash: rgba(64, 88, 255, 0.14);
+  --ground: #0c0b09;
+  --sheet: #141310;
+  --well: #1b1915;
+  --ink: #ebe4d2;
+  --ink-2: #b9b3a7;
+  --ink-3: #9d9789;
+  --rule: rgba(235, 228, 210, 0.11);
+  --rule-2: rgba(235, 228, 210, 0.28);
+  --grid: rgba(235, 228, 210, 0.035);
+  --sign: #c8ab72;
+  --sign-ink: #d9c398;
+  --on-sign: #15120b;
+  --sign-wash: rgba(200, 171, 114, 0.12);
   --up: #5bd18b;
   --down: #ff7a66;
   --alert: #ff7a66;
@@ -195,16 +211,16 @@
   --sleeve-spy: #6e7686;
   --sleeve-stable: #3fa38b;
   --sleeve-eth: #a7a2ee;
-  --sleeve-btc: #f3b54e;
-  --sleeve-alt: #e3d9ca;
-  --material-top: #2b2c31;
-  --material-front: #1f2024;
-  --material-left: #17181b;
-  --material-edge: rgba(238, 238, 234, 0.16);
-  --material-ink-top: #f4f4f0;
-  --material-ink-front: #c9c9c3;
-  --material-ink-left: #a3a39d;
-  --material-floor: rgba(238, 238, 234, 0.065);
+  --sleeve-btc: #ffaf6e;
+  --sleeve-alt: #d8d6e1;
+  --material-top: #2d2a25;
+  --material-front: #211f1b;
+  --material-left: #181714;
+  --material-edge: rgba(235, 228, 210, 0.16);
+  --material-ink-top: #f2ecdf;
+  --material-ink-front: #cbc5b8;
+  --material-ink-left: #a39d91;
+  --material-floor: rgba(235, 228, 210, 0.065);
   --material-shadow: rgba(0, 0, 0, 0.6);
   --shadow-overlay: 0 16px 64px rgba(0, 0, 0, 0.6);
 }

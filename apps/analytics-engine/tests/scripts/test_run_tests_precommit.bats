@@ -237,7 +237,7 @@ teardown() {
                 printf '0.0.0.0:5433\n[::]:5433\n'
                 ;;
             rm)
-                printf 'rm %s %s\n' "$2" "$3" >> "$calls_file"
+                printf 'rm %s %s %s\n' "$2" "$3" "$4" >> "$calls_file"
                 ;;
             run)
                 printf 'run replacement\n' >> "$calls_file"
@@ -248,7 +248,7 @@ teardown() {
     start_postgres
 
     calls=$(cat "$calls_file")
-    [[ "$calls" == *"rm -f analytics-test-postgres"* ]]
+    [[ "$calls" == *"rm -f -v analytics-test-postgres"* ]]
     [[ "$calls" == *"run replacement"* ]]
     [[ "$CREATED_NEW_CONTAINER" == "true" ]]
 

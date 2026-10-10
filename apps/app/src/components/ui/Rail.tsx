@@ -4,7 +4,7 @@ import { palette } from '@/lib/palette';
 import type { StatusPrimitiveProps } from './StatusGlyph';
 export function Rail({
   status = 'live',
-  color = palette.ink,
+  color = status === 'live' ? palette.ink : palette['rule-2'],
 }: StatusPrimitiveProps) {
   return (
     <Svg width="100%" height={tokens.line.rail} accessible={false}>

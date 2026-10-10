@@ -60,7 +60,7 @@ export function CrashFallbackScreen({
       <Button
         className="mt-3"
         variant="ghost"
-        onPress={() => router.replace('/home')}
+        onPress={() => router.replace('/today')}
       >
         {tabsEn['tabs.home']}
       </Button>

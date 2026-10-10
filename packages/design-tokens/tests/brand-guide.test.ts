@@ -3,6 +3,7 @@ import { expect, it } from 'vitest';
 import { loadTokens } from '../src/tokens.js';
 it('documents the canonical paper and night role values without palette drift', () => {
   const guide = readFileSync(new URL('../BRAND.md', import.meta.url), 'utf8');
+  expect(guide).toContain('Your strategy. Your machine. Your wallet.');
   const tokens = loadTokens();
   const rows = [
     ...guide.matchAll(

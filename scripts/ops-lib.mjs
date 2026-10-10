@@ -156,3 +156,29 @@ export function createLinePrefixer(prefix, write) {
 
   return push;
 }
+
+/**
+ * Built before podcast-pipeline's social daemon and dev servers start. Those
+ * processes run their own source through tsx, but the workspace packages they
+ * import (`@zapengine/zap-pilot-story` and its siblings) resolve to their built
+ * dist, and nothing else rebuilds that dist when a pull adds an import. Turbo
+ * owns the staleness decision: it hashes each package's inputs, so an unchanged
+ * package is a cache hit that only restores dist, and a changed one is rebuilt.
+ * `^...` selects the dependencies and not podcast-pipeline itself, which those
+ * processes never build.
+ */
+export const PODCAST_PIPELINE_PREREQUISITE = Object.freeze({
+  label: 'podcast-pipeline dependencies',
+  command: 'pnpm',
+  args: Object.freeze([
+    'turbo',
+    'run',
+    'build',
+    '--filter=@zapengine/podcast-pipeline^...',
+    // `stream` keeps Turbo's output as plain lines in this launcher's log rather
+    // than its interactive UI; `new-only` prints logs for what actually rebuilt,
+    // not replays of cache hits.
+    '--ui=stream',
+    '--output-logs=new-only',
+  ]),
+});

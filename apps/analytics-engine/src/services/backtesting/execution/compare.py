@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import tempfile
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -110,6 +109,7 @@ def run_compare_v3_on_data(
     user_start_date: date,
     resolved_configs: list[ResolvedSavedStrategyConfig] | None = None,
     window: BacktestWindowInfo | None = None,
+    decision_log_dir: Path | None = None,
 ) -> BacktestResponse:
     initial_allocation = neutral_initial_allocation()
     user_prices = [price for price in prices if price["date"] >= user_start_date]
@@ -133,17 +133,12 @@ def run_compare_v3_on_data(
         initial_allocation=initial_allocation,
     )
     result.window = window
-    if request.emit_decision_log:
-        output_dir = (
-            Path(request.decision_log_dir)
-            if request.decision_log_dir is not None
-            else Path(tempfile.mkdtemp(prefix="zapengine-backtest-"))
-        )
+    # In-process only: the HTTP request model carries no output directory.
+    if decision_log_dir is not None:
         timeline = [point.model_dump(mode="json") for point in result.timeline]
-        decision_log_path = write_decision_log(
-            output_dir=output_dir,
+        write_decision_log(
+            output_dir=decision_log_dir,
             timeline=timeline,
             strategy_ids=[config.config_id for config in request.configs],
         )
-        result = result.model_copy(update={"decision_log_path": str(decision_log_path)})
     return result

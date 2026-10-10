@@ -7,6 +7,7 @@ See @README.md for project overview.
 - Documentation content lives in MDX files under `content/docs/`
 - Deployed to Vercel as static export (`output: 'export'` in next.config.ts)
 - `pnpm dev` starts on port 3000 — pass `--port` if another dev server already holds it
+- `predev` builds the internal packages landing-page consumes through Turbo (`--filter=@zapengine/landing-page^...`) before `next dev`, so `pnpm dev` and `pnpm --filter @zapengine/landing-page dev` need no separate build step. Keep `--env-mode=loose` so the nested build hash matches `scripts/dev.sh` and hits the cache.
 
 ## Track-record invariants
 
@@ -17,4 +18,5 @@ See @README.md for project overview.
 - `first_touch_utm_*` and the waitlist POST share the same localStorage first-touch record, captured during client instrumentation.
 
 - Capability and recorded contract facts live in `@zapengine/zap-pilot-story/facts`; do not restore host-owned copies.
-- `MESSAGES` and `/pitch` follow [persuasive-messaging](../../.agents/skills/persuasive-messaging/SKILL.md); `content/docs/` MDX is outside its scope.
+- Brand identity comes from `@zapengine/zap-pilot-story/brand`; hero and capability chips come from story copy. `MESSAGES` owns host metadata and forms. Home/pitch OG screens display the self-hosting marker.
+- Story marketing copy, `MESSAGES` and `/pitch` follow [persuasive-messaging](../../.agents/skills/persuasive-messaging/SKILL.md); `content/docs/` MDX is outside its scope.

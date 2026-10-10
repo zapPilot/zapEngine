@@ -129,8 +129,8 @@ vi.mock('@/components/podcast/EpisodeTranscript', () => ({
 vi.mock('@/components/podcast/NowPlayingBar', () => ({
   NowPlayingBar: () => null,
 }));
-vi.mock('@/components/podcast/PlayUnheardCard', () => ({
-  PlayUnheardCard: () => null,
+vi.mock('@/components/listen/PlayUnheardButton', () => ({
+  PlayUnheardButton: () => null,
 }));
 vi.mock('@/components/ui/Tap', () => ({
   Tap: ({

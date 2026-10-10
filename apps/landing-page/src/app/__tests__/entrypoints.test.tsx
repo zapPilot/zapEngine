@@ -1,3 +1,4 @@
+import { HERO } from '@zapengine/zap-pilot-story/copy';
 import '@testing-library/jest-dom';
 import { render, screen, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
@@ -52,6 +53,20 @@ import PitchOpenGraphImage, {
   revalidate,
   size,
 } from '../pitch/opengraph-image';
+import TwitterImage, {
+  alt as homeTwitterAlt,
+  contentType as homeTwitterContentType,
+  dynamic as homeTwitterDynamic,
+  revalidate as homeTwitterRevalidate,
+  size as homeTwitterSize,
+} from '../twitter-image';
+import PitchTwitterImage, {
+  alt as pitchTwitterAlt,
+  contentType as pitchTwitterContentType,
+  dynamic as pitchTwitterDynamic,
+  revalidate as pitchTwitterRevalidate,
+  size as pitchTwitterSize,
+} from '../pitch/twitter-image';
 
 afterEach(() => {
   delete process.env['NEXT_PUBLIC_GA_ID'];
@@ -112,15 +127,62 @@ describe('app entrypoints', () => {
 
   it('builds the static pitch social card', () => {
     const result = PitchOpenGraphImage();
-    expect(imageResponse).toHaveBeenCalledWith(expect.anything(), size);
-    expect(result).toMatchObject({ options: size });
+    expect(imageResponse).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining(size),
+    );
+    expect(result).toMatchObject({ options: expect.objectContaining(size) });
     render(<>{(result as unknown as { element: ReactNode }).element}</>);
-    expect(screen.getByText(MESSAGES.common.brandLine)).toBeInTheDocument();
+    expect(screen.getByText('strategy.')).toBeInTheDocument();
     expect(screen.getByText(PITCH_OG.footer)).toBeInTheDocument();
-    for (const chip of MESSAGES.hero.chips) {
+    for (const chip of HERO.chips) {
       expect(screen.getByText(chip.text)).toBeInTheDocument();
     }
     expect({ alt, contentType, dynamic, revalidate }).toEqual({
+      alt: 'Zap Pilot — Investor Pitch',
+      contentType: 'image/png',
+      dynamic: 'force-static',
+      revalidate: false,
+    });
+  });
+
+  it('mirrors the home social card for twitter:image', () => {
+    const result = TwitterImage();
+    expect(imageResponse).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining(homeTwitterSize),
+    );
+    expect(result).toMatchObject({
+      options: expect.objectContaining(homeTwitterSize),
+    });
+    expect({
+      alt: homeTwitterAlt,
+      contentType: homeTwitterContentType,
+      dynamic: homeTwitterDynamic,
+      revalidate: homeTwitterRevalidate,
+    }).toEqual({
+      alt: 'Zap Pilot — Your strategy. Your machine. Your wallet.',
+      contentType: 'image/png',
+      dynamic: 'force-static',
+      revalidate: false,
+    });
+  });
+
+  it('mirrors the pitch social card for twitter:image', () => {
+    const result = PitchTwitterImage();
+    expect(imageResponse).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining(pitchTwitterSize),
+    );
+    expect(result).toMatchObject({
+      options: expect.objectContaining(pitchTwitterSize),
+    });
+    expect({
+      alt: pitchTwitterAlt,
+      contentType: pitchTwitterContentType,
+      dynamic: pitchTwitterDynamic,
+      revalidate: pitchTwitterRevalidate,
+    }).toEqual({
       alt: 'Zap Pilot — Investor Pitch',
       contentType: 'image/png',
       dynamic: 'force-static',

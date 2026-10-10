@@ -3,7 +3,7 @@ import { act, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EpisodeDetailScreen } from '@/screens/EpisodeDetailScreen';
-import { PodcastScreen } from '@/screens/PodcastScreen';
+import { ListenScreen } from '@/screens/ListenScreen';
 import { EpisodeDownloadButton } from '@/components/podcast/EpisodeDownloadButton';
 import { downloadRecord, downloadableEpisode } from './support/podcastDownload';
 
@@ -117,8 +117,8 @@ vi.mock('@/components/podcast/EpisodeTranscript', () => ({
 vi.mock('@/components/podcast/NowPlayingBar', () => ({
   NowPlayingBar: () => null,
 }));
-vi.mock('@/components/podcast/PlayUnheardCard', () => ({
-  PlayUnheardCard: () => null,
+vi.mock('@/components/listen/PlayUnheardButton', () => ({
+  PlayUnheardButton: () => null,
 }));
 vi.mock('@/components/ui/Tap', () => ({
   Tap: ({
@@ -228,7 +228,7 @@ describe('offline podcast UI', () => {
     expect(container.textContent).not.toContain('Play video');
   });
   it('shows downloads and opens a local episode even when the feed is unavailable', async () => {
-    await render(<PodcastScreen />);
+    await render(<ListenScreen />);
     expect(container.textContent).toContain('podcast.downloads');
     expect(container.textContent).toContain('podcast.downloadsScope');
     const open = container.querySelector<HTMLButtonElement>(
@@ -246,14 +246,14 @@ describe('offline podcast UI', () => {
     );
   it('shows the downloads shelf exactly once beside a loaded feed', async () => {
     state.data = [{ ...downloadableEpisode, localizationId: 'feed-only' }];
-    await render(<PodcastScreen />);
+    await render(<ListenScreen />);
     expect(shelfHeaders()).toHaveLength(1);
     // The feed's own list is there too, below the shelf.
     expect(container.textContent).toContain('podcast.unheard');
   });
   it('shows the downloads shelf exactly once while the feed is still loading', async () => {
     state.pending = true;
-    await render(<PodcastScreen />);
+    await render(<ListenScreen />);
     expect(shelfHeaders()).toHaveLength(1);
     expect(container.textContent).toContain('Skeleton');
   });

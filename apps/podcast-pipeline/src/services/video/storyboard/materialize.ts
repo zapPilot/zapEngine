@@ -1,4 +1,4 @@
-import { videoBrandCtaFor } from '../../../brand/cta.js';
+import { videoBrandOutro } from '../../../brand/cta.js';
 import type { CanonicalAudioTiming } from '../audio-analysis.js';
 import { headlineKickerFor, wrapHeadlineTitle } from '../headline.js';
 import {
@@ -15,7 +15,7 @@ import { pickBgmTrack } from '../runtime-assets.js';
 import type { SceneSentenceAlignment } from '../scene-alignment.js';
 import { type ImageVisualPlan, parseImageVisualPlan } from './visual-plan.js';
 
-export const TRUSTED_RENDERER_VERSION = 'satori-resvg-v4' as const;
+export const TRUSTED_RENDERER_VERSION = 'satori-resvg-v5' as const;
 export const BGM_MIX_GAIN_DB = -21;
 const PREFERRED_TRANSITION_MS = 200;
 
@@ -111,7 +111,7 @@ export function materializeLocaleVideoManifest(
             contentTransitionMs,
           ),
         );
-  const outro = videoBrandCtaFor(input.episode.languageCode);
+  const outro = videoBrandOutro();
 
   return parseVerticalVideoManifest({
     schemaVersion: VERTICAL_VIDEO_SCHEMA_VERSION,
