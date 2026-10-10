@@ -815,7 +815,7 @@ export function EpisodeMediaPlayer({
         }
       >
         {activeAudioSection === 'classroom' && classroomSections.length > 1 ? (
-          <View className="flex-row flex-wrap gap-2 pt-4">
+          <View className="flex-row flex-wrap gap-2 px-5 pt-4">
             {classroomSections.map((section) => {
               const language = section.languageCode;
               if (language === null) return null;

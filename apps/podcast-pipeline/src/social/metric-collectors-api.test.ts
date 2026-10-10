@@ -170,7 +170,10 @@ describe('YouTube metric collection', () => {
       }
       const metrics = url.searchParams.get('metrics');
       if (metrics?.startsWith('shares,')) {
-        return json({ rows: [[6, 4, 800, 42, 63]] });
+        expect(metrics).toBe(
+          'shares,subscribersGained,engagedViews,averageViewDuration,averageViewPercentage,videosAddedToPlaylists,videosRemovedFromPlaylists',
+        );
+        return json({ rows: [[6, 4, 800, 42, 63, 9, 0]] });
       }
       if (metrics === 'viewerPercentage') {
         return json({
@@ -202,6 +205,8 @@ describe('YouTube metric collection', () => {
         shares: 6,
         followersGained: 4,
         details: {
+          youtubePlaylistAdds: 9,
+          youtubePlaylistRemoves: 0,
           engagedViews: 800,
           averageViewDurationSec: 42,
           averageViewPercentage: 0.63,
@@ -308,8 +313,42 @@ describe('YouTube metric collection', () => {
       .fn<typeof fetch>()
       .mockResolvedValueOnce(
         json({
-          items: [{ id: 'video-1', statistics: {} }],
+          items: [
+            {
+              id: 'video-1',
+              statistics: {
+                viewCount: '12',
+                likeCount: '2',
+                commentCount: '1',
+              },
+            },
+          ],
         }),
+      )
+      .mockResolvedValueOnce(json({ rows: [] }))
+      .mockResolvedValueOnce(json({ rows: [] }))
+      .mockResolvedValueOnce(json({ rows: [] }));
+
+    await expect(
+      collectYouTubeMetrics(
+        post('youtube', 'video-1', { video_duration_sec: null }),
+        fetchImpl,
+      ),
+    ).resolves.toMatchObject({
+      views: 12,
+      likes: 2,
+      comments: 1,
+      shares: null,
+      followersGained: null,
+      details: {},
+    });
+  });
+
+  it('leaves counts null when YouTube omits statistics', async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        json({ items: [{ id: 'video-1', statistics: {} }] }),
       )
       .mockResolvedValueOnce(json({ rows: [] }))
       .mockResolvedValueOnce(json({ rows: [] }))
@@ -324,8 +363,6 @@ describe('YouTube metric collection', () => {
       views: null,
       likes: null,
       comments: null,
-      shares: null,
-      followersGained: null,
       details: {},
     });
   });

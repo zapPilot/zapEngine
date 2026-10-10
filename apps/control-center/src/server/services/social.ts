@@ -8,6 +8,14 @@ import type { ControlCenterConfig } from '../config/env.js';
 import { createServiceRoleClient } from './supabase.js';
 import { sumKnown } from './numbers.js';
 
+const SAVES_SUPPORT: Record<string, SocialPlatformPerformance['savesSupport']> =
+  {
+    rednote: 'native',
+    x: 'native',
+    threads: 'unsupported',
+    youtube: 'playlist_add_proxy',
+  };
+
 type SocialWindow = SocialPerformanceResponse['window'];
 
 interface SocialPostRow {
@@ -34,6 +42,7 @@ interface SocialMetricRow extends Pick<
   impressions: number | null;
   followers_gained: number | null;
   details: {
+    youtubePlaylistAdds?: number;
     averageViewDurationSec?: number;
     averageViewPercentage?: number;
   } | null;
@@ -244,6 +253,9 @@ function toPerformance(
       ageHours: null,
       views: null,
       engagementRate: null,
+      saveRate: null,
+      savesSupport: SAVES_SUPPORT[post.platform] ?? 'unsupported',
+      playlistAdds: null,
       likes: null,
       comments: null,
       shares: null,
@@ -271,6 +283,15 @@ function toPerformance(
     engagementRate:
       engagements !== null && denominator !== null && denominator > 0
         ? engagements / denominator
+        : null,
+    saveRate:
+      metric.saves !== null && denominator !== null && denominator > 0
+        ? metric.saves / denominator
+        : null,
+    savesSupport: SAVES_SUPPORT[post.platform] ?? 'unsupported',
+    playlistAdds:
+      post.platform === 'youtube'
+        ? (metric.details?.youtubePlaylistAdds ?? null)
         : null,
     likes: metric.likes,
     comments: metric.comments,

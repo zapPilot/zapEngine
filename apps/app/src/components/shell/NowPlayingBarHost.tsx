@@ -11,6 +11,7 @@ export function NowPlayingBarHost({
   const pathname = usePathname();
   const router = useRouter();
   if (
+    pathname === '/listen' ||
     pathname.startsWith('/podcast/') ||
     pathname === '/e' ||
     pathname.startsWith('/e/')

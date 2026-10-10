@@ -29,41 +29,46 @@ export function ListenNowPlayingCard() {
         }
       />
       <View className="flex-row items-center gap-2">
-        <Button
-          variant="secondary"
-          size="sm"
-          onPress={() => player.seekRelative(-15)}
-        >
-          {t('listen.back15')}
-        </Button>
-        <Button
-          variant="secondary"
-          size="sm"
-          onPress={() => player.seekRelative(30)}
-        >
-          {t('listen.forward30')}
-        </Button>
-      </View>
-      <View className="flex-row flex-wrap gap-2">
-        {DESTINATIONS.map((view) => (
+        <View className="min-w-0 flex-1">
           <Button
-            key={view}
-            variant="ghost"
+            variant="secondary"
             size="sm"
-            onPress={() => {
-              const episode = player.nowPlaying;
-              if (episode !== null)
-                router.push(
-                  podcastEpisodeHref(
-                    episode.localizationId,
-                    episode.languageCode,
-                    view,
-                  ),
-                );
-            }}
+            onPress={() => player.seekRelative(-15)}
           >
-            {t(`podcast.${view}`)}
+            {t('listen.back15')}
           </Button>
+        </View>
+        <View className="min-w-0 flex-1">
+          <Button
+            variant="secondary"
+            size="sm"
+            onPress={() => player.seekRelative(30)}
+          >
+            {t('listen.forward30')}
+          </Button>
+        </View>
+      </View>
+      <View className="flex-row items-center gap-2">
+        {DESTINATIONS.map((view) => (
+          <View key={view} className="min-w-0 flex-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onPress={() => {
+                const episode = player.nowPlaying;
+                if (episode !== null)
+                  router.push(
+                    podcastEpisodeHref(
+                      episode.localizationId,
+                      episode.languageCode,
+                      view,
+                    ),
+                  );
+              }}
+            >
+              {t(`podcast.${view}`)}
+            </Button>
+          </View>
         ))}
       </View>
       <SegmentedControl

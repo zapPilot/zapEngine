@@ -351,6 +351,8 @@ export interface SocialAudienceDemographics {
 }
 
 export interface SocialPostMetricDetails {
+  youtubePlaylistAdds?: number;
+  youtubePlaylistRemoves?: number;
   engagedViews?: number;
   coverCtr?: number;
   fiveSecondRetentionRate?: number;

@@ -42,6 +42,9 @@ const social = {
           averageViewDurationSec: null,
           averageViewPercentage: null,
           comments: null,
+          saveRate: null,
+          savesSupport: 'native',
+          playlistAdds: null,
           engagementRate: 0,
           followersGained: null,
           likes: null,
@@ -300,4 +303,74 @@ it('counts only mature windows for zero-view diagnostics and places audience bef
     audience.compareDocumentPosition(content) &
       Node.DOCUMENT_POSITION_FOLLOWING,
   ).toBeTruthy();
+});
+
+describe('save telemetry presentation', () => {
+  it.each([
+    ['x', 'native', null, null, null, '24h', '收藏 —', '每千次收藏 —'],
+    ['x', 'native', 0, 0, null, '24h', '收藏 0', '每千次收藏 0'],
+    ['x', 'native', 5, 0.025, null, '24h', '收藏 5', '每千次收藏 25'],
+    [
+      'threads',
+      'unsupported',
+      null,
+      null,
+      null,
+      '24h',
+      '收藏 不支援',
+      '每千次收藏 不支援',
+    ],
+    [
+      'youtube',
+      'playlist_add_proxy',
+      null,
+      null,
+      0,
+      '24h',
+      '加入播放清單 0',
+      '每千次收藏 —',
+    ],
+    ['x', 'native', 5, 0.025, null, '72h', '收藏 —', '每千次收藏 —'],
+  ])(
+    'renders %s saves at %s',
+    (
+      platform,
+      savesSupport,
+      saves,
+      saveRate,
+      playlistAdds,
+      measurementWindow,
+      countText,
+      rateText,
+    ) => {
+      renderGrowth({
+        data: {
+          ...social,
+          episodes: [
+            {
+              ...social.episodes[0]!,
+              platforms: [
+                {
+                  ...social.episodes[0]!.platforms[0]!,
+                  platform,
+                  savesSupport,
+                  saves,
+                  saveRate,
+                  playlistAdds,
+                  measurementWindow,
+                },
+              ],
+            },
+          ],
+        } as SocialPerformanceResponse,
+      });
+      expect(
+        screen.getByLabelText(
+          savesSupport === 'playlist_add_proxy' ? '加入播放清單' : '收藏',
+        ),
+      ).toHaveTextContent(countText);
+      expect(screen.getByLabelText('每千次收藏')).toHaveTextContent(rateText);
+      expect(document.body.textContent).not.toContain('NaN');
+    },
+  );
 });
