@@ -35,6 +35,39 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
+    "assumptions": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fill_lag_days": {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "slippage_rate": {
+              "maximum": 0.05,
+              "minimum": 0,
+              "type": "number"
+            },
+            "stable_apr": {
+              "maximum": 0.5,
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          "required": [
+            "fill_lag_days",
+            "slippage_rate",
+            "stable_apr"
+          ],
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "configs": {
       "items": {
         "additionalProperties": false,

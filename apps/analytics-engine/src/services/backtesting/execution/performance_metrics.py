@@ -2,8 +2,8 @@
 
 Provides standardized calculations for:
 - Volatility (annualized standard deviation)
-- Sharpe ratio (risk-adjusted return)
-- Sortino ratio (downside risk-adjusted return)
+- Sharpe ratio (risk-adjusted excess return over the stablecoin yield)
+- Sortino ratio (downside risk-adjusted excess return)
 - Maximum drawdown
 - Calmar ratio (return/drawdown)
 - Beta (correlation with benchmark)
@@ -34,42 +34,53 @@ class PerformanceMetricsCalculator:
         return float(np.std(returns) * np.sqrt(365))
 
     @staticmethod
-    def calculate_sharpe_ratio(returns: np.ndarray) -> float:
-        """Calculate Sharpe ratio (risk-adjusted return).
+    def calculate_sharpe_ratio(
+        returns: np.ndarray, risk_free_daily: float = 0.0
+    ) -> float:
+        """Calculate the annualized Sharpe ratio on excess returns.
 
-        Assumes risk-free rate = 0 for crypto markets.
+        The excess is over ``risk_free_daily``: what idle stablecoins earn in the
+        backtest, so a strategy that mostly sits in stable is not credited for the
+        yield it would have earned anyway.
 
         Args:
             returns: Daily returns array
+            risk_free_daily: Daily risk-free rate subtracted from the mean return
 
         Returns:
             Annualized Sharpe ratio
         """
-        mean_return = np.mean(returns)
+        excess_mean = np.mean(returns) - risk_free_daily
         std_return = np.std(returns)
         if std_return > 0:
-            return float((mean_return / std_return) * np.sqrt(365))
+            return float((excess_mean / std_return) * np.sqrt(365))
         return 0.0
 
     @staticmethod
-    def calculate_sortino_ratio(returns: np.ndarray, sharpe_ratio: float) -> float:
-        """Calculate Sortino ratio (downside risk-adjusted return).
+    def calculate_sortino_ratio(
+        returns: np.ndarray,
+        sharpe_ratio: float,
+        risk_free_daily: float = 0.0,
+    ) -> float:
+        """Calculate the annualized Sortino ratio on excess returns.
 
-        Only considers downside deviation (negative returns) for risk calculation.
+        Downside deviation is measured against ``risk_free_daily``: only days that
+        earn less than the risk-free rate count as downside.
 
         Args:
             returns: Daily returns array
             sharpe_ratio: Pre-calculated Sharpe ratio (fallback if no downside)
+            risk_free_daily: Daily risk-free rate
 
         Returns:
             Annualized Sortino ratio
         """
-        mean_return = np.mean(returns)
-        downside_returns = np.minimum(returns, 0.0)
+        excess_returns = returns - risk_free_daily
+        downside_returns = np.minimum(excess_returns, 0.0)
         downside_std = np.sqrt(np.mean(np.square(downside_returns)))
 
         if downside_std > 0:
-            return float((mean_return / downside_std) * np.sqrt(365))
+            return float((np.mean(excess_returns) / downside_std) * np.sqrt(365))
         return sharpe_ratio
 
     @staticmethod
@@ -253,12 +264,14 @@ class PerformanceMetricsCalculator:
         self,
         strategy_values: list[float],
         benchmark_prices: list[float],
+        risk_free_apr: float,
     ) -> dict[str, float]:
         """Calculate all performance metrics at once.
 
         Args:
             strategy_values: Daily portfolio values
             benchmark_prices: Daily benchmark prices (e.g., BTC)
+            risk_free_apr: Annual rate Sharpe and Sortino measure excess return over
 
         Returns:
             Dictionary with all calculated metrics:
@@ -298,8 +311,11 @@ class PerformanceMetricsCalculator:
 
         # Calculate all metrics
         volatility = self.calculate_volatility(strategy_returns)
-        sharpe_ratio = self.calculate_sharpe_ratio(strategy_returns)
-        sortino_ratio = self.calculate_sortino_ratio(strategy_returns, sharpe_ratio)
+        risk_free_daily = risk_free_apr / 365.0
+        sharpe_ratio = self.calculate_sharpe_ratio(strategy_returns, risk_free_daily)
+        sortino_ratio = self.calculate_sortino_ratio(
+            strategy_returns, sharpe_ratio, risk_free_daily
+        )
         max_drawdown = self.calculate_max_drawdown(strategy_arr)
         calmar_ratio = self.calculate_calmar_ratio(strategy_arr, max_drawdown)
         beta = self.calculate_beta(strategy_returns, benchmark_returns)

@@ -4,15 +4,15 @@ from datetime import date
 
 import pytest
 
-from src.models.backtesting import BacktestCompareConfigV3, BacktestResponse
+from src.models.backtesting import (
+    BacktestAssumptions,
+    BacktestCompareConfigV3,
+    BacktestResponse,
+)
 from src.services.backtesting.execution.compare import (
     materialize_compare_request,
 )
-from src.services.backtesting.execution.cost_model import PercentageSlippageModel
-from src.services.backtesting.execution.engine import (
-    EngineConfig,
-    StrategyEngine,
-)
+from src.services.backtesting.execution.engine import StrategyEngine
 from src.services.backtesting.execution.portfolio import Portfolio
 from src.services.backtesting.execution.state import (
     build_strategy_state,
@@ -29,7 +29,6 @@ from src.services.backtesting.strategies.base import (
     BaseStrategy,
     StrategyAction,
     StrategyContext,
-    TransferIntent,
 )
 from src.services.backtesting.utils.two_bucket import (
     normalize_runtime_allocation,
@@ -82,11 +81,13 @@ class ExplicitSignalSummaryStrategy(BaseStrategy):
 
 
 def test_engine_returns_empty_response_for_no_prices() -> None:
-    engine = StrategyEngine(EngineConfig())
+    engine = StrategyEngine()
 
     result = engine.run(prices=[], sentiments={}, strategies=[])
 
-    assert result == BacktestResponse(strategies={}, timeline=[])
+    assert result == BacktestResponse(
+        assumptions=BacktestAssumptions(), strategies={}, timeline=[]
+    )
 
 
 def test_resolve_start_snapshot_falls_back_to_first_price_when_start_is_after_range() -> (
@@ -113,7 +114,7 @@ def test_resolve_start_snapshot_falls_back_to_first_price_when_start_is_after_ra
 
 def test_engine_warmup_days_are_excluded_from_timeline() -> None:
     strategy = WarmupAwareStrategy()
-    engine = StrategyEngine(EngineConfig())
+    engine = StrategyEngine()
 
     result = engine.run(
         prices=[
@@ -135,7 +136,7 @@ def test_engine_warmup_days_are_excluded_from_timeline() -> None:
 
 
 def test_engine_serializes_macro_fear_greed_on_market_snapshot() -> None:
-    engine = StrategyEngine(EngineConfig())
+    engine = StrategyEngine()
     macro_fear_greed = {
         "score": 18.0,
         "label": "extreme_fear",
@@ -160,63 +161,6 @@ def test_engine_serializes_macro_fear_greed_on_market_snapshot() -> None:
     dumped = result.model_dump(mode="json")
     market = dumped["timeline"][0]["market"]
     assert market["macro_fear_greed"] == macro_fear_greed
-
-
-def test_apply_action_ignores_zero_transfer_and_missing_target() -> None:
-    engine = StrategyEngine(EngineConfig())
-    portfolio = Portfolio(spot_balance=0.0, stable_balance=1_000.0)
-    context = StrategyContext(
-        date=date(2025, 1, 2),
-        price=100.0,
-        sentiment=None,
-        price_history=[100.0],
-        portfolio=portfolio,
-    )
-
-    zero_transfer = engine._apply_action(
-        portfolio,
-        context,
-        StrategyAction(
-            snapshot=make_strategy_snapshot(reason="hold"),
-            transfers=[
-                TransferIntent(
-                    from_bucket="stable",
-                    to_bucket="spot",
-                    amount_usd=0.0,
-                )
-            ],
-        ),
-    )
-    no_target = engine._apply_action(
-        portfolio,
-        context,
-        StrategyAction(snapshot=make_strategy_snapshot(reason="hold")),
-    )
-
-    assert zero_transfer is False
-    assert no_target is False
-    assert portfolio.stable_balance == pytest.approx(1_000.0)
-
-
-def test_apply_yield_disabled_returns_zero_breakdown_without_mutation() -> None:
-    engine = StrategyEngine(EngineConfig(apr_by_regime={"neutral": {"stable": 0.365}}))
-    portfolio = Portfolio(spot_balance=1.0, stable_balance=100.0)
-
-    breakdown = engine._apply_yield(
-        portfolio,
-        100.0,
-        sentiment_label="neutral",
-        apply_yield=False,
-    )
-
-    assert breakdown == {
-        "spot_yield": 0.0,
-        "stable_yield": 0.0,
-        "borrow_cost": 0.0,
-        "total_yield": 0.0,
-    }
-    assert portfolio.spot_balance == pytest.approx(1.0)
-    assert portfolio.stable_balance == pytest.approx(100.0)
 
 
 def test_allocation_helpers_and_coercion_fallbacks() -> None:
@@ -249,76 +193,12 @@ def test_build_strategy_summaries_uses_explicit_summary_signal_id() -> None:
         last_market_prices=None,
         strategy_daily_values={"summary_signal": [100.0, 110.0]},
         benchmark_daily_prices=[100.0, 105.0],
+        price_pnl_usd={"summary_signal": 10.0},
+        risk_free_apr=0.03,
     )["summary_signal"]
 
     assert summary.signal_id == "explicit_signal"
     assert summary.parameters == {"lookback_days": 30}
-
-
-def test_build_strategy_summaries_uses_equity_for_levered_portfolio() -> None:
-    strategy = ExplicitSignalSummaryStrategy()
-    summary = build_strategy_summaries(
-        strategies=[strategy],
-        portfolios={
-            "summary_signal": Portfolio(
-                spot_balance=10.0,
-                stable_balance=0.0,
-                debt_balance=400.0,
-            )
-        },
-        trade_counts={"summary_signal": 1},
-        total_capital=600.0,
-        last_price=100.0,
-        last_market_prices=None,
-        strategy_daily_values={"summary_signal": [600.0]},
-        benchmark_daily_prices=[100.0],
-    )["summary_signal"]
-
-    assert summary.final_value == pytest.approx(600.0)
-
-
-def test_apply_action_borrows_before_buying_and_repays_after_selling() -> None:
-    engine = StrategyEngine(EngineConfig())
-    portfolio = Portfolio(
-        stable_balance=0.0,
-        cost_model=PercentageSlippageModel(percent=0.0),
-    )
-    context = StrategyContext(
-        date=date(2025, 1, 2),
-        price=100.0,
-        sentiment=None,
-        price_history=[100.0],
-        portfolio=portfolio,
-    )
-
-    bought = engine._apply_action(
-        portfolio,
-        context,
-        StrategyAction(
-            snapshot=make_strategy_snapshot(reason="lever_up"),
-            transfers=[TransferIntent("stable", "spot", 500.0)],
-            debt_delta_usd=500.0,
-        ),
-    )
-
-    assert bought is True
-    assert portfolio.spot_balance == pytest.approx(5.0)
-    assert portfolio.stable_balance == pytest.approx(0.0)
-    assert portfolio.debt_balance == pytest.approx(500.0)
-
-    sold = engine._apply_action(
-        portfolio,
-        context,
-        StrategyAction(
-            snapshot=make_strategy_snapshot(reason="deleverage"),
-            transfers=[TransferIntent("spot", "stable", 500.0)],
-            debt_delta_usd=-500.0,
-        ),
-    )
-
-    assert sold is True
-    assert portfolio.debt_balance == pytest.approx(0.0)
-    assert portfolio.stable_balance == pytest.approx(0.0)
 
 
 def test_materialize_compare_request_passes_through_request() -> None:
@@ -371,41 +251,6 @@ def test_resolve_price_map_skips_non_positive_value() -> None:
     )
     assert "btc" not in price_map
     assert price_map.get("eth") == pytest.approx(3_000.0)
-
-
-class _SimpleHoldStrategy(BaseStrategy):
-    strategy_id = "simple_hold"
-    display_name = "Simple Hold"
-    canonical_strategy_id = "dma_fgi_portfolio_rules"
-
-    def on_day(self, context: StrategyContext) -> StrategyAction:
-        return StrategyAction(snapshot=make_strategy_snapshot(reason="hold"))
-
-
-def test_process_single_strategy_day_returns_none_when_not_record_point() -> None:
-    """Cover line 351: record_point=False → None returned without recording."""
-    engine = StrategyEngine(EngineConfig())
-    portfolio = Portfolio(spot_balance=0.0, stable_balance=1_000.0)
-    context = StrategyContext(
-        date=date(2025, 1, 2),
-        price=50_000.0,
-        sentiment=None,
-        price_history=[50_000.0, 50_000.0],
-        portfolio=portfolio,
-    )
-    strategy = _SimpleHoldStrategy()
-
-    result = engine._process_single_strategy_day(
-        strategy=strategy,
-        portfolio=portfolio,
-        context=context,
-        sentiment_label="neutral",
-        trade_counts={strategy.strategy_id: 0},
-        record_point=False,
-        strategy_daily_values={strategy.strategy_id: []},
-    )
-
-    assert result is None
 
 
 def test_resolve_context_price_falls_back_when_asset_missing_from_map() -> None:

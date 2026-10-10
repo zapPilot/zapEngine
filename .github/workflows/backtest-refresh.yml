@@ -12,6 +12,17 @@ on:
     # offset from track-record-snapshot (00:00) to avoid concurrent pushes.
     - cron: '30 1 * * *'
   workflow_dispatch:
+    inputs:
+      max_roi_shift:
+        description: >-
+          Percentage points the default strategy's ROI may move before the
+          refresh refuses to overwrite the committed artifacts. Leave empty
+          for the script's default. Set it only when an engine or assumption
+          change is meant to move the headline numbers; see "Re-baselining
+          after an assumption change" in ITERATION_PLAYBOOK.md.
+        required: false
+        type: string
+        default: ''
 
 permissions:
   contents: write
@@ -37,12 +48,22 @@ jobs:
 
       - name: Regenerate backtest snapshot and landing curve
         working-directory: apps/analytics-engine
+        env:
+          MAX_ROI_SHIFT: ${{ inputs.max_roi_shift }}
         run: |
           uv sync --locked
+          args=()
+          if [ -n "$MAX_ROI_SHIFT" ]; then
+            if ! [[ "$MAX_ROI_SHIFT" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+              echo "::error::max_roi_shift must be a non-negative number, got '$MAX_ROI_SHIFT'" >&2
+              exit 1
+            fi
+            args+=(--max-roi-shift "$MAX_ROI_SHIFT")
+          fi
           uv run python scripts/attribution/sweep_production_window.py \
             --update-snapshot --in-process \
             --reference-date "$REFERENCE_DATE" \
-            --no-progress
+            --no-progress "${args[@]}"
 
       - name: Regenerate landing market signals
         working-directory: apps/analytics-engine

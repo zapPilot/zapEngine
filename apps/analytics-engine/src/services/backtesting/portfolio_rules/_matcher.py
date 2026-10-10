@@ -2,14 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
 
 from src.services.backtesting.decision import AllocationIntent
-from src.services.backtesting.portfolio_rules import (
-    DEFAULT_PORTFOLIO_RULES,
-    RULE_PRIORITIES,
-)
-from src.services.backtesting.portfolio_rules._builders import _rule_is_active
 from src.services.backtesting.portfolio_rules.base import (
     DIAG_COOLDOWN_SKIPPED_RULES,
     DIAG_MATCHED_RULE_NAME,
@@ -38,10 +34,8 @@ class RuleMatchOutcome:
 def resolve_portfolio_rules_intent(
     snapshot: PortfolioSnapshot,
     *,
-    rules: tuple[PortfolioRule, ...] = DEFAULT_PORTFOLIO_RULES,
+    rules: tuple[PortfolioRule, ...],
     config: PortfolioRuleConfig | None = None,
-    disabled_rules: frozenset[str] = frozenset(),
-    enabled_rules: frozenset[str] | None = None,
     cooldown_tracker: RuleCooldownTracker | None = None,
 ) -> AllocationIntent:
     resolved_config = config or PortfolioRuleConfig()
@@ -67,12 +61,6 @@ def resolve_portfolio_rules_intent(
         )
         if not matched or winning_intent is not None:
             continue
-        if not _rule_is_active(
-            rule,
-            disabled_rules=disabled_rules,
-            enabled_rules=enabled_rules,
-        ):
-            continue
         cooldown = resolved_cooldown_tracker.is_cooled_off(
             rule,
             snapshot=snapshot,
@@ -85,7 +73,11 @@ def resolve_portfolio_rules_intent(
         winning_intent = candidate_intent
 
     rule_trace = _rule_match_outcome_dicts(
-        _apply_shadowing(raw_outcomes, winner_name=winning_rule_name)
+        _apply_shadowing(
+            raw_outcomes,
+            winner_name=winning_rule_name,
+            priorities={rule.name: rule.priority for rule in rules},
+        )
     )
     if winning_intent is not None and winning_rule_name is not None:
         diagnostics = dict(winning_intent.diagnostics or {})
@@ -129,20 +121,18 @@ def _apply_shadowing(
     outcomes: list[RuleMatchOutcome],
     *,
     winner_name: str | None,
+    priorities: Mapping[str, int],
 ) -> list[RuleMatchOutcome]:
     if winner_name is None:
         return outcomes
-    winner_priority = RULE_PRIORITIES.get(winner_name)
-    if winner_priority is None:
-        return outcomes
+    winner_priority = priorities[winner_name]
     shadowed: list[RuleMatchOutcome] = []
     for outcome in outcomes:
         suppressed_by = outcome.suppressed_by
         if (
             outcome.matched
             and outcome.rule_name != winner_name
-            and RULE_PRIORITIES.get(outcome.rule_name, winner_priority)
-            > winner_priority
+            and priorities[outcome.rule_name] > winner_priority
         ):
             suppressed_by = winner_name
         shadowed.append(replace(outcome, suppressed_by=suppressed_by))

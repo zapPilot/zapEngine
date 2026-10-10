@@ -11,8 +11,6 @@ from src.services.backtesting.domain import (
     SignalObservation,
 )
 from src.services.backtesting.execution.ath_tracker import ATHTracker
-from src.services.backtesting.execution.contracts import ExecutionHints
-from src.services.backtesting.execution.pacing.base import compute_dma_buy_strength
 from src.services.backtesting.features import DMA_200_FEATURE, MarketDataRequirements
 from src.services.backtesting.signals.contracts import (
     SignalContext,
@@ -63,32 +61,6 @@ def _build_signal_observation(
             cooldown_blocked_zone=snapshot.cooldown_state.blocked_zone,
             fgi_slope=snapshot.fgi_slope,
         ),
-    )
-
-
-def _build_execution_hints(
-    *,
-    signal_id: SignalId,
-    snapshot: DmaMarketState,
-    intent: AllocationIntent,
-    signal_confidence: float,
-) -> ExecutionHints:
-    enable_buy_gate = intent.action == "buy" and snapshot.signal_id == signal_id
-    buy_strength = (
-        compute_dma_buy_strength(snapshot.dma_distance) if enable_buy_gate else None
-    )
-    return ExecutionHints(
-        signal_id=snapshot.signal_id,
-        current_regime=snapshot.fgi_regime,
-        signal_value=snapshot.fgi_value,
-        signal_confidence=float(signal_confidence),
-        decision_score=intent.decision_score,
-        decision_action=intent.action,
-        dma_distance=snapshot.dma_distance,
-        fgi_slope=snapshot.fgi_slope,
-        buy_strength=buy_strength,
-        enable_buy_gate=enable_buy_gate,
-        reset_buy_gate=intent.rule_group == "cross",
     )
 
 
@@ -176,20 +148,6 @@ class DmaGatedFgiSignalComponent(StatefulSignalComponent):
         return _build_signal_observation(
             snapshot=snapshot,
             intent=intent,
-        )
-
-    def build_execution_hints(
-        self,
-        *,
-        snapshot: DmaMarketState,
-        intent: AllocationIntent,
-        signal_confidence: float,
-    ) -> ExecutionHints:
-        return _build_execution_hints(
-            signal_id=self.signal_id,
-            snapshot=snapshot,
-            intent=intent,
-            signal_confidence=signal_confidence,
         )
 
 

@@ -11,14 +11,11 @@ from src.services.backtesting.features import (
     MarketDataRequirements,
     MarketFeatureSet,
 )
-from src.services.backtesting.public_params import (
-    get_default_public_params,
-    public_params_to_runtime_params,
-)
 from src.services.backtesting.strategy_registry import (
     StrategyBuildRequest,
     StrategyRecipe,
     list_strategy_recipes,
+    resolve_inline_strategy_config,
 )
 
 
@@ -38,28 +35,26 @@ def _portfolio_fixture() -> object:
 
 
 @pytest.mark.parametrize("recipe", list_strategy_recipes(), ids=_recipe_ids)
-def test_recipe_default_params_round_trip(recipe: StrategyRecipe) -> None:
-    default_params = public_params_to_runtime_params(
-        recipe.strategy_id,
-        get_default_public_params(recipe.strategy_id),
+def test_a_recipe_takes_no_params(recipe: StrategyRecipe) -> None:
+    resolved = resolve_inline_strategy_config(
+        config_id="no-params", strategy_id=recipe.strategy_id, params={}
     )
-    normalized = recipe.normalize_public_params(dict(default_params))
 
-    assert normalized == dict(default_params)
+    assert resolved.strategy_id == recipe.strategy_id
+    with pytest.raises(ValueError, match="does not accept params"):
+        resolve_inline_strategy_config(
+            config_id="with-params",
+            strategy_id=recipe.strategy_id,
+            params={"anything": 1},
+        )
 
 
 @pytest.mark.parametrize("recipe", list_strategy_recipes(), ids=_recipe_ids)
 def test_recipe_compare_build_contract(recipe: StrategyRecipe) -> None:
-    default_params = public_params_to_runtime_params(
-        recipe.strategy_id,
-        get_default_public_params(recipe.strategy_id),
-    )
     strategy = recipe.build_strategy(
         StrategyBuildRequest(
-            mode="compare",
             config_id=f"{recipe.strategy_id}-test",
             total_capital=10_000.0,
-            params=dict(default_params),
             user_prices=[{"date": date(2025, 1, 1), "price": 100.0}],
             initial_allocation={"spot": 0.5, "stable": 0.5},
             user_start_date=date(2025, 1, 1),
@@ -80,27 +75,6 @@ def test_recipe_capability_contract(recipe: StrategyRecipe) -> None:
     assert isinstance(recipe.market_data_requirements.requires_sentiment, bool)
     assert buckets.total_value == pytest.approx(10_000.0)
     assert buckets.allocation()["spot"] == pytest.approx(0.3)
-
-
-@pytest.mark.parametrize(
-    "recipe",
-    [recipe for recipe in list_strategy_recipes() if recipe.supports_daily_suggestion],
-    ids=_recipe_ids,
-)
-def test_daily_suggestion_recipe_build_contract(recipe: StrategyRecipe) -> None:
-    default_params = public_params_to_runtime_params(
-        recipe.strategy_id,
-        get_default_public_params(recipe.strategy_id),
-    )
-    strategy = recipe.build_strategy(
-        StrategyBuildRequest(
-            mode="daily_suggestion",
-            total_capital=10_000.0,
-            params=dict(default_params),
-        )
-    )
-
-    assert hasattr(strategy, "get_daily_recommendation")
 
 
 def test_market_data_requirements_merge_or_sentiment_and_union_price_features() -> None:

@@ -55,7 +55,7 @@ describe('Motion landing', () => {
     );
     expect(screen.getByLabelText('Email')).toHaveAttribute('maxLength', '320');
     expect(
-      screen.getByText(/It assumes yield on stablecoin/),
+      screen.getByText(/assumes a yield on stablecoin balances only/),
     ).toBeInTheDocument();
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
   });

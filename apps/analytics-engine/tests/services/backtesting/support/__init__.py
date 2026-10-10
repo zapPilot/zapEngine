@@ -1,10 +1,5 @@
 from types import SimpleNamespace
 
-from .mock_composed_family import (
-    MOCK_COMPOSED_STRATEGY_ID,
-    build_mock_composed_catalog,
-    build_mock_saved_config,
-)
 from .mock_recipe import make_mock_recipe, register_mock_recipe
 from .scenarios import (
     compare_request,
@@ -42,12 +37,9 @@ def mock_portfolio(
 
 __all__ = [
     "compare_request",
-    "build_mock_composed_catalog",
-    "build_mock_saved_config",
     "make_mock_recipe",
     "make_strategy_snapshot",
     "mock_portfolio",
-    "MOCK_COMPOSED_STRATEGY_ID",
     "price_row",
     "price_series",
     "register_mock_recipe",

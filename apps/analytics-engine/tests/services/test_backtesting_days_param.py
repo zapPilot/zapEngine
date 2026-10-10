@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 
 from src.models.backtesting import (
+    BacktestAssumptions,
     BacktestCompareConfigV3,
     BacktestCompareRequestV3,
     BacktestResponse,
@@ -40,7 +41,6 @@ def _portfolio_rules_price_series(start: date, days: int) -> list[dict[str, obje
 @pytest.fixture
 def mock_deps() -> dict[str, MagicMock]:
     return {
-        "db": MagicMock(),
         "token_price_service": MagicMock(),
         "sentiment_service": MagicMock(),
     }
@@ -58,7 +58,7 @@ def _setup_compare_service(
     prices: list[dict[str, object]] | None = None,
     sentiments: dict[date, dict[str, object]] | None = None,
 ) -> MagicMock:
-    service.data_provider.fetch_token_prices = AsyncMock(
+    service.data_provider.fetch_token_prices = MagicMock(
         return_value=prices
         or [
             price_row(date(2024, 9, 15), price=100.0, dma_200=95.0),
@@ -66,8 +66,12 @@ def _setup_compare_service(
             price_row(date.today(), price=120.0, dma_200=115.0),
         ]
     )
-    service.data_provider.fetch_sentiments = AsyncMock(return_value=sentiments or {})
-    mock_runner = MagicMock(return_value=BacktestResponse(strategies={}, timeline=[]))
+    service.data_provider.fetch_sentiments = MagicMock(return_value=sentiments or {})
+    mock_runner = MagicMock(
+        return_value=BacktestResponse(
+            assumptions=BacktestAssumptions(), strategies={}, timeline=[]
+        )
+    )
     monkeypatch.setattr(
         "src.services.strategy.backtesting_service.run_compare_v3_on_data",
         mock_runner,
@@ -298,8 +302,8 @@ class TestBacktestingPrimerDays:
             for i in range(primer_days + user_days + 1)
         }
 
-        service.data_provider.fetch_token_prices = AsyncMock(return_value=prices)
-        service.data_provider.fetch_sentiments = AsyncMock(return_value=sentiments)
+        service.data_provider.fetch_token_prices = MagicMock(return_value=prices)
+        service.data_provider.fetch_sentiments = MagicMock(return_value=sentiments)
 
         request = compare_request(
             token_symbol="BTC",

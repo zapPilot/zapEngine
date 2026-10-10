@@ -9,69 +9,19 @@ import { BucketTransferSchema } from './bucket.js';
 import { JsonObjectSchema, JsonValueSchema, type JsonValue } from './json.js';
 import { MarketDataFreshnessSchema } from '../shared/market-freshness.js';
 
-export const BacktestSignalParamsV3Schema = z
+export const BacktestAssumptionsSchema = z
   .object({
-    cross_cooldown_days: z.number().optional(),
-    cross_on_touch: z.boolean().optional(),
+    fill_lag_days: z.number().int().min(0).max(1),
+    slippage_rate: z.number().min(0).max(0.05),
+    stable_apr: z.number().min(0).max(0.5),
   })
-  .partial()
   .strict();
 
-export const BacktestPacingParamsV3Schema = z
-  .object({
-    k: z.number().optional(),
-    r_max: z.number().optional(),
-  })
-  .partial()
-  .strict();
-
-export const BacktestBuyGateParamsV3Schema = z
-  .object({
-    window_days: z.number().optional(),
-    sideways_max_range: z.number().optional(),
-    leg_caps: z.array(z.number()).optional(),
-  })
-  .partial()
-  .strict();
-
-export const BacktestTradeQuotaParamsV3Schema = z
-  .object({
-    min_trade_interval_days: z.number().nullable().optional(),
-    max_trades_7d: z.number().nullable().optional(),
-    max_trades_30d: z.number().nullable().optional(),
-  })
-  .partial()
-  .strict();
-
-export const BacktestTopEscapeParamsV3Schema = z
-  .object({
-    dma_overextension_threshold: z.number().optional(),
-    fgi_slope_reversal_threshold: z.number().optional(),
-    fgi_slope_recovery_threshold: z.number().optional(),
-  })
-  .partial()
-  .strict();
-
-export const BacktestExtremeFearParamsV3Schema = z
-  .object({
-    min_consecutive_days: z.number().optional(),
-    buy_step: z.number().optional(),
-  })
-  .partial()
-  .strict();
-
-export const BacktestCompareParamsV3Schema = z
-  .object({
-    signal: BacktestSignalParamsV3Schema.optional(),
-    pacing: BacktestPacingParamsV3Schema.optional(),
-    buy_gate: BacktestBuyGateParamsV3Schema.optional(),
-    trade_quota: BacktestTradeQuotaParamsV3Schema.optional(),
-    top_escape: BacktestTopEscapeParamsV3Schema.optional(),
-    extreme_fear: BacktestExtremeFearParamsV3Schema.optional(),
-    disabled_rules: z.array(z.string()).optional(),
-    enabled_rules: z.array(z.string()).optional(),
-  })
-  .strict();
+export const BacktestPnlAttributionSchema = z.object({
+  price_usd: z.number(),
+  yield_usd: z.number(),
+  cost_usd: z.number(),
+});
 
 export const BacktestCompareConfigV3Schema = z.object({
   config_id: z.string(),
@@ -86,6 +36,7 @@ export const BacktestRequestSchema = z.object({
   end_date: z.string().nullable().optional(),
   days: z.number().int().nullable().optional(),
   total_capital: z.number().positive(),
+  assumptions: BacktestAssumptionsSchema.nullable().optional(),
   configs: z.array(BacktestCompareConfigV3Schema).min(1),
 });
 
@@ -158,20 +109,12 @@ export const BacktestDecisionSchema = z.object({
   details: BacktestDecisionDetailsSchema.optional(),
 });
 
-export const BacktestExecutionDiagnosticsSchema = z.object({
-  plugins: z.record(z.string(), JsonObjectSchema.nullable()),
-});
-
 export const BacktestExecutionSchema = z.object({
   event: z.string().nullable(),
   transfers: z.array(BucketTransferSchema),
   blocked_reason: z.string().nullable(),
   status: z.enum(['action_required', 'blocked', 'no_action']).optional(),
   action_required: z.boolean().optional(),
-  step_count: z.number().int().nonnegative(),
-  steps_remaining: z.number().int().nonnegative(),
-  interval_days: z.number().int().nonnegative(),
-  diagnostics: BacktestExecutionDiagnosticsSchema.optional(),
 });
 
 export const BacktestStrategyPointSchema = z.object({
@@ -234,6 +177,7 @@ export const BacktestStrategySummarySchema = z.object({
   ulcer_index: z.number().optional(),
   alpha: z.number().optional(),
   information_ratio: z.number().optional(),
+  pnl_attribution: BacktestPnlAttributionSchema,
   win_rate_percent: z.number().nullable().optional(),
   final_allocation: PortfolioAllocationSchema,
   final_asset_allocation: AssetAllocationSchema,
@@ -243,6 +187,7 @@ export const BacktestStrategySummarySchema = z.object({
 });
 
 export const BacktestResponseSchema = z.object({
+  assumptions: BacktestAssumptionsSchema,
   strategies: BacktestStrategySetSchema(BacktestStrategySummarySchema),
   timeline: z.array(BacktestTimelinePointSchema),
   window: BacktestWindowInfoSchema.nullable().optional(),
@@ -263,26 +208,12 @@ export const BacktestStrategyCatalogResponseV3Schema = z.object({
   strategies: z.array(BacktestStrategyCatalogEntryV3Schema),
 });
 
-export type BacktestSignalParamsV3 = z.infer<
-  typeof BacktestSignalParamsV3Schema
->;
-export type BacktestPacingParamsV3 = z.infer<
-  typeof BacktestPacingParamsV3Schema
->;
-export type BacktestBuyGateParamsV3 = z.infer<
-  typeof BacktestBuyGateParamsV3Schema
->;
-export type BacktestTradeQuotaParamsV3 = z.infer<
-  typeof BacktestTradeQuotaParamsV3Schema
->;
-export type BacktestExtremeFearParamsV3 = z.infer<
-  typeof BacktestExtremeFearParamsV3Schema
->;
-export type BacktestCompareParamsV3 = z.infer<
-  typeof BacktestCompareParamsV3Schema
->;
 export type BacktestCompareConfigV3 = z.infer<
   typeof BacktestCompareConfigV3Schema
+>;
+export type BacktestAssumptions = z.infer<typeof BacktestAssumptionsSchema>;
+export type BacktestPnlAttribution = z.infer<
+  typeof BacktestPnlAttributionSchema
 >;
 export type BacktestRequest = z.infer<typeof BacktestRequestSchema>;
 export type BacktestSpotAssetSymbol = z.infer<
@@ -300,9 +231,6 @@ export type BacktestDecisionDetails = z.infer<
   typeof BacktestDecisionDetailsSchema
 >;
 export type BacktestDecision = z.infer<typeof BacktestDecisionSchema>;
-export type BacktestExecutionDiagnostics = z.infer<
-  typeof BacktestExecutionDiagnosticsSchema
->;
 export type BacktestExecution = z.infer<typeof BacktestExecutionSchema>;
 export type BacktestStrategyPoint = z.infer<typeof BacktestStrategyPointSchema>;
 export type BacktestStrategySet<T> = Record<string, T>;

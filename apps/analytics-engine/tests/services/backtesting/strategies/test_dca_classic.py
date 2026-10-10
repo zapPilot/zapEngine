@@ -69,8 +69,8 @@ def test_dca_classic_daily_buy_returns_transfer_and_execution_event() -> None:
 
     action = strategy.on_day(context)
 
-    assert action.transfers is not None
-    assert action.transfers[0].amount_usd == 50.0
+    assert action.order is not None
+    assert action.order.transfers[0].amount_usd == 50.0
     assert action.snapshot.decision.action == "buy"
     assert action.snapshot.decision.reason == "daily_buy"
     assert action.snapshot.execution.event == "buy"
@@ -92,7 +92,7 @@ def test_dca_classic_no_cash_returns_hold_snapshot() -> None:
 
     action = strategy.on_day(context)
 
-    assert action.transfers is None
+    assert action.order is None
     assert action.snapshot.decision.action == "hold"
     assert action.snapshot.decision.reason == "no_cash"
     assert action.snapshot.execution.event is None

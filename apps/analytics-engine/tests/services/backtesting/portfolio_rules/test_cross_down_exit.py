@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import pytest
 
-from src.services.backtesting.portfolio_rules.base import PortfolioRuleConfig
-from src.services.backtesting.portfolio_rules.cross_down_exit import CrossDownExitRule
+from src.services.backtesting.portfolio_rules.base import (
+    PortfolioRuleConfig,
+    ProceedsRouting,
+)
 from tests.services.backtesting.portfolio_rules.helpers import snapshot, state
+from tests.services.backtesting.support.reference_rules import reference_rule
 
 
 def test_btc_cross_down_liquidates_crypto_peers_to_stable() -> None:
-    rule = CrossDownExitRule()
+    rule = reference_rule("cross_down_exit")
     rule_snapshot = snapshot(
         assets={
             "SPY": state(symbol="SPY"),
@@ -40,7 +43,7 @@ def test_btc_cross_down_liquidates_crypto_peers_to_stable() -> None:
 def test_btc_cross_down_marks_crypto_group_for_cooldown_even_without_btc_position() -> (
     None
 ):
-    rule = CrossDownExitRule()
+    rule = reference_rule("cross_down_exit")
     rule_snapshot = snapshot(
         assets={
             "SPY": state(symbol="SPY"),
@@ -71,7 +74,7 @@ def test_btc_cross_down_marks_crypto_group_for_cooldown_even_without_btc_positio
 
 
 def test_eth_cross_down_liquidates_crypto_peers_to_stable() -> None:
-    rule = CrossDownExitRule()
+    rule = reference_rule("cross_down_exit")
     rule_snapshot = snapshot(
         assets={
             "SPY": state(symbol="SPY"),
@@ -99,7 +102,7 @@ def test_eth_cross_down_liquidates_crypto_peers_to_stable() -> None:
 def test_eth_cross_down_marks_crypto_group_for_cooldown_even_without_eth_position() -> (
     None
 ):
-    rule = CrossDownExitRule()
+    rule = reference_rule("cross_down_exit")
     rule_snapshot = snapshot(
         assets={
             "SPY": state(symbol="SPY"),
@@ -130,7 +133,7 @@ def test_eth_cross_down_marks_crypto_group_for_cooldown_even_without_eth_positio
 
 
 def test_spy_cross_down_liquidates_only_spy_to_stable() -> None:
-    rule = CrossDownExitRule()
+    rule = reference_rule("cross_down_exit")
     rule_snapshot = snapshot(
         assets={
             "SPY": state(
@@ -161,13 +164,13 @@ def test_spy_cross_down_liquidates_only_spy_to_stable() -> None:
 
 
 def test_cross_down_exit_ignores_non_cross_down_days() -> None:
-    rule = CrossDownExitRule()
+    rule = reference_rule("cross_down_exit")
 
     assert not rule.matches(snapshot(), config=PortfolioRuleConfig())
 
 
 def test_cross_down_exit_does_not_fire_when_actionable_cross_is_suppressed() -> None:
-    rule = CrossDownExitRule()
+    rule = reference_rule("cross_down_exit")
     rule_snapshot = snapshot(
         assets={
             "SPY": state(symbol="SPY"),
@@ -182,3 +185,95 @@ def test_cross_down_exit_does_not_fire_when_actionable_cross_is_suppressed() -> 
     )
 
     assert rule.matches(rule_snapshot, config=PortfolioRuleConfig()) is False
+
+
+def test_peer_groups_decide_who_leaves_together() -> None:
+    rule = reference_rule("cross_down_exit", peer_groups=(("SPY", "BTC", "ETH"),))
+    rule_snapshot = snapshot(
+        assets={
+            "SPY": state(
+                symbol="SPY",
+                cross_event="cross_down",
+                actionable_cross_event="cross_down",
+            ),
+            "BTC": state(symbol="BTC"),
+            "ETH": state(symbol="ETH"),
+        },
+        current={"btc": 0.30, "eth": 0.30, "spy": 0.30, "stable": 0.10, "alt": 0.0},
+    )
+
+    intent = rule.build_intent(rule_snapshot, config=PortfolioRuleConfig())
+
+    assert intent.target_allocation == pytest.approx(
+        {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0, "alt": 0.0}
+    )
+    assert intent.diagnostics is not None
+    assert intent.diagnostics["portfolio_rule_exit_assets"] == ["SPY", "BTC", "ETH"]
+
+
+def test_an_asset_in_no_peer_group_leaves_alone() -> None:
+    rule = reference_rule("cross_down_exit", peer_groups=())
+    rule_snapshot = snapshot(
+        assets={
+            "SPY": state(symbol="SPY"),
+            "BTC": state(
+                symbol="BTC",
+                cross_event="cross_down",
+                actionable_cross_event="cross_down",
+            ),
+            "ETH": state(symbol="ETH"),
+        },
+        current={"btc": 0.40, "eth": 0.30, "spy": 0.20, "stable": 0.10, "alt": 0.0},
+    )
+
+    intent = rule.build_intent(rule_snapshot, config=PortfolioRuleConfig())
+
+    assert intent.target_allocation == pytest.approx(
+        {"btc": 0.0, "eth": 0.30, "spy": 0.20, "stable": 0.50, "alt": 0.0}
+    )
+
+
+def test_proceeds_can_be_routed_instead_of_kept_in_stable() -> None:
+    rule = reference_rule(
+        "cross_down_exit", proceeds=ProceedsRouting(to=(("SPY", 0.5),))
+    )
+    rule_snapshot = snapshot(
+        assets={
+            "SPY": state(symbol="SPY"),
+            "BTC": state(
+                symbol="BTC",
+                cross_event="cross_down",
+                actionable_cross_event="cross_down",
+            ),
+            "ETH": state(symbol="ETH"),
+        },
+        current={"btc": 0.40, "eth": 0.30, "spy": 0.20, "stable": 0.10, "alt": 0.0},
+    )
+
+    intent = rule.build_intent(rule_snapshot, config=PortfolioRuleConfig())
+
+    assert intent.target_allocation == pytest.approx(
+        {"btc": 0.0, "eth": 0.0, "spy": 0.55, "stable": 0.45, "alt": 0.0}
+    )
+
+
+def test_the_cooldown_is_kept_for_the_rule_unless_the_spec_says_per_asset() -> None:
+    assert reference_rule("cross_down_exit").cooldown_keyed_by_trigger_symbol is False
+
+
+def test_a_per_asset_cooldown_is_tracked_for_the_assets_that_crossed() -> None:
+    rule = reference_rule("cross_down_exit", cooldown_keyed_by_trigger_symbol=True)
+    rule_snapshot = snapshot(
+        assets={
+            "SPY": state(
+                symbol="SPY",
+                cross_event="cross_down",
+                actionable_cross_event="cross_down",
+            ),
+            "BTC": state(symbol="BTC"),
+            "ETH": state(symbol="ETH"),
+        },
+    )
+
+    assert rule.trigger_symbols_for_cooldown(rule_snapshot) == ["SPY"]
+    assert rule.trigger_symbols_for_cooldown(snapshot()) == []

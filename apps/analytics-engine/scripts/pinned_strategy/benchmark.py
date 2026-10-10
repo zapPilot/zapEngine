@@ -12,10 +12,12 @@ from datetime import date, timedelta
 
 from scripts.pinned_strategy.codec import EMPTY_STATES, WAD
 from scripts.pinned_strategy.evm import SliceEVM
-from scripts.pinned_strategy.record_market_history import HISTORY, read_history
+from scripts.pinned_strategy.history import RECORD_HINT, recorded_bundle
 from scripts.pinned_strategy.shadow import shadow_compare
+from scripts.pinned_strategy.touch_mode import cross_on_touch_mode
 from src.models.backtesting import BacktestCompareConfigV3, BacktestCompareRequestV3
 from src.services.backtesting.execution.compare import run_compare_v3_on_data
+from src.services.backtesting.lab.bundle import BundleError
 
 
 def synthetic_history(days=500):
@@ -57,13 +59,6 @@ def synthetic_history(days=500):
 
 def run_compare(history, touch):
     prices, sentiments, start, end = history
-    from src.config.strategy_presets import _DMA_FGI_PORTFOLIO_RULES_OPTIMIZED_PARAMS
-
-    params = (
-        {"signal": {"cross_on_touch": True}}
-        if touch
-        else _DMA_FGI_PORTFOLIO_RULES_OPTIMIZED_PARAMS
-    )
     request = BacktestCompareRequestV3(
         token_symbol="BTC",
         start_date=start,
@@ -71,11 +66,12 @@ def run_compare(history, touch):
         total_capital=10000,
         configs=[
             BacktestCompareConfigV3(
-                config_id="slice", strategy_id="dma_fgi_portfolio_rules", params=params
+                config_id="slice", strategy_id="dma_fgi_portfolio_rules", params={}
             )
         ],
     )
-    return run_compare_v3_on_data(prices, sentiments, request, start)
+    with cross_on_touch_mode(touch):
+        return run_compare_v3_on_data(prices, sentiments, request, start)
 
 
 class PyEVMHost:
@@ -176,14 +172,19 @@ def main():
         "latency": latency(host, args.iterations),
     }
     if args.backend == "pyrevm":
-        if not args.synthetic and not HISTORY.exists():
-            raise SystemExit(
-                "Real history missing: run approved recorder first, or explicitly choose --synthetic"
-            )
-        history = synthetic_history() if args.synthetic else read_history()
-        report["history"] = (
-            "synthetic-boundary-stream" if args.synthetic else str(HISTORY)
-        )
+        if args.synthetic:
+            history = synthetic_history()
+            report["history"] = "synthetic-boundary-stream"
+        else:
+            try:
+                bundle = recorded_bundle()
+            except BundleError as error:
+                raise SystemExit(
+                    f"Real history missing ({error}). {RECORD_HINT}, "
+                    "or explicitly choose --synthetic"
+                ) from error
+            history = bundle.history()
+            report["history"] = str(bundle.path)
         report["compare"] = {}
         for touch in (True, False):
             timings = {}

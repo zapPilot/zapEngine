@@ -7,7 +7,6 @@ from datetime import date
 import pytest
 
 from src.services.backtesting.decision import AllocationIntent
-from src.services.backtesting.execution.contracts import ExecutionHints
 from src.services.backtesting.execution.cost_model import PercentageSlippageModel
 from src.services.backtesting.execution.portfolio import Portfolio
 from src.services.backtesting.execution.rule_based.allocation_executor import (
@@ -46,17 +45,6 @@ def _intent(target: dict[str, float]) -> AllocationIntent:
     )
 
 
-def _hints() -> ExecutionHints:
-    return ExecutionHints(
-        signal_id="dma_fgi_portfolio_rules_signal",
-        current_regime="extreme_fear",
-        signal_value=12.0,
-        signal_confidence=1.0,
-        decision_score=1.0,
-        decision_action="buy",
-    )
-
-
 def test_executor_returns_noop_when_already_at_target() -> None:
     executor = RuleBasedAllocationExecutor()
     portfolio = Portfolio.from_asset_allocation(
@@ -70,12 +58,10 @@ def test_executor_returns_noop_when_already_at_target() -> None:
         intent=_intent(
             {"btc": 0.50, "eth": 0.0, "spy": 0.0, "stable": 0.50, "alt": 0.0}
         ),
-        hints=_hints(),
     )
 
     assert result.event is None
     assert result.transfers is None
-    assert result.immediate_execution is True
     assert executor.last_trade_date is None
     assert executor.trade_dates == []
 
@@ -93,7 +79,6 @@ def test_executor_applies_full_delta_atomically_in_one_bar() -> None:
         intent=_intent(
             {"btc": 0.05, "eth": 0.0, "spy": 0.0, "stable": 0.95, "alt": 0.0}
         ),
-        hints=_hints(),
     )
 
     assert result.event == "rebalance"
@@ -119,7 +104,6 @@ def test_executor_builds_all_required_multi_asset_transfers_at_once() -> None:
         intent=_intent(
             {"btc": 0.0, "eth": 0.40, "spy": 0.0, "stable": 0.60, "alt": 0.0}
         ),
-        hints=_hints(),
     )
 
     assert result.transfers is not None
@@ -144,7 +128,6 @@ def test_executor_preserves_gross_amounts_for_portfolio_cost_model() -> None:
         intent=_intent(
             {"btc": 0.05, "eth": 0.0, "spy": 0.0, "stable": 0.95, "alt": 0.0}
         ),
-        hints=_hints(),
     )
 
     assert result.transfers is not None

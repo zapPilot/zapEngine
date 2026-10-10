@@ -1,5 +1,8 @@
+"""A saved config resolves to the recipe its ``strategy_id`` names."""
+
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import date
 
 import pytest
@@ -8,29 +11,21 @@ from src.config.strategy_presets import (
     DMA_FGI_PORTFOLIO_RULES_CONFIG_ID,
     resolve_seed_strategy_config,
 )
-from src.models.strategy_config import (
-    SavedStrategyConfig,
-    StrategyComponentRef,
-    StrategyComposition,
-)
-from src.services.backtesting.composition import (
-    build_saved_config_from_legacy,
-    resolve_saved_strategy_config,
-)
-from src.services.backtesting.composition_catalog import (
-    StrategyFamilySpec,
-    build_default_composition_catalog,
-)
+from src.models.backtesting import BacktestCompareConfigV3, BacktestCompareRequestV3
+from src.models.strategy_config import SavedStrategyConfig
+from src.services.backtesting.constants import STRATEGY_DCA_CLASSIC
+from src.services.backtesting.execution.compare import run_compare_v3_on_data
 from src.services.backtesting.features import DMA_200_FEATURE, ETH_DMA_200_FEATURE
 from src.services.backtesting.strategies.rule_based_portfolio import (
     RuleBasedPortfolioStrategy,
 )
-from src.services.backtesting.strategy_registry import StrategyBuildRequest
-from tests.services.backtesting.support import (
-    MOCK_COMPOSED_STRATEGY_ID,
-    build_mock_composed_catalog,
-    build_mock_saved_config,
+from src.services.backtesting.strategy_registry import (
+    StrategyBuildRequest,
+    reference_identity,
+    resolve_inline_strategy_config,
+    resolve_saved_strategy_config,
 )
+from tests.services.backtesting.support import register_mock_recipe
 
 
 def test_resolve_seed_saved_config_builds_portfolio_rules_runtime() -> None:
@@ -42,6 +37,8 @@ def test_resolve_seed_saved_config_builds_portfolio_rules_runtime() -> None:
     assert resolved.strategy_id == "dma_fgi_portfolio_rules"
     assert resolved.summary_signal_id == "dma_fgi_portfolio_rules_signal"
     assert resolved.primary_asset == "BTC"
+    assert resolved.supports_daily_suggestion is True
+    assert resolved.spec_ref == reference_identity("reference/dma_fgi")
     assert resolved.market_data_requirements.requires_sentiment is True
     assert DMA_200_FEATURE in resolved.market_data_requirements.required_price_features
 
@@ -53,7 +50,6 @@ def test_resolved_seed_portfolio_rules_strategy_uses_rule_based_builder() -> Non
 
     strategy = resolved.build_strategy(
         StrategyBuildRequest(
-            mode="compare",
             total_capital=10_000.0,
             config_id=resolved.request_config_id,
             user_prices=[
@@ -76,126 +72,103 @@ def test_resolved_seed_portfolio_rules_strategy_uses_rule_based_builder() -> Non
     assert strategy.signal_component.ratio_cross_cooldown_days == 30
 
 
-def test_registered_mock_family_resolves_with_injected_catalog() -> None:
-    resolved = resolve_saved_strategy_config(
-        build_mock_saved_config(),
-        catalog=build_mock_composed_catalog(),
+def test_the_benchmark_seed_resolves_through_its_recipe() -> None:
+    """``saved_config_id: dca_classic`` used to be rejected as an unknown family."""
+    saved_config = resolve_seed_strategy_config(STRATEGY_DCA_CLASSIC)
+
+    resolved = resolve_saved_strategy_config(saved_config)
+
+    assert resolved.saved_config_id == STRATEGY_DCA_CLASSIC
+    assert resolved.strategy_id == STRATEGY_DCA_CLASSIC
+    assert resolved.summary_signal_id is None
+    assert resolved.spec_ref is None
+    assert resolved.supports_daily_suggestion is False
+    assert resolved.runtime_portfolio_mode == "aggregate"
+
+
+def test_a_saved_config_without_a_spec_ref_runs_the_recipes_own_reference() -> None:
+    saved_config = resolve_seed_strategy_config(
+        DMA_FGI_PORTFOLIO_RULES_CONFIG_ID
+    ).model_copy(update={"spec_ref": None})
+
+    resolved = resolve_saved_strategy_config(saved_config)
+
+    assert resolved.spec_ref == reference_identity("reference/dma_fgi")
+
+
+def test_a_benchmark_has_no_spec_to_name() -> None:
+    saved_config = resolve_seed_strategy_config(STRATEGY_DCA_CLASSIC).model_copy(
+        update={"spec_ref": "reference/dma_fgi"}
     )
 
-    assert resolved.strategy_id == MOCK_COMPOSED_STRATEGY_ID
-    assert resolved.summary_signal_id == "mock_signal"
-    assert resolved.market_data_requirements.requires_sentiment is False
+    with pytest.raises(ValueError, match="dca_classic is not spec-backed"):
+        resolve_saved_strategy_config(saved_config)
 
 
-def test_registered_mock_family_reports_missing_slot_from_family_spec() -> None:
-    catalog = build_mock_composed_catalog()
-    broken = build_mock_saved_config().model_copy(
-        update={
-            "composition": build_mock_saved_config().composition.model_copy(
-                update={"decision_policy": None},
-                deep=True,
-            )
-        },
-        deep=True,
-    )
-
-    with pytest.raises(
-        ValueError,
-        match=(
-            "Strategy family 'mock_signal_family' is missing required component slots: "
-            "decision_policy"
-        ),
-    ):
-        resolve_saved_strategy_config(broken, catalog=catalog)
-
-
-def test_legacy_adapter_rejects_family_without_legacy_support() -> None:
-    with pytest.raises(
-        ValueError,
-        match=(
-            "Strategy family 'mock_signal_family' does not support legacy inline "
-            "compare config"
-        ),
-    ):
-        build_saved_config_from_legacy(
-            strategy_id=MOCK_COMPOSED_STRATEGY_ID,
-            params={},
-            config_id="mock_legacy",
-            catalog=build_mock_composed_catalog(),
-        )
-
-
-def test_legacy_adapter_rejects_portfolio_rules_family() -> None:
-    with pytest.raises(
-        ValueError,
-        match=(
-            "Strategy family 'dma_fgi_portfolio_rules' does not support legacy "
-            "inline compare config"
-        ),
-    ):
-        build_saved_config_from_legacy(
-            strategy_id="dma_fgi_portfolio_rules",
-            params={},
-            config_id="legacy_portfolio_rules",
-        )
-
-
-# --- targeted coverage tests for composition_catalog.py ---
-
-
-def test_build_decision_policy_with_params_raises() -> None:
-    catalog = build_default_composition_catalog()
-    factory = catalog.resolve_decision_policy_factory("dma_fgi_portfolio_rules_policy")
-    with pytest.raises(ValueError, match="does not accept params"):
-        factory({"unexpected": "param"})
-
-
-def test_build_two_bucket_execution_profile_with_params_raises() -> None:
-    catalog = build_default_composition_catalog()
-    factory = catalog.resolve_execution_profile_factory("two_bucket_rebalance")
-    with pytest.raises(ValueError, match="does not accept params"):
-        factory({"unexpected": "param"})
-
-
-def test_resolve_bucket_mapper_raises_for_unknown_id() -> None:
-    catalog = build_default_composition_catalog()
-    with pytest.raises(ValueError, match="Unsupported bucket_mapper_id"):
-        catalog.resolve_bucket_mapper("nonexistent_mapper")
-
-
-def test_resolve_signal_component_factory_raises_for_unknown_id() -> None:
-    catalog = build_default_composition_catalog()
-    with pytest.raises(ValueError, match="Unsupported signal component"):
-        catalog.resolve_signal_component_factory("nonexistent_signal")
-
-
-def test_resolve_decision_policy_factory_raises_for_unknown_id() -> None:
-    catalog = build_default_composition_catalog()
-    with pytest.raises(ValueError, match="Unsupported decision policy"):
-        catalog.resolve_decision_policy_factory("nonexistent_policy")
-
-
-def test_strategy_family_spec_validates_unsupported_plugins() -> None:
-    family = StrategyFamilySpec(
-        strategy_id="test_family",
-        composition_kind="composed",
-        mutable_via_admin=False,
-        supports_plugins=False,
-    )
+def test_a_saved_config_naming_an_unknown_strategy_cannot_be_resolved() -> None:
     saved_config = SavedStrategyConfig(
-        config_id="test_config",
-        display_name="Test Config",
-        strategy_id="test_family",
-        primary_asset="BTC",
-        params={},
-        composition=StrategyComposition(
-            kind="composed",
-            bucket_mapper_id="two_bucket_spot_stable",
-            plugins=[StrategyComponentRef(component_id="dma_buy_gate", params={})],
-        ),
-        supports_daily_suggestion=False,
-        is_default=False,
-        is_benchmark=False,
+        config_id="orphan",
+        display_name="Orphan",
+        strategy_id="no_such_strategy",
     )
-    with pytest.raises(ValueError, match="does not support execution plugins"):
-        family.validate_saved_config(saved_config)
+
+    with pytest.raises(ValueError, match="Unknown strategy_id 'no_such_strategy'"):
+        resolve_saved_strategy_config(saved_config)
+
+
+def test_inline_configs_take_their_metadata_from_the_recipe() -> None:
+    resolved = resolve_inline_strategy_config(
+        config_id="adhoc",
+        strategy_id=STRATEGY_DCA_CLASSIC,
+        params={},
+    )
+
+    assert resolved.saved_config_id == "adhoc"
+    assert resolved.request_config_id == "adhoc"
+    assert resolved.display_name == "adhoc"
+    assert resolved.description is not None
+    assert resolved.primary_asset == "BTC"
+    assert resolved.supports_daily_suggestion is False
+
+
+def test_a_registered_recipe_saved_config_runs_through_the_compare_engine(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    register_mock_recipe(monkeypatch, strategy_id="mock_recipe_family")
+    saved_config = SavedStrategyConfig(
+        config_id="mock_recipe_saved",
+        display_name="Mock Recipe",
+        strategy_id="mock_recipe_family",
+    )
+    resolved = replace(
+        resolve_saved_strategy_config(saved_config),
+        request_config_id="mock_recipe_saved",
+    )
+    day = date(2025, 1, 10)
+    request = BacktestCompareRequestV3(
+        token_symbol="BTC",
+        start_date=day,
+        end_date=day,
+        total_capital=10_000.0,
+        configs=[
+            BacktestCompareConfigV3(
+                config_id="mock_recipe_saved",
+                saved_config_id=saved_config.config_id,
+            )
+        ],
+    )
+
+    response = run_compare_v3_on_data(
+        prices=[
+            {"date": date(2025, 1, 9), "price": 99_500.0},
+            {"date": day, "price": 100_000.0},
+        ],
+        sentiments={},
+        request=request,
+        user_start_date=day,
+        resolved_configs=[resolved],
+    )
+
+    state = response.timeline[0].strategies["mock_recipe_saved"]
+    assert state.decision.reason == "mock_hold"
+    assert response.strategies["mock_recipe_saved"].parameters == {}

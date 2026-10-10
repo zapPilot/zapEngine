@@ -9,25 +9,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from src.api.routers._errors import market_data_unavailable_http_exception
 from src.models.strategy import DailySuggestionResponse
-from src.models.strategy_config import (
-    CreateSavedStrategyConfigRequest,
-    SavedStrategyConfigListResponse,
-    SavedStrategyConfigResponse,
-    StrategyConfigsResponse,
-    UpdateSavedStrategyConfigRequest,
-)
+from src.models.strategy_config import StrategyConfigsResponse
 from src.services.dependencies import (
-    StrategyConfigManagementServiceDep,
     StrategyDailySuggestionServiceDep,
     get_strategy_config_store,
 )
 from src.services.exceptions import MarketDataUnavailableError
 from src.services.strategy.strategy_bootstrap_service import (
     build_strategy_configs_response,
-)
-from src.services.strategy.strategy_config_management_service import (
-    StrategyConfigConflictError,
-    StrategyConfigNotFoundError,
 )
 from src.services.strategy.strategy_config_store import StrategyConfigStore
 
@@ -49,124 +38,6 @@ def get_strategy_configs(
     except ValueError as error:
         logger.exception("Invalid public strategy bootstrap state: %s", error)
         raise HTTPException(status_code=500, detail=str(error)) from error
-
-
-@router.get(
-    "/admin/configs",
-    response_model=SavedStrategyConfigListResponse,
-    summary="List global saved strategy configs (admin, unauthenticated)",
-    description=(
-        "Administrative saved-config catalog. This endpoint is intentionally "
-        "unauthenticated in the current implementation; writes are still blocked "
-        "when DATABASE_READ_ONLY=true."
-    ),
-)
-def list_saved_strategy_configs(
-    service: StrategyConfigManagementServiceDep,
-) -> SavedStrategyConfigListResponse:
-    return SavedStrategyConfigListResponse(configs=service.list_configs())
-
-
-@router.get(
-    "/admin/configs/{config_id}",
-    response_model=SavedStrategyConfigResponse,
-    summary="Get one global saved strategy config (admin, unauthenticated)",
-)
-def get_saved_strategy_config(
-    config_id: str,
-    service: StrategyConfigManagementServiceDep,
-) -> SavedStrategyConfigResponse:
-    try:
-        return SavedStrategyConfigResponse(config=service.get_config(config_id))
-    except StrategyConfigNotFoundError as error:
-        raise HTTPException(status_code=404, detail=str(error)) from error
-
-
-@router.post(
-    "/admin/configs",
-    response_model=SavedStrategyConfigResponse,
-    summary="Create a global saved strategy config (admin, unauthenticated)",
-)
-def create_saved_strategy_config(
-    request: CreateSavedStrategyConfigRequest,
-    service: StrategyConfigManagementServiceDep,
-) -> SavedStrategyConfigResponse:
-    try:
-        return SavedStrategyConfigResponse(config=service.create_config(request))
-    except ValueError as error:
-        logger.warning("Invalid saved strategy config create request: %s", error)
-        raise HTTPException(status_code=400, detail=str(error)) from error
-    except StrategyConfigConflictError as error:
-        logger.warning("Conflict creating saved strategy config: %s", error)
-        raise HTTPException(status_code=409, detail=str(error)) from error
-    except Exception as error:
-        logger.exception("Error creating saved strategy config")
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to create saved strategy config",
-        ) from error
-
-
-@router.put(
-    "/admin/configs/{config_id}",
-    response_model=SavedStrategyConfigResponse,
-    summary="Update a global saved strategy config (admin, unauthenticated)",
-)
-def update_saved_strategy_config(
-    config_id: str,
-    request: UpdateSavedStrategyConfigRequest,
-    service: StrategyConfigManagementServiceDep,
-) -> SavedStrategyConfigResponse:
-    try:
-        return SavedStrategyConfigResponse(
-            config=service.update_config(config_id, request)
-        )
-    except StrategyConfigNotFoundError as error:
-        raise HTTPException(status_code=404, detail=str(error)) from error
-    except ValueError as error:
-        logger.warning("Invalid saved strategy config update request: %s", error)
-        raise HTTPException(status_code=400, detail=str(error)) from error
-    except StrategyConfigConflictError as error:
-        logger.warning(
-            "Conflict updating saved strategy config %s: %s", config_id, error
-        )
-        raise HTTPException(status_code=409, detail=str(error)) from error
-    except Exception as error:
-        logger.exception("Error updating saved strategy config %s", config_id)
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to update saved strategy config",
-        ) from error
-
-
-@router.post(
-    "/admin/configs/{config_id}/set-default",
-    response_model=SavedStrategyConfigResponse,
-    summary="Promote a global saved strategy config to default (admin, unauthenticated)",
-)
-def set_default_saved_strategy_config(
-    config_id: str,
-    service: StrategyConfigManagementServiceDep,
-) -> SavedStrategyConfigResponse:
-    try:
-        return SavedStrategyConfigResponse(config=service.set_default(config_id))
-    except StrategyConfigNotFoundError as error:
-        raise HTTPException(status_code=404, detail=str(error)) from error
-    except StrategyConfigConflictError as error:
-        logger.warning(
-            "Conflict promoting saved strategy config %s to default: %s",
-            config_id,
-            error,
-        )
-        raise HTTPException(status_code=409, detail=str(error)) from error
-    except Exception as error:
-        logger.exception(
-            "Error promoting saved strategy config %s to default", config_id
-        )
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to set default saved strategy config",
-        ) from error
 
 
 @router.get(

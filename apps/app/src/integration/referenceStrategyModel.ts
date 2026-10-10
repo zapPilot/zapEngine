@@ -89,8 +89,7 @@ export function buildDefaultBacktestRequest(
 }
 
 export function defaultPortfolioRules(configs: StrategyConfigsResponse) {
-  return (configs.portfolio_rules ?? [])
-    .filter((rule) => rule.default_enabled)
+  return [...(configs.portfolio_rules ?? [])]
     .sort((left, right) => left.priority - right.priority)
     .map((rule, index) => ({ ...rule, number: index + 1 }));
 }
@@ -118,10 +117,12 @@ export function referenceSuggestionFromBacktest(
 ): DailySuggestionResponse | null {
   const entry = referenceStrategyEntry(response);
   const last = response.timeline.at(-1);
-  if (!entry || !last) return null;
+  if (!entry || !last || !response.window) return null;
   const [id, summary] = entry;
   const point = last.strategies[id];
-  if (!point?.signal) return null;
+  // The response names the spec it ran in the summary's parameters.
+  const specRef = summary.parameters.spec_ref;
+  if (!point?.signal || typeof specRef !== 'string') return null;
   const status =
     point.execution.status ??
     (point.execution.blocked_reason !== null
@@ -134,6 +135,7 @@ export function referenceSuggestionFromBacktest(
     config_id: id,
     config_display_name: summary.display_name,
     strategy_id: summary.strategy_id,
+    spec_ref: specRef,
     action: {
       status,
       required: status === 'action_required',
@@ -151,6 +153,10 @@ export function referenceSuggestionFromBacktest(
         reason_code: point.decision.reason,
         rule_group: point.decision.rule_group,
         ...(point.decision.details ? { details: point.decision.details } : {}),
+      },
+      model: {
+        allocation: point.portfolio.asset_allocation,
+        window: response.window,
       },
     },
     data_freshness: response.data_freshness,

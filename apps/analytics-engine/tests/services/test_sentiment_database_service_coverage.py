@@ -65,8 +65,7 @@ async def test_get_current_sentiment_reraise_domain_error(mock_db):
         await service.get_current_sentiment()
 
 
-@pytest.mark.asyncio
-async def test_get_sentiment_history_reraise_domain_error(mock_db):
+def test_get_sentiment_history_reraise_domain_error(mock_db):
     """Test get_sentiment_history reraises MarketSentimentError as-is."""
     mock_qs = MagicMock()
     service = SentimentDatabaseService(mock_db, mock_qs)
@@ -74,7 +73,7 @@ async def test_get_sentiment_history_reraise_domain_error(mock_db):
     mock_qs.execute_query.side_effect = MarketSentimentError("Domain error", 500, "ERR")
 
     with pytest.raises(MarketSentimentError):
-        await service.get_sentiment_history()
+        service.get_sentiment_history()
 
 
 def test_get_daily_sentiment_aggregates_raises_internal_error_on_exception(mock_db):
@@ -111,8 +110,7 @@ def test_coerce_history_bound_normalizes_datetime_to_utc() -> None:
     )
 
 
-@pytest.mark.asyncio
-async def test_get_sentiment_history_uses_explicit_date_bounds(mock_db) -> None:
+def test_get_sentiment_history_uses_explicit_date_bounds(mock_db) -> None:
     mock_qs = MagicMock()
     mock_qs.execute_query.return_value = [
         {
@@ -124,7 +122,7 @@ async def test_get_sentiment_history_uses_explicit_date_bounds(mock_db) -> None:
     ]
     service = SentimentDatabaseService(mock_db, mock_qs)
 
-    result = await service.get_sentiment_history(
+    result = service.get_sentiment_history(
         start_time=date(2026, 4, 29),
         end_time=date(2026, 4, 30),
     )

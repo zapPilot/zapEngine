@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import date
 
 from src.services.backtesting.decision import AllocationIntent
-from src.services.backtesting.execution.contracts import ExecutionHints
-from src.services.backtesting.execution.rebalance_calculator import RebalanceCalculator
-from src.services.backtesting.execution.transfer_netting import build_bucket_transfers
+from src.services.backtesting.execution.rebalance_calculator import (
+    RebalanceCalculator,
+    plan_transfers_to_target,
+)
 from src.services.backtesting.strategies.base import StrategyContext, TransferIntent
 
 
@@ -22,7 +22,6 @@ class AllocationExecutionResult:
     transfers: list[TransferIntent] | None
     event: str | None
     drift: float
-    immediate_execution: bool = True
     block_reason: str | None = None
 
 
@@ -35,27 +34,17 @@ class RuleBasedAllocationExecutor:
 
     last_trade_date: date | None = field(default=None, init=False)
     trade_dates: list[date] = field(default_factory=list, init=False)
-    _seeded_trade_dates: tuple[date, ...] = field(default=(), init=False)
 
     def reset(self) -> None:
-        self.trade_dates = list(self._seeded_trade_dates)
-        self.last_trade_date = max(self._seeded_trade_dates, default=None)
-
-    def seed_trade_dates(self, trade_dates: Sequence[date]) -> None:
-        self._seeded_trade_dates = tuple(sorted(set(trade_dates)))
-        self.reset()
-
-    def observe(self, hints: ExecutionHints) -> None:
-        del hints
+        self.trade_dates = []
+        self.last_trade_date = None
 
     def execute(
         self,
         *,
         context: StrategyContext,
         intent: AllocationIntent,
-        hints: ExecutionHints,
     ) -> AllocationExecutionResult:
-        del hints
         assert intent.target_allocation is not None
         target_allocation = dict(intent.target_allocation)
         current_allocation = (
@@ -64,26 +53,15 @@ class RuleBasedAllocationExecutor:
                 target_allocation=target_allocation,
             )
         )
-        deltas = RebalanceCalculator.calculate_deltas_from_context(
-            context,
-            target_allocation,
-        )
         drift = RebalanceCalculator.calculate_drift(
             current_allocation,
             target_allocation,
         )
-
-        if self._is_effectively_at_target(deltas):
-            return AllocationExecutionResult(
-                target_allocation=target_allocation,
-                allocation_name=intent.allocation_name,
-                transfers=None,
-                event=None,
-                drift=drift,
-                immediate_execution=True,
-            )
-
-        transfers = self._build_atomic_transfers(deltas=deltas)
+        transfers = plan_transfers_to_target(
+            portfolio=context.portfolio,
+            price=context.portfolio_price,
+            target_allocation=target_allocation,
+        )
         if transfers:
             self.last_trade_date = context.date
             self.trade_dates.append(context.date)
@@ -94,25 +72,7 @@ class RuleBasedAllocationExecutor:
             transfers=transfers or None,
             event="rebalance" if transfers else None,
             drift=drift,
-            immediate_execution=True,
         )
-
-    @staticmethod
-    def _build_atomic_transfers(
-        *,
-        deltas: dict[str, float],
-    ) -> list[TransferIntent]:
-        return build_bucket_transfers(deltas=deltas)
-
-    @staticmethod
-    def _is_effectively_at_target(
-        deltas: dict[str, float],
-        *,
-        tolerance: float = 1e-6,
-    ) -> bool:
-        if not deltas:
-            return True
-        return max(abs(delta) for delta in deltas.values()) <= tolerance
 
 
 __all__ = ["AllocationExecutionResult", "RuleBasedAllocationExecutor"]

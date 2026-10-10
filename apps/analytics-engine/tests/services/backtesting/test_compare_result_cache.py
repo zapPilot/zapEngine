@@ -5,40 +5,52 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import date, timedelta
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 
 from src.config.strategy_presets import resolve_seed_strategy_config
 from src.core.config import settings
-from src.models.backtesting import BacktestPeriodInfo, BacktestResponse
-from src.models.strategy_config import SavedStrategyConfig
-from src.services.backtesting.composition import resolve_saved_strategy_config
+from src.models.backtesting import (
+    BacktestAssumptions,
+    BacktestPeriodInfo,
+    BacktestResponse,
+)
 from src.services.backtesting.execution.compare import run_compare_v3_on_data
-from src.services.backtesting.execution.config import RegimeConfig
 from src.services.backtesting.execution.result_cache import (
     CompareResultCache,
     compare_result_key,
     compare_results,
 )
-from src.services.dependencies import build_backtesting_service
+from src.services.backtesting.spec import parse_spec
+from src.services.backtesting.strategy_registry import (
+    _resolve_recipe_config,
+    resolve_saved_strategy_config,
+    resolve_spec_strategy_config,
+)
+from src.services.dependencies import get_backtesting_service
 from src.services.strategy.backtesting_service import (
     BacktestingService,
     PreparedBacktestMarketData,
-    _recipe_to_resolved_config,
 )
-from src.services.strategy.strategy_config_store import SeedStrategyConfigStore
+from src.services.strategy.strategy_config_store import StrategyConfigStore
+from tests.services.backtesting.spec.helpers import reference_raw, with_value
 from tests.services.backtesting.support import compare_request, make_mock_recipe
+
+
+def make_response(**fields) -> BacktestResponse:
+    return BacktestResponse(
+        strategies={}, timeline=[], assumptions=BacktestAssumptions(), **fields
+    )
 
 
 @pytest.fixture
 def setup_cache(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(settings, "analytics_cache_enabled", True)
     service = BacktestingService(
-        db=MagicMock(),
         token_price_service=MagicMock(),
         sentiment_service=MagicMock(),
-        strategy_config_store=SeedStrategyConfigStore(),
+        strategy_config_store=StrategyConfigStore(),
         result_cache=CompareResultCache(max_entries=2),
     )
     period = BacktestPeriodInfo(
@@ -51,51 +63,48 @@ def setup_cache(monkeypatch: pytest.MonkeyPatch):
         effective_window=period,
         user_start_date=period.start_date,
     )
-    service._prepare_market_data = AsyncMock(return_value=prepared)
-    resolved = _recipe_to_resolved_config(
+    service.prepare_market_window = MagicMock(return_value=prepared)  # type: ignore[method-assign]
+    resolved = _resolve_recipe_config(
         make_mock_recipe(strategy_id="reference"),
         saved_config_id="reference",
         request_config_id="reference",
         display_name="Reference",
-        public_params={"signal": {"threshold": 1, "k": 2}},
+        description=None,
+        primary_asset="BTC",
+        supports_daily_suggestion=False,
     )
-    runner = MagicMock(return_value=BacktestResponse(strategies={}, timeline=[]))
+    runner = MagicMock(return_value=make_response())
     return service, prepared, resolved, runner
 
 
-async def run(service, resolved, runner, request=None):
-    return await service._run_with_prepared_data(
+def run(service, resolved, runner, request=None):
+    return service._run_with_prepared_data(
         request=request or compare_request(),
         resolved_configs=[resolved],
         runner=runner,
-        config=None,
     )
 
 
-@pytest.mark.asyncio
-async def test_compare_reuses_result_and_defends_against_response_mutation(setup_cache):
+def test_compare_reuses_result_and_defends_against_response_mutation(setup_cache):
     service, _, resolved, runner = setup_cache
-    runner.side_effect = lambda **kwargs: BacktestResponse(
-        strategies={}, timeline=[], window=kwargs["window"]
-    )
+    runner.side_effect = lambda **kwargs: make_response(window=kwargs["window"])
 
-    first = await run(service, resolved, runner)
+    first = run(service, resolved, runner)
     assert first.window is not None
     first.window = None
-    second = await run(service, resolved, runner)
+    second = run(service, resolved, runner)
     assert second.window is not None
     second.window = None
-    third = await run(service, resolved, runner)
+    third = run(service, resolved, runner)
 
     assert third.window is not None
     assert runner.call_count == 1
-    assert service._prepare_market_data.call_count == 3
+    assert service.prepare_market_window.call_count == 3
 
 
-@pytest.mark.asyncio
-async def test_compare_hit_equals_miss_for_a_real_engine_run(setup_cache):
+def test_compare_hit_equals_miss_for_a_real_engine_run(setup_cache):
     service, prepared, resolved, _ = setup_cache
-    service._prepare_market_data.return_value = replace(
+    service.prepare_market_window.return_value = replace(
         prepared,
         prices=[
             {"date": date(2026, 1, 1) + timedelta(days=offset), "price": 100.0 + offset}
@@ -104,8 +113,8 @@ async def test_compare_hit_equals_miss_for_a_real_engine_run(setup_cache):
     )
     runner = MagicMock(wraps=run_compare_v3_on_data)
 
-    miss = await run(service, resolved, runner)
-    hit = await run(service, resolved, runner)
+    miss = run(service, resolved, runner)
+    hit = run(service, resolved, runner)
 
     assert runner.call_count == 1
     assert len(miss.timeline) == 3
@@ -115,82 +124,73 @@ async def test_compare_hit_equals_miss_for_a_real_engine_run(setup_cache):
     assert hit.model_dump_json() == miss.model_dump_json()
 
 
-@pytest.mark.asyncio
-async def test_compare_recomputes_when_data_date_or_same_day_prices_change(setup_cache):
+def test_compare_recomputes_when_data_date_or_same_day_prices_change(setup_cache):
     service, prepared, resolved, runner = setup_cache
-    runner.side_effect = lambda **kwargs: BacktestResponse(
-        strategies={}, timeline=[], window=kwargs["window"]
-    )
+    runner.side_effect = lambda **kwargs: make_response(window=kwargs["window"])
 
-    await run(service, resolved, runner)
-    service._prepare_market_data.return_value = replace(
+    run(service, resolved, runner)
+    service.prepare_market_window.return_value = replace(
         prepared, prices=[{"date": date(2026, 1, 3), "price": 101.0}]
     )
-    await run(service, resolved, runner)
+    run(service, resolved, runner)
     next_period = prepared.effective_window.model_copy(
         update={"end_date": date(2026, 1, 4)}
     )
-    service._prepare_market_data.return_value = replace(
+    service.prepare_market_window.return_value = replace(
         prepared, effective_window=next_period
     )
-    refreshed = await run(service, resolved, runner)
+    refreshed = run(service, resolved, runner)
 
     assert runner.call_count == 3
     assert refreshed.window.effective.end_date == date(2026, 1, 4)
 
 
-@pytest.mark.asyncio
-async def test_compare_entries_expire_after_the_ttl(setup_cache):
+def test_compare_entries_expire_after_the_ttl(setup_cache):
     service, _, resolved, runner = setup_cache
     service.result_cache = CompareResultCache(ttl=timedelta(seconds=-1))
 
     for _ in range(2):
-        await run(service, resolved, runner)
+        run(service, resolved, runner)
 
     assert runner.call_count == 2
 
 
-@pytest.mark.asyncio
-async def test_compare_cache_evicts_the_least_recently_used_entry(setup_cache):
+def test_compare_cache_evicts_the_least_recently_used_entry(setup_cache):
     service, prepared, resolved, runner = setup_cache
 
-    async def run_at(price: float):
-        service._prepare_market_data.return_value = replace(
+    def run_at(price: float):
+        service.prepare_market_window.return_value = replace(
             prepared, prices=[{"date": date(2026, 1, 3), "price": price}]
         )
-        await run(service, resolved, runner)
+        run(service, resolved, runner)
 
     for price in (101.0, 102.0, 103.0):
-        await run_at(price)
+        run_at(price)
     assert runner.call_count == 3
 
-    await run_at(103.0)
-    await run_at(102.0)
+    run_at(103.0)
+    run_at(102.0)
     assert runner.call_count == 3
 
-    await run_at(101.0)
+    run_at(101.0)
     assert runner.call_count == 4
 
 
-@pytest.mark.asyncio
-async def test_compare_cache_skips_results_over_the_entry_size_cap(setup_cache):
+def test_compare_cache_skips_results_over_the_entry_size_cap(setup_cache):
     service, _, resolved, runner = setup_cache
     service.result_cache = CompareResultCache(max_entry_bytes=1)
 
     for _ in range(2):
-        assert await run(service, resolved, runner) == runner.return_value
+        assert run(service, resolved, runner) == runner.return_value
 
     assert runner.call_count == 2
 
 
-@pytest.mark.asyncio
-async def test_disabled_analytics_cache_restores_the_uncached_path(
-    setup_cache, monkeypatch
-):
+def test_disabled_analytics_cache_restores_the_uncached_path(setup_cache, monkeypatch):
     service, _, resolved, runner = setup_cache
     monkeypatch.setattr(settings, "analytics_cache_enabled", False)
 
-    responses = [await run(service, resolved, runner) for _ in range(2)]
+    responses = [run(service, resolved, runner) for _ in range(2)]
 
     assert runner.call_count == 2
     assert all(response is runner.return_value for response in responses)
@@ -206,7 +206,7 @@ def test_concurrent_identical_requests_compute_once_without_sharing_responses():
         computed.append(threading.get_ident())
         # Keep the leader busy until every follower has reached the cache.
         time.sleep(0.3)
-        return BacktestResponse(strategies={}, timeline=[])
+        return make_response()
 
     def request() -> BacktestResponse:
         started.wait(timeout=10)
@@ -221,34 +221,44 @@ def test_concurrent_identical_requests_compute_once_without_sharing_responses():
     assert all(response == responses[0] for response in responses)
 
 
-def test_dependency_factory_shares_the_process_wide_compare_cache():
-    assert build_backtesting_service(MagicMock()).result_cache is compare_results
+def test_dependency_provider_shares_the_process_wide_compare_cache():
+    service = get_backtesting_service(
+        token_price_service=MagicMock(),
+        sentiment_service=MagicMock(),
+        stock_price_service=MagicMock(),
+        macro_fear_greed_service=MagicMock(),
+    )
+
+    assert isinstance(service, BacktestingService)
+    assert service.result_cache is compare_results
 
 
-def test_cache_key_normalizes_mapping_order_and_tracks_request_config_and_engine(
+def test_cache_key_tracks_the_request_its_assumptions_and_the_resolved_config(
     setup_cache,
 ):
     _, prepared, resolved, _ = setup_cache
     request = compare_request()
 
-    def key(req=request, item=resolved, config=None):
+    def key(req=request, item=resolved):
         return compare_result_key(
-            req, [item], prepared.prices, prepared.sentiments, prepared.window, config
+            req, [item], prepared.prices, prepared.sentiments, prepared.window
         )
 
     original = key()
-    assert original == key(
-        item=replace(resolved, public_params={"signal": {"k": 2, "threshold": 1}})
-    )
+    assert original == key()
     assert original != key(req=request.model_copy(update={"total_capital": 20000}))
     assert original != key(req=compare_request(token_symbol="ETH"))
     assert original != key(
-        item=replace(resolved, cache_identity={"composition": "new"})
+        req=request.model_copy(
+            update={"assumptions": BacktestAssumptions(fill_lag_days=0)}
+        )
     )
     assert original != key(
-        item=replace(resolved, public_params={"signal": {"threshold": 2}})
+        item=replace(resolved, spec_ref="reference/other@1#0123456789ab")
     )
-    assert original != key(config=RegimeConfig(trading_slippage_percent=0.02))
+    assert original != key(item=replace(resolved, saved_config_id="other"))
+    assert original != key(item=replace(resolved, display_name="Renamed"))
+    assert original != key(item=replace(resolved, description="Edited"))
 
 
 def test_cache_key_ignores_fields_that_cannot_change_the_result(setup_cache):
@@ -256,12 +266,7 @@ def test_cache_key_ignores_fields_that_cannot_change_the_result(setup_cache):
 
     def key(request):
         return compare_result_key(
-            request,
-            [resolved],
-            prepared.prices,
-            prepared.sentiments,
-            prepared.window,
-            None,
+            request, [resolved], prepared.prices, prepared.sentiments, prepared.window
         )
 
     original = key(compare_request())
@@ -272,14 +277,12 @@ def test_cache_key_ignores_fields_that_cannot_change_the_result(setup_cache):
     )
 
 
-def test_cache_key_tracks_market_inputs_and_saved_config_edits(setup_cache):
+def test_cache_key_tracks_market_inputs_and_spec_edits(setup_cache):
     _, prepared, resolved, _ = setup_cache
     request = compare_request()
 
     def key(item=resolved, prices=prepared.prices, sentiments=prepared.sentiments):
-        return compare_result_key(
-            request, [item], prices, sentiments, prepared.window, None
-        )
+        return compare_result_key(request, [item], prices, sentiments, prepared.window)
 
     original = key()
     assert original == key(prices=list(prepared.prices))
@@ -288,9 +291,16 @@ def test_cache_key_tracks_market_inputs_and_saved_config_edits(setup_cache):
     assert original != key(sentiments={})
 
     saved = resolve_seed_strategy_config("dma_fgi_portfolio_rules_default")
-    edited = SavedStrategyConfig.model_validate(
-        {**saved.model_dump(), "params": {**saved.params, "pacing": {"k": 6.0}}}
-    )
     unchanged = key(item=resolve_saved_strategy_config(saved))
     assert unchanged == key(item=resolve_saved_strategy_config(saved))
-    assert unchanged != key(item=resolve_saved_strategy_config(edited))
+
+    def spec_key(raw):
+        return key(
+            item=resolve_spec_strategy_config(parse_spec(raw), config_id="candidate")
+        )
+
+    reference = spec_key(reference_raw())
+    assert reference == spec_key(reference_raw())
+    # A behavior edit moves the spec's hash, so a candidate never reads an older run.
+    edited = with_value(reference_raw(), ("rules", 0, "cooldown_days"), 31)
+    assert reference != spec_key(edited)

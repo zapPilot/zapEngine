@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import date
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Protocol, Self, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol
 
 from src.services.backtesting.decision import (
     AllocationIntent,
@@ -36,6 +37,7 @@ DIAG_PORTFOLIO_RULE_COOLDOWN_KEY = "portfolio_rule_cooldown_key"
 DIAG_COOLDOWN_SKIPPED_RULES = "cooldown_skipped_rules"
 DIAG_SIGNALS_CONSULTED = "signals_consulted"
 DIAG_PORTFOLIO_RULE_MATCHES = "portfolio_rule_matches"
+DIAG_STARTS_RATIO_COOLDOWN = "starts_ratio_cooldown"
 _EPSILON = 1e-12
 
 if TYPE_CHECKING:
@@ -111,13 +113,48 @@ class PortfolioRule(Protocol):
 # jscpd:ignore-end
 
 
-@runtime_checkable
-class HasPublicParams(Protocol):
-    @classmethod
-    def public_params_section(cls) -> str | None: ...
+class PostIntentOverlay(ABC):
+    """A rule that never decides a day: it only adjusts what the rules decided.
 
-    @classmethod
-    def with_public_params(cls, section: Any) -> Self: ...
+    It matches nothing, so no cooldown or rule priority applies to it, and the
+    evaluator calls its ``apply_post_intent_adjustments`` on the day's intent
+    after the rules and guards have run. A subclass says what the adjustment is.
+    """
+
+    def matches(
+        self,
+        snapshot: PortfolioSnapshot,
+        *,
+        config: PortfolioRuleConfig,
+    ) -> bool:
+        del snapshot, config
+        return False
+
+    def build_intent(
+        self,
+        snapshot: PortfolioSnapshot,
+        *,
+        config: PortfolioRuleConfig,
+    ) -> AllocationIntent:
+        del snapshot, config
+        raise ValueError(f"{type(self).__name__} only supports post-intent adjustments")
+
+    def apply_post_intent_adjustments(
+        self,
+        *,
+        intent: AllocationIntent,
+        snapshot: PortfolioSnapshot,
+        config: PortfolioRuleConfig,
+    ) -> AllocationIntent:
+        del config
+        return self._adjust(intent, snapshot)
+
+    @abstractmethod
+    def _adjust(
+        self,
+        intent: AllocationIntent,
+        snapshot: PortfolioSnapshot,
+    ) -> AllocationIntent: ...
 
 
 class DecisionPolicy(Protocol):
@@ -154,22 +191,14 @@ def above_dma_symbols(snapshot: PortfolioSnapshot) -> list[str]:
     ]
 
 
+def reentry_blocked(snapshot: PortfolioSnapshot, symbol: str) -> bool:
+    """The signal's cross cooldown still bars entering ``symbol`` above its DMA."""
+    cooldown = snapshot.assets[symbol].cooldown_state
+    return cooldown.active and cooldown.blocked_zone == "above"
+
+
 def current_target(snapshot: PortfolioSnapshot) -> dict[str, float]:
     return target_from_current_allocation(snapshot.current_asset_allocation)
-
-
-def cross_down_cooldown_days_for(
-    symbol: str,
-    *,
-    per_symbol: Mapping[str, int],
-    default: int,
-) -> int:
-    return int(
-        per_symbol.get(
-            normalize_symbol(symbol),
-            default,
-        )
-    )
 
 
 def rule_cooldown_remaining_days(
@@ -293,8 +322,14 @@ def eth_btc_ratio_rotation_intent(
     target: Mapping[str, float],
     allocation_name: str,
     rule_group: RuleGroup,
+    starts_ratio_cooldown: bool,
 ) -> AllocationIntent:
-    return portfolio_target_intent(
+    """Intent for a BTC/ETH move on the ETH/BTC ratio.
+
+    ``starts_ratio_cooldown`` marks the moves that block the ratio's own next
+    cross (the trend rotation does; the mean-reversion rebalance does not).
+    """
+    intent = portfolio_target_intent(
         action="sell",
         target=normalize_target_allocation(target),
         allocation_name=allocation_name,
@@ -306,27 +341,34 @@ def eth_btc_ratio_rotation_intent(
         if config.emit_signals_consulted
         else None,
     )
+    if not starts_ratio_cooldown:
+        return intent
+    return replace(
+        intent,
+        diagnostics={**(intent.diagnostics or {}), DIAG_STARTS_RATIO_COOLDOWN: True},
+    )
 
 
-def add_stable(target: dict[str, float], amount: float) -> None:
-    if amount <= _EPSILON:
-        return
-    target["stable"] = max(0.0, float(target.get("stable", 0.0))) + amount
+@dataclass(frozen=True)
+class ProceedsRouting:
+    """Where the USD freed by a sale goes.
 
+    Each ``(symbol, share)`` in ``to`` receives that share of the proceeds; the
+    remainder goes to stable.
+    """
 
-def add_split_proceeds(
-    target: dict[str, float],
-    amount: float,
-    *,
-    spy_share: float = 0.5,
-) -> None:
-    """Split sell proceeds between SPY and stable."""
-    if amount <= _EPSILON:
-        return
-    spy_amount = amount * spy_share
-    stable_amount = amount - spy_amount
-    target["spy"] = max(0.0, float(target.get("spy", 0.0))) + spy_amount
-    target["stable"] = max(0.0, float(target.get("stable", 0.0))) + stable_amount
+    to: tuple[tuple[str, float], ...] = ()
+
+    def apply(self, target: dict[str, float], amount: float) -> None:
+        if amount <= _EPSILON:
+            return
+        remainder = amount
+        for symbol, share in self.to:
+            part = amount * share
+            key = allocation_key_for_symbol(symbol)
+            target[key] = max(0.0, float(target.get(key, 0.0))) + part
+            remainder = remainder - part
+        target["stable"] = max(0.0, float(target.get("stable", 0.0))) + remainder
 
 
 def _finalize_allocation_intent(
@@ -485,6 +527,15 @@ class _DcaRuleBase:
         return intent
 
 
+class ProceedsRoutingMixin:
+    """Sell rules whose proceeds follow a configured ``ProceedsRouting``."""
+
+    proceeds: ProceedsRouting
+
+    def proceeds_handler(self, target: dict[str, float], sold: float) -> None:
+        self.proceeds.apply(target, sold)
+
+
 class DcaSellRuleBase(_DcaRuleBase):
     allocation_name: str
     reason: str
@@ -547,30 +598,31 @@ __all__ = [
     "DIAG_PORTFOLIO_RULE_COOLDOWN_KEY",
     "DIAG_PORTFOLIO_RULE_TRIGGER_ASSETS",
     "DIAG_SIGNALS_CONSULTED",
+    "DIAG_STARTS_RATIO_COOLDOWN",
     "DcaBuyRuleBase",
     "DcaSellRuleBase",
     "PORTFOLIO_RULE_SYMBOLS",
     "SYMBOL_BY_ALLOCATION_KEY",
     "DecisionPolicy",
     "FgiRegime",
-    "HasPublicParams",
     "PortfolioRule",
     "PortfolioRuleConfig",
     "PortfolioSnapshot",
+    "PostIntentOverlay",
+    "ProceedsRouting",
+    "ProceedsRoutingMixin",
     "above_dma_symbols",
-    "add_split_proceeds",
-    "add_stable",
     "allocation_key_for_symbol",
     "build_dca_buy_intent",
     "build_dca_sell_intent",
     "current_fgi_regime_for_symbol",
     "current_target",
-    "cross_down_cooldown_days_for",
     "eth_btc_ratio_rotation_intent",
     "normalize_regime",
     "normalize_symbol",
     "portfolio_target_intent",
     "ratio_signals_consulted",
+    "reentry_blocked",
     "rule_cooldown_remaining_days",
     "signals_consulted_for_symbols",
     "symbols_for_snapshot",

@@ -5,7 +5,7 @@ Provides explicit dependency wiring between concrete service implementations.
 """
 
 import logging
-from typing import TYPE_CHECKING, Annotated
+from typing import Annotated
 
 from fastapi import Depends
 from sqlalchemy.orm import Session
@@ -50,17 +50,11 @@ from src.services.shared.query_service import (
     get_query_service as _get_query_service_singleton,
 )
 from src.services.strategy.backtesting_protocol import BacktestingServiceProtocol
-from src.services.strategy.strategy_config_management_service import (
-    StrategyConfigManagementService,
-)
 from src.services.strategy.strategy_config_store import StrategyConfigStore
 from src.services.strategy.strategy_daily_suggestion_service import (
     StrategyDailySuggestionService,
 )
 from src.services.yield_return_service import YieldReturnService
-
-if TYPE_CHECKING:
-    from src.services.strategy.backtesting_service import BacktestingService
 
 logger = logging.getLogger(__name__)
 
@@ -70,18 +64,9 @@ def get_query_service() -> QueryService:
     return _get_query_service_singleton()
 
 
-def get_strategy_config_store(
-    db: Session = Depends(get_db),
-) -> StrategyConfigStore:
-    """Create StrategyConfigStore instance."""
-    return StrategyConfigStore(db)
-
-
-def get_strategy_config_management_service(
-    strategy_config_store: StrategyConfigStore = Depends(get_strategy_config_store),
-) -> StrategyConfigManagementService:
-    """Create StrategyConfigManagementService instance."""
-    return StrategyConfigManagementService(strategy_config_store)
+def get_strategy_config_store() -> StrategyConfigStore:
+    """Create the read-only saved-config store."""
+    return StrategyConfigStore()
 
 
 def get_analytics_context() -> PortfolioAnalyticsContext:
@@ -280,40 +265,9 @@ def get_market_dashboard_service(
     )
 
 
-def build_backtesting_service(
-    db: Session,
-    *,
-    token_price_service: TokenPriceService | None = None,
-    sentiment_service: SentimentDatabaseService | None = None,
-    stock_price_service: StockPriceService | None = None,
-    macro_fear_greed_service: MacroFearGreedDatabaseService | None = None,
-) -> "BacktestingService":
-    """Assemble a BacktestingService — the single construction point.
-
-    FastAPI's :func:`get_backtesting_service` passes its Depends-injected
-    sub-services in; non-FastAPI callers (attribution scripts, Optuna search)
-    pass nothing and get a fresh stack built directly from ``db`` and the shared
-    QueryService.
-    """
-    from src.services.strategy.backtesting_service import BacktestingService
-
-    query_service = get_query_service()
-    return BacktestingService(  # pragma: no cover
-        db,
-        token_price_service or TokenPriceService(db, query_service),
-        sentiment_service or SentimentDatabaseService(db, query_service),
-        strategy_config_store=StrategyConfigStore(db),
-        result_cache=compare_results,
-        stock_price_service=stock_price_service or StockPriceService(db, query_service),
-        macro_fear_greed_service=macro_fear_greed_service
-        or MacroFearGreedDatabaseService(db, query_service),
-    )
-
-
 # jscpd:ignore-start
 # Reason: FastAPI dependency providers repeat DI signatures for explicit wiring.
 def get_backtesting_service(
-    db: Session = Depends(get_db),
     token_price_service: TokenPriceService = Depends(get_token_price_service),
     sentiment_service: SentimentDatabaseService = Depends(
         get_sentiment_database_service
@@ -324,10 +278,13 @@ def get_backtesting_service(
     ),
 ) -> BacktestingServiceProtocol:
     """Create BacktestingService instance for DCA strategy comparison."""
-    return build_backtesting_service(  # pragma: no cover
-        db,
-        token_price_service=token_price_service,
-        sentiment_service=sentiment_service,
+    from src.services.strategy.backtesting_service import BacktestingService
+
+    return BacktestingService(  # pragma: no cover
+        token_price_service,
+        sentiment_service,
+        strategy_config_store=StrategyConfigStore(),
+        result_cache=compare_results,
         stock_price_service=stock_price_service,
         macro_fear_greed_service=macro_fear_greed_service,
     )
@@ -424,46 +381,22 @@ BacktestingServiceDep = Annotated[
 
 
 def get_strategy_daily_suggestion_service(
-    db: Session = Depends(get_db),
     landing_page_service: LandingPageService = Depends(get_landing_page_service),
-    regime_tracking_service: RegimeTrackingService = Depends(
-        get_regime_tracking_service
-    ),
-    sentiment_service: SentimentDatabaseService = Depends(
-        get_sentiment_database_service
-    ),
-    token_price_service: TokenPriceService = Depends(get_token_price_service),
+    backtesting_service: BacktestingServiceProtocol = Depends(get_backtesting_service),
     canonical_snapshot_service: CanonicalSnapshotService = Depends(
         get_canonical_snapshot_service
     ),
-    stock_price_service: StockPriceService = Depends(get_stock_price_service),
-    macro_fear_greed_service: MacroFearGreedDatabaseService = Depends(
-        get_macro_fear_greed_database_service
-    ),
 ) -> StrategyDailySuggestionService:
     """Create StrategyDailySuggestionService with dependency injection."""
-    from src.services.strategy.strategy_trade_history_store import (
-        StrategyTradeHistoryStore,
-    )
-
     return StrategyDailySuggestionService(
         landing_page_service=landing_page_service,
-        regime_tracking_service=regime_tracking_service,
-        sentiment_service=sentiment_service,
-        token_price_service=token_price_service,
+        backtesting_service=backtesting_service,
         canonical_snapshot_service=canonical_snapshot_service,
-        strategy_config_store=StrategyConfigStore(db),
-        trade_history_store=StrategyTradeHistoryStore(db),
-        stock_price_service=stock_price_service,
-        macro_fear_greed_service=macro_fear_greed_service,
+        strategy_config_store=StrategyConfigStore(),
     )
 
 
 StrategyDailySuggestionServiceDep = Annotated[
     StrategyDailySuggestionService,
     Depends(get_strategy_daily_suggestion_service),
-]
-StrategyConfigManagementServiceDep = Annotated[
-    StrategyConfigManagementService,
-    Depends(get_strategy_config_management_service),
 ]

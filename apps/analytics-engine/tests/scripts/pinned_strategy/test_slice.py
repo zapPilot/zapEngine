@@ -16,9 +16,12 @@ from scripts.pinned_strategy.codec import (
 from scripts.pinned_strategy.compile import ARTIFACT, compile_source
 from scripts.pinned_strategy.evm import SliceEVM
 from scripts.pinned_strategy.shadow import shadow_compare
+from scripts.pinned_strategy.touch_mode import cross_on_touch_mode
 from src.models.backtesting import BacktestCompareConfigV3, BacktestCompareRequestV3
 from src.services.backtesting.execution.compare import run_compare_v3_on_data
-from tests.test_validation_events import EVENTS, _synthetic_market_history
+from src.services.backtesting.validation.event_histories import synthetic_event_history
+from tests.services.backtesting.support.reference_rules import reference_rule
+from tests.test_validation_events import EVENTS
 
 
 @pytest.fixture(scope="module")
@@ -36,17 +39,18 @@ def compare(prices, sentiments, start, end, touch):
             BacktestCompareConfigV3(
                 config_id="slice",
                 strategy_id="dma_fgi_portfolio_rules",
-                params={"signal": {"cross_on_touch": touch}},
+                params={},
             )
         ],
     )
-    return run_compare_v3_on_data(prices, sentiments, request, start)
+    with cross_on_touch_mode(touch):
+        return run_compare_v3_on_data(prices, sentiments, request, start)
 
 
 @pytest.mark.parametrize("touch", [True, False])
 @pytest.mark.parametrize("event", EVENTS, ids=lambda event: event.id)
 def test_validation_shadow(evm, event, touch):
-    prices, sentiments, start, end = _synthetic_market_history(event=event)
+    prices, sentiments, start, end = synthetic_event_history(event)
     baseline = compare(prices, sentiments, start, end, touch)
     with shadow_compare(evm, strict_distance=True) as metrics:
         actual = compare(prices, sentiments, start, end, touch)
@@ -141,9 +145,6 @@ def test_rule_allocation_against_python(evm, allocation):
         PortfolioRuleConfig,
         PortfolioSnapshot,
     )
-    from src.services.backtesting.portfolio_rules.cross_down_exit import (
-        CrossDownExitRule,
-    )
     from src.services.backtesting.signals.dma_gated_fgi.types import (
         DmaCooldownState,
         DmaMarketState,
@@ -168,7 +169,9 @@ def test_rule_allocation_against_python(evm, allocation):
         current_asset_allocation=dict(zip(KEYS, allocation, strict=True)),
         previous_fgi_regime={},
     )
-    intent = CrossDownExitRule().build_intent(snapshot, config=PortfolioRuleConfig())
+    intent = reference_rule("cross_down_exit").build_intent(
+        snapshot, config=PortfolioRuleConfig()
+    )
     views = [
         (0, 0, 0, False, 0, 0, 0),
         (2, 1, 1, False, 0, 0, -WAD // 10),

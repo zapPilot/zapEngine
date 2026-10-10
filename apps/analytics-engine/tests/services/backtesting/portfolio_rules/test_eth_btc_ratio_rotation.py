@@ -5,9 +5,6 @@ from typing import cast
 import pytest
 
 from src.services.backtesting.portfolio_rules.base import PortfolioRuleConfig
-from src.services.backtesting.portfolio_rules.eth_btc_ratio_rotation import (
-    EthBtcRatioRotationRule,
-)
 from src.services.backtesting.signals.dma_gated_fgi.types import (
     CrossEvent,
     DmaCooldownState,
@@ -15,6 +12,7 @@ from src.services.backtesting.signals.dma_gated_fgi.types import (
 )
 from src.services.backtesting.signals.ratio_state import EthBtcRatioState
 from tests.services.backtesting.portfolio_rules.helpers import snapshot
+from tests.services.backtesting.support.reference_rules import reference_rule
 
 
 def _ratio_state(
@@ -43,7 +41,7 @@ def test_rotation_cross_up_absorbs_btc_and_stable_to_eth() -> None:
         eth_btc_ratio_state=_ratio_state(actionable_cross_event="cross_up"),
     )
 
-    intent = EthBtcRatioRotationRule().build_intent(
+    intent = reference_rule("eth_btc_ratio_rotation").build_intent(
         rule_snapshot,
         config=PortfolioRuleConfig(),
     )
@@ -53,7 +51,10 @@ def test_rotation_cross_up_absorbs_btc_and_stable_to_eth() -> None:
     assert intent.target_allocation["spy"] == pytest.approx(0.30)
     assert intent.target_allocation["stable"] == pytest.approx(0.0)
     assert intent.allocation_name == "portfolio_eth_btc_ratio_rotation_to_eth"
-    assert intent.diagnostics == {"portfolio_rule_assets": ["BTC", "ETH"]}
+    assert intent.diagnostics == {
+        "portfolio_rule_assets": ["BTC", "ETH"],
+        "starts_ratio_cooldown": True,
+    }
 
 
 def test_rotation_cross_down_swaps_eth_to_btc() -> None:
@@ -62,7 +63,7 @@ def test_rotation_cross_down_swaps_eth_to_btc() -> None:
         eth_btc_ratio_state=_ratio_state(actionable_cross_event="cross_down"),
     )
 
-    intent = EthBtcRatioRotationRule().build_intent(
+    intent = reference_rule("eth_btc_ratio_rotation").build_intent(
         rule_snapshot,
         config=PortfolioRuleConfig(),
     )
@@ -72,7 +73,10 @@ def test_rotation_cross_down_swaps_eth_to_btc() -> None:
     assert intent.target_allocation["spy"] == pytest.approx(0.30)
     assert intent.target_allocation["stable"] == pytest.approx(0.30)
     assert intent.allocation_name == "portfolio_eth_btc_ratio_rotation_to_btc"
-    assert intent.diagnostics == {"portfolio_rule_assets": ["BTC", "ETH"]}
+    assert intent.diagnostics == {
+        "portfolio_rule_assets": ["BTC", "ETH"],
+        "starts_ratio_cooldown": True,
+    }
 
 
 def test_rotation_does_not_match_without_actionable_cross() -> None:
@@ -81,9 +85,38 @@ def test_rotation_does_not_match_without_actionable_cross() -> None:
     )
 
     assert (
-        EthBtcRatioRotationRule().matches(
+        reference_rule("eth_btc_ratio_rotation").matches(
             rule_snapshot,
             config=PortfolioRuleConfig(),
         )
         is False
+    )
+
+
+def test_the_legs_of_a_rotation_are_configurable() -> None:
+    rule = reference_rule(
+        "eth_btc_ratio_rotation",
+        up_sources=("btc",),
+        down_sources=("eth", "stable"),
+        down_destination="btc",
+    )
+    up = snapshot(
+        current={"btc": 0.30, "eth": 0.10, "spy": 0.30, "stable": 0.30, "alt": 0.0},
+        eth_btc_ratio_state=_ratio_state(actionable_cross_event="cross_up"),
+    )
+    down = snapshot(
+        current={"btc": 0.10, "eth": 0.30, "spy": 0.30, "stable": 0.30, "alt": 0.0},
+        eth_btc_ratio_state=_ratio_state(actionable_cross_event="cross_down"),
+    )
+
+    up_target = rule.build_intent(up, config=PortfolioRuleConfig()).target_allocation
+    down_target = rule.build_intent(
+        down, config=PortfolioRuleConfig()
+    ).target_allocation
+
+    assert up_target == pytest.approx(
+        {"btc": 0.0, "eth": 0.40, "spy": 0.30, "stable": 0.30, "alt": 0.0}
+    )
+    assert down_target == pytest.approx(
+        {"btc": 0.70, "eth": 0.0, "spy": 0.30, "stable": 0.0, "alt": 0.0}
     )

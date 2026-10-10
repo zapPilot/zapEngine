@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date
 from pathlib import Path
 from typing import Any, cast
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -14,15 +14,16 @@ from src.main import app
 from src.models.backtesting import (
     Allocation,
     AssetAllocation,
+    BacktestAssumptions,
     BacktestCompareRequestV3,
     BacktestPeriodInfo,
     BacktestResponse,
     BacktestStrategyCatalogResponseV3,
     BacktestWindowInfo,
     DecisionState,
-    ExecutionDiagnostics,
     ExecutionState,
     MarketSnapshot,
+    PnlAttribution,
     PortfolioState,
     SignalState,
     StrategyState,
@@ -60,44 +61,12 @@ class MockBacktestingService:
         return self.response
 
 
-def _dma_params() -> dict[str, object]:
-    return {
-        "signal": {
-            "cross_cooldown_days": 30,
-            "cross_on_touch": True,
-        },
-        "pacing": {
-            "k": 5.0,
-            "r_max": 1.0,
-        },
-        "buy_gate": {
-            "window_days": 5,
-            "sideways_max_range": 0.04,
-            "leg_caps": [0.05, 0.10, 0.20],
-        },
-        "trade_quota": {
-            "min_trade_interval_days": None,
-            "max_trades_7d": None,
-            "max_trades_30d": None,
-        },
-    }
+def _strategy_parameters() -> dict[str, object]:
+    """What a spec-backed strategy reports about itself in a summary."""
+    return {"signal_id": "dma_fgi_portfolio_rules_signal", "spec_ref": SPEC_REF}
 
 
-def _dma_runtime_params() -> dict[str, object]:
-    return {
-        "cross_cooldown_days": 30,
-        "cross_on_touch": True,
-        "pacing_k": 5.0,
-        "pacing_r_max": 1.0,
-        "buy_sideways_window_days": 5,
-        "buy_sideways_max_range": 0.04,
-        "buy_leg_caps": [0.05, 0.10, 0.20],
-        "dma_overextension_threshold": 0.3,
-        "overextension_threshold_multiplier_greed": 0.50,
-        "overextension_threshold_multiplier_extreme_greed": 0.33,
-        "fgi_slope_reversal_threshold": -0.05,
-        "fgi_slope_recovery_threshold": 0.05,
-    }
+SPEC_REF = "reference/dma_fgi@1#a22bccfabb4b"
 
 
 def _compare_payload(**overrides: object) -> dict[str, object]:
@@ -109,7 +78,6 @@ def _compare_payload(**overrides: object) -> dict[str, object]:
             {
                 "config_id": "portfolio_rules_runtime",
                 "strategy_id": "dma_fgi_portfolio_rules",
-                "params": _dma_params(),
             },
         ],
     }
@@ -133,6 +101,7 @@ async def _post_compare(
 
 def _response() -> BacktestResponse:
     return BacktestResponse(
+        assumptions=BacktestAssumptions(),
         strategies={
             "portfolio_rules_runtime": StrategySummary(
                 strategy_id="dma_fgi_portfolio_rules",
@@ -144,6 +113,9 @@ def _response() -> BacktestResponse:
                 trade_count=4,
                 calmar_ratio=0.78,
                 max_drawdown_percent=-2.5,
+                pnl_attribution=PnlAttribution(
+                    price_usd=520.0, yield_usd=30.0, cost_usd=-50.0
+                ),
                 final_allocation=Allocation(spot=0.0, stable=1.0),
                 final_asset_allocation=AssetAllocation(
                     btc=0.0,
@@ -152,7 +124,7 @@ def _response() -> BacktestResponse:
                     stable=1.0,
                     alt=0.0,
                 ),
-                parameters=_dma_params(),
+                parameters=_strategy_parameters(),
             ),
         },
         timeline=[
@@ -221,17 +193,6 @@ def _response() -> BacktestResponse:
                                 )
                             ],
                             blocked_reason=None,
-                            step_count=1,
-                            steps_remaining=0,
-                            interval_days=1,
-                            diagnostics=ExecutionDiagnostics(
-                                plugins={
-                                    "dma_buy_gate": {
-                                        "buy_strength": None,
-                                        "sideways_confirmed": None,
-                                    }
-                                }
-                            ),
                         ),
                     ),
                 },
@@ -300,17 +261,6 @@ def _response() -> BacktestResponse:
                                 )
                             ],
                             blocked_reason=None,
-                            step_count=1,
-                            steps_remaining=0,
-                            interval_days=1,
-                            diagnostics=ExecutionDiagnostics(
-                                plugins={
-                                    "dma_buy_gate": {
-                                        "buy_strength": 0.8,
-                                        "sideways_confirmed": False,
-                                    }
-                                }
-                            ),
                         ),
                     ),
                 },
@@ -352,13 +302,12 @@ async def test_backtesting_strategies_v3_returns_recipe_catalog(
         for entry in catalog.strategies
         if entry.strategy_id == "dma_fgi_portfolio_rules"
     )
-    assert (
-        cast(dict[str, object], dma_entry.default_params["signal"])[
-            "cross_cooldown_days"
-        ]
-        == 30
-    )
-    assert "signal" in dma_entry.param_schema["properties"]
+    assert dma_entry.default_params == {}
+    assert dma_entry.param_schema == {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": False,
+    }
     assert dma_entry.supports_daily_suggestion is True
 
     configs_response = await client.get("/api/v3/strategy/configs")
@@ -381,7 +330,7 @@ async def test_backtesting_compare_v3_returns_shared_snapshot_response(
     assert response.status_code == 200
     assert service.call_count == 1
     assert service.last_request is not None
-    assert service.last_request.configs[0].params == _dma_runtime_params()
+    assert service.last_request.configs[0].params == {}
 
     parsed = BacktestResponse.model_validate(response.json())
     assert set(parsed.strategies) == {"portfolio_rules_runtime"}
@@ -416,15 +365,11 @@ async def test_backtesting_compare_v3_returns_shared_snapshot_response(
     )
     assert dma_point.signal.details["ath_event"] == "token_ath"
     assert cast(dict[str, object], dma_point.signal.details["dma"])["zone"] == "above"
-    assert (
-        dma_point.execution.diagnostics.plugins["dma_buy_gate"]["sideways_confirmed"]
-        is None
-    )
     assert dma_point.decision.reason == "dma_cross_down"
 
 
 @pytest.mark.asyncio
-async def test_backtesting_compare_v3_accepts_nested_dma_fgi_portfolio_rules_params(
+async def test_backtesting_compare_v3_accepts_a_strategy_with_empty_params(
     client: AsyncClient,
 ) -> None:
     service = MockBacktestingService(response=_response())
@@ -438,7 +383,7 @@ async def test_backtesting_compare_v3_accepts_nested_dma_fgi_portfolio_rules_par
                 {
                     "config_id": "dma_fgi_portfolio_rules_default",
                     "strategy_id": "dma_fgi_portfolio_rules",
-                    "params": _dma_params(),
+                    "params": {},
                 }
             ],
         },
@@ -447,13 +392,22 @@ async def test_backtesting_compare_v3_accepts_nested_dma_fgi_portfolio_rules_par
 
     assert response.status_code == 200
     assert service.last_request is not None
-    assert service.last_request.configs[0].params == _dma_runtime_params()
+    assert service.last_request.configs[0].params == {}
 
 
 @pytest.mark.asyncio
-async def test_backtesting_compare_v3_rejects_flat_dma_fgi_portfolio_rules_params(
-    client: AsyncClient,
+@pytest.mark.parametrize(
+    "params",
+    [
+        {"max_trades_7d": 3, "rotation_cooldown_days": 7},
+        {"trade_quota": {"max_trades_7d": 3}},
+        {"enabled_rules": ["cross_down_exit"]},
+    ],
+)
+async def test_backtesting_compare_v3_rejects_any_params(
+    client: AsyncClient, params: dict[str, object]
 ) -> None:
+    """What a strategy does is stated by its spec: the request tunes nothing."""
     response = await _post_compare(
         client,
         payload={
@@ -464,19 +418,14 @@ async def test_backtesting_compare_v3_rejects_flat_dma_fgi_portfolio_rules_param
                 {
                     "config_id": "dma_fgi_portfolio_rules_default",
                     "strategy_id": "dma_fgi_portfolio_rules",
-                    "params": {
-                        "cross_cooldown_days": 30,
-                        "rotation_cooldown_days": 7,
-                    },
+                    "params": params,
                 }
             ],
         },
     )
 
     assert response.status_code == 422
-    payload = cast(dict[str, object], response.json())
-    detail = cast(list[dict[str, object]], payload["detail"])
-    assert any(item["loc"][-1] == "rotation_cooldown_days" for item in detail)
+    assert "does not accept params" in response.text
 
 
 @pytest.mark.asyncio
@@ -540,7 +489,6 @@ async def test_backtesting_compare_v3_returns_400_for_unusable_window(
                 {
                     "config_id": "portfolio_rules_runtime",
                     "strategy_id": "dma_fgi_portfolio_rules",
-                    "params": {"signal": {"cross_cooldown_days": 30}},
                 }
             ],
         ),
@@ -568,14 +516,13 @@ async def test_backtesting_compare_v3_http_cannot_choose_or_trigger_decision_log
     # Real service and real compare runner over synthetic data, so any write the
     # HTTP path could trigger would actually happen.
     service = BacktestingService(
-        db=MagicMock(),
         token_price_service=MagicMock(),
         sentiment_service=MagicMock(),
     )
-    service.data_provider.fetch_token_prices = AsyncMock(
+    service.data_provider.fetch_token_prices = MagicMock(  # type: ignore[method-assign]
         return_value=price_series(days=5)
     )
-    service.data_provider.fetch_sentiments = AsyncMock(
+    service.data_provider.fetch_sentiments = MagicMock(  # type: ignore[method-assign]
         return_value=sentiment_map(days=5, label="greed", value=70)
     )
     attacker_dir = tmp_path / "attacker"

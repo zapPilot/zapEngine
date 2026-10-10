@@ -205,21 +205,18 @@ class TestServiceDependencies:
         assert isinstance(wallet_service, WalletService)
 
     def test_get_strategy_daily_suggestion_service_returns_correct_type(self) -> None:
-        """Lines 437-442: get_strategy_daily_suggestion_service instantiates service."""
-        mock_db = Mock()
+        """get_strategy_daily_suggestion_service wires the replayer and portfolio."""
         mock_landing = Mock()
-        mock_regime = Mock()
-        mock_sentiment = Mock()
-        mock_token_price = Mock()
+        mock_backtesting = Mock()
         mock_canonical = Mock()
 
         service = get_strategy_daily_suggestion_service(
-            db=mock_db,
             landing_page_service=mock_landing,
-            regime_tracking_service=mock_regime,
-            sentiment_service=mock_sentiment,
-            token_price_service=mock_token_price,
+            backtesting_service=mock_backtesting,
             canonical_snapshot_service=mock_canonical,
         )
 
         assert isinstance(service, StrategyDailySuggestionService)
+        assert service.landing_page_service is mock_landing
+        assert service.backtesting_service is mock_backtesting
+        assert service.canonical_snapshot_service is mock_canonical

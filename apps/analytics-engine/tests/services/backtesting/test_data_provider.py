@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -26,8 +26,7 @@ from src.services.backtesting.features import (
 )
 
 
-@pytest.mark.asyncio
-async def test_fetch_token_prices_normalizes_filters_and_injects_dma() -> None:
+def test_fetch_token_prices_normalizes_filters_and_injects_dma() -> None:
     token_price_service = SimpleNamespace(
         get_price_history=lambda **kwargs: [
             SimpleNamespace(snapshot_date="2025-01-02", price=101.0),
@@ -46,7 +45,7 @@ async def test_fetch_token_prices_normalizes_filters_and_injects_dma() -> None:
         sentiment_service=SimpleNamespace(),
     )
 
-    rows = await provider.fetch_token_prices(
+    rows = provider.fetch_token_prices(
         token_symbol="BTC",
         start_date=date(2025, 1, 1),
         end_date=date(2025, 1, 2),
@@ -71,8 +70,7 @@ async def test_fetch_token_prices_normalizes_filters_and_injects_dma() -> None:
     ]
 
 
-@pytest.mark.asyncio
-async def test_fetch_token_prices_without_dma_skips_dma_lookup() -> None:
+def test_fetch_token_prices_without_dma_skips_dma_lookup() -> None:
     calls: list[str] = []
 
     def _get_price_history(**kwargs):
@@ -91,7 +89,7 @@ async def test_fetch_token_prices_without_dma_skips_dma_lookup() -> None:
         sentiment_service=SimpleNamespace(),
     )
 
-    rows = await provider.fetch_token_prices(
+    rows = provider.fetch_token_prices(
         token_symbol="BTC",
         start_date=date(2025, 1, 1),
         end_date=date(2025, 1, 1),
@@ -103,8 +101,7 @@ async def test_fetch_token_prices_without_dma_skips_dma_lookup() -> None:
     assert calls == ["prices"]
 
 
-@pytest.mark.asyncio
-async def test_fetch_token_prices_injects_optional_macro_fear_greed() -> None:
+def test_fetch_token_prices_injects_optional_macro_fear_greed() -> None:
     macro_fear_greed_service = SimpleNamespace(
         get_daily_macro_fear_greed=lambda **kwargs: {
             date(2025, 1, 1): {
@@ -136,7 +133,7 @@ async def test_fetch_token_prices_injects_optional_macro_fear_greed() -> None:
         macro_fear_greed_service=macro_fear_greed_service,
     )
 
-    rows = await provider.fetch_token_prices(
+    rows = provider.fetch_token_prices(
         token_symbol="BTC",
         start_date=date(2025, 1, 1),
         end_date=date(2025, 1, 3),
@@ -147,8 +144,7 @@ async def test_fetch_token_prices_injects_optional_macro_fear_greed() -> None:
     assert rows[2]["extra_data"][MACRO_FEAR_GREED_FEATURE]["score"] == 76.0
 
 
-@pytest.mark.asyncio
-async def test_fetch_token_prices_omits_optional_macro_when_service_missing() -> None:
+def test_fetch_token_prices_omits_optional_macro_when_service_missing() -> None:
     provider = BacktestDataProvider(
         token_price_service=SimpleNamespace(
             get_price_history=lambda **kwargs: [
@@ -159,7 +155,7 @@ async def test_fetch_token_prices_omits_optional_macro_when_service_missing() ->
         sentiment_service=SimpleNamespace(),
     )
 
-    rows = await provider.fetch_token_prices(
+    rows = provider.fetch_token_prices(
         token_symbol="BTC",
         start_date=date(2025, 1, 1),
         end_date=date(2025, 1, 1),
@@ -170,8 +166,7 @@ async def test_fetch_token_prices_omits_optional_macro_when_service_missing() ->
     ]
 
 
-@pytest.mark.asyncio
-async def test_fetch_token_prices_requires_macro_service_when_declared() -> None:
+def test_fetch_token_prices_requires_macro_service_when_declared() -> None:
     provider = BacktestDataProvider(
         token_price_service=SimpleNamespace(
             get_price_history=lambda **kwargs: [],
@@ -181,7 +176,7 @@ async def test_fetch_token_prices_requires_macro_service_when_declared() -> None
     )
 
     with pytest.raises(ValueError, match="macro_fear_greed_service is required"):
-        await provider.fetch_token_prices(
+        provider.fetch_token_prices(
             token_symbol="BTC",
             start_date=date(2025, 1, 1),
             end_date=date(2025, 1, 1),
@@ -191,10 +186,7 @@ async def test_fetch_token_prices_requires_macro_service_when_declared() -> None
         )
 
 
-@pytest.mark.asyncio
-async def test_fetch_token_prices_injects_eth_btc_relative_strength_aux_series() -> (
-    None
-):
+def test_fetch_token_prices_injects_eth_btc_relative_strength_aux_series() -> None:
     def _get_price_history(**kwargs):
         token_symbol = kwargs["token_symbol"]
         if token_symbol == "ETH":
@@ -228,7 +220,7 @@ async def test_fetch_token_prices_injects_eth_btc_relative_strength_aux_series()
         sentiment_service=SimpleNamespace(),
     )
 
-    rows = await provider.fetch_token_prices(
+    rows = provider.fetch_token_prices(
         token_symbol="BTC",
         start_date=date(2025, 1, 1),
         end_date=date(2025, 1, 2),
@@ -244,8 +236,7 @@ async def test_fetch_token_prices_injects_eth_btc_relative_strength_aux_series()
     assert rows[0]["prices"] == {"btc": 100_000.0, "eth": 5_000.0}
 
 
-@pytest.mark.asyncio
-async def test_fetch_token_prices_drops_entries_when_required_eth_missing() -> None:
+def test_fetch_token_prices_drops_entries_when_required_eth_missing() -> None:
     start = date(2025, 1, 1)
 
     def _get_price_history(**kwargs):
@@ -280,7 +271,7 @@ async def test_fetch_token_prices_drops_entries_when_required_eth_missing() -> N
         sentiment_service=SimpleNamespace(),
     )
 
-    rows = await provider.fetch_token_prices(
+    rows = provider.fetch_token_prices(
         token_symbol="BTC",
         start_date=start,
         end_date=start + timedelta(days=4),
@@ -297,10 +288,7 @@ async def test_fetch_token_prices_drops_entries_when_required_eth_missing() -> N
     assert all(row["prices"]["eth"] == pytest.approx(5_000.0) for row in rows)
 
 
-@pytest.mark.asyncio
-async def test_fetch_token_prices_injects_spy_crypto_relative_strength_aux_series() -> (
-    None
-):
+def test_fetch_token_prices_injects_spy_crypto_relative_strength_aux_series() -> None:
     token_price_service = SimpleNamespace(
         get_price_history=lambda **kwargs: [
             SimpleNamespace(date=date(2025, 1, 1), price_usd=100_000.0),
@@ -320,7 +308,7 @@ async def test_fetch_token_prices_injects_spy_crypto_relative_strength_aux_serie
         stock_price_service=stock_price_service,
     )
 
-    rows = await provider.fetch_token_prices(
+    rows = provider.fetch_token_prices(
         token_symbol="BTC",
         start_date=date(2025, 1, 1),
         end_date=date(2025, 1, 2),
@@ -339,8 +327,7 @@ async def test_fetch_token_prices_injects_spy_crypto_relative_strength_aux_serie
     )
 
 
-@pytest.mark.asyncio
-async def test_fetch_token_prices_seeds_spy_forward_fill_before_weekend_start() -> None:
+def test_fetch_token_prices_seeds_spy_forward_fill_before_weekend_start() -> None:
     token_price_service = SimpleNamespace(
         get_price_history=lambda **kwargs: [
             SimpleNamespace(date=date(2025, 1, 4), price_usd=100_000.0),
@@ -371,7 +358,7 @@ async def test_fetch_token_prices_seeds_spy_forward_fill_before_weekend_start() 
         stock_price_service=SimpleNamespace(get_dma_history=_get_spy_dma_history),
     )
 
-    rows = await provider.fetch_token_prices(
+    rows = provider.fetch_token_prices(
         token_symbol="BTC",
         start_date=date(2025, 1, 4),
         end_date=date(2025, 1, 6),
@@ -394,8 +381,7 @@ async def test_fetch_token_prices_seeds_spy_forward_fill_before_weekend_start() 
     assert rows[2]["extra_data"][SPY_DMA_200_FEATURE] == pytest.approx(495.0)
 
 
-@pytest.mark.asyncio
-async def test_fetch_token_prices_rejects_unsupported_aux_series() -> None:
+def test_fetch_token_prices_rejects_unsupported_aux_series() -> None:
     provider = BacktestDataProvider(
         token_price_service=SimpleNamespace(
             get_price_history=lambda **kwargs: [],
@@ -405,7 +391,7 @@ async def test_fetch_token_prices_rejects_unsupported_aux_series() -> None:
     )
 
     with pytest.raises(ValueError, match="Unsupported required auxiliary series"):
-        await provider.fetch_token_prices(
+        provider.fetch_token_prices(
             token_symbol="BTC",
             start_date=date(2025, 1, 1),
             end_date=date(2025, 1, 2),
@@ -415,8 +401,7 @@ async def test_fetch_token_prices_rejects_unsupported_aux_series() -> None:
         )
 
 
-@pytest.mark.asyncio
-async def test_fetch_token_prices_returns_empty_on_non_dma_error() -> None:
+def test_fetch_token_prices_returns_empty_on_non_dma_error() -> None:
     provider = BacktestDataProvider(
         token_price_service=SimpleNamespace(
             get_price_history=lambda **kwargs: (_ for _ in ()).throw(
@@ -427,7 +412,7 @@ async def test_fetch_token_prices_returns_empty_on_non_dma_error() -> None:
         sentiment_service=SimpleNamespace(),
     )
 
-    rows = await provider.fetch_token_prices(
+    rows = provider.fetch_token_prices(
         token_symbol="ETH",
         start_date=date(2025, 1, 1),
         end_date=date(2025, 1, 2),
@@ -436,8 +421,7 @@ async def test_fetch_token_prices_returns_empty_on_non_dma_error() -> None:
     assert rows == []
 
 
-@pytest.mark.asyncio
-async def test_fetch_token_prices_reraises_on_strict_dma_error() -> None:
+def test_fetch_token_prices_reraises_on_strict_dma_error() -> None:
     provider = BacktestDataProvider(
         token_price_service=SimpleNamespace(
             get_price_history=lambda **kwargs: [
@@ -449,7 +433,7 @@ async def test_fetch_token_prices_reraises_on_strict_dma_error() -> None:
     )
 
     with pytest.raises(RuntimeError, match="dma"):
-        await provider.fetch_token_prices(
+        provider.fetch_token_prices(
             token_symbol="BTC",
             start_date=date(2025, 1, 1),
             end_date=date(2025, 1, 2),
@@ -457,10 +441,9 @@ async def test_fetch_token_prices_reraises_on_strict_dma_error() -> None:
         )
 
 
-@pytest.mark.asyncio
-async def test_fetch_sentiments_dedupes_to_latest_row_per_day() -> None:
+def test_fetch_sentiments_dedupes_to_latest_row_per_day() -> None:
     sentiment_service = SimpleNamespace(
-        get_sentiment_history=AsyncMock(
+        get_sentiment_history=MagicMock(
             return_value=[
                 SimpleNamespace(
                     timestamp=datetime(2025, 1, 1, 8, 0, tzinfo=UTC),
@@ -490,7 +473,7 @@ async def test_fetch_sentiments_dedupes_to_latest_row_per_day() -> None:
         sentiment_service=sentiment_service,
     )
 
-    result = await provider.fetch_sentiments(
+    result = provider.fetch_sentiments(
         start_date=date(2025, 1, 1),
         end_date=date(2025, 1, 2),
     )
@@ -511,16 +494,15 @@ async def test_fetch_sentiments_dedupes_to_latest_row_per_day() -> None:
     }
 
 
-@pytest.mark.asyncio
-async def test_fetch_sentiments_returns_empty_on_error() -> None:
+def test_fetch_sentiments_returns_empty_on_error() -> None:
     provider = BacktestDataProvider(
         token_price_service=SimpleNamespace(),
         sentiment_service=SimpleNamespace(
-            get_sentiment_history=AsyncMock(side_effect=RuntimeError("sentiment down"))
+            get_sentiment_history=MagicMock(side_effect=RuntimeError("sentiment down"))
         ),
     )
 
-    result = await provider.fetch_sentiments(
+    result = provider.fetch_sentiments(
         start_date=date(2025, 1, 1),
         end_date=date(2025, 1, 2),
     )
@@ -587,8 +569,7 @@ def test_build_price_map_includes_btc_with_eth_usd_price() -> None:
     assert prices == {"btc": 100_000.0, "eth": 5_000.0}
 
 
-@pytest.mark.asyncio
-async def test_fetch_token_prices_reraises_when_feature_history_loaded() -> None:
+def test_fetch_token_prices_reraises_when_feature_history_loaded() -> None:
     """Lines 234-239: reraise when feature_history is non-empty and error occurs."""
 
     def _boom(**kwargs) -> list:
@@ -604,7 +585,7 @@ async def test_fetch_token_prices_reraises_when_feature_history_loaded() -> None
     )
 
     with pytest.raises(RuntimeError, match="price fetch failed"):
-        await provider.fetch_token_prices(
+        provider.fetch_token_prices(
             token_symbol="BTC",
             start_date=date(2025, 1, 1),
             end_date=date(2025, 1, 2),
@@ -614,11 +595,10 @@ async def test_fetch_token_prices_reraises_when_feature_history_loaded() -> None
         )
 
 
-@pytest.mark.asyncio
-async def test_fetch_sentiments_skips_older_duplicate_for_same_day() -> None:
+def test_fetch_sentiments_skips_older_duplicate_for_same_day() -> None:
     """Line 278: _should_replace_sentiment returns False for older candidate."""
     sentiment_service = SimpleNamespace(
-        get_sentiment_history=AsyncMock(
+        get_sentiment_history=MagicMock(
             return_value=[
                 SimpleNamespace(
                     timestamp=datetime(2025, 1, 1, 12, 0, tzinfo=UTC),
@@ -638,7 +618,7 @@ async def test_fetch_sentiments_skips_older_duplicate_for_same_day() -> None:
         sentiment_service=sentiment_service,
     )
 
-    result = await provider.fetch_sentiments(
+    result = provider.fetch_sentiments(
         start_date=date(2025, 1, 1),
         end_date=date(2025, 1, 1),
     )

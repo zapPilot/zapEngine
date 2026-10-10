@@ -2,13 +2,20 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from src.services.backtesting.execution.transfer_netting import build_bucket_transfers
+from src.services.backtesting.strategies.base import TransferIntent
 from src.services.backtesting.target_allocation import normalize_target_allocation
 
 if TYPE_CHECKING:
+    from src.services.backtesting.execution.portfolio import Portfolio
     from src.services.backtesting.strategies.base import StrategyContext
+
+# Deltas at or below this many USD count as already on target.
+AT_TARGET_TOLERANCE_USD = 1e-6
 
 
 @dataclass(frozen=True)
@@ -53,20 +60,6 @@ class RebalanceCalculator:
             bucket: target_values[bucket] - float(current_values.get(bucket, 0.0))
             for bucket in buckets
         }
-
-    @staticmethod
-    def calculate_deltas_from_context(
-        context: StrategyContext,
-        target_allocation: dict[str, float],
-    ) -> dict[str, float]:
-        price = context.portfolio_price
-        total_value = context.portfolio.total_value(price)
-        current_values = RebalanceCalculator._resolve_current_values(
-            context, price, target_allocation
-        )
-        return RebalanceCalculator.calculate_deltas(
-            total_value, target_allocation, current_values
-        )
 
     @staticmethod
     def calculate_current_allocation(
@@ -164,3 +157,28 @@ class RebalanceCalculator:
             )
             for bucket in buckets
         )
+
+
+def plan_transfers_to_target(
+    *,
+    portfolio: Portfolio,
+    price: float | Mapping[str, float],
+    target_allocation: Mapping[str, float],
+) -> list[TransferIntent]:
+    """Plan the transfers that move ``portfolio`` onto ``target_allocation``.
+
+    The single rebalance planner: the backtest executor applies it to the model
+    portfolio and the live suggestion applies it to a user's holdings, so the
+    two cannot disagree about how a target becomes trades. Amounts are gross
+    USD; an empty list means the portfolio is already on target.
+    """
+    deltas = RebalanceCalculator.calculate_deltas(
+        portfolio.total_value(price),
+        dict(target_allocation),
+        portfolio.values_for_allocation_keys(price, target_allocation),
+    )
+    if not deltas or max(abs(delta) for delta in deltas.values()) <= (
+        AT_TARGET_TOLERANCE_USD
+    ):
+        return []
+    return build_bucket_transfers(deltas=deltas)

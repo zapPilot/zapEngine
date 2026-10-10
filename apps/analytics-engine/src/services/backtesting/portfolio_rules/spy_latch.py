@@ -9,21 +9,23 @@ from src.services.backtesting.decision import AllocationIntent, RuleGroup
 from src.services.backtesting.portfolio_rules.base import (
     PortfolioRuleConfig,
     PortfolioSnapshot,
+    PostIntentOverlay,
 )
 from src.services.backtesting.target_allocation import normalize_target_allocation
 
 _EPSILON = 1e-9
 
 
-@dataclass
-class SpyLatchRule:
-    name: str = "spy_latch"
-    priority: int = 25
+@dataclass(kw_only=True)
+class SpyLatchRule(PostIntentOverlay):
+    name: str
+    priority: int
+    follow_through_days: int
     cooldown_days: int = 0
-    follow_through_days: int = 14
     rule_group: RuleGroup = "cross"
     description: str = (
-        "Redeploy stable to SPY on cross-up; absorb fresh stable for 14 days."
+        "Redeploy stable to SPY on cross-up; absorb fresh stable while the "
+        "follow-through window lasts."
     )
     _activated_on: date | None = field(default=None, init=False)
     _pre_existing_stable_share: float = field(default=0.0, init=False)
@@ -61,32 +63,11 @@ class SpyLatchRule:
         if self._is_active(current_date):
             self._pre_existing_stable_share = _current_stable_share(snapshot)
 
-    def matches(
+    def _adjust(
         self,
-        snapshot: PortfolioSnapshot,
-        *,
-        config: PortfolioRuleConfig,
-    ) -> bool:
-        del snapshot, config
-        return False
-
-    def build_intent(
-        self,
-        snapshot: PortfolioSnapshot,
-        *,
-        config: PortfolioRuleConfig,
-    ) -> AllocationIntent:
-        del snapshot, config
-        raise ValueError("SpyLatchRule only supports post-intent adjustments")
-
-    def apply_post_intent_adjustments(
-        self,
-        *,
         intent: AllocationIntent,
         snapshot: PortfolioSnapshot,
-        config: PortfolioRuleConfig,
     ) -> AllocationIntent:
-        del config
         if (
             intent.target_allocation is None
             or snapshot.current_date is None

@@ -6,7 +6,6 @@ import argparse
 import hashlib
 import json
 import subprocess
-import sys
 from datetime import date
 from decimal import ROUND_FLOOR, Decimal, localcontext
 from unittest.mock import patch
@@ -17,7 +16,9 @@ from scripts.pinned_strategy.codec import EMPTY_STATES, KEYS, epoch_day, mask
 from scripts.pinned_strategy.compile import ARTIFACT, ROOT
 from scripts.pinned_strategy.deploy import DEPLOYMENTS
 from scripts.pinned_strategy.evm import SliceEVM
-from scripts.pinned_strategy.record_market_history import HISTORY, read_history
+from scripts.pinned_strategy.history import RECORD_HINT, recorded_bundle
+from src.services.backtesting.constants import DEFAULT_FILL_LAG_DAYS
+from src.services.backtesting.lab.bundle import BundleError
 from src.services.backtesting.signals.flat_minimum import (
     _ASSET_SPECS,
     _build_asset_dma_context,
@@ -29,6 +30,16 @@ OUTPUT = (
     / "packages/zap-pilot-story/src/facts/data/verifiable-strategy.json"
 )
 TRACK_RECORD = LANDING / "src/data/equity-curve.json"
+
+
+def _recorded_bundle():
+    try:
+        return recorded_bundle()
+    except BundleError as error:
+        raise RuntimeError(
+            f"No recorded production history ({error}). {RECORD_HINT}, with "
+            "--start and --end set to the published track record's window"
+        ) from error
 
 
 def decimal_value(value):
@@ -64,7 +75,8 @@ def replay(dates):
     """Replay recorded Python inputs and pyrevm without consulting rolling snapshots."""
     examples = []
     if dates:
-        history = read_history()
+        bundle = _recorded_bundle()
+        history = bundle.history()
         evm = SliceEVM()
 
         class ExportShadow(shadow.Shadow):
@@ -163,9 +175,7 @@ def replay(dates):
                                 "liquidatedMask": result[5],
                             },
                             "provenance": {
-                                "historySha256": hashlib.sha256(
-                                    HISTORY.read_bytes()
-                                ).hexdigest(),
+                                "historySha256": bundle.manifest.content_sha256,
                                 "source": "read-only production compare inputs; replayed Python strategy",
                                 "encoding": "engine float round-trip decimal, floored to 18 decimal places; allocation tolerance 1e-12",
                             },
@@ -186,8 +196,8 @@ def replay(dates):
 
 
 def validate_publication(examples, published):
-    history = read_history()
-    if (history[2].isoformat(), history[3].isoformat()) != (
+    manifest = _recorded_bundle().manifest
+    if (manifest.start.isoformat(), manifest.end.isoformat()) != (
         published["window"]["start"],
         published["window"]["end"],
     ):
@@ -208,7 +218,11 @@ def validate_publication(examples, published):
             for i, row in enumerate(series["values"])
             if row["date"] == example["date"]
         )
-        target = list(map(str, published["allocations"]["values"][index]))
+        # A decision on day i fills on day i + lag, so the published allocation
+        # that equals the target is the fill day's, not the decision day's.
+        target = list(
+            map(str, published["allocations"]["values"][index + DEFAULT_FILL_LAG_DAYS])
+        )
         assert all(
             abs(Decimal(a) - Decimal(b)) <= Decimal("0.00005")
             for a, b in zip(example["expected"]["pythonTarget"], target, strict=True)
@@ -238,20 +252,6 @@ def generate(dates, *, validate_only=False, refresh_deployment=False):
         payload["deployment"] = deployment
         write_payload(payload)
         return payload
-    if dates and not HISTORY.exists():
-        published = json.loads(TRACK_RECORD.read_text())
-        subprocess.run(
-            [
-                sys.executable,
-                str(ROOT / "scripts/pinned_strategy/record_market_history.py"),
-                "--start",
-                published["window"]["start"],
-                "--end",
-                published["window"]["end"],
-            ],
-            cwd=ROOT,
-            check=True,
-        )
     examples = replay(dates)
     if examples and not validate_only:
         validate_publication(examples, json.loads(TRACK_RECORD.read_text()))

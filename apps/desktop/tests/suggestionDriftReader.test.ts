@@ -33,6 +33,7 @@ function makeDailySuggestion(
     config_display_name: 'Default',
     config_id: 'default',
     strategy_id: 'strategy-default',
+    spec_ref: 'reference/dma_fgi@1#a22bccfabb4b',
     action: {
       kind: 'rebalance',
       reason_code: 'rebalance_needed',
@@ -74,6 +75,22 @@ function makeDailySuggestion(
       },
       target: {
         allocation: ASSET_ALLOCATION,
+      },
+      model: {
+        allocation: ASSET_ALLOCATION,
+        window: {
+          effective: {
+            days: 499,
+            end_date: '2026-07-03',
+            start_date: '2025-02-20',
+          },
+          requested: {
+            days: 499,
+            end_date: '2026-07-03',
+            start_date: '2025-02-20',
+          },
+          truncated: false,
+        },
       },
     },
     data_freshness: null,

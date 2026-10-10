@@ -255,20 +255,19 @@ class TestMainModuleDirectExecution:
     def test_critical_routes_registered(self):
         """Deletion guard for routes the frontend depends on.
 
-        The frontend's admin Config Editor and backtesting view both consume
+        The frontend's strategy picker and backtesting view both consume
         /v3/strategy/configs to populate strategy dropdowns dynamically. If
         someone deletes the route handler (it has happened before, because
         vulture flags decorator-registered handlers as 'unused'), this test
         fails loudly instead of letting the frontend silently break.
 
         Do not delete this test without removing the corresponding frontend
-        consumers in the app clients (packages/app-core strategyAdmin hooks/services
+        consumers in the app clients (packages/app-core strategy hooks/services
         and their app screens).
         """
         route_paths = {route.path for route in app.routes}
         required_paths = {
             "/api/v3/strategy/configs",
-            "/api/v3/strategy/admin/configs",
             "/api/v3/strategy/daily-suggestion/{user_id}",
         }
         missing = required_paths - route_paths

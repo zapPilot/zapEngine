@@ -1,278 +1,70 @@
-"""Seed strategy configs used to bootstrap the saved-config store."""
+"""Seed strategy configs: the code-owned source of every saved config."""
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-from dataclasses import dataclass
-from typing import Final, cast
-
-from pydantic import JsonValue
+from typing import Final
 
 from src.models.strategy_config import (
     BacktestDefaults,
     SavedStrategyConfig,
-    StrategyComponentRef,
-    StrategyComposition,
     StrategyPreset,
 )
 from src.services.backtesting.constants import (
+    DMA_FGI_REFERENCE_SPEC,
+    MODEL_TOTAL_CAPITAL,
+    MODEL_WINDOW_DAYS,
     STRATEGY_DCA_CLASSIC,
     STRATEGY_DMA_FGI_PORTFOLIO_RULES,
 )
-from src.services.backtesting.public_params import (
-    get_default_public_params,
-    normalize_nested_public_params,
-    public_params_to_runtime_params,
-)
-from src.services.backtesting.strategies.rule_based_portfolio import (
-    DmaGatedFgiParams,
-)
-
-
-@dataclass(frozen=True)
-class _ComposedPresetDefinition:
-    config_id: str
-    display_name: str
-    description: str
-    strategy_id: str
-    signal_component_id: str
-    decision_component_id: str
-    signal_param_fields: tuple[str, ...]
-    bucket_mapper_id: str = "two_bucket_spot_stable"
-    primary_asset: str = "BTC"
-    supports_daily_suggestion: bool = True
-    is_default: bool = False
-    is_benchmark: bool = False
-    # Nested public-params overlaid on the strategy defaults for this preset.
-    # Empty for the canonical default; populated for tuned research candidates.
-    public_params_override: Mapping[str, JsonValue] | None = None
-
-
-# ── Strategy Tuning ──────────────────────────────────────────────────────────
-# Central point for tuning strategy defaults.
-# Edit values here using the nested public params contract.
-STRATEGY_TUNING_OVERRIDES: Final[dict[str, dict[str, JsonValue]]] = {}
-# ─────────────────────────────────────────────────────────────────────────────
+from src.services.backtesting.strategy_registry import reference_spec
 
 DMA_FGI_PORTFOLIO_RULES_CONFIG_ID: Final[str] = "dma_fgi_portfolio_rules_default"
-DMA_FGI_PORTFOLIO_RULES_OPTIMIZED_CONFIG_ID: Final[str] = (
-    "dma_fgi_portfolio_rules_optimized"
-)
 
-# Walk-forward Optuna best trial (study dma_fgi_wf_2026_05_31, trial #13;
-# 30 TPE trials, in-sample 180d / out-of-sample 60d / step 30d over
-# 2024-01-01..2026-04-15). oos_sharpe_mean 1.8122 vs default 1.7455 with a
-# near-zero in/oos gap (0.0070). Research candidate only: on the full 500-day
-# production window it trails the default by ~0.47pp ROI, so it is NOT the
-# production default — it is exposed as a selectable comparison config.
-_DMA_FGI_PORTFOLIO_RULES_OPTIMIZED_PARAMS: Final[dict[str, JsonValue]] = {
-    "signal": {"cross_cooldown_days": 90, "cross_on_touch": False},
-    "pacing": {"k": 1.51880140214303, "r_max": 1.1968362039465772},
-    "buy_gate": {
-        "window_days": 14,
-        "sideways_max_range": 0.07407800219920704,
-        "leg_caps": [0.05, 0.1, 0.2],
-    },
-    "top_escape": {
-        "dma_overextension_threshold": 0.3805479178312311,
-        "overextension_threshold_multiplier_greed": 0.48080495964623104,
-        "overextension_threshold_multiplier_extreme_greed": 0.2014786078240635,
-        "fgi_slope_reversal_threshold": -0.25776836157984195,
-        "fgi_slope_recovery_threshold": 0.06534742319708678,
-    },
-}
 
-_DEFAULT_SIGNAL_PARAM_FIELDS: Final[tuple[str, ...]] = (
-    "cross_cooldown_days",
-    "cross_on_touch",
-)
-_PARAMS_MODEL_BY_STRATEGY: Final[dict[str, type[DmaGatedFgiParams]]] = {
-    STRATEGY_DMA_FGI_PORTFOLIO_RULES: DmaGatedFgiParams,
-}
-_COMPOSED_PRESET_DEFINITIONS: Final[tuple[_ComposedPresetDefinition, ...]] = (
-    _ComposedPresetDefinition(
+def _build_default_seed_config() -> SavedStrategyConfig:
+    return SavedStrategyConfig(
         config_id=DMA_FGI_PORTFOLIO_RULES_CONFIG_ID,
         display_name="DMA/FGI Portfolio Rules",
         description=(
             "Default rule-based strategy: SPY/BTC/ETH portfolio rules driven by "
-            "DMA crosses, ETH/BTC ratio rotation, and FGI regime shifts. Risk "
-            "guards enforce trade pacing."
+            "DMA crosses, ETH/BTC ratio rotation, and FGI regime shifts. "
+            "Per-rule cooldowns limit churn."
         ),
         strategy_id=STRATEGY_DMA_FGI_PORTFOLIO_RULES,
-        signal_component_id="dma_fgi_portfolio_rules_signal",
-        decision_component_id="dma_fgi_portfolio_rules_policy",
-        signal_param_fields=_DEFAULT_SIGNAL_PARAM_FIELDS,
-        bucket_mapper_id="spy_eth_btc_stable",
+        primary_asset="BTC",
+        spec_ref=DMA_FGI_REFERENCE_SPEC,
         supports_daily_suggestion=True,
         is_default=True,
-    ),
-    _ComposedPresetDefinition(
-        config_id=DMA_FGI_PORTFOLIO_RULES_OPTIMIZED_CONFIG_ID,
-        display_name="DMA/FGI Portfolio Rules (Optimized)",
-        description=(
-            "Walk-forward Optuna-tuned variant of the rule-based strategy. "
-            "Higher out-of-sample Sharpe with a near-zero in/out-of-sample gap; "
-            "research candidate exposed for side-by-side comparison, not the "
-            "production default."
-        ),
-        strategy_id=STRATEGY_DMA_FGI_PORTFOLIO_RULES,
-        signal_component_id="dma_fgi_portfolio_rules_signal",
-        decision_component_id="dma_fgi_portfolio_rules_policy",
-        signal_param_fields=_DEFAULT_SIGNAL_PARAM_FIELDS,
-        bucket_mapper_id="spy_eth_btc_stable",
-        supports_daily_suggestion=False,
-        is_default=False,
-        public_params_override=_DMA_FGI_PORTFOLIO_RULES_OPTIMIZED_PARAMS,
-    ),
-)
-
-
-def _get_params_model(strategy_id: str) -> type[DmaGatedFgiParams]:
-    params_model = _PARAMS_MODEL_BY_STRATEGY.get(strategy_id)
-    if params_model is None:
-        valid = ", ".join(sorted(_PARAMS_MODEL_BY_STRATEGY))
-        raise ValueError(
-            f"Strategy '{strategy_id}' does not define preset params. Valid values: {valid}"
-        )
-    return params_model
-
-
-def _merge_public_params(
-    base: dict[str, JsonValue],
-    overrides: dict[str, JsonValue],
-) -> dict[str, JsonValue]:
-    merged = dict(base)
-    for key, value in overrides.items():
-        existing = merged.get(key)
-        if isinstance(existing, dict) and isinstance(value, dict):
-            merged[key] = cast(JsonValue, {**existing, **value})
-            continue
-        merged[key] = value
-    return merged
-
-
-def _resolve_public_params(
-    strategy_id: str,
-    *,
-    extra_override: Mapping[str, JsonValue] | None = None,
-) -> dict[str, JsonValue]:
-    base_params = get_default_public_params(strategy_id)
-    tuned_params = _merge_public_params(
-        base_params,
-        dict(STRATEGY_TUNING_OVERRIDES.get(strategy_id, {})),
-    )
-    if extra_override:
-        tuned_params = _merge_public_params(tuned_params, dict(extra_override))
-    return normalize_nested_public_params(strategy_id, tuned_params)
-
-
-def _resolve_default_public_params(strategy_id: str) -> dict[str, JsonValue]:
-    return _resolve_public_params(strategy_id)
-
-
-def _resolve_params_model(
-    strategy_id: str,
-    *,
-    extra_override: Mapping[str, JsonValue] | None = None,
-) -> DmaGatedFgiParams:
-    params_model = _get_params_model(strategy_id)
-    runtime_params = public_params_to_runtime_params(
-        strategy_id,
-        _resolve_public_params(strategy_id, extra_override=extra_override),
-    )
-    return params_model.from_public_params(runtime_params)
-
-
-def resolve_strategy_default_params(strategy_id: str) -> dict[str, JsonValue]:
-    """Return the validated default public params for one tunable strategy."""
-    return _resolve_default_public_params(strategy_id)
-
-
-def resolve_strategy_default_runtime_params(
-    strategy_id: str,
-) -> dict[str, JsonValue]:
-    """Return validated flat runtime params for preset/composition internals."""
-    return public_params_to_runtime_params(
-        strategy_id,
-        _resolve_default_public_params(strategy_id),
-    )
-
-
-def _project_signal_params(
-    params: DmaGatedFgiParams,
-    fields: tuple[str, ...],
-) -> dict[str, JsonValue]:
-    return cast(
-        dict[str, JsonValue],
-        params.model_dump(include=set(fields), exclude_none=True, mode="json"),
-    )
-
-
-def _build_composed_strategy_composition(
-    definition: _ComposedPresetDefinition,
-    params: DmaGatedFgiParams,
-) -> StrategyComposition:
-    return StrategyComposition(
-        kind="composed",
-        bucket_mapper_id=definition.bucket_mapper_id,
-        signal=StrategyComponentRef(
-            component_id=definition.signal_component_id,
-            params=_project_signal_params(params, definition.signal_param_fields),
-        ),
-        decision_policy=StrategyComponentRef(
-            component_id=definition.decision_component_id,
-            params={},
-        ),
-    )
-
-
-def _build_composed_seed_config(
-    definition: _ComposedPresetDefinition,
-) -> SavedStrategyConfig:
-    override = definition.public_params_override
-    public_params = _resolve_public_params(
-        definition.strategy_id,
-        extra_override=override,
-    )
-    resolved_params = _resolve_params_model(
-        definition.strategy_id,
-        extra_override=override,
-    )
-    return SavedStrategyConfig(
-        config_id=definition.config_id,
-        display_name=definition.display_name,
-        description=definition.description,
-        strategy_id=definition.strategy_id,
-        primary_asset=definition.primary_asset,
-        params=public_params,
-        composition=_build_composed_strategy_composition(definition, resolved_params),
-        supports_daily_suggestion=definition.supports_daily_suggestion,
-        is_default=definition.is_default,
-        is_benchmark=definition.is_benchmark,
+        is_benchmark=False,
     )
 
 
 SEED_STRATEGY_CONFIGS: Final[list[SavedStrategyConfig]] = [
-    *(
-        _build_composed_seed_config(definition)
-        for definition in _COMPOSED_PRESET_DEFINITIONS
-    ),
+    _build_default_seed_config(),
     SavedStrategyConfig(
         config_id=STRATEGY_DCA_CLASSIC,
         display_name="Classic DCA",
         description="Simple dollar-cost averaging baseline.",
         strategy_id=STRATEGY_DCA_CLASSIC,
         primary_asset="BTC",
-        params={},
-        composition=StrategyComposition(kind="benchmark"),
         supports_daily_suggestion=False,
         is_default=False,
         is_benchmark=True,
     ),
 ]
 
+
+def _check_seed_references() -> None:
+    """A seed that names a reference which drifted from the lock stops the import."""
+    for config in SEED_STRATEGY_CONFIGS:
+        if config.spec_ref is not None:
+            reference_spec(config.spec_ref)
+
+
+_check_seed_references()
+
 BACKTEST_DEFAULTS: Final[BacktestDefaults] = BacktestDefaults(
-    days=500, total_capital=10000
+    days=MODEL_WINDOW_DAYS, total_capital=MODEL_TOTAL_CAPITAL
 )
 
 

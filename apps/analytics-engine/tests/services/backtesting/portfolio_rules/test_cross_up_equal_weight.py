@@ -2,16 +2,17 @@ from __future__ import annotations
 
 import pytest
 
-from src.services.backtesting.portfolio_rules.base import PortfolioRuleConfig
-from src.services.backtesting.portfolio_rules.cross_up_equal_weight import (
-    CrossUpEqualWeightRule,
+from src.services.backtesting.portfolio_rules.base import (
+    PortfolioRuleConfig,
+    PortfolioSnapshot,
 )
 from src.services.backtesting.signals.dma_gated_fgi.types import DmaCooldownState
 from tests.services.backtesting.portfolio_rules.helpers import snapshot, state
+from tests.services.backtesting.support.reference_rules import reference_rule
 
 
 def test_first_cross_up_deploys_all_stable_to_the_crossing_asset() -> None:
-    rule = CrossUpEqualWeightRule()
+    rule = reference_rule("cross_up_equal_weight")
     rule_snapshot = snapshot(
         assets={
             "SPY": state(symbol="SPY", zone="below", dma_distance=-0.05),
@@ -43,7 +44,7 @@ def test_first_cross_up_deploys_all_stable_to_the_crossing_asset() -> None:
 
 
 def test_second_cross_up_rebalances_to_equal_weight() -> None:
-    rule = CrossUpEqualWeightRule()
+    rule = reference_rule("cross_up_equal_weight")
     rule_snapshot = snapshot(
         assets={
             "SPY": state(symbol="SPY", zone="below", dma_distance=-0.05),
@@ -71,7 +72,7 @@ def test_second_cross_up_rebalances_to_equal_weight() -> None:
 
 
 def test_third_cross_up_rebalances_all_three_eligible_assets() -> None:
-    rule = CrossUpEqualWeightRule()
+    rule = reference_rule("cross_up_equal_weight")
     rule_snapshot = snapshot(
         assets={
             "SPY": state(
@@ -105,7 +106,7 @@ def test_third_cross_up_rebalances_all_three_eligible_assets() -> None:
 
 
 def test_cross_up_excludes_assets_not_above_dma() -> None:
-    rule = CrossUpEqualWeightRule()
+    rule = reference_rule("cross_up_equal_weight")
     rule_snapshot = snapshot(
         assets={
             "SPY": state(symbol="SPY", zone="below", dma_distance=-0.05),
@@ -129,7 +130,7 @@ def test_cross_up_excludes_assets_not_above_dma() -> None:
 
 
 def test_cross_up_equal_weight_does_not_fire_during_cooldown() -> None:
-    rule = CrossUpEqualWeightRule()
+    rule = reference_rule("cross_up_equal_weight")
     rule_snapshot = snapshot(
         assets={
             "SPY": state(symbol="SPY", zone="below", dma_distance=-0.05),
@@ -154,7 +155,7 @@ def test_cross_up_equal_weight_does_not_fire_during_cooldown() -> None:
 
 
 def test_cross_up_equal_weight_excludes_assets_in_reentry_cooldown() -> None:
-    rule = CrossUpEqualWeightRule()
+    rule = reference_rule("cross_up_equal_weight")
     rule_snapshot = snapshot(
         assets={
             "SPY": state(
@@ -191,7 +192,7 @@ def test_cross_up_equal_weight_excludes_assets_in_reentry_cooldown() -> None:
 
 
 def test_actionable_cross_up_bypasses_reentry_cooldown() -> None:
-    rule = CrossUpEqualWeightRule()
+    rule = reference_rule("cross_up_equal_weight")
     rule_snapshot = snapshot(
         assets={
             "SPY": state(
@@ -225,7 +226,7 @@ def test_actionable_cross_up_bypasses_reentry_cooldown() -> None:
 
 
 def test_cross_up_equal_weight_fires_when_actionable_cross_resumes() -> None:
-    rule = CrossUpEqualWeightRule()
+    rule = reference_rule("cross_up_equal_weight")
     rule_snapshot = snapshot(
         assets={
             "SPY": state(symbol="SPY", zone="below", dma_distance=-0.05),
@@ -257,7 +258,7 @@ def test_cross_up_equal_weight_fires_when_actionable_cross_resumes() -> None:
 
 
 def test_cross_up_equal_weight_emits_trigger_assets_diagnostic() -> None:
-    rule = CrossUpEqualWeightRule()
+    rule = reference_rule("cross_up_equal_weight")
     rule_snapshot = snapshot(
         assets={
             "SPY": state(symbol="SPY", zone="above", dma_distance=0.02),
@@ -288,3 +289,68 @@ def test_cross_up_equal_weight_emits_trigger_assets_diagnostic() -> None:
         "portfolio_rule_assets": ["SPY", "BTC", "ETH"],
         "portfolio_rule_trigger_assets": ["ETH"],
     }
+
+
+def _two_above_after_a_trim() -> PortfolioSnapshot:
+    return snapshot(
+        assets={
+            "SPY": state(symbol="SPY", zone="below", dma_distance=-0.05),
+            "BTC": state(symbol="BTC", zone="above", dma_distance=0.05),
+            "ETH": state(
+                symbol="ETH",
+                zone="above",
+                dma_distance=0.03,
+                cross_event="cross_up",
+                actionable_cross_event="cross_up",
+            ),
+        },
+        current={"btc": 0.60, "eth": 0.0, "spy": 0.10, "stable": 0.30, "alt": 0.0},
+    )
+
+
+def test_the_reference_re_weights_the_whole_portfolio() -> None:
+    rule = reference_rule("cross_up_equal_weight")
+
+    intent = rule.build_intent(_two_above_after_a_trim(), config=PortfolioRuleConfig())
+
+    assert rule.deploy_stable_only is False
+    assert intent.target_allocation == pytest.approx(
+        {"btc": 0.5, "eth": 0.5, "spy": 0.0, "stable": 0.0, "alt": 0.0}
+    )
+
+
+def test_deploying_only_the_stable_keeps_every_holding() -> None:
+    rule = reference_rule("cross_up_equal_weight", deploy_stable_only=True)
+
+    intent = rule.build_intent(_two_above_after_a_trim(), config=PortfolioRuleConfig())
+
+    assert intent.action == "buy"
+    assert intent.reason == "portfolio_cross_up_equal_weight"
+    assert intent.target_allocation == pytest.approx(
+        {"btc": 0.75, "eth": 0.15, "spy": 0.10, "stable": 0.0, "alt": 0.0}
+    )
+    assert intent.diagnostics == {
+        "portfolio_rule_assets": ["BTC", "ETH"],
+        "portfolio_rule_trigger_assets": ["ETH"],
+    }
+
+
+def test_deploying_with_no_stable_changes_nothing() -> None:
+    rule = reference_rule("cross_up_equal_weight", deploy_stable_only=True)
+    day = snapshot(
+        assets={
+            "BTC": state(
+                symbol="BTC",
+                zone="above",
+                cross_event="cross_up",
+                actionable_cross_event="cross_up",
+            ),
+        },
+        current={"btc": 0.60, "eth": 0.0, "spy": 0.40, "stable": 0.0, "alt": 0.0},
+    )
+
+    intent = rule.build_intent(day, config=PortfolioRuleConfig())
+
+    assert intent.target_allocation == pytest.approx(
+        {"btc": 0.60, "eth": 0.0, "spy": 0.40, "stable": 0.0, "alt": 0.0}
+    )

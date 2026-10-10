@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
 
 from src.services.backtesting.decision import AllocationIntent
 from src.services.backtesting.strategies.base import TransferIntent
@@ -54,20 +53,10 @@ class SignalObservation:
 
 
 @dataclass(frozen=True, slots=True)
-class ExecutionPluginDiagnostic:
-    plugin_id: str
-    payload: dict[str, Any]
-
-
-@dataclass(frozen=True, slots=True)
 class ExecutionOutcome:
     event: str | None
     transfers: list[TransferIntent] = field(default_factory=list)
     blocked_reason: str | None = None
-    step_count: int = 0
-    steps_remaining: int = 0
-    interval_days: int = 0
-    plugin_diagnostics: tuple[ExecutionPluginDiagnostic, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

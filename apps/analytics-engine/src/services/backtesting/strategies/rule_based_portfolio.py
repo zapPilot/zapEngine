@@ -1,372 +1,88 @@
-"""Flat portfolio-level DMA/FGI rule strategy preset."""
+"""Flat portfolio-level rule strategy: what a strategy spec compiles to."""
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any, TypeVar, cast
-
-from pydantic import BaseModel, ConfigDict, Field, JsonValue
+from typing import Any
 
 from src.services.backtesting.constants import (
     STRATEGY_DISPLAY_NAMES,
     STRATEGY_DMA_FGI_PORTFOLIO_RULES,
 )
-from src.services.backtesting.execution.dma_buy_gate_plugin import (
-    DmaBuyGateExecutionPlugin,
-)
-from src.services.backtesting.execution.pacing.fgi_exponential import (
-    FgiExponentialPacingPolicy,
-)
-from src.services.backtesting.execution.plugins import ExecutionPlugin
+from src.services.backtesting.decision import AllocationIntent
+from src.services.backtesting.domain import ExecutionOutcome, StrategySnapshot
 from src.services.backtesting.execution.rule_based.allocation_executor import (
+    AllocationExecutionResult,
     RuleBasedAllocationExecutor,
 )
-from src.services.backtesting.execution.trade_quota_guard_plugin import (
-    TradeQuotaGuardExecutionPlugin,
+from src.services.backtesting.portfolio_rules.base import PortfolioRuleConfig
+from src.services.backtesting.portfolio_rules.components import (
+    PortfolioRuleComponents,
+    SignalSettings,
 )
-from src.services.backtesting.portfolio_rules import (
-    DEFAULT_PORTFOLIO_RULE_NAMES,
-    DEFAULT_PORTFOLIO_RULES,
-)
-from src.services.backtesting.portfolio_rules import (
-    RULE_NAMES as PORTFOLIO_RULE_NAMES,
-)
-from src.services.backtesting.portfolio_rules.base import (
-    PORTFOLIO_RULE_SYMBOLS,
-    PortfolioRule,
-    PortfolioRuleConfig,
-)
-from src.services.backtesting.portfolio_rules.cross_down_exit import CrossDownExitRule
 from src.services.backtesting.portfolio_rules.decision_policy import (
     PORTFOLIO_RULES_SIGNAL_ID,
     RuleBasedPortfolioDecisionPolicy,
     RuleExecutionState,
-    active_rules,
-    build_portfolio_rules_for_params,
-    build_risk_guards_for_params,
-    fresh_portfolio_rule,
-    required_rule,
 )
 from src.services.backtesting.portfolio_rules.eth_btc_ratio_rotation import (
     EthBtcRatioRotationRule,
 )
-from src.services.backtesting.public_params import runtime_params_to_public_params
 from src.services.backtesting.signals.dma_gated_fgi.config import DmaGatedFgiConfig
 from src.services.backtesting.signals.flat_minimum import (
     FlatMinimumSignalComponent,
 )
-from src.services.backtesting.strategies.base import StrategyContext
-from src.services.backtesting.strategies.composed import ComposedSignalStrategy
-from src.services.backtesting.utils import (
-    coerce_bool,
-    coerce_float,
-    coerce_float_list,
-    coerce_int,
-    coerce_nullable_int,
-    coerce_params,
+from src.services.backtesting.strategies.base import (
+    BaseStrategy,
+    Order,
+    StrategyAction,
+    StrategyContext,
 )
-
-_RuleT = TypeVar("_RuleT", bound=PortfolioRule)
-
-DMA_GATED_FGI_PUBLIC_PARAM_KEYS = frozenset(
-    {
-        "cross_cooldown_days",
-        "cross_on_touch",
-        "pacing_k",
-        "pacing_r_max",
-        "buy_sideways_window_days",
-        "buy_sideways_max_range",
-        "buy_leg_caps",
-        "min_trade_interval_days",
-        "max_trades_7d",
-        "max_trades_30d",
-        "dma_overextension_threshold",
-        "overextension_threshold_multiplier_greed",
-        "overextension_threshold_multiplier_extreme_greed",
-        "fgi_slope_reversal_threshold",
-        "fgi_slope_recovery_threshold",
-        "disabled_rules",
-        "enabled_rules",
-    }
-)
-
-_DMA_COERCION_SPEC: dict[str, Any] = {
-    "cross_cooldown_days": coerce_int,
-    "cross_on_touch": coerce_bool,
-    "pacing_k": coerce_float,
-    "pacing_r_max": coerce_float,
-    "buy_sideways_window_days": coerce_int,
-    "buy_sideways_max_range": coerce_float,
-    "buy_leg_caps": coerce_float_list,
-    "min_trade_interval_days": coerce_nullable_int,
-    "max_trades_7d": coerce_nullable_int,
-    "max_trades_30d": coerce_nullable_int,
-    "dma_overextension_threshold": coerce_float,
-    "overextension_threshold_multiplier_greed": coerce_float,
-    "overextension_threshold_multiplier_extreme_greed": coerce_float,
-    "fgi_slope_reversal_threshold": coerce_float,
-    "fgi_slope_recovery_threshold": coerce_float,
-}
-
-
-def _coerce_rule_name_set(value: Any, *, field_name: str) -> frozenset[str]:
-    if not isinstance(value, list | tuple | set | frozenset):
-        raise ValueError(f"{field_name} must be an array of rule names")
-    names = frozenset(str(item) for item in value)
-    invalid_names = sorted(names - _KNOWN_RULE_NAMES)
-    if invalid_names:
-        joined = ", ".join(invalid_names)
-        raise ValueError(f"{field_name} contains unsupported rule names: {joined}")
-    return names
-
-
-def _coerce_optional_rule_name_set(
-    value: Any,
-    *,
-    field_name: str,
-) -> frozenset[str] | None:
-    if value is None:
-        return None
-    return _coerce_rule_name_set(value, field_name=field_name)
-
-
-_KNOWN_RULE_NAMES = PORTFOLIO_RULE_NAMES
-_DMA_COERCION_SPEC["disabled_rules"] = _coerce_rule_name_set
-_DMA_COERCION_SPEC["enabled_rules"] = _coerce_optional_rule_name_set
-
-
-class DmaGatedFgiParams(BaseModel):
-    """Single public parameter surface for the DMA/FGI portfolio rules strategy."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    cross_cooldown_days: int = Field(
-        default=30,
-        ge=0,
-        description="Days to suppress repeat DMA cross actions after an actionable cross.",
-    )
-    cross_on_touch: bool = Field(
-        default=True,
-        description="Treat touching the DMA threshold as a cross trigger.",
-    )
-    pacing_k: float = Field(
-        default=5.0,
-        description="Steepness parameter for the shared fgi_exponential pacing curve.",
-    )
-    pacing_r_max: float = Field(
-        default=1.0,
-        description="Upper multiplier cap for the shared fgi_exponential pacing curve.",
-    )
-    buy_sideways_window_days: int = Field(
-        default=5,
-        ge=1,
-        description="Observation window for the DMA sideways buy-gate plugin.",
-    )
-    buy_sideways_max_range: float = Field(
-        default=0.04,
-        ge=0.0,
-        description="Maximum sideways range allowed before the DMA buy-gate opens.",
-    )
-    buy_leg_caps: list[float] = Field(
-        default_factory=lambda: [0.05, 0.10, 0.20],
-        description="Per-leg portfolio caps enforced by the DMA buy-gate plugin.",
-    )
-    min_trade_interval_days: int | None = Field(
-        default=None,
-        ge=1,
-        description="Minimum days required between any two executed trades.",
-    )
-    max_trades_7d: int | None = Field(
-        default=None,
-        ge=1,
-        description="Maximum executed trades allowed within a rolling 7-day window.",
-    )
-    max_trades_30d: int | None = Field(
-        default=None,
-        ge=1,
-        description="Maximum executed trades allowed within a rolling 30-day window.",
-    )
-    dma_overextension_threshold: float = Field(
-        default=0.30,
-        ge=0.0,
-        le=1.0,
-        description="DMA distance threshold above which overextension sell triggers.",
-    )
-    overextension_threshold_multiplier_greed: float = Field(
-        default=0.50,
-        ge=0.0,
-        le=2.0,
-        description="Multiplier applied to overextension sell thresholds in greed.",
-    )
-    overextension_threshold_multiplier_extreme_greed: float = Field(
-        default=0.33,
-        ge=0.0,
-        le=2.0,
-        description=(
-            "Multiplier applied to overextension sell thresholds in extreme greed."
-        ),
-    )
-    fgi_slope_reversal_threshold: float = Field(
-        default=-0.05,
-        le=0.0,
-        description="FGI slope threshold below which greed-fading sell triggers.",
-    )
-    fgi_slope_recovery_threshold: float = Field(
-        default=0.05,
-        ge=0.0,
-        description="FGI slope threshold above which fear-recovery buy triggers.",
-    )
-    disabled_rules: frozenset[str] = Field(
-        default_factory=frozenset,
-        description="DMA/FGI rule names to skip during policy evaluation.",
-    )
-    enabled_rules: frozenset[str] | None = Field(
-        default=None,
-        description=(
-            "Optional rule allowlist. Portfolio-rule strategies use this to "
-            "isolate rule sets for attribution."
-        ),
-    )
-
-    @classmethod
-    def from_public_params(
-        cls, params: Mapping[str, Any] | None = None
-    ) -> DmaGatedFgiParams:
-        raw_params = {} if params is None else dict(params)
-        invalid_keys = sorted(set(raw_params) - DMA_GATED_FGI_PUBLIC_PARAM_KEYS)
-        if invalid_keys:
-            joined = ", ".join(invalid_keys)
-            raise ValueError("Unsupported dma_gated_fgi params: " + joined)
-
-        normalized = coerce_params(raw_params, _DMA_COERCION_SPEC)
-        return cls(**normalized)
-
-    def to_public_params(self) -> dict[str, JsonValue]:
-        params = self.model_dump(exclude_none=True)
-        if self.disabled_rules:
-            params["disabled_rules"] = sorted(self.disabled_rules)
-        else:
-            params.pop("disabled_rules", None)
-        if self.enabled_rules is not None:
-            params["enabled_rules"] = sorted(self.enabled_rules)
-        else:
-            params.pop("enabled_rules", None)
-        return cast(dict[str, JsonValue], params)
-
-    def build_signal_config(self) -> DmaGatedFgiConfig:
-        return DmaGatedFgiConfig(
-            cross_cooldown_days=self.cross_cooldown_days,
-            cross_on_touch=self.cross_on_touch,
-        )
-
-    def build_pacing_policy(self) -> FgiExponentialPacingPolicy:
-        return FgiExponentialPacingPolicy(k=self.pacing_k, r_max=self.pacing_r_max)
-
-    def build_trade_quota_plugin_params(self) -> dict[str, JsonValue]:
-        params: dict[str, JsonValue] = {}
-        if self.min_trade_interval_days is not None:
-            params["min_trade_interval_days"] = self.min_trade_interval_days
-        if self.max_trades_7d is not None:
-            params["max_trades_7d"] = self.max_trades_7d
-        if self.max_trades_30d is not None:
-            params["max_trades_30d"] = self.max_trades_30d
-        return params
-
-    def build_execution_plugins(self) -> tuple[ExecutionPlugin, ...]:
-        return (
-            DmaBuyGateExecutionPlugin(
-                window_days=self.buy_sideways_window_days,
-                sideways_max_range=self.buy_sideways_max_range,
-                leg_caps=tuple(self.buy_leg_caps),
-            ),
-            TradeQuotaGuardExecutionPlugin(
-                min_trade_interval_days=self.min_trade_interval_days,
-                max_trades_7d=self.max_trades_7d,
-                max_trades_30d=self.max_trades_30d,
-            ),
-        )
 
 
 @dataclass
-class RuleBasedPortfolioStrategy(ComposedSignalStrategy):
-    """Canonical flat SPY/BTC/ETH portfolio-rule strategy."""
+class RuleBasedPortfolioStrategy(BaseStrategy):
+    """Canonical flat SPY/BTC/ETH portfolio-rule strategy.
+
+    Each day the signal component observes the three DMA signals, the first
+    matching rule decides a target allocation, and the executor applies it in
+    full on the same bar. ``components`` carries the compiled rules, guards and
+    signal settings of the strategy spec named by ``spec_ref``.
+    """
 
     total_capital: float
-    signal_id: str = PORTFOLIO_RULES_SIGNAL_ID
-    summary_signal_id: str | None = PORTFOLIO_RULES_SIGNAL_ID
-    params: DmaGatedFgiParams | dict[str, Any] = field(
-        default_factory=DmaGatedFgiParams
-    )
+    components: PortfolioRuleComponents
+    spec_ref: str
     signal_component: FlatMinimumSignalComponent = field(init=False, repr=False)
     decision_policy: RuleBasedPortfolioDecisionPolicy = field(
         init=False,
         repr=False,
     )
     execution_engine: RuleBasedAllocationExecutor = field(init=False, repr=False)
-    public_params: dict[str, Any] = field(default_factory=dict)
+    signal_id: str = PORTFOLIO_RULES_SIGNAL_ID
+    summary_signal_id: str | None = PORTFOLIO_RULES_SIGNAL_ID
     strategy_id: str = STRATEGY_DMA_FGI_PORTFOLIO_RULES
     display_name: str = STRATEGY_DISPLAY_NAMES[STRATEGY_DMA_FGI_PORTFOLIO_RULES]
     canonical_strategy_id: str = STRATEGY_DMA_FGI_PORTFOLIO_RULES
-    disabled_rules: frozenset[str] = frozenset()
-    enabled_rules: frozenset[str] | None = None
+    daily_data: list[dict[str, Any]] = field(default_factory=list)
     initial_spot_asset: str = "BTC"
     initial_asset_allocation: dict[str, float] | None = None
 
     def __post_init__(self) -> None:
-        resolved_params = (
-            self.params
-            if isinstance(self.params, DmaGatedFgiParams)
-            else DmaGatedFgiParams.from_public_params(self.params)
-        )
-        self.disabled_rules = frozenset(
-            {*self.disabled_rules, *resolved_params.disabled_rules}
-        )
-        self.enabled_rules = (
-            self.enabled_rules
-            if self.enabled_rules is not None
-            else resolved_params.enabled_rules
-        )
-        if self.enabled_rules is None:
-            self.enabled_rules = DEFAULT_PORTFOLIO_RULE_NAMES
-        self.params = resolved_params
         self.execution_engine = RuleBasedAllocationExecutor()
-        rules = build_portfolio_rules_for_params(
-            resolved_params,
-            include_inactive=True,
-        )
         self.decision_policy = RuleBasedPortfolioDecisionPolicy(
-            rules=rules,
-            disabled_rules=self.disabled_rules,
-            enabled_rules=self.enabled_rules,
-            risk_guards=build_risk_guards_for_params(resolved_params),
+            rules=self.components.rules,
+            risk_guards=self.components.risk_guards,
             config=PortfolioRuleConfig(emit_signals_consulted=True),
             execution_state_provider=lambda: RuleExecutionState(
                 last_trade_date=self.execution_engine.last_trade_date,
                 trade_dates=tuple(self.execution_engine.trade_dates),
             ),
         )
-        metadata_rules = tuple(
-            fresh_portfolio_rule(rule) for rule in DEFAULT_PORTFOLIO_RULES
-        )
-        cross_down_rule = required_rule(metadata_rules, CrossDownExitRule)
-        ratio_rule = required_rule(metadata_rules, EthBtcRatioRotationRule)
-        self.signal_component = FlatMinimumSignalComponent(
-            config=resolved_params.build_signal_config(),
+        self.signal_component = build_signal_component(
+            self.components.signals,
             signal_id=self.signal_id,
-            ratio_cross_cooldown_days=ratio_rule.cooldown_days,
-            cross_down_cooldown_days_by_symbol={
-                symbol: cross_down_rule.cooldown_days_for(symbol)
-                for symbol in PORTFOLIO_RULE_SYMBOLS
-            },
         )
-        self.public_params = {
-            "signal_id": self.signal_id,
-            **runtime_params_to_public_params(
-                STRATEGY_DMA_FGI_PORTFOLIO_RULES,
-                resolved_params.to_public_params(),
-            ),
-        }
 
     def initialize(
         self,
@@ -374,44 +90,137 @@ class RuleBasedPortfolioStrategy(ComposedSignalStrategy):
         config: Any,
         context: StrategyContext,
     ) -> None:
+        del portfolio, config
+        self.daily_data = []
         self.decision_policy.reset()
-        super().initialize(portfolio, config, context)
+        self.signal_component.reset()
+        self.signal_component.initialize(context)
+        self.execution_engine.reset()
+
+    def warmup_day(self, context: StrategyContext) -> None:
+        self.signal_component.warmup(context)
+
+    def on_day(self, context: StrategyContext) -> StrategyAction:
+        market_state = self.signal_component.observe(context)
+        decision = self.decision_policy.decide(market_state)
+        committed_state = self.signal_component.apply_intent(
+            current_date=context.date,
+            snapshot=market_state,
+            intent=decision,
+        )
+        signal_observation = self.signal_component.build_signal_observation(
+            snapshot=committed_state,
+            intent=decision,
+        )
+        execution = self._execute(context=context, intent=decision)
+        self.decision_policy.record_execution(
+            context=context,
+            intent=decision,
+            execution=execution,
+        )
+        snapshot = StrategySnapshot(
+            signal=signal_observation,
+            decision=AllocationIntent(
+                action=decision.action,
+                target_allocation=(
+                    None
+                    if decision.target_allocation is None
+                    else dict(decision.target_allocation)
+                ),
+                allocation_name=decision.allocation_name,
+                immediate=decision.immediate,
+                reason=decision.reason,
+                rule_group=decision.rule_group,
+                decision_score=decision.decision_score,
+                diagnostics=(
+                    None if decision.diagnostics is None else dict(decision.diagnostics)
+                ),
+            ),
+            execution=execution,
+        )
+        # The executor found money to move; the order asks the engine to rebalance
+        # to the decision's target when it fills, from whatever it holds by then.
+        order = (
+            Order(target_allocation=dict(decision.target_allocation))
+            if execution.transfers and decision.target_allocation is not None
+            else None
+        )
+        return StrategyAction(snapshot=snapshot, order=order)
+
+    def record_day(self, context: StrategyContext, action: StrategyAction) -> None:
+        snapshot = action.snapshot
+        self.daily_data.append(
+            {
+                "date": context.date,
+                "spot_balance": context.portfolio.spot_balance,
+                "stable_balance": context.portfolio.stable_balance,
+                "total_value": context.portfolio.total_value(context.portfolio_price),
+                "signal_id": None
+                if snapshot.signal is None
+                else snapshot.signal.signal_id,
+                "decision_reason": snapshot.decision.reason,
+            }
+        )
+
+    def _execute(
+        self,
+        *,
+        context: StrategyContext,
+        intent: AllocationIntent,
+    ) -> ExecutionOutcome:
+        if intent.action == "hold" and intent.target_allocation is None:
+            return ExecutionOutcome(event=None, transfers=[])
+        return self._to_execution_outcome(
+            self.execution_engine.execute(context=context, intent=intent)
+        )
+
+    @staticmethod
+    def _to_execution_outcome(
+        execution: AllocationExecutionResult,
+    ) -> ExecutionOutcome:
+        return ExecutionOutcome(
+            event=execution.event,
+            transfers=[] if execution.transfers is None else list(execution.transfers),
+            blocked_reason=execution.block_reason,
+        )
 
     def feature_summary(self) -> dict[str, Any]:
-        active = active_rules(
-            self.decision_policy.rules,
-            disabled_rules=self.disabled_rules,
-            enabled_rules=self.enabled_rules,
-        )
-        rule_names = [rule.name for rule in active]
-        has_ratio_rotation = any(
-            isinstance(rule, EthBtcRatioRotationRule) for rule in active
-        )
+        rules = self.decision_policy.rules
         return {
             "policy": "RuleBasedPortfolioStrategy",
-            "active_features": ["portfolio_level_rules", *rule_names],
-            "ratio_rotation": has_ratio_rotation,
+            "active_features": [
+                "portfolio_level_rules",
+                *(rule.name for rule in rules),
+            ],
+            "ratio_rotation": any(
+                isinstance(rule, EthBtcRatioRotationRule) for rule in rules
+            ),
             "research_only": True,
         }
 
     def parameters(self) -> dict[str, Any]:
         return {
-            **self.public_params,
-            "disabled_rules": sorted(self.disabled_rules),
-            "enabled_rules": sorted(self.enabled_rules)
-            if self.enabled_rules is not None
-            else None,
+            "signal_id": self.signal_id,
+            "spec_ref": self.spec_ref,
             "feature_summary": self.feature_summary(),
         }
 
 
-def default_rule_based_portfolio_params() -> dict[str, JsonValue]:
-    return DmaGatedFgiParams().to_public_params()
+def build_signal_component(
+    settings: SignalSettings,
+    *,
+    signal_id: str,
+) -> FlatMinimumSignalComponent:
+    return FlatMinimumSignalComponent(
+        config=DmaGatedFgiConfig(cross_on_touch=settings.cross_on_touch),
+        signal_id=signal_id,
+        ratio_cross_cooldown_days=settings.ratio_cross_cooldown_days,
+        warmup_lookback_days=settings.warmup_days,
+        cross_down_cooldown_days_by_symbol=settings.dma_cross_cooldown_days,
+    )
 
 
 __all__ = [
-    "DMA_GATED_FGI_PUBLIC_PARAM_KEYS",
     "RuleBasedPortfolioStrategy",
-    "DmaGatedFgiParams",
-    "default_rule_based_portfolio_params",
+    "build_signal_component",
 ]
