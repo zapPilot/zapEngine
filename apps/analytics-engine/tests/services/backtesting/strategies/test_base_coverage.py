@@ -29,7 +29,6 @@ def _context() -> StrategyContext:
         date=date(2025, 1, 5),
         price=50_000.0,
         sentiment=None,
-        price_history=[50_000.0],
         portfolio=Portfolio(spot_balance=0.2, stable_balance=1_000.0),
     )
 

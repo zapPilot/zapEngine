@@ -51,8 +51,7 @@ def service() -> BacktestingService:
     )
 
 
-@pytest.mark.asyncio
-async def test_run_compare_v3_enables_dma_and_shifts_effective_start_without_mutation(
+def test_run_compare_v3_enables_dma_and_shifts_effective_start_without_mutation(
     service: BacktestingService,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -65,7 +64,7 @@ async def test_run_compare_v3_enables_dma_and_shifts_effective_start_without_mut
     mock_runner = _patch_compare_runner(monkeypatch)
     request = compare_request()
 
-    await service.run_compare_v3(request)
+    service.run_compare_v3(request)
 
     requirements = service.data_provider.fetch_token_prices.call_args.kwargs[
         "market_data_requirements"
@@ -89,8 +88,7 @@ async def test_run_compare_v3_enables_dma_and_shifts_effective_start_without_mut
     assert window.effective.end_date == date(2025, 1, 5)
 
 
-@pytest.mark.asyncio
-async def test_run_compare_v3_no_feature_recipe_skips_dma_fetch(
+def test_run_compare_v3_no_feature_recipe_skips_dma_fetch(
     service: BacktestingService,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -119,7 +117,7 @@ async def test_run_compare_v3_no_feature_recipe_skips_dma_fetch(
         ]
     )
 
-    await service.run_compare_v3(request)
+    service.run_compare_v3(request)
 
     assert (
         service.data_provider.fetch_token_prices.call_args.kwargs[
@@ -147,8 +145,7 @@ async def test_run_compare_v3_no_feature_recipe_skips_dma_fetch(
     assert window.effective.end_date == date(2025, 1, 4)
 
 
-@pytest.mark.asyncio
-async def test_run_compare_v3_clamps_dma_start_and_end_to_usable_rows(
+def test_run_compare_v3_clamps_dma_start_and_end_to_usable_rows(
     service: BacktestingService,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -161,7 +158,7 @@ async def test_run_compare_v3_clamps_dma_start_and_end_to_usable_rows(
     mock_runner = _patch_compare_runner(monkeypatch)
     request = compare_request()
 
-    await service.run_compare_v3(request)
+    service.run_compare_v3(request)
 
     assert mock_runner.call_args.kwargs["user_start_date"] == date(2025, 1, 3)
     assert [row["date"] for row in mock_runner.call_args.kwargs["prices"]] == [
@@ -176,8 +173,7 @@ async def test_run_compare_v3_clamps_dma_start_and_end_to_usable_rows(
     assert window.effective.end_date == date(2025, 1, 4)
 
 
-@pytest.mark.asyncio
-async def test_run_compare_v3_returns_untruncated_window_when_data_is_fully_available(
+def test_run_compare_v3_returns_untruncated_window_when_data_is_fully_available(
     service: BacktestingService,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -189,7 +185,7 @@ async def test_run_compare_v3_returns_untruncated_window_when_data_is_fully_avai
     )
     mock_runner = _patch_compare_runner(monkeypatch)
 
-    await service.run_compare_v3(
+    service.run_compare_v3(
         compare_request(
             start_date=date(2025, 1, 1),
             end_date=date(2025, 1, 3),
@@ -201,8 +197,7 @@ async def test_run_compare_v3_returns_untruncated_window_when_data_is_fully_avai
     assert window.requested == window.effective
 
 
-@pytest.mark.asyncio
-async def test_run_compare_v3_raises_when_no_usable_overlap_remains(
+def test_run_compare_v3_raises_when_no_usable_overlap_remains(
     service: BacktestingService,
 ) -> None:
     service.data_provider.fetch_token_prices = MagicMock(
@@ -218,7 +213,7 @@ async def test_run_compare_v3_raises_when_no_usable_overlap_remains(
     with pytest.raises(
         MarketDataUnavailableError, match="No usable backtest data available"
     ):
-        await service.run_compare_v3(compare_request(end_date=date(2025, 1, 3)))
+        service.run_compare_v3(compare_request(end_date=date(2025, 1, 3)))
 
 
 def test_select_longest_dma_segment_prefers_latest_segment_on_tie() -> None:
@@ -232,19 +227,17 @@ def test_select_longest_dma_segment_prefers_latest_segment_on_tie() -> None:
     ]
 
 
-@pytest.mark.asyncio
-async def test_run_compare_v3_raises_when_no_prices(
+def test_run_compare_v3_raises_when_no_prices(
     service: BacktestingService,
 ) -> None:
     service.data_provider.fetch_token_prices = MagicMock(return_value=[])
     service.data_provider.fetch_sentiments = MagicMock(return_value={})
 
     with pytest.raises(MarketDataUnavailableError, match="No price data available"):
-        await service.run_compare_v3(compare_request())
+        service.run_compare_v3(compare_request())
 
 
-@pytest.mark.asyncio
-async def test_run_compare_v3_raises_when_sentiment_starts_after_end(
+def test_run_compare_v3_raises_when_sentiment_starts_after_end(
     service: BacktestingService,
 ) -> None:
     service.data_provider.fetch_token_prices = MagicMock(
@@ -258,7 +251,7 @@ async def test_run_compare_v3_raises_when_sentiment_starts_after_end(
         MarketDataUnavailableError,
         match="Sentiment data starts after the requested end date",
     ):
-        await service.run_compare_v3(
+        service.run_compare_v3(
             compare_request(
                 start_date=date(2025, 1, 1),
                 end_date=date(2025, 1, 2),
@@ -266,22 +259,20 @@ async def test_run_compare_v3_raises_when_sentiment_starts_after_end(
         )
 
 
-@pytest.mark.asyncio
-async def test_run_compare_v3_rejects_token_symbol_mismatch_before_fetch(
+def test_run_compare_v3_rejects_token_symbol_mismatch_before_fetch(
     service: BacktestingService,
 ) -> None:
     service.data_provider.fetch_token_prices = MagicMock(return_value=[])
     service.data_provider.fetch_sentiments = MagicMock(return_value={})
 
     with pytest.raises(ValueError, match="expected 'BTC', got 'ETH'"):
-        await service.run_compare_v3(compare_request(token_symbol="ETH"))
+        service.run_compare_v3(compare_request(token_symbol="ETH"))
 
     service.data_provider.fetch_token_prices.assert_not_called()
     service.data_provider.fetch_sentiments.assert_not_called()
 
 
-@pytest.mark.asyncio
-async def test_run_compare_v3_rejects_mixed_primary_assets_before_fetch(
+def test_run_compare_v3_rejects_mixed_primary_assets_before_fetch(
     service: BacktestingService,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -298,7 +289,7 @@ async def test_run_compare_v3_rejects_mixed_primary_assets_before_fetch(
         ValueError,
         match="Compare currently supports a single primary asset; received recipes for: BTC, ETH",
     ):
-        await service.run_compare_v3(
+        service.run_compare_v3(
             compare_request(
                 configs=[
                     BacktestCompareConfigV3(
@@ -319,8 +310,7 @@ async def test_run_compare_v3_rejects_mixed_primary_assets_before_fetch(
     service.data_provider.fetch_sentiments.assert_not_called()
 
 
-@pytest.mark.asyncio
-async def test_run_compare_v3_resolves_a_saved_config_through_its_recipe(
+def test_run_compare_v3_resolves_a_saved_config_through_its_recipe(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     register_mock_recipe(monkeypatch, strategy_id="mock_saved_family")
@@ -343,7 +333,7 @@ async def test_run_compare_v3_resolves_a_saved_config_through_its_recipe(
     service.data_provider.fetch_sentiments = MagicMock(return_value={})
     mock_runner = _patch_compare_runner(monkeypatch)
 
-    await service.run_compare_v3(
+    service.run_compare_v3(
         compare_request(
             configs=[
                 BacktestCompareConfigV3(
@@ -365,8 +355,7 @@ async def test_run_compare_v3_resolves_a_saved_config_through_its_recipe(
     assert [config.strategy_id for config in resolved_configs] == ["mock_saved_family"]
 
 
-@pytest.mark.asyncio
-async def test_run_compare_v3_does_not_auto_inject_baseline_for_saved_configs(
+def test_run_compare_v3_does_not_auto_inject_baseline_for_saved_configs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     requested_saved = resolve_seed_strategy_config("dma_fgi_portfolio_rules_default")
@@ -391,7 +380,7 @@ async def test_run_compare_v3_does_not_auto_inject_baseline_for_saved_configs(
     )
     mock_runner = _patch_compare_runner(monkeypatch)
 
-    await service.run_compare_v3(
+    service.run_compare_v3(
         compare_request(
             configs=[
                 BacktestCompareConfigV3(
@@ -408,8 +397,7 @@ async def test_run_compare_v3_does_not_auto_inject_baseline_for_saved_configs(
     ]
 
 
-@pytest.mark.asyncio
-async def test_run_compare_v3_runs_the_benchmark_by_saved_config_id(
+def test_run_compare_v3_runs_the_benchmark_by_saved_config_id(
     service: BacktestingService,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -420,7 +408,7 @@ async def test_run_compare_v3_runs_the_benchmark_by_saved_config_id(
     service.data_provider.fetch_sentiments = MagicMock(return_value={})
     mock_runner = _patch_compare_runner(monkeypatch)
 
-    await service.run_compare_v3(
+    service.run_compare_v3(
         compare_request(
             configs=[
                 BacktestCompareConfigV3(
@@ -437,14 +425,13 @@ async def test_run_compare_v3_runs_the_benchmark_by_saved_config_id(
     ] == [(STRATEGY_DCA_CLASSIC, "baseline")]
 
 
-@pytest.mark.asyncio
-async def test_run_compare_v3_rejects_a_strategy_id_that_is_not_a_saved_config(
+def test_run_compare_v3_rejects_a_strategy_id_that_is_not_a_saved_config(
     service: BacktestingService,
 ) -> None:
     service.data_provider.fetch_token_prices = MagicMock(return_value=[])
 
     with pytest.raises(ValueError, match="Unknown config_id"):
-        await service.run_compare_v3(
+        service.run_compare_v3(
             compare_request(
                 configs=[
                     BacktestCompareConfigV3(

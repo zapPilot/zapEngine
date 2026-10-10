@@ -45,7 +45,6 @@ class TestInitialize:
             date=date(2025, 1, 1),
             price=5000.0,
             sentiment={"label": "neutral"},
-            price_history=[5000.0],
             portfolio=mock_portfolio,
         )
 
@@ -142,7 +141,6 @@ class TestProcessATHEvent:
             date=date(2025, 1, 2),
             price=5500.0,  # Token ATH
             sentiment={"label": "neutral"},
-            price_history=[5000.0, 5500.0],
             portfolio=mock_portfolio,
         )
 
@@ -162,7 +160,6 @@ class TestProcessATHEvent:
             date=date(2025, 1, 2),
             price=5000.0,  # No token ATH
             sentiment={"label": "neutral"},
-            price_history=[5000.0, 5000.0],
             portfolio=mock_portfolio,
         )
 
@@ -180,7 +177,6 @@ class TestProcessATHEvent:
             date=date(2025, 1, 2),
             price=5500.0,  # Token ATH
             sentiment={"label": "neutral"},
-            price_history=[5000.0, 5500.0],
             portfolio=mock_portfolio,
         )
 
@@ -198,7 +194,6 @@ class TestProcessATHEvent:
             date=date(2025, 1, 2),
             price=4500.0,  # No token ATH
             sentiment={"label": "neutral"},
-            price_history=[5000.0, 4500.0],
             portfolio=mock_portfolio,
         )
 
@@ -271,7 +266,6 @@ class TestATHCooldownActive:
             ),  # only 4 days after last override → still in cooldown
             price=5500.0,  # token ATH
             sentiment={"label": "neutral"},
-            price_history=[5000.0, 5500.0],
             portfolio=mock_portfolio,
         )
 
@@ -319,7 +313,6 @@ class TestATHEventProperty:
             date=date(2025, 1, 1),
             price=4500.0,
             sentiment={"label": "neutral"},
-            price_history=[5000.0, 4500.0],
             portfolio=mock_portfolio,
         )
         tracker.process_ath_event(context1)
@@ -330,7 +323,6 @@ class TestATHEventProperty:
             date=date(2025, 1, 2),
             price=5500.0,
             sentiment={"label": "neutral"},
-            price_history=[5000.0, 4500.0, 5500.0],
             portfolio=mock_portfolio,
         )
         tracker.process_ath_event(context2)

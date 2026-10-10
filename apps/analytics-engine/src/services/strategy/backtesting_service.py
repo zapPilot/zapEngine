@@ -570,9 +570,7 @@ class BacktestingService:
         )
         return _CompareOutcome(response=response, resolved_configs=resolved_configs)
 
-    async def run_compare_v3(
-        self, request: BacktestCompareRequestV3
-    ) -> BacktestResponse:
+    def run_compare_v3(self, request: BacktestCompareRequestV3) -> BacktestResponse:
         return self._compare(request).response
 
     def replay_model(self, saved_config_id: str, requested_end: date) -> ModelReplay:

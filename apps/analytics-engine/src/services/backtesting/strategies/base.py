@@ -60,10 +60,8 @@ class StrategyContext:
     date: date
     price: float
     sentiment: dict[str, Any] | None
-    price_history: list[float]
     portfolio: Portfolio
     price_map: dict[str, float] = field(default_factory=dict)
-    price_history_map: dict[str, list[float]] = field(default_factory=dict)
     extra_data: dict[str, Any] = field(default_factory=dict)
 
     @property
@@ -110,8 +108,8 @@ class BaseStrategy:
         """Warm up strategy state using pre-start data.
 
         This hook is called on days before `user_start_date` so strategies can
-        accumulate indicator/history state (e.g., regime history) without
-        trading, applying yield, or triggering events.
+        accumulate indicator state (e.g., the DMA zone) without trading,
+        applying yield, or triggering events.
         """
         pass
 

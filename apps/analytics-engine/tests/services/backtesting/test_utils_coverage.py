@@ -21,7 +21,6 @@ def test_utils_init():
     assert utils.__all__ == [
         "calculate_runtime_allocation",
         "coerce_to_date",
-        "normalize_regime_label",
         "normalize_runtime_allocation",
         "sanitize_runtime_allocation",
     ]
@@ -69,7 +68,6 @@ def test_strategy_context_features_property() -> None:
         date=date(2025, 1, 1),
         price=50_000.0,
         sentiment=None,
-        price_history=[50_000.0],
         portfolio=mock_portfolio,
         extra_data={"dma_200": 47_000.0},
     )
@@ -85,7 +83,6 @@ def test_base_strategy_on_day_raises_not_implemented() -> None:
         date=date(2025, 1, 1),
         price=50_000.0,
         sentiment=None,
-        price_history=[],
         portfolio=mock_portfolio,
     )
     with pytest.raises(NotImplementedError):

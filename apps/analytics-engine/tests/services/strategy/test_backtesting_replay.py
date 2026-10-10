@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from collections.abc import Callable
 from datetime import date, timedelta
 from typing import Any
@@ -99,19 +98,15 @@ def test_replay_is_the_last_bar_of_a_compare_over_the_same_window(
     end = _end(market)
 
     replay = service.replay_model(CONFIG_ID, end)
-    compare = asyncio.run(
-        service.run_compare_v3(
-            BacktestCompareRequestV3(
-                token_symbol="BTC",
-                start_date=end - timedelta(days=MODEL_WINDOW_DAYS - 1),
-                end_date=end,
-                total_capital=MODEL_TOTAL_CAPITAL,
-                configs=[
-                    BacktestCompareConfigV3(
-                        config_id=CONFIG_ID, saved_config_id=CONFIG_ID
-                    )
-                ],
-            )
+    compare = service.run_compare_v3(
+        BacktestCompareRequestV3(
+            token_symbol="BTC",
+            start_date=end - timedelta(days=MODEL_WINDOW_DAYS - 1),
+            end_date=end,
+            total_capital=MODEL_TOTAL_CAPITAL,
+            configs=[
+                BacktestCompareConfigV3(config_id=CONFIG_ID, saved_config_id=CONFIG_ID)
+            ],
         )
     )
 

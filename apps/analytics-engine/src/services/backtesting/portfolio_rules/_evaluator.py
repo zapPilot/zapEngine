@@ -45,22 +45,17 @@ class RulesEvaluator:
 
     def evaluate(
         self,
-        snapshot: FlatMinimumState,
+        snapshot: PortfolioSnapshot,
         ctx: RuleExecutionContext,
     ) -> AllocationIntent:
-        portfolio_snapshot = build_portfolio_snapshot(
-            snapshot,
-            previous_fgi_regime=ctx.previous_fgi_regime,
-            cycle_open_per_symbol=ctx.cycle_open_per_symbol,
-        )
-        self._observe_components(portfolio_snapshot)
+        self._observe_components(snapshot)
         intent = resolve_portfolio_rules_intent(
-            portfolio_snapshot,
+            snapshot,
             rules=self.rules,
             config=self.config,
             cooldown_tracker=ctx.cooldown_tracker,
         )
-        return self._apply_post_intent_adjustments(intent, portfolio_snapshot)
+        return self._apply_post_intent_adjustments(intent, snapshot)
 
     def _observe_components(self, snapshot: PortfolioSnapshot) -> None:
         for rule in self.rules:
@@ -96,7 +91,7 @@ class RuleBasedPortfolioDecisionPolicy(DecisionPolicy):
     _evaluator: RulesEvaluator = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
-        self._evaluator = self._build_evaluator()
+        self._evaluator = RulesEvaluator(rules=self.rules, config=self.config)
 
     def reset(self) -> None:
         self._ctx = RuleExecutionContext()
@@ -106,14 +101,16 @@ class RuleBasedPortfolioDecisionPolicy(DecisionPolicy):
                 reset()
 
     def decide(self, snapshot: FlatMinimumState) -> AllocationIntent:
-        ctx = self._ctx
-        self._evaluator = self._build_evaluator()
-        intent = self._evaluator.evaluate(snapshot, ctx)
-        self._ctx = _advance_context(ctx, snapshot=snapshot)
+        # One portfolio view per day: the rules decide on it, and the context
+        # carried to tomorrow (regimes, crypto cycle) is read from it.
+        portfolio_snapshot = build_portfolio_snapshot(
+            snapshot,
+            previous_fgi_regime=self._ctx.previous_fgi_regime,
+            cycle_open_per_symbol=self._ctx.cycle_open_per_symbol,
+        )
+        intent = self._evaluator.evaluate(portfolio_snapshot, self._ctx)
+        self._ctx = _advance_context(self._ctx, portfolio_snapshot)
         return intent
-
-    def _build_evaluator(self) -> RulesEvaluator:
-        return RulesEvaluator(rules=self.rules, config=self.config)
 
     def record_execution(
         self,

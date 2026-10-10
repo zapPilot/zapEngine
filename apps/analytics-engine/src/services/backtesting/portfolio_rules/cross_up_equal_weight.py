@@ -121,7 +121,6 @@ def _eligible_symbols(snapshot: PortfolioSnapshot) -> list[str]:
         symbol
         for symbol in symbols_for_snapshot(snapshot)
         if snapshot.assets[symbol].zone == "above"
-        and symbol in ALLOCATION_KEY_BY_SYMBOL
         and (
             _is_cross_up_signal(snapshot, symbol)
             or not reentry_blocked(snapshot, symbol)

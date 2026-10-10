@@ -10,7 +10,6 @@ same window, field by field, including the whole rule trace.
 
 from __future__ import annotations
 
-import asyncio
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
@@ -99,19 +98,15 @@ def _candidate_days(scan: Scan) -> list[date]:
     rows = scan.market.prices[FIRST_SCANNED_ROW:]
     days = {row["date"] for row in rows[::SCAN_STRIDE_DAYS]}
     first_scanned = rows[0]["date"]
-    long_run = asyncio.run(
-        scan.backtesting.run_compare_v3(
-            BacktestCompareRequestV3(
-                token_symbol="BTC",
-                start_date=scan.market.user_start_date,
-                end_date=rows[-1]["date"],
-                total_capital=MODEL_TOTAL_CAPITAL,
-                configs=[
-                    BacktestCompareConfigV3(
-                        config_id=CONFIG_ID, saved_config_id=CONFIG_ID
-                    )
-                ],
-            )
+    long_run = scan.backtesting.run_compare_v3(
+        BacktestCompareRequestV3(
+            token_symbol="BTC",
+            start_date=scan.market.user_start_date,
+            end_date=rows[-1]["date"],
+            total_capital=MODEL_TOTAL_CAPITAL,
+            configs=[
+                BacktestCompareConfigV3(config_id=CONFIG_ID, saved_config_id=CONFIG_ID)
+            ],
         )
     )
     fired_on: dict[str, list[date]] = {}
@@ -166,19 +161,15 @@ def _sampled_days(scan: Scan) -> list[date]:
 
 
 def _compare_last_bar(scan: Scan, day: date) -> tuple[BacktestResponse, int]:
-    compare = asyncio.run(
-        scan.backtesting.run_compare_v3(
-            BacktestCompareRequestV3(
-                token_symbol="BTC",
-                start_date=day - timedelta(days=PARITY_WINDOW_DAYS - 1),
-                end_date=day,
-                total_capital=MODEL_TOTAL_CAPITAL,
-                configs=[
-                    BacktestCompareConfigV3(
-                        config_id=CONFIG_ID, saved_config_id=CONFIG_ID
-                    )
-                ],
-            )
+    compare = scan.backtesting.run_compare_v3(
+        BacktestCompareRequestV3(
+            token_symbol="BTC",
+            start_date=day - timedelta(days=PARITY_WINDOW_DAYS - 1),
+            end_date=day,
+            total_capital=MODEL_TOTAL_CAPITAL,
+            configs=[
+                BacktestCompareConfigV3(config_id=CONFIG_ID, saved_config_id=CONFIG_ID)
+            ],
         )
     )
     return compare, len(compare.timeline) - 1
@@ -303,19 +294,17 @@ def test_recent_decisions_do_not_depend_on_where_the_rolling_window_starts(
     end = market.prices[-1]["date"]
 
     def last_decisions(start: date) -> list[tuple[object, ...]]:
-        response = asyncio.run(
-            service.run_compare_v3(
-                BacktestCompareRequestV3(
-                    token_symbol="BTC",
-                    start_date=start,
-                    end_date=end,
-                    total_capital=MODEL_TOTAL_CAPITAL,
-                    configs=[
-                        BacktestCompareConfigV3(
-                            config_id=CONFIG_ID, saved_config_id=CONFIG_ID
-                        )
-                    ],
-                )
+        response = service.run_compare_v3(
+            BacktestCompareRequestV3(
+                token_symbol="BTC",
+                start_date=start,
+                end_date=end,
+                total_capital=MODEL_TOTAL_CAPITAL,
+                configs=[
+                    BacktestCompareConfigV3(
+                        config_id=CONFIG_ID, saved_config_id=CONFIG_ID
+                    )
+                ],
             )
         )
         rows: list[tuple[object, ...]] = []

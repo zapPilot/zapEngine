@@ -228,10 +228,25 @@ def test_the_defaults_name_the_reference_and_the_fixtures() -> None:
 
 
 def test_a_trace_summary_is_the_hash_of_the_decisions_and_nothing_numpy() -> None:
-    summary = golden.run_scenario(load_spec(REFERENCE_REF), "regimes", 1)
+    reference = load_spec(REFERENCE_REF)
+    [summary] = golden.run_scenario([reference], "regimes", 1)
 
     assert set(summary) == {"trade_count", "final_value", "rule_counts", "digest"}
     assert len(summary["digest"]) == 64
     assert sum(summary["rule_counts"].values()) == golden.DAYS
-    assert golden.run_scenario(load_spec(REFERENCE_REF), "regimes", 1) == summary
-    assert golden.run_scenario(load_spec(REFERENCE_REF), "regimes", 2) != summary
+    assert golden.run_scenario([reference], "regimes", 1) == [summary]
+    assert golden.run_scenario([reference], "regimes", 2) != [summary]
+
+
+def test_specs_run_side_by_side_summarize_as_they_do_alone() -> None:
+    """A golden runs every pinned spec in one simulation; none may see another."""
+    reference = load_spec(REFERENCE_REF)
+    vocabulary = load_spec(str(golden.APP_ROOT / V2_FIXTURE))
+
+    together = golden.run_scenario([reference, vocabulary], "stress", 2, days=200)
+
+    assert together == [
+        *golden.run_scenario([reference], "stress", 2, days=200),
+        *golden.run_scenario([vocabulary], "stress", 2, days=200),
+    ]
+    assert together[0] != together[1]

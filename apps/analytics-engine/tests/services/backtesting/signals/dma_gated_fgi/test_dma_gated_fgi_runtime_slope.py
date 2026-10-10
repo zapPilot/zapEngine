@@ -26,7 +26,6 @@ def _context(
         date=day,
         price=price,
         sentiment=sentiment,
-        price_history=[price] * 10,
         portfolio_value=10_000.0,
         extra_data={"dma_200": dma_200},
     )

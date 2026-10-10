@@ -229,17 +229,9 @@ def test_rules_evaluator_isolated_from_policy_state_mutation() -> None:
     evaluator = RulesEvaluator(rules=_as_rules(_FakeRule(name="alpha")))
 
     intent = evaluator.evaluate(
-        FlatMinimumState(
-            spy_dma_state=None,
-            btc_dma_state=state(symbol="BTC", fgi_regime="neutral"),
-            eth_dma_state=None,
-            current_asset_allocation={
-                "btc": 0.0,
-                "eth": 0.0,
-                "spy": 0.0,
-                "stable": 1.0,
-                "alt": 0.0,
-            },
+        snapshot(
+            assets={"BTC": state(symbol="BTC", fgi_regime="neutral")},
+            previous=dict(ctx.previous_fgi_regime),
         ),
         ctx,
     )
@@ -317,18 +309,7 @@ def test_rules_evaluator_lets_each_rule_observe_the_day() -> None:
     evaluator = RulesEvaluator(rules=(cast(PortfolioRule, rule),))
 
     evaluator.evaluate(
-        FlatMinimumState(
-            spy_dma_state=None,
-            btc_dma_state=state(symbol="BTC"),
-            eth_dma_state=None,
-            current_asset_allocation={
-                "btc": 0.0,
-                "eth": 0.0,
-                "spy": 0.0,
-                "stable": 1.0,
-                "alt": 0.0,
-            },
-        ),
+        snapshot(assets={"BTC": state(symbol="BTC")}),
         RuleExecutionContext(),
     )
 
@@ -339,18 +320,7 @@ def test_rules_evaluator_applies_post_intent_adjustment_hooks() -> None:
     intent = RulesEvaluator(
         rules=(cast(PortfolioRule, _PostAdjustmentRule(name="alpha")),),
     ).evaluate(
-        FlatMinimumState(
-            spy_dma_state=None,
-            btc_dma_state=state(symbol="BTC"),
-            eth_dma_state=None,
-            current_asset_allocation={
-                "btc": 0.0,
-                "eth": 0.0,
-                "spy": 0.0,
-                "stable": 1.0,
-                "alt": 0.0,
-            },
-        ),
+        snapshot(assets={"BTC": state(symbol="BTC")}),
         RuleExecutionContext(),
     )
 

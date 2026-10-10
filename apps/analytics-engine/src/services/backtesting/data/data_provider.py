@@ -166,16 +166,6 @@ class BacktestDataProvider:
             "timestamp": sentiment.timestamp,
         }
 
-    @staticmethod
-    def _should_replace_sentiment(
-        existing: dict[str, Any] | None,
-        candidate_timestamp: Any,
-    ) -> bool:
-        """Return True when candidate sentiment is newer than existing one."""
-        if existing is None:
-            return True
-        return bool(candidate_timestamp > existing["timestamp"])
-
     def _resolve_price_features(
         self,
         *,
@@ -303,10 +293,10 @@ class BacktestDataProvider:
     def fetch_sentiments(
         self, start_date: date, end_date: date
     ) -> dict[date, dict[str, Any]]:
-        """Fetch sentiment data and map by date.
+        """Fetch one sentiment per day, mapped by date.
 
-        Fetches historical sentiment data and deduplicates to keep only
-        the most recent sentiment value for each day.
+        The query keeps the most recent snapshot of each UTC day, so every row
+        is a day of its own.
 
         Args:
             start_date: Start of date range (inclusive).
@@ -317,33 +307,21 @@ class BacktestDataProvider:
             - date: The sentiment date
             - value: Numeric sentiment value (0-100)
             - label: Normalized label (e.g., "extreme_fear", "neutral")
-            - timestamp: Original timestamp for deduplication
+            - timestamp: The snapshot's timestamp
         """
         try:
             days_diff = (end_date - start_date).days + 1
-            hours = days_diff * 24
-
             sentiments = self.sentiment_service.get_sentiment_history(
-                hours=hours,
+                hours=days_diff * 24,
                 start_time=start_date,
                 end_time=end_date,
             )
-
-            # Map by date, taking most recent sentiment per day
-            sentiment_map: dict[date, dict[str, Any]] = {}
-            for sentiment in sentiments:
-                sentiment_date = sentiment.timestamp.date()
-                if not self._is_within_date_range(sentiment_date, start_date, end_date):
-                    continue
-
-                existing = sentiment_map.get(sentiment_date)
-                if not self._should_replace_sentiment(existing, sentiment.timestamp):
-                    continue
-                sentiment_map[sentiment_date] = self._build_sentiment_entry(
-                    sentiment, sentiment_date
+            return {
+                sentiment.timestamp.date(): self._build_sentiment_entry(
+                    sentiment, sentiment.timestamp.date()
                 )
-
-            return sentiment_map
+                for sentiment in sentiments
+            }
         except Exception as error:
             logger.warning("Failed to fetch sentiment data: %s", error)
             return {}

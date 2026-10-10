@@ -359,7 +359,6 @@ class TestRiskValidationEngineGaps:
             date=date_cls(2026, 1, 2),
             price=100.0,
             sentiment=None,
-            price_history=[100.0],
             portfolio=Portfolio(spot_balance=1.0, stable_balance=100.0),
             extra_data={},
         )

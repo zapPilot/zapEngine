@@ -26,7 +26,6 @@ def _context(
         date=context_date,
         price=resolved_prices["btc"],
         sentiment={"label": "neutral", "value": 50},
-        price_history=[resolved_prices["btc"]] * 2,
         portfolio=portfolio,
         price_map=resolved_prices,
         extra_data={},

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 from datetime import date
 from pathlib import Path
 from typing import Any, cast
@@ -50,9 +51,7 @@ class MockBacktestingService:
         self.last_request: BacktestCompareRequestV3 | None = None
         self.call_count = 0
 
-    async def run_compare_v3(
-        self, request: BacktestCompareRequestV3
-    ) -> BacktestResponse:
+    def run_compare_v3(self, request: BacktestCompareRequestV3) -> BacktestResponse:
         self.call_count += 1
         self.last_request = request
         if self.error is not None:
@@ -554,3 +553,11 @@ async def test_backtesting_compare_v3_http_cannot_choose_or_trigger_decision_log
     )
     assert not attacker_dir.exists()
     assert "decision_log_path" not in response.json()
+
+
+def test_the_compare_route_runs_in_the_threadpool_not_on_the_event_loop() -> None:
+    """A backtest is seconds of synchronous work; FastAPI only threads a plain def."""
+    from src.api.routers.backtesting import compare_backtesting_configs_v3
+
+    assert not inspect.iscoroutinefunction(compare_backtesting_configs_v3)
+    assert not inspect.iscoroutinefunction(BacktestingService.run_compare_v3)

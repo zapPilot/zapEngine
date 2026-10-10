@@ -90,7 +90,6 @@ def _context(
         date=context_date,
         price=prices["btc"],
         sentiment=sentiment or {"label": "neutral", "value": 50},
-        price_history=[prices["btc"]],
         portfolio=portfolio,
         price_map=prices,
         extra_data=extra_data,
@@ -640,7 +639,6 @@ def test_per_rule_cooldown_skips_only_that_rule_after_execution() -> None:
             date=date(2025, 3, 11),
             price=100.0,
             sentiment={"label": "neutral", "value": 50},
-            price_history=[100.0],
             portfolio=Portfolio.from_asset_allocation(
                 10_000.0, current, {"btc": 100.0}
             ),
@@ -717,7 +715,6 @@ def test_per_rule_cooldown_requires_actual_transfers() -> None:
             date=date(2025, 3, 11),
             price=100.0,
             sentiment={"label": "neutral", "value": 50},
-            price_history=[100.0],
             portfolio=Portfolio.from_asset_allocation(
                 10_000.0, current, {"btc": 100.0}
             ),
@@ -977,7 +974,6 @@ def _execution_context(context_date: date) -> StrategyContext:
         date=context_date,
         price=100.0,
         sentiment={"label": "neutral", "value": 50},
-        price_history=[100.0],
         portfolio=Portfolio.from_asset_allocation(10_000.0, current, prices),
         price_map=prices,
         extra_data={},

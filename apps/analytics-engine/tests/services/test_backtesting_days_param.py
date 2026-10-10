@@ -82,8 +82,7 @@ def _setup_compare_service(
 class TestBacktestingDatePriority:
     """Test date range calculation priority in BacktestingService."""
 
-    @pytest.mark.asyncio
-    async def test_explicit_dates_take_precedence_over_days(self, service, monkeypatch):
+    def test_explicit_dates_take_precedence_over_days(self, service, monkeypatch):
         _setup_compare_service(service, monkeypatch)
 
         request = compare_request(
@@ -92,15 +91,14 @@ class TestBacktestingDatePriority:
             days=100,
         )
 
-        await service.run_compare_v3(request)
+        service.run_compare_v3(request)
 
         call_args = service.data_provider.fetch_token_prices.call_args
         assert call_args[0][0] == "BTC"
         assert call_args[0][1] == date(2024, 9, 1)
         assert call_args[0][2] == date(2024, 9, 20)
 
-    @pytest.mark.asyncio
-    async def test_start_date_plus_days_calculates_end_date(self, service, monkeypatch):
+    def test_start_date_plus_days_calculates_end_date(self, service, monkeypatch):
         _setup_compare_service(service, monkeypatch)
 
         request = compare_request(
@@ -108,15 +106,14 @@ class TestBacktestingDatePriority:
             days=5,
         )
 
-        await service.run_compare_v3(request)
+        service.run_compare_v3(request)
 
         call_args = service.data_provider.fetch_token_prices.call_args
         assert call_args[0][0] == "BTC"
         assert call_args[0][1] == date(2024, 9, 1)
         assert call_args[0][2] == date(2024, 9, 20)
 
-    @pytest.mark.asyncio
-    async def test_end_date_plus_days_calculates_start_date(self, service, monkeypatch):
+    def test_end_date_plus_days_calculates_start_date(self, service, monkeypatch):
         _setup_compare_service(service, monkeypatch)
 
         request = compare_request(
@@ -124,21 +121,20 @@ class TestBacktestingDatePriority:
             days=5,
         )
 
-        await service.run_compare_v3(request)
+        service.run_compare_v3(request)
 
         call_args = service.data_provider.fetch_token_prices.call_args
         assert call_args[0][0] == "BTC"
         assert call_args[0][1] == date(2024, 9, 1)
         assert call_args[0][2] == date(2024, 9, 20)
 
-    @pytest.mark.asyncio
-    async def test_only_days_uses_today_as_end(self, service, monkeypatch):
+    def test_only_days_uses_today_as_end(self, service, monkeypatch):
         _setup_compare_service(service, monkeypatch)
 
         days = 30
         request = compare_request(token_symbol="BTC", days=days)
 
-        await service.run_compare_v3(request)
+        service.run_compare_v3(request)
 
         expected_end = date.today()
         user_start = expected_end - timedelta(days=days)
@@ -149,8 +145,7 @@ class TestBacktestingDatePriority:
         assert call_args[0][1] == expected_fetch_start
         assert call_args[0][2] == expected_end
 
-    @pytest.mark.asyncio
-    async def test_no_params_defaults_to_90_days(self, service, monkeypatch):
+    def test_no_params_defaults_to_90_days(self, service, monkeypatch):
         _setup_compare_service(service, monkeypatch)
 
         request = BacktestCompareRequestV3(
@@ -165,7 +160,7 @@ class TestBacktestingDatePriority:
             ],
         )
 
-        await service.run_compare_v3(request)
+        service.run_compare_v3(request)
 
         expected_end = date.today()
         user_start = expected_end - timedelta(days=90)
@@ -176,8 +171,7 @@ class TestBacktestingDatePriority:
         assert call_args[0][1] == expected_fetch_start
         assert call_args[0][2] == expected_end
 
-    @pytest.mark.asyncio
-    async def test_only_start_date_uses_90_day_default(self, service, monkeypatch):
+    def test_only_start_date_uses_90_day_default(self, service, monkeypatch):
         _setup_compare_service(service, monkeypatch)
 
         request = compare_request(
@@ -185,14 +179,13 @@ class TestBacktestingDatePriority:
             start_date=date(2024, 6, 1),
         )
 
-        await service.run_compare_v3(request)
+        service.run_compare_v3(request)
 
         call_args = service.data_provider.fetch_token_prices.call_args
         assert call_args[0][1] == date(2024, 5, 18)
         assert call_args[0][2] == date.today()
 
-    @pytest.mark.asyncio
-    async def test_only_end_date_uses_90_day_default(self, service, monkeypatch):
+    def test_only_end_date_uses_90_day_default(self, service, monkeypatch):
         _setup_compare_service(service, monkeypatch)
 
         request = compare_request(
@@ -200,7 +193,7 @@ class TestBacktestingDatePriority:
             end_date=date(2024, 12, 31),
         )
 
-        await service.run_compare_v3(request)
+        service.run_compare_v3(request)
 
         user_start = date(2024, 12, 31) - timedelta(days=90)
         expected_fetch_start = user_start - timedelta(days=STRATEGY_WARMUP_DAYS)
@@ -211,8 +204,7 @@ class TestBacktestingDatePriority:
 
 
 class TestBacktestingRegressionBug:
-    @pytest.mark.asyncio
-    async def test_user_start_date_is_respected_with_days(self, service, monkeypatch):
+    def test_user_start_date_is_respected_with_days(self, service, monkeypatch):
         _setup_compare_service(
             service,
             monkeypatch,
@@ -229,7 +221,7 @@ class TestBacktestingRegressionBug:
             start_date=date(2024, 9, 15),
         )
 
-        await service.run_compare_v3(request)
+        service.run_compare_v3(request)
 
         call_args = service.data_provider.fetch_token_prices.call_args
         fetch_start_date = call_args[0][1]
@@ -242,8 +234,7 @@ class TestBacktestingRegressionBug:
 
 
 class TestBacktestingPrimerDays:
-    @pytest.mark.asyncio
-    async def test_primer_days_fetches_earlier_data(self, service, monkeypatch):
+    def test_primer_days_fetches_earlier_data(self, service, monkeypatch):
         _setup_compare_service(
             service,
             monkeypatch,
@@ -257,7 +248,7 @@ class TestBacktestingPrimerDays:
             start_date=date(2024, 9, 1),
         )
 
-        await service.run_compare_v3(request)
+        service.run_compare_v3(request)
 
         call_args = service.data_provider.fetch_token_prices.call_args
         fetch_start = call_args[0][1]
@@ -266,8 +257,7 @@ class TestBacktestingPrimerDays:
         assert fetch_start == date(2024, 8, 18)
         assert fetch_end == date(2024, 9, 11)
 
-    @pytest.mark.asyncio
-    async def test_user_start_date_passed_to_simulation(self, service, monkeypatch):
+    def test_user_start_date_passed_to_simulation(self, service, monkeypatch):
         mock_runner = _setup_compare_service(
             service,
             monkeypatch,
@@ -282,15 +272,14 @@ class TestBacktestingPrimerDays:
             start_date=user_start,
         )
 
-        await service.run_compare_v3(request)
+        service.run_compare_v3(request)
 
         call_kwargs = mock_runner.call_args.kwargs
         assert call_kwargs["user_start_date"] == user_start
         strategy_ids = [cfg.strategy_id for cfg in call_kwargs["request"].configs]
         assert strategy_ids == ["dma_fgi_portfolio_rules"]
 
-    @pytest.mark.asyncio
-    async def test_output_timeline_excludes_primer_days(self, service):
+    def test_output_timeline_excludes_primer_days(self, service):
         primer_days = STRATEGY_WARMUP_DAYS
         user_start = date(2024, 9, 1)
         user_days = 10
@@ -312,7 +301,7 @@ class TestBacktestingPrimerDays:
             start_date=user_start,
         )
 
-        result = await service.run_compare_v3(request)
+        result = service.run_compare_v3(request)
 
         timeline = result.timeline
         if timeline:

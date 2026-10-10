@@ -44,19 +44,14 @@ def build_portfolio_snapshot(
 
 def _advance_context(
     ctx: RuleExecutionContext,
-    *,
-    snapshot: FlatMinimumState,
+    snapshot: PortfolioSnapshot,
 ) -> RuleExecutionContext:
-    portfolio_snapshot = build_portfolio_snapshot(
-        snapshot,
-        previous_fgi_regime=ctx.previous_fgi_regime,
-        cycle_open_per_symbol=ctx.cycle_open_per_symbol,
-    )
+    """Tomorrow's context, read from the portfolio view the rules decided on today."""
     return RuleExecutionContext(
-        previous_fgi_regime=_current_fgi_regime_by_symbol(portfolio_snapshot),
+        previous_fgi_regime=_current_fgi_regime_by_symbol(snapshot),
         cycle_open_per_symbol=_update_cycle_state(
             dict(ctx.cycle_open_per_symbol),
-            portfolio_snapshot,
+            snapshot,
         ),
         cooldown_tracker=ctx.cooldown_tracker,
     )
