@@ -208,9 +208,7 @@ export class DeBankFetcher extends BaseApiFetcher {
       const fields = validationIssues
         .map((issue) => `${issue.path} (${issue.code})`)
         .join(', ');
-      throw new Error(
-        `DeBank token list validation failed${fields ? `: ${fields}` : ''}`,
-      );
+      throw new Error(`DeBank token list validation failed: ${fields}`);
     }
     return data as DeBankTokenBalance[];
   }
