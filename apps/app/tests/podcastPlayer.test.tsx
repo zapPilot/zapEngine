@@ -27,7 +27,12 @@ const audio = vi.hoisted(() => {
     updateLockScreenMetadata: vi.fn(),
     clearLockScreenControls: vi.fn(),
     addListener: vi.fn(() => ({ remove: vi.fn() })),
-    currentStatus: { isLoaded: true, duration: 0 },
+    currentStatus: {
+      isLoaded: true,
+      duration: 0,
+      currentTime: 0,
+      playing: false,
+    },
   };
   return { status, player };
 });
@@ -155,6 +160,8 @@ beforeEach(() => {
   audio.status.currentTime = 0;
   audio.player.currentStatus.isLoaded = true;
   audio.player.currentStatus.duration = 0;
+  audio.player.currentStatus.currentTime = 0;
+  audio.player.currentStatus.playing = false;
   queue.args = null;
   active = null;
 });
@@ -656,4 +663,25 @@ describe('usePodcastPlayer iOS Now Playing reclaim', () => {
     expect(audio.player.setActiveForLockScreen).not.toHaveBeenCalled();
     expect(audio.player.updateLockScreenMetadata).not.toHaveBeenCalled();
   });
+});
+
+it('releases the clock fence when the first replacement status arrives after playback has advanced', async () => {
+  const harness = await render();
+  audio.player.currentStatus.duration = 240;
+  await act(async () => queue.args?.playEpisodeAt(nextEpisode, 93, true));
+  await act(async () => {});
+  expect(audio.player.seekTo).toHaveBeenCalledWith(93);
+  expect(harness.current()).toMatchObject({ currentTime: 0, duration: 0 });
+  // The native hook reports every 500ms; its first update can miss the
+  // 250ms window around the seek target, especially at accelerated speeds.
+  audio.player.currentStatus.currentTime = 94;
+  audio.player.currentStatus.playing = true;
+  audio.status.duration = 240;
+  audio.status.currentTime = 120;
+  audio.status.playing = true;
+  await harness.redraw();
+  expect(harness.current()).toMatchObject({ currentTime: 0, duration: 0 });
+  audio.status.currentTime = 93.8;
+  await harness.redraw();
+  expect(harness.current()).toMatchObject({ currentTime: 93.8, duration: 240 });
 });
