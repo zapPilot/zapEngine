@@ -57,6 +57,24 @@ def test_the_committed_policy_is_the_reviews_proposal() -> None:
     assert policy.holdout.required is True
 
 
+def test_the_committed_structural_bar_is_the_plans() -> None:
+    structural = load_policy().policy.structural
+
+    assert structural.real_bundle.model_dump() == {
+        "roi_shortfall_at_most_pp": 2.0,
+        "drawdown_worse_by_at_most_pp": 3.0,
+    }
+    suite = structural.stress_suite
+    assert suite.bundles == (
+        *(f"synthetic:regimes?seed={seed}&days=500" for seed in (1, 2, 3)),
+        *(f"synthetic:stress?seed={seed}&days=500" for seed in range(1, 7)),
+    )
+    assert (
+        suite.median_roi_shortfall_at_most_pp,
+        suite.median_drawdown_worse_by_at_most_pp,
+    ) == (0.0, 0.0)
+
+
 def test_a_policy_names_its_file_and_hashes_its_content(tmp_path: Path) -> None:
     loaded = load_policy()
     again = load_policy(_write(tmp_path, _raw()))
@@ -121,6 +139,29 @@ def test_a_policy_that_is_not_json_is_an_error(tmp_path: Path) -> None:
             "/holdout/roi_shortfall_at_most_pp",
         ),
         (lambda raw: raw.update(description=""), "/description"),
+        (lambda raw: raw.pop("structural"), "/structural"),
+        (
+            lambda raw: raw["structural"]["real_bundle"].update(
+                roi_shortfall_at_most_pp=-1
+            ),
+            "/structural/real_bundle/roi_shortfall_at_most_pp",
+        ),
+        (
+            lambda raw: raw["structural"]["stress_suite"].update(bundles=[]),
+            "/structural/stress_suite/bundles",
+        ),
+        (
+            lambda raw: raw["structural"]["stress_suite"]["bundles"].append(
+                "prod:latest"
+            ),
+            "/structural/stress_suite/bundles",
+        ),
+        (
+            lambda raw: raw["structural"]["stress_suite"]["bundles"].append(
+                raw["structural"]["stress_suite"]["bundles"][0]
+            ),
+            "/structural/stress_suite/bundles",
+        ),
     ],
 )
 def test_a_policy_that_does_not_say_what_it_must_points_at_the_fault(

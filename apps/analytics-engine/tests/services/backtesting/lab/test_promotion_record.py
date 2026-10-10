@@ -11,7 +11,10 @@ from src.services.backtesting.lab.promotion import (
     INSUFFICIENT,
     PASS,
     PROMOTABLE,
+    SEARCH,
+    STRUCTURAL,
     Gate,
+    StructuralEvidence,
     verdict,
 )
 from src.services.backtesting.lab.promotion_record import (
@@ -70,10 +73,12 @@ def _record(
         "candidate": candidate,
         "reference": reference,
         "policy": load_policy(),
+        "track": SEARCH,
         "changes": spec_diff(reference, candidate),
         "bundle": bundle or BUNDLE,
         "sweep": {"sweep_id": "s1", "status": "ok"},
         "look": {"lineage": "lin", "window": {"days": 120}},
+        "structural": None,
         "comparison": COMPARISON,
         "ledger_candidates": 7,
         "gates": gates,
@@ -89,6 +94,7 @@ def test_a_record_holds_the_whole_decision() -> None:
 
     assert record["record_format"] == RECORD_FORMAT
     assert record["verdict"] == PROMOTABLE
+    assert record["track"] == SEARCH
     assert record["candidate"]["ref"].startswith("guarded@1#")
     assert record["reference"]["ref"] == "dma_fgi@1#a22bccfabb4b"
     assert record["policy"]["hash"] == load_policy().policy_hash
@@ -96,6 +102,7 @@ def test_a_record_holds_the_whole_decision() -> None:
         "bundle": BUNDLE,
         "sweep": {"sweep_id": "s1", "status": "ok"},
         "holdout": {"lineage": "lin", "window": {"days": 120}},
+        "structural": None,
     }
     assert record["ledger"] == {"distinct_candidates": 7}
     assert [gate["name"] for gate in record["gates"]] == ["gate_0", "gate_1"]
@@ -186,3 +193,79 @@ def test_an_entry_lists_a_few_changes_and_counts_the_rest() -> None:
     assert "6 change(s)" in text
     assert "and 1 more" in text
     assert "`/id`" not in text
+
+
+def _structural() -> StructuralEvidence:
+    return StructuralEvidence(
+        issues=[
+            {
+                "pointer": "/rules[x]/cooldown_days",
+                "code": "tuned_parameter",
+                "message": "m",
+            }
+        ],
+        eval_config_hash="sha256:c",
+        real=COMPARISON,
+        stress={
+            "synthetic:stress?seed=1&days=500": {
+                "base": {
+                    "roi_percent": 10.0,
+                    "max_drawdown_percent": -20.0,
+                    "trade_count": 40,
+                },
+                "candidate": {
+                    "roi_percent": 12.0,
+                    "max_drawdown_percent": -19.0,
+                    "trade_count": 30,
+                },
+            }
+        },
+    )
+
+
+def test_a_structural_record_keeps_the_change_issues_and_the_suite() -> None:
+    record = _record(
+        _gates(PASS, FAIL),
+        track=STRUCTURAL,
+        sweep=None,
+        look=None,
+        structural=_structural(),
+    )
+
+    assert record["track"] == STRUCTURAL
+    assert record["evidence"]["sweep"] is None
+    assert record["evidence"]["holdout"] is None
+    assert record["evidence"]["structural"] == {
+        "issues": [
+            {
+                "pointer": "/rules[x]/cooldown_days",
+                "code": "tuned_parameter",
+                "message": "m",
+            }
+        ],
+        "stress_suite": {
+            "synthetic:stress?seed=1&days=500": {
+                "base": {
+                    "roi_percent": 10.0,
+                    "max_drawdown_percent": -20.0,
+                    "trade_count": 40,
+                },
+                "candidate": {
+                    "roi_percent": 12.0,
+                    "max_drawdown_percent": -19.0,
+                    "trade_count": 30,
+                },
+            }
+        },
+    }
+    assert record["promotion_id"] != _record(_gates(PASS, FAIL))["promotion_id"]
+
+
+def test_a_structural_entry_names_its_track() -> None:
+    structural = _record(
+        _gates(PASS), track=STRUCTURAL, sweep=None, look=None, structural=_structural()
+    )
+
+    assert "guarded@1#" in log_entry(structural, today=TODAY)
+    assert " on the structural track: " in log_entry(structural, today=TODAY)
+    assert "structural track" not in log_entry(_record(_gates(PASS)), today=TODAY)

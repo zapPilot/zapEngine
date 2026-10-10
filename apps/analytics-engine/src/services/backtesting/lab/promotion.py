@@ -8,10 +8,17 @@ insufficient gate means more evidence is needed; otherwise it is promotable.
 
 Nothing here knows how a number was produced. That keeps the bar in one place,
 ``PROMOTION_POLICY.json``, and keeps this module a pure function of its inputs.
+
+A candidate on the search track is judged by its walk-forward folds and its
+lineage's holdout look. A candidate on the structural track brings neither: it
+is judged by whether its change is a simplification at all and by how far it
+trails the reference on the evidence data and on the policy's synthetic suite.
+The prerequisites are the same on both tracks.
 """
 
 from __future__ import annotations
 
+import statistics
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
@@ -21,6 +28,7 @@ from src.services.backtesting.lab.policy import (
     HoldoutBar,
     Prerequisites,
     PromotionPolicy,
+    StructuralBar,
     WalkForward,
 )
 
@@ -32,6 +40,9 @@ REJECTED = "rejected"
 INSUFFICIENT_EVIDENCE = "insufficient_evidence"
 # The sweep reports this when it had too few folds to say anything.
 SWEEP_OK = "ok"
+SEARCH = "search"
+STRUCTURAL = "structural"
+TRACKS = (SEARCH, STRUCTURAL)
 
 
 @dataclass(frozen=True)
@@ -67,6 +78,20 @@ class OwnChecks:
 
 
 @dataclass(frozen=True)
+class StructuralEvidence:
+    """What a structural promotion measured itself, with both specs on the same bars."""
+
+    # Why the change is more than a simplification; empty when it is one.
+    issues: Sequence[Mapping[str, str]]
+    eval_config_hash: str
+    # ``compare_on_bundle`` of the reference and the candidate on the evidence data.
+    real: Mapping[str, Any]
+    # Per history of the suite: ``roi_percent``, ``max_drawdown_percent`` and
+    # ``trade_count`` of the reference (``base``) and of the candidate.
+    stress: Mapping[str, Mapping[str, Mapping[str, float]]]
+
+
+@dataclass(frozen=True)
 class Evidence:
     candidate_hash: str
     reference_hash: str
@@ -78,11 +103,16 @@ class Evidence:
     # Behavior hashes of every trial the ledger recorded for that sweep.
     sweep_trials: frozenset[str] = field(default_factory=frozenset)
     look: Mapping[str, Any] | None = None
+    # Present exactly when the candidate takes the structural track.
+    structural: StructuralEvidence | None = None
 
 
 def evaluate_gates(policy: PromotionPolicy, evidence: Evidence) -> list[Gate]:
+    prerequisites = _prerequisites(policy.prerequisites, evidence)
+    if evidence.structural is not None:
+        return [*prerequisites, *_structural(policy.structural, evidence.structural)]
     return [
-        *_prerequisites(policy.prerequisites, evidence),
+        *prerequisites,
         *_walk_forward(policy.walk_forward, evidence),
         *_holdout(policy.holdout, evidence),
     ]
@@ -176,6 +206,10 @@ def _real_data(evidence: Evidence) -> Gate:
 def _canonical_assumptions(evidence: Evidence) -> Gate:
     checked: list[str] = []
     wrong: list[str] = []
+    if evidence.structural is not None:
+        checked.append(STRUCTURAL)
+        if evidence.structural.eval_config_hash != evidence.canonical_eval_config_hash:
+            wrong.append(STRUCTURAL)
     if evidence.sweep is not None and evidence.sweep["status"] == SWEEP_OK:
         checked.append("sweep")
         if (
@@ -375,6 +409,25 @@ def _searched(sweep: Mapping[str, Any], evidence: Evidence) -> Gate:
     )
 
 
+def _margin(
+    group: str,
+    name: str,
+    value: float,
+    allowed: float,
+    what: str,
+    relation: str,
+) -> Gate:
+    """``value`` (pp, positive = ahead of the reference) may trail by ``allowed``."""
+    return Gate(
+        group,
+        name,
+        PASS if value >= -allowed else FAIL,
+        f"{what}: {value:.4g} pp, {relation} by at most {allowed:.4g} pp",
+        value,
+        -allowed,
+    )
+
+
 def _fold_drawdown(bar: WalkForward, folds: Sequence[Mapping[str, Any]]) -> Gate:
     name = "fold_drawdown"
     if any("max_drawdown_pp" not in fold["oos"] for fold in folds):
@@ -384,16 +437,13 @@ def _fold_drawdown(bar: WalkForward, folds: Sequence[Mapping[str, Any]]) -> Gate
             INSUFFICIENT,
             "The sweep does not report drawdowns per fold; run it again",
         )
-    worst = min(fold["oos"]["max_drawdown_pp"] for fold in folds)
-    allowed = bar.fold_drawdown_worse_by_at_most_pp
-    return Gate(
+    return _margin(
         "walk_forward",
         name,
-        PASS if worst >= -allowed else FAIL,
-        f"Deepest fold drawdown against the reference: {worst:.4g} pp, "
-        f"may be worse by at most {allowed:.4g} pp",
-        worst,
-        -allowed,
+        min(fold["oos"]["max_drawdown_pp"] for fold in folds),
+        bar.fold_drawdown_worse_by_at_most_pp,
+        "Deepest fold drawdown against the reference",
+        "may be worse",
     )
 
 
@@ -435,8 +485,6 @@ def _holdout(bar: HoldoutBar, evidence: Evidence) -> list[Gate]:
     if wrong is not None:
         return [wrong]
     edge = look["edge"]
-    allowed_roi = bar.roi_shortfall_at_most_pp
-    allowed_dd = bar.drawdown_worse_by_at_most_pp
     return [
         Gate(
             "holdout",
@@ -445,23 +493,21 @@ def _holdout(bar: HoldoutBar, evidence: Evidence) -> list[Gate]:
             f"The lineage's single look, on {look['window']['days']} new days",
             look["lineage"],
         ),
-        Gate(
+        _margin(
             "holdout",
             "holdout_roi",
-            PASS if edge["roi_pp"] >= -allowed_roi else FAIL,
-            f"ROI against the reference on the new data: {edge['roi_pp']:.4g} pp, "
-            f"may fall short by at most {allowed_roi:.4g} pp",
             edge["roi_pp"],
-            -allowed_roi,
+            bar.roi_shortfall_at_most_pp,
+            "ROI against the reference on the new data",
+            "may fall short",
         ),
-        Gate(
+        _margin(
             "holdout",
             "holdout_drawdown",
-            PASS if edge["max_drawdown_pp"] >= -allowed_dd else FAIL,
-            f"Drawdown against the reference on the new data: "
-            f"{edge['max_drawdown_pp']:.4g} pp, may be worse by at most {allowed_dd:.4g} pp",
             edge["max_drawdown_pp"],
-            -allowed_dd,
+            bar.drawdown_worse_by_at_most_pp,
+            "Drawdown against the reference on the new data",
+            "may be worse",
         ),
     ]
 
@@ -490,6 +536,93 @@ def _wrong_look(look: Mapping[str, Any], evidence: Evidence) -> Gate | None:
     return None
 
 
+def _structural(bar: StructuralBar, evidence: StructuralEvidence) -> list[Gate]:
+    real = evidence.real
+    return [
+        _structural_change(evidence.issues),
+        _margin(
+            STRUCTURAL,
+            "real_roi",
+            real["roi_pp"],
+            bar.real_bundle.roi_shortfall_at_most_pp,
+            "ROI against the reference on the evidence data",
+            "may fall short",
+        ),
+        _margin(
+            STRUCTURAL,
+            "real_drawdown",
+            real["max_drawdown_pp"],
+            bar.real_bundle.drawdown_worse_by_at_most_pp,
+            "Drawdown against the reference on the evidence data",
+            "may be worse",
+        ),
+        *_stress_suite(bar, evidence.stress),
+    ]
+
+
+def _structural_change(issues: Sequence[Mapping[str, str]]) -> Gate:
+    if issues:
+        return Gate(
+            STRUCTURAL,
+            "structural_change",
+            FAIL,
+            "Not a structural change: "
+            + "; ".join(issue["message"] for issue in issues),
+            [issue["pointer"] for issue in issues],
+        )
+    return Gate(
+        STRUCTURAL,
+        "structural_change",
+        PASS,
+        "The candidate only removes pieces or changes a categorical choice; "
+        "no number moved",
+        [],
+    )
+
+
+def _stress_suite(
+    bar: StructuralBar,
+    stress: Mapping[str, Mapping[str, Mapping[str, float]]],
+) -> list[Gate]:
+    suite = bar.stress_suite.bundles
+    missing = [ref for ref in suite if ref not in stress]
+    if missing:
+        return [
+            Gate(
+                STRUCTURAL,
+                "stress_suite",
+                INSUFFICIENT,
+                "The synthetic suite was not run on: " + ", ".join(missing),
+                missing,
+            )
+        ]
+
+    def median_edge(metric: str) -> float:
+        own = statistics.median(stress[ref]["candidate"][metric] for ref in suite)
+        base = statistics.median(stress[ref]["base"][metric] for ref in suite)
+        return own - base
+
+    histories = f"the {len(suite)} synthetic histories"
+    return [
+        _margin(
+            STRUCTURAL,
+            "stress_median_roi",
+            median_edge("roi_percent"),
+            bar.stress_suite.median_roi_shortfall_at_most_pp,
+            f"Median ROI over {histories} against the reference's",
+            "may fall short",
+        ),
+        _margin(
+            STRUCTURAL,
+            "stress_median_drawdown",
+            median_edge("max_drawdown_percent"),
+            bar.stress_suite.median_drawdown_worse_by_at_most_pp,
+            f"Median drawdown over {histories} against the reference's",
+            "may be worse",
+        ),
+    ]
+
+
 __all__ = [
     "FAIL",
     "Evidence",
@@ -500,8 +633,12 @@ __all__ = [
     "PASS",
     "PROMOTABLE",
     "REJECTED",
+    "SEARCH",
+    "STRUCTURAL",
     "SWEEP_OK",
     "SYNTHETIC",
+    "StructuralEvidence",
+    "TRACKS",
     "evaluate_gates",
     "verdict",
 ]

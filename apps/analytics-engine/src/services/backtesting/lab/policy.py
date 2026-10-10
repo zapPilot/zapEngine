@@ -4,8 +4,15 @@ The thresholds live in ``src/config/strategies/PROMOTION_POLICY.json``, a file a
 reviewer reads, not in code, so changing the bar is a visible change of its own.
 Each name says which side of the bar passes: ``fold_win_rate_at_least`` is
 inclusive, ``mean_oos_edge_above_pp`` and ``deflated_sharpe_above`` are strict,
-``bootstrap_p_below`` is strict, and the ``..._worse_by_at_most_pp`` bars allow
-exactly that much.
+``bootstrap_p_below`` is strict, and the ``..._worse_by_at_most_pp`` and
+``..._shortfall_at_most_pp`` bars allow exactly that much.
+
+A candidate takes one of two tracks. The search track (``walk_forward`` and
+``holdout``) is for a candidate whose numbers were searched. The structural
+track (``structural``) is for one that only removes pieces or changes a
+categorical choice: it searched nothing a fold could catch overfitting, so it is
+held instead to not trailing the reference on the real data and on a fixed suite
+of synthetic histories.
 """
 
 from __future__ import annotations
@@ -15,8 +22,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
+from src.services.backtesting.lab.bundle import SYNTHETIC_SCHEME
 from src.services.backtesting.lab.folds import MIN_FOLDS
 from src.services.backtesting.lab.report import hash_of
 from src.services.backtesting.spec.loader import STRATEGIES_DIR
@@ -70,12 +78,52 @@ class HoldoutBar(_Section):
     drawdown_worse_by_at_most_pp: float = Field(ge=0.0)
 
 
+class RealBundleBar(_Section):
+    """How far the candidate may trail the reference on the evidence data."""
+
+    roi_shortfall_at_most_pp: float = Field(ge=0.0)
+    drawdown_worse_by_at_most_pp: float = Field(ge=0.0)
+
+
+class StressSuiteBar(_Section):
+    """The same synthetic histories for every structural promotion, judged by medians."""
+
+    bundles: tuple[str, ...] = Field(
+        min_length=1,
+        description="Synthetic bundle references, so anyone can rerun the suite.",
+    )
+    median_roi_shortfall_at_most_pp: float = Field(ge=0.0)
+    median_drawdown_worse_by_at_most_pp: float = Field(ge=0.0)
+
+    @field_validator("bundles")
+    @classmethod
+    def _fixed_and_synthetic(cls, bundles: tuple[str, ...]) -> tuple[str, ...]:
+        recorded = [
+            ref for ref in bundles if not ref.startswith(f"{SYNTHETIC_SCHEME}:")
+        ]
+        if recorded:
+            raise ValueError(
+                "the suite must be reproducible anywhere, so every history is "
+                f"synthetic: {', '.join(recorded)}"
+            )
+        if len(set(bundles)) != len(bundles):
+            raise ValueError("a history is listed twice")
+        return bundles
+
+
+class StructuralBar(_Section):
+    description: str = Field(min_length=1)
+    real_bundle: RealBundleBar
+    stress_suite: StressSuiteBar
+
+
 class PromotionPolicy(_Section):
     format: Literal["promotion-policy/1"]
     description: str = Field(min_length=1)
     prerequisites: Prerequisites
     walk_forward: WalkForward
     holdout: HoldoutBar
+    structural: StructuralBar
 
 
 @dataclass(frozen=True)
@@ -113,5 +161,6 @@ __all__ = [
     "POLICY_PATH",
     "PolicyError",
     "PromotionPolicy",
+    "StructuralBar",
     "load_policy",
 ]

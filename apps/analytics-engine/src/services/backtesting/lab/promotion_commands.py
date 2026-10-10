@@ -34,11 +34,15 @@ from src.services.backtesting.lab.policy import (
 from src.services.backtesting.lab.promotion import (
     INSUFFICIENT_EVIDENCE,
     PROMOTABLE,
+    SEARCH,
+    STRUCTURAL,
+    TRACKS,
     Evidence,
+    StructuralEvidence,
     evaluate_gates,
     verdict,
 )
-from src.services.backtesting.lab.promotion_checks import own_checks
+from src.services.backtesting.lab.promotion_checks import own_checks, structural_checks
 from src.services.backtesting.lab.promotion_record import build_record, log_entry
 from src.services.backtesting.lab.report import git_state, hash_of, normalize
 from src.services.backtesting.lab.research_commands import (
@@ -46,7 +50,7 @@ from src.services.backtesting.lab.research_commands import (
     REFERENCE_REF,
 )
 from src.services.backtesting.lab.runner import EvalConfig
-from src.services.backtesting.spec import behavior_hash
+from src.services.backtesting.spec import StrategySpec, behavior_hash
 from src.services.backtesting.validation.event_runner import ValidationEventError
 
 SPEC_HELP = evaluation_commands.SPEC_HELP
@@ -65,6 +69,14 @@ def add_commands(commands: Any) -> None:
         "--bundle",
         required=True,
         help="The evidence data the candidate is checked on. " + BUNDLE_HELP,
+    )
+    promote.add_argument(
+        "--track",
+        choices=TRACKS,
+        default=SEARCH,
+        help="search (default): judged by a sweep and a holdout look. structural: "
+        "a candidate that only removes pieces or changes a categorical choice, "
+        "judged against the reference on --bundle and the policy's synthetic suite.",
     )
     promote.add_argument(
         "--sweep",
@@ -157,7 +169,44 @@ def _stress(args: argparse.Namespace, context: Context) -> dict[str, Bundle]:
     }
 
 
+def _refuse_search_evidence(args: argparse.Namespace) -> None:
+    given = [
+        flag
+        for flag, value in (("--sweep", args.sweep), ("--lineage", args.lineage))
+        if value
+    ]
+    if args.track == STRUCTURAL and given:
+        raise CliError(
+            EXIT_NOT_APPLICABLE,
+            "not_on_this_track",
+            f"A structural promotion reads no {' or '.join(given)}: it moves no "
+            "number, so there is no search for folds or a holdout look to judge.",
+        )
+
+
+def _structural_evidence(
+    args: argparse.Namespace,
+    context: Context,
+    *,
+    policy: LoadedPolicy,
+    reference: StrategySpec,
+    candidate: StrategySpec,
+    comparison: dict[str, Any],
+    config: EvalConfig,
+) -> StructuralEvidence | None:
+    if args.track != STRUCTURAL:
+        return None
+    suite = {
+        ref: load_bundle_or_fail(ref, context)
+        for ref in policy.policy.structural.stress_suite.bundles
+    }
+    return structural_checks(
+        reference, candidate, real=comparison, suite=suite, config=config
+    )
+
+
 def promote_command(args: argparse.Namespace, context: Context) -> Outcome:
+    _refuse_search_evidence(args)
     _, candidate = load_spec_or_fail(args.spec, context)
     _, reference = load_spec_or_fail(args.reference, context)
     if behavior_hash(candidate) == behavior_hash(reference):
@@ -189,6 +238,16 @@ def promote_command(args: argparse.Namespace, context: Context) -> Outcome:
     except ValidationEventError as error:
         raise CliError(EXIT_NOT_APPLICABLE, "invalid_events", str(error)) from error
     canonical = EvalConfig()
+    comparison = compare_on_bundle(reference, candidate, bundle, canonical)
+    structural = _structural_evidence(
+        args,
+        context,
+        policy=loaded,
+        reference=reference,
+        candidate=candidate,
+        comparison=comparison,
+        config=canonical,
+    )
     gates = evaluate_gates(
         loaded.policy,
         Evidence(
@@ -201,6 +260,7 @@ def promote_command(args: argparse.Namespace, context: Context) -> Outcome:
             sweep=sweep,
             sweep_trials=trials,
             look=look,
+            structural=structural,
         ),
     )
     decision = verdict(gates)
@@ -208,6 +268,7 @@ def promote_command(args: argparse.Namespace, context: Context) -> Outcome:
         candidate=candidate,
         reference=reference,
         policy=loaded,
+        track=args.track,
         changes=spec_diff(reference, candidate),
         bundle={
             "ref": f"{bundle.manifest.name}:{bundle.manifest.bundle_id}",
@@ -216,7 +277,8 @@ def promote_command(args: argparse.Namespace, context: Context) -> Outcome:
         },
         sweep=sweep,
         look=look,
-        comparison=compare_on_bundle(reference, candidate, bundle, canonical),
+        structural=structural,
+        comparison=comparison,
         ledger_candidates=candidates,
         gates=gates,
         verdict=decision,
@@ -229,6 +291,7 @@ def promote_command(args: argparse.Namespace, context: Context) -> Outcome:
         "promotion",
         promotion=record["promotion_id"],
         verdict=decision,
+        track=args.track,
         spec={
             "ref": record["candidate"]["ref"],
             "behavior_hash": record["candidate"]["behavior_hash"],

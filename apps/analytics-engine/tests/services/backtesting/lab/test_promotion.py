@@ -17,6 +17,7 @@ from src.services.backtesting.lab.promotion import (
     Evidence,
     Gate,
     OwnChecks,
+    StructuralEvidence,
     evaluate_gates,
     verdict,
 )
@@ -453,3 +454,189 @@ def test_the_verdict_follows_the_worst_gate() -> None:
     assert verdict([passed, missing]) == INSUFFICIENT_EVIDENCE
     assert verdict([passed, missing, failed]) == REJECTED
     assert verdict([]) == PROMOTABLE
+
+
+SUITE = PromotionPolicy.model_validate(
+    json.loads(POLICY_PATH.read_text())
+).structural.stress_suite.bundles
+PREREQUISITES = [
+    "real_data_only",
+    "canonical_assumptions",
+    "no_dead_parameters",
+    "hard_invariants",
+    "validation_events",
+    "golden_unaffected",
+]
+
+
+def _suite(
+    base: list[float], candidate: list[float], metric: str = "roi_percent"
+) -> dict[str, dict[str, dict[str, float]]]:
+    """One history of the suite per value; the other metric is level."""
+    other = "max_drawdown_percent" if metric == "roi_percent" else "roi_percent"
+    return {
+        ref: {
+            "base": {
+                metric: own_base,
+                other: -20.0 if other.startswith("max") else 5.0,
+            },
+            "candidate": {
+                metric: own_candidate,
+                other: -20.0 if other.startswith("max") else 5.0,
+            },
+        }
+        for ref, own_base, own_candidate in zip(SUITE, base, candidate, strict=True)
+    }
+
+
+def _structural(**overrides: Any) -> StructuralEvidence:
+    fields: dict[str, Any] = {
+        "issues": [],
+        "eval_config_hash": CANONICAL,
+        "real": {"roi_pp": 1.0, "max_drawdown_pp": -0.5},
+        "stress": _suite([10.0] * len(SUITE), [12.0] * len(SUITE)),
+    }
+    fields.update(overrides)
+    return StructuralEvidence(**fields)
+
+
+def _structural_evidence(**overrides: Any) -> Evidence:
+    return _evidence(sweep=None, look=None, structural=_structural(**overrides))
+
+
+def test_a_structural_candidate_that_clears_every_gate_is_promotable() -> None:
+    gates = evaluate_gates(_policy(), _structural_evidence())
+
+    assert {gate.status for gate in gates} == {PASS}
+    assert [gate.name for gate in gates] == [
+        *PREREQUISITES,
+        "structural_change",
+        "real_roi",
+        "real_drawdown",
+        "stress_median_roi",
+        "stress_median_drawdown",
+    ]
+    assert verdict(gates) == PROMOTABLE
+
+
+def test_the_structural_track_asks_for_no_folds_and_no_look() -> None:
+    gates = evaluate_gates(_policy(), _structural_evidence())
+
+    assert {gate.group for gate in gates} == {"prerequisite", "structural"}
+    assert _by_name(gates)["canonical_assumptions"].value == ["structural"]
+
+
+def test_a_change_that_is_not_structural_is_rejected_with_what_it_moved() -> None:
+    issue = {
+        "pointer": "/rules[x]/cooldown_days",
+        "code": "tuned_parameter",
+        "message": "/rules[x]/cooldown_days moves from 30 to 21",
+    }
+
+    gates = evaluate_gates(_policy(), _structural_evidence(issues=[issue]))
+
+    gate = _by_name(gates)["structural_change"]
+    assert (gate.status, gate.value) == (FAIL, ["/rules[x]/cooldown_days"])
+    assert gate.detail == (
+        "Not a structural change: /rules[x]/cooldown_days moves from 30 to 21"
+    )
+    assert verdict(gates) == REJECTED
+
+
+@pytest.mark.parametrize(
+    ("real", "expected"),
+    [
+        ({"roi_pp": -2.0, "max_drawdown_pp": 0.0}, (PASS, PASS)),
+        ({"roi_pp": -2.01, "max_drawdown_pp": 0.0}, (FAIL, PASS)),
+        ({"roi_pp": 0.0, "max_drawdown_pp": -3.0}, (PASS, PASS)),
+        ({"roi_pp": 0.0, "max_drawdown_pp": -3.01}, (PASS, FAIL)),
+    ],
+)
+def test_on_the_real_data_a_structural_candidate_may_trail_a_little(
+    real: dict[str, float], expected: tuple[str, str]
+) -> None:
+    gates = _by_name(evaluate_gates(_policy(), _structural_evidence(real=real)))
+
+    assert (gates["real_roi"].status, gates["real_drawdown"].status) == expected
+    assert gates["real_roi"].detail.startswith(
+        "ROI against the reference on the evidence data: "
+    )
+
+
+def test_the_suite_compares_the_medians_of_the_two_strategies() -> None:
+    # Every history moves, but the candidate's median equals the reference's.
+    level = _suite(
+        [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0],
+        [9.0, 1.0, 2.0, 3.0, 5.0, 4.0, 6.0, 7.0, 8.0],
+    )
+
+    gate = _by_name(evaluate_gates(_policy(), _structural_evidence(stress=level)))[
+        "stress_median_roi"
+    ]
+
+    assert (gate.status, gate.value, gate.threshold) == (PASS, 0.0, -0.0)
+    assert gate.detail == (
+        "Median ROI over the 9 synthetic histories against the reference's: "
+        "0 pp, may fall short by at most 0 pp"
+    )
+
+
+@pytest.mark.parametrize(
+    ("metric", "gate", "base", "candidate", "expected"),
+    [
+        ("roi_percent", "stress_median_roi", 10.0, [10.0] * 4 + [9.99] * 5, FAIL),
+        ("roi_percent", "stress_median_roi", 10.0, [-50.0] * 4 + [10.01] * 5, PASS),
+        (
+            "max_drawdown_percent",
+            "stress_median_drawdown",
+            -20.0,
+            [-20.0] * 4 + [-20.01] * 5,
+            FAIL,
+        ),
+        (
+            "max_drawdown_percent",
+            "stress_median_drawdown",
+            -20.0,
+            [-90.0] * 4 + [-20.0] * 5,
+            PASS,
+        ),
+    ],
+)
+def test_the_median_must_not_trail_the_reference(
+    metric: str, gate: str, base: float, candidate: list[float], expected: str
+) -> None:
+    stress = _suite([base] * len(SUITE), candidate, metric)
+
+    gates = _by_name(evaluate_gates(_policy(), _structural_evidence(stress=stress)))
+
+    assert gates[gate].status == expected
+
+
+def test_a_suite_that_did_not_run_in_full_is_missing_evidence() -> None:
+    partial = dict(list(_structural().stress.items())[:3])
+
+    gates = evaluate_gates(_policy(), _structural_evidence(stress=partial))
+
+    gate = _by_name(gates)["stress_suite"]
+    assert gate.status == INSUFFICIENT
+    assert gate.value == list(SUITE[3:])
+    assert verdict(gates) == INSUFFICIENT_EVIDENCE
+
+
+def test_structural_numbers_must_come_from_the_default_assumptions() -> None:
+    evidence = _structural_evidence(eval_config_hash="sha256:other")
+
+    gate = _by_name(evaluate_gates(_policy(), evidence))["canonical_assumptions"]
+
+    assert (gate.status, gate.value) == (FAIL, ["structural"])
+
+
+def test_synthetic_evidence_data_is_refused_on_the_structural_track_too() -> None:
+    evidence = _evidence(
+        sweep=None,
+        look=None,
+        own=_own(bundle_source="synthetic"),
+        structural=_structural(),
+    )
+
+    assert _status(_policy(), evidence, "real_data_only") == FAIL
