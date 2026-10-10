@@ -39,12 +39,15 @@ vi.mock('@react-native-community/slider', () => ({
   default: ({
     accessibilityLabel,
     onSlidingComplete,
+    disabled,
   }: {
     accessibilityLabel?: string;
     onSlidingComplete: (seconds: number) => void;
+    disabled: boolean;
   }) => (
     <button
       aria-label={accessibilityLabel}
+      disabled={disabled}
       onClick={() => onSlidingComplete(42)}
       type="button"
     />
@@ -195,3 +198,23 @@ vi.mock('react-native-svg', () => ({
     <clipPath>{children}</clipPath>
   ),
 }));
+
+it.each([0, Number.NaN, Number.POSITIVE_INFINITY])(
+  'disables seeking and shows unknown duration for %s',
+  async (duration) => {
+    const player = { ...createPlayer(), duration, currentTime: 93 };
+    await act(async () =>
+      root.render(
+        <NowPlayingBar player={player} onOpen={vi.fn()} layout="card" />,
+      ),
+    );
+    expect(container.textContent).toContain('1:33');
+    expect(container.textContent).toContain('—');
+    expect(container.textContent).not.toContain('NaN');
+    expect(
+      container.querySelector<HTMLButtonElement>('[aria-label="Seek"]')!
+        .disabled,
+    ).toBe(true);
+    expect(container.querySelectorAll('[aria-label="Pause"]')).toHaveLength(1);
+  },
+);

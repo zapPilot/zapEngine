@@ -132,7 +132,8 @@ export function usePodcastLibrary() {
   const playbackIsPlaying =
     player.isPlaying &&
     playbackTarget !== null &&
-    player.nowPlaying?.localizationId === playbackTarget.localizationId;
+    player.nowPlaying?.localizationId === playbackTarget.localizationId &&
+    player.nowPlaying.languageCode === playbackTarget.languageCode;
 
   const listLoading =
     !progressIsHydrated ||
