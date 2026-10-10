@@ -316,6 +316,9 @@ export async function collectXMetrics(
         likes,
         comments,
         shares: reposts,
+        saves: await readXButtonCount(
+          article.locator('[data-testid="bookmark"]'),
+        ),
       };
     },
     browser,
@@ -729,11 +732,16 @@ async function fetchYouTubeAnalytics(
     accessToken,
     fetchImpl,
     metrics:
-      'shares,subscribersGained,engagedViews,averageViewDuration,averageViewPercentage',
+      'shares,subscribersGained,engagedViews,averageViewDuration,averageViewPercentage,videosAddedToPlaylists,videosRemovedFromPlaylists',
   });
   const row = firstAnalyticsRow(summary);
   const details: SocialPostMetricDetails = {};
   if (row) {
+    const playlistAdds = numeric(row[5]);
+    const playlistRemoves = numeric(row[6]);
+    if (playlistAdds !== null) details.youtubePlaylistAdds = playlistAdds;
+    if (playlistRemoves !== null)
+      details.youtubePlaylistRemoves = playlistRemoves;
     const engagedViews = numeric(row[2]);
     const averageViewDurationSec = numeric(row[3]);
     const averageViewPercentage = numeric(row[4]);

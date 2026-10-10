@@ -393,7 +393,8 @@
 .growth-content-row {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  grid-template-columns: minmax(0, 1fr) repeat(5, auto);
+  overflow-x: auto;
   align-items: center;
   gap: var(--cc-space-3);
   padding: 7px 0;

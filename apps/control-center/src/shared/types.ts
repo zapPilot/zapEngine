@@ -176,6 +176,9 @@ export type SocialMetricWindow = '1h' | '6h' | '24h' | '72h' | '7d';
 export const DEFAULT_SOCIAL_COMPARISON_WINDOW = '24h';
 
 export interface SocialPlatformPerformance {
+  saveRate: number | null;
+  savesSupport: 'native' | 'unsupported' | 'playlist_add_proxy';
+  playlistAdds: number | null;
   measurementWindow: SocialMetricWindow | null;
   ageHours: number | null;
   platform: string;

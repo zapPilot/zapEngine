@@ -114,7 +114,7 @@ export function GrowthPage(props: {
       <div className="cc-grid rel-main">
         <Card
           icon={Video}
-          subtitle="最近 3 集 · 觀看與互動不代表到站或註冊"
+          subtitle="最近 3 集 · 收藏僅比較同平台 24h 快照 · 觀看與互動不代表到站或註冊"
           title="近期內容表現"
           tone="info"
         >
@@ -442,6 +442,36 @@ function ContentPerformance(props: { data: SocialPerformanceResponse | null }) {
                 {platform.engagementRate === null
                   ? '—'
                   : percent(platform.engagementRate)}
+              </span>
+              <span
+                className="growth-content-metric"
+                aria-label={
+                  platform.savesSupport === 'playlist_add_proxy'
+                    ? '加入播放清單'
+                    : '收藏'
+                }
+              >
+                {platform.savesSupport === 'playlist_add_proxy'
+                  ? '加入播放清單'
+                  : '收藏'}{' '}
+                {platform.savesSupport === 'unsupported'
+                  ? '不支援'
+                  : platform.measurementWindow !== '24h'
+                    ? '—'
+                    : ((platform.savesSupport === 'playlist_add_proxy'
+                        ? platform.playlistAdds
+                        : platform.saves) ?? '—')}
+              </span>
+              <span className="growth-content-metric" aria-label="每千次收藏">
+                每千次收藏{' '}
+                {platform.savesSupport === 'unsupported'
+                  ? '不支援'
+                  : platform.measurementWindow !== '24h' ||
+                      platform.saveRate === null
+                    ? '—'
+                    : (platform.saveRate * 1000).toLocaleString(undefined, {
+                        maximumFractionDigits: 2,
+                      })}
               </span>
               {platform.postUrl ? (
                 <ProviderLink
