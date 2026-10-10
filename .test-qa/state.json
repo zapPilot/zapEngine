@@ -1,0 +1,650 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-07T14:00:13.000Z",
+  "github": {
+    "runId": 0,
+    "runAttempt": 1,
+    "sha": "bf7370597b2ea243bf6803dc98477d59590842f5"
+  },
+  "scopes": {
+    "apps/control-center/src/client/pages/ReliabilityPage.tsx": {
+      "status": "clean",
+      "auditedAt": "2026-10-03T04:55:00.000Z",
+      "auditedCommit": "558aaba118d1a962fc2f21b32d8151566b3d5c11",
+      "pathShas": {
+        "apps/control-center/src/client/pages/ReliabilityPage.tsx": "1a82ebeb7dbf9741279869f1ea23012e1844c9f3",
+        "apps/control-center/src/client/pages/ReliabilityPage.test.tsx": "bda9dc59a94287b00c4e072f9599184b39560463",
+        "apps/control-center/src/client/pages/ReliabilityPage.coverage2.test.tsx": "5c631bc6576a155921ea84db1aac20ab8a8ed1ad",
+        "apps/control-center/src/client/pages/ReliabilityPage.coverage3.test.tsx": "de25fc9fe2d31bcad1b805789ac86605200a6696"
+      },
+      "files": [
+        "apps/control-center/src/client/pages/ReliabilityPage.coverage2.test.tsx",
+        "apps/control-center/src/client/pages/ReliabilityPage.coverage3.test.tsx",
+        "apps/control-center/src/client/pages/ReliabilityPage.test.tsx"
+      ],
+      "relatedPaths": [
+        "apps/control-center/src/client/pages/ReliabilityPage.tsx"
+      ],
+      "findings": []
+    },
+    "apps/control-center/src/client/App.tsx": {
+      "status": "clean",
+      "auditedAt": "2026-10-03T04:55:00.000Z",
+      "auditedCommit": "558aaba118d1a962fc2f21b32d8151566b3d5c11",
+      "pathShas": {
+        "apps/control-center/src/client/App.tsx": "0f0be6d969a29456874e1cd65a17c23bce4a792c",
+        "apps/control-center/src/client/App.test.tsx": "aec3729bf39b66776f462a4aca3f4ab3c4d58269",
+        "apps/control-center/src/client/App.coverage2.test.tsx": "1049f99043be1334a4d5db37d681ee2bbf9dae3d",
+        "apps/control-center/src/client/App.coverage3.test.tsx": "8ec17c65562fd5b790fafca50e5e5201a5a108cc"
+      },
+      "files": [
+        "apps/control-center/src/client/App.coverage2.test.tsx",
+        "apps/control-center/src/client/App.coverage3.test.tsx",
+        "apps/control-center/src/client/App.test.tsx"
+      ],
+      "relatedPaths": [
+        "apps/control-center/src/client/App.tsx"
+      ],
+      "findings": []
+    },
+    "apps/control-center/src/client/components/QueueDrawer.tsx": {
+      "status": "clean",
+      "auditedAt": "2026-10-03T04:55:00.000Z",
+      "auditedCommit": "b17486d5e4a3dad8a0f5173263bbaa2439a1d788",
+      "pathShas": {
+        "apps/control-center/src/client/components/QueueDrawer.tsx": "802578cedda2edee6348822311a781cfc0131985",
+        "apps/control-center/src/client/components/QueueDrawer.test.tsx": "1dcdfb5f3c9478200aed381afaf7919ce7ed5fc5",
+        "apps/control-center/src/client/components/QueueDrawer.coverage2.test.tsx": "02d51854628bc893a35d81807a1245b786215356",
+        "apps/control-center/src/client/components/QueueDrawer.coverage3.test.tsx": "153386446958fe5689b95ad53a1bc380c5fbb8c4"
+      },
+      "files": [
+        "apps/control-center/src/client/components/QueueDrawer.coverage2.test.tsx",
+        "apps/control-center/src/client/components/QueueDrawer.coverage3.test.tsx",
+        "apps/control-center/src/client/components/QueueDrawer.test.tsx"
+      ],
+      "relatedPaths": [
+        "apps/control-center/src/client/components/QueueDrawer.tsx"
+      ],
+      "findings": []
+    },
+    "apps/app/tests/app-100-small-gaps.test.ts": {
+      "status": "clean",
+      "auditedAt": "2026-10-06T23:55:00.000Z",
+      "auditedCommit": "125609677a297dffb3696ead050f2070ba701e21",
+      "pathShas": {
+        "apps/app/tests/app-100-small-gaps.test.ts": "9db149f5dee54d71ada733fc862b99bae874e590"
+      },
+      "files": [
+        "apps/app/tests/app-100-small-gaps.test.ts"
+      ],
+      "relatedPaths": [],
+      "findings": [
+        {
+          "id": "format-main-debt-20261003",
+          "kind": "test",
+          "summary": "Merged #699 left this test file outside canonical Prettier formatting; the worker PR repairs that test-only CI regression."
+        }
+      ]
+    },
+    "apps/control-center/src/client/components/VisualEvidence.tsx": {
+      "status": "clean",
+      "auditedAt": "2026-10-03T05:10:00.000Z",
+      "auditedCommit": "558aaba118d1a962fc2f21b32d8151566b3d5c11",
+      "pathShas": {
+        "apps/control-center/src/client/components/VisualEvidence.tsx": "9ee2310aa76aeae8ca969d1553e5c62acc402166",
+        "apps/control-center/src/client/components/VisualEvidence.test.tsx": "6e3a564c6129bae8a36d710e859c06ded20866e7",
+        "apps/control-center/src/client/components/VisualEvidence.coverage2.test.tsx": "707790121db243e927e54851d18dcdccf4b6399d",
+        "apps/control-center/src/client/components/VisualEvidence.decision-trace.test.ts": "6958a3400c1f593a1f0d13d3a3ec66609a8648ff"
+      },
+      "files": [
+        "apps/control-center/src/client/components/VisualEvidence.coverage2.test.tsx",
+        "apps/control-center/src/client/components/VisualEvidence.decision-trace.test.ts",
+        "apps/control-center/src/client/components/VisualEvidence.test.tsx"
+      ],
+      "relatedPaths": [
+        "apps/control-center/src/client/components/VisualEvidence.tsx"
+      ],
+      "findings": []
+    },
+    "apps/app/src/integration/podcastSections.ts": {
+      "status": "clean",
+      "auditedAt": "2026-10-07T03:01:39.000Z",
+      "auditedCommit": "76234c174290c0f7fc7f7b93d66238723079e64e",
+      "pathShas": {
+        "apps/app/src/integration/podcastSections.ts": "afd5eb225ca02315404812f53cb07ab0e2e7eb9c",
+        "apps/app/tests/podcastSections.test.ts": "27ae1f1ccacfe71b5bc49b17625882d556c79ff1"
+      },
+      "files": [
+        "apps/app/tests/podcastSections.test.ts"
+      ],
+      "relatedPaths": [
+        "apps/app/src/integration/podcastSections.ts"
+      ],
+      "findings": [],
+      "note": "Existing tests cover section ordering and invalid/out-of-range speed behavior; no clear Phase 1 defect."
+    },
+    "apps/app/tests/app-100-final-branches.test.tsx": {
+      "status": "clean",
+      "auditedAt": "2026-10-06T23:55:00.000Z",
+      "auditedCommit": "125609677a297dffb3696ead050f2070ba701e21",
+      "pathShas": {
+        "apps/app/tests/app-100-final-branches.test.tsx": "308bc99f43a30cee2ad582e62d02e6e5d43f9fe1"
+      },
+      "files": [
+        "apps/app/tests/app-100-final-branches.test.tsx"
+      ],
+      "relatedPaths": [
+        "apps/app/src/integration/depositTokens.ts",
+        "apps/app/src/integration/investFundingPlanner.ts",
+        "apps/app/src/integration/investTargetsModel.ts",
+        "apps/app/src/integration/portfolioMetrics.ts",
+        "apps/app/src/integration/useHomeData.ts",
+        "apps/app/src/integration/useAccount.ios.ts",
+        "apps/app/src/integration/useInvest.ts",
+        "apps/app/src/integration/useInvestExecution.tsx",
+        "apps/app/src/integration/walletTokens.ts",
+        "apps/app/tests/support/fundingBalanceRow.ts"
+      ],
+      "findings": [
+        {
+          "id": "funding-fixtures-20261003",
+          "kind": "test",
+          "summary": "Funding planner edge fixtures bypassed production contracts with as never; plan input and balance row now type-check against production signatures."
+        }
+      ]
+    },
+    "apps/podcast-pipeline/src/lib/is-main-module.ts": {
+      "status": "clean",
+      "auditedAt": "2026-10-03T06:02:00.000Z",
+      "auditedCommit": "558aaba118d1a962fc2f21b32d8151566b3d5c11",
+      "pathShas": {
+        "apps/podcast-pipeline/src/lib/is-main-module.ts": "9116394b52bd1de4306109892579ef982c630c87",
+        "apps/podcast-pipeline/src/lib/is-main-module.coverage.test.ts": "fcf5d9db426ee91a4d16e7eb4077c9f4029ce573"
+      },
+      "files": [
+        "apps/podcast-pipeline/src/lib/is-main-module.coverage.test.ts"
+      ],
+      "relatedPaths": [
+        "apps/podcast-pipeline/src/lib/is-main-module.ts"
+      ],
+      "findings": []
+    },
+    "apps/alpha-etl/src/routes/webhooks.responses.ts": {
+      "status": "clean",
+      "auditedAt": "2026-10-03T06:02:00.000Z",
+      "auditedCommit": "558aaba118d1a962fc2f21b32d8151566b3d5c11",
+      "pathShas": {
+        "apps/alpha-etl/src/routes/webhooks.responses.ts": "f189a0057c7bb9e8fdf8368303285af4a5c75bff",
+        "apps/alpha-etl/tests/unit/routes/webhooks.responses.coverage.test.ts": "8143d2bf83d266a44361884990a703c605b64d2f"
+      },
+      "files": [
+        "apps/alpha-etl/tests/unit/routes/webhooks.responses.coverage.test.ts"
+      ],
+      "relatedPaths": [
+        "apps/alpha-etl/src/routes/webhooks.responses.ts"
+      ],
+      "findings": []
+    },
+    "packages/app-core/tests/coverage-handoff-pure-gaps.test.ts": {
+      "status": "clean",
+      "auditedAt": "2026-10-06T23:55:00.000Z",
+      "auditedCommit": "125609677a297dffb3696ead050f2070ba701e21",
+      "pathShas": {
+        "packages/app-core/tests/coverage-handoff-pure-gaps.test.ts": "80ad8705ff0b42f748e5cf3d619994e23225a974"
+      },
+      "files": [
+        "packages/app-core/tests/coverage-handoff-pure-gaps.test.ts"
+      ],
+      "relatedPaths": [
+        "packages/app-core/src/services/backtestingTimelineService.ts",
+        "packages/app-core/src/lib/portfolio/portfolioUtils.ts",
+        "packages/app-core/src/adapters/walletPortfolioDataAdapter.ts",
+        "packages/app-core/src/lib/portfolio/portfolioTransformers.ts",
+        "packages/app-core/src/lib/wallet/depositWizardMachine.ts",
+        "packages/app-core/src/lib/wallet/hyperliquidAgentMachine.ts",
+        "packages/app-core/src/lib/domain/regime.ts"
+      ],
+      "findings": [
+        {
+          "id": "contract-fixtures-app-core-20261003",
+          "kind": "test",
+          "summary": "Coverage-handoff fixtures use broad as-never helpers for typed landing/timeline inputs; retain deliberate casts only for explicit unknown-event/runtime-boundary cases and make valid fixtures contract-shaped."
+        }
+      ]
+    },
+    "apps/app/tests/coverage-handoff-targets-income-gaps.test.ts": {
+      "status": "clean",
+      "auditedAt": "2026-10-06T23:55:00.000Z",
+      "auditedCommit": "125609677a297dffb3696ead050f2070ba701e21",
+      "pathShas": {
+        "apps/app/tests/coverage-handoff-targets-income-gaps.test.ts": "7daf3e379a0cc351fc5946f05fd6cda2c13da453"
+      },
+      "files": [
+        "apps/app/tests/coverage-handoff-targets-income-gaps.test.ts"
+      ],
+      "relatedPaths": [
+        "apps/app/src/integration/investTargetsModel.ts",
+        "apps/app/src/integration/homeIncomeModel.ts",
+        "apps/app/src/integration/depositTokens.ts"
+      ],
+      "findings": [
+        {
+          "id": "contract-fixtures-target-income-20261003",
+          "kind": "test",
+          "summary": "Coverage-only token/draft/summary fixtures bypass production contracts with as never/as unknown as; replace valid fixtures with typed DesktopDepositToken, StageDraft, ChainBatchDraft and YieldReturnsSummaryResponse shapes."
+        }
+      ]
+    },
+    "apps/app/src/integration/bridgeTestModel.ts": {
+      "status": "clean",
+      "auditedAt": "2026-10-03T06:15:00.000Z",
+      "auditedCommit": "558aaba118d1a962fc2f21b32d8151566b3d5c11",
+      "pathShas": {
+        "apps/app/src/integration/bridgeTestModel.ts": "88b99f083adb23f8c71759ee0d32420be6f71230",
+        "apps/app/tests/bridgeTestModel.coverage.test.ts": "151d52cb21d155159e3b2568d7a1ee865096b56b"
+      },
+      "files": [
+        "apps/app/tests/bridgeTestModel.coverage.test.ts"
+      ],
+      "relatedPaths": [
+        "apps/app/src/integration/bridgeTestModel.ts"
+      ],
+      "findings": []
+    },
+    "apps/app/tests/coverage-handoff-pure-gaps.test.ts": {
+      "status": "clean",
+      "auditedAt": "2026-10-06T23:55:00.000Z",
+      "auditedCommit": "125609677a297dffb3696ead050f2070ba701e21",
+      "pathShas": {
+        "apps/app/tests/coverage-handoff-pure-gaps.test.ts": "aa5f2e1ec86217c77b5f6c341c95f6cb02d4eb23"
+      },
+      "files": [
+        "apps/app/tests/coverage-handoff-pure-gaps.test.ts"
+      ],
+      "relatedPaths": [],
+      "findings": [],
+      "note": "Coverage-handoff boundary cases were read with investAmountModel; casts intentionally manufacture malformed/unsupported token and metadata inputs to exercise runtime guards."
+    },
+    "apps/app/tests/coverage-handoff-simulation-gaps.test.ts": {
+      "status": "clean",
+      "auditedAt": "2026-10-06T23:55:00.000Z",
+      "auditedCommit": "125609677a297dffb3696ead050f2070ba701e21",
+      "pathShas": {
+        "apps/app/tests/coverage-handoff-simulation-gaps.test.ts": "d3c0b26666f5e2d4d8929c9bdb360dd5d7363d10"
+      },
+      "files": [
+        "apps/app/tests/coverage-handoff-simulation-gaps.test.ts"
+      ],
+      "relatedPaths": [],
+      "findings": [],
+      "note": "Coverage-handoff simulation boundary tests were read with simulationPreviewModel and Privy response contracts; casts are concentrated on malformed/status boundary fixtures and no clear Phase 1 test-only defect was found."
+    },
+    "packages/app-core/tests/coverage/pureTailCoverage.test.ts": {
+      "status": "clean",
+      "auditedAt": "2026-10-06T23:55:00.000Z",
+      "auditedCommit": "125609677a297dffb3696ead050f2070ba701e21",
+      "pathShas": {
+        "packages/app-core/tests/coverage/pureTailCoverage.test.ts": "6e794dee65281d19b78b3944b6a69ab130041776"
+      },
+      "files": [
+        "packages/app-core/tests/coverage/pureTailCoverage.test.ts"
+      ],
+      "relatedPaths": [],
+      "findings": [],
+      "note": "Pure-tail coverage tests were read with regimeData; casts deliberately create impossible Regime shapes to exercise the defensive fallback/error branches, so retaining them is behaviorally justified."
+    },
+    "apps/alpha-etl/src/modules/macro-fear-greed/schema.ts": {
+      "status": "clean",
+      "auditedAt": "2026-10-06T23:51:00.000Z",
+      "auditedCommit": "125609677a297dffb3696ead050f2070ba701e21",
+      "pathShas": {
+        "apps/alpha-etl/src/modules/macro-fear-greed/schema.ts": "4892f6bb61134720749f84cdd3db34c9ebc4c42e",
+        "apps/alpha-etl/tests/unit/modules/macro-fear-greed/schema.coverage.test.ts": "d3fc541e0e0558c181b8cce515770669c1cd5e4e",
+        "apps/alpha-etl/tests/unit/modules/macro-fear-greed/schema.test.ts": "a9291a6381886f65a1c1af3518cbfe6c94d78a96"
+      },
+      "files": [
+        "apps/alpha-etl/tests/unit/modules/macro-fear-greed/schema.coverage.test.ts",
+        "apps/alpha-etl/tests/unit/modules/macro-fear-greed/schema.test.ts"
+      ],
+      "relatedPaths": [
+        "apps/alpha-etl/src/modules/macro-fear-greed/schema.ts"
+      ],
+      "findings": [],
+      "note": "Read coverage and regular tests against production; existing tests exercise the named boundary behavior. No clear Phase 1 defect. Connector-only: selector, local test/coverage/lint/type/guard commands unavailable."
+    },
+    "apps/alpha-etl/src/modules/macro-fear-greed/writer.ts": {
+      "status": "clean",
+      "auditedAt": "2026-10-06T23:51:00.000Z",
+      "auditedCommit": "125609677a297dffb3696ead050f2070ba701e21",
+      "pathShas": {
+        "apps/alpha-etl/src/modules/macro-fear-greed/writer.ts": "75f140921e342e3de5c5ee2e68d44767e17632b8",
+        "apps/alpha-etl/tests/unit/modules/macro-fear-greed/writer.coverage.test.ts": "5a0be97493943953bf71d0417d617b85b5cd76d5",
+        "apps/alpha-etl/tests/unit/modules/macro-fear-greed/writer.test.ts": "546397688b5aa9889e3f9cfd6068701d60c6d152"
+      },
+      "files": [
+        "apps/alpha-etl/tests/unit/modules/macro-fear-greed/writer.coverage.test.ts",
+        "apps/alpha-etl/tests/unit/modules/macro-fear-greed/writer.test.ts"
+      ],
+      "relatedPaths": [
+        "apps/alpha-etl/src/modules/macro-fear-greed/writer.ts"
+      ],
+      "findings": [],
+      "note": "Read coverage and regular tests against production; existing tests exercise the named boundary behavior. No clear Phase 1 defect. Connector-only: selector, local test/coverage/lint/type/guard commands unavailable."
+    },
+    "apps/alpha-etl/src/modules/macro-fear-greed/processor.ts": {
+      "status": "clean",
+      "auditedAt": "2026-10-06T23:51:00.000Z",
+      "auditedCommit": "125609677a297dffb3696ead050f2070ba701e21",
+      "pathShas": {
+        "apps/alpha-etl/src/modules/macro-fear-greed/processor.ts": "114a4eb640092826c7e39196fac1c9497a77b12a",
+        "apps/alpha-etl/tests/unit/modules/macro-fear-greed/processor.coverage.test.ts": "95e9530ee412f3e663022e5c545f6cbe58d6cb3b",
+        "apps/alpha-etl/tests/unit/modules/macro-fear-greed/processor.test.ts": "1a4dadebc10fda164c45b33465c0902e5ae242dc"
+      },
+      "files": [
+        "apps/alpha-etl/tests/unit/modules/macro-fear-greed/processor.coverage.test.ts",
+        "apps/alpha-etl/tests/unit/modules/macro-fear-greed/processor.test.ts"
+      ],
+      "relatedPaths": [
+        "apps/alpha-etl/src/modules/macro-fear-greed/processor.ts"
+      ],
+      "findings": [],
+      "note": "Read coverage and regular tests against production; existing tests exercise the named boundary behavior. No clear Phase 1 defect. Connector-only: selector, local test/coverage/lint/type/guard commands unavailable."
+    },
+    "apps/app/src/storage/podcastStorageCore.ts": {
+      "status": "pending",
+      "auditedAt": "2026-10-07T03:01:39.000Z",
+      "auditedCommit": "76234c174290c0f7fc7f7b93d66238723079e64e",
+      "pathShas": {
+        "apps/app/src/storage/podcastStorageCore.ts": "4edf157e036b50334181d97703e74d14797d4f63",
+        "apps/app/tests/podcastProgressStorage.test.ts": "729ed3a099c769a767ce4a8dee8053454bb5a982",
+        "apps/app/tests/podcastSortDirection.test.ts": "df17a3ac84042abbe568ae4a3faeccd972358f62"
+      },
+      "files": [
+        "apps/app/tests/podcastProgressStorage.test.ts",
+        "apps/app/tests/podcastSortDirection.test.ts",
+        "apps/app/tests/podcastProgressStorage.finite.test.ts"
+      ],
+      "relatedPaths": [
+        "apps/app/src/storage/podcastStorageCore.ts"
+      ],
+      "findings": [
+        {
+          "id": "podcast-progress-nonfinite-20261007",
+          "kind": "test",
+          "summary": "Added a JSON numeric-overflow regression case proving persisted progress rejects a position that parses to Infinity."
+        }
+      ],
+      "note": "Worker commit ce4c4d343fce8575e1726265d3e55982de9d1cf1; PR creation connector write was blocked after two attempts."
+    },
+    "apps/app/src/storage/keyValueStorage.ts": {
+      "status": "clean",
+      "auditedAt": "2026-10-07T03:01:39.000Z",
+      "auditedCommit": "76234c174290c0f7fc7f7b93d66238723079e64e",
+      "pathShas": {
+        "apps/app/src/storage/keyValueStorage.ts": "909d1cb3dcf22bdb6252c62ec505fbbcf7645b66",
+        "apps/app/tests/podcastProgressStorage.test.ts": "729ed3a099c769a767ce4a8dee8053454bb5a982",
+        "apps/app/tests/podcastSortDirection.test.ts": "df17a3ac84042abbe568ae4a3faeccd972358f62"
+      },
+      "files": [
+        "apps/app/tests/podcastProgressStorage.test.ts",
+        "apps/app/tests/podcastSortDirection.test.ts"
+      ],
+      "relatedPaths": [
+        "apps/app/src/storage/keyValueStorage.ts"
+      ],
+      "findings": [],
+      "note": "Serialized ordering and flush behavior are exercised through podcast storage integration tests; no clear Phase 1 defect."
+    },
+    "apps/podcast-pipeline/src/social/state.ts": {
+      "status": "clean",
+      "auditedAt": "2026-10-07T06:03:16.000Z",
+      "auditedCommit": "99426e898b6761765961fb97849da375fdcf6b15",
+      "pathShas": {
+        "apps/podcast-pipeline/src/social/state.ts": "6b3318e5c8fddcb9c62492a5eeea710fe9551a64",
+        "apps/podcast-pipeline/src/social/state.test.ts": "00794e3685094330ce5f62d8815b43ba438a39d5"
+      },
+      "files": [
+        "apps/podcast-pipeline/src/social/state.test.ts"
+      ],
+      "relatedPaths": [
+        "apps/podcast-pipeline/src/social/state.ts"
+      ],
+      "findings": [
+        {
+          "id": "social-state-language-platform-isolation-20261007",
+          "kind": "test",
+          "summary": "Deferred: missing cross-language and cross-platform persistence isolation assertions; attempted test-only write was blocked by connector safety checks."
+        }
+      ]
+    },
+    "apps/control-center/src/server/app.ts": {
+      "status": "clean",
+      "auditedAt": "2026-10-07T03:57:42.000Z",
+      "auditedCommit": "76234c174290c0f7fc7f7b93d66238723079e64e",
+      "pathShas": {
+        "apps/control-center/src/server/app.ts": "f9ca39fcb99465c23fae18acd99336c0c8da3a90",
+        "apps/control-center/src/server/app.coverage.test.ts": "4ba7b3d6f01a78e07c6441488eac7a75b7120513"
+      },
+      "files": [
+        "apps/control-center/src/server/app.coverage.test.ts"
+      ],
+      "relatedPaths": [
+        "apps/control-center/src/server/app.ts"
+      ],
+      "findings": []
+    },
+    "apps/podcast-pipeline/src/index.ts": {
+      "status": "clean",
+      "auditedAt": "2026-10-07T03:57:42.000Z",
+      "auditedCommit": "76234c174290c0f7fc7f7b93d66238723079e64e",
+      "pathShas": {
+        "apps/podcast-pipeline/src/index.ts": "a6eac0764e3c7afd9df9f59eccc7017245a4fd0f",
+        "apps/podcast-pipeline/src/index-main.coverage.test.ts": "d697ad470e772f67c9066a304341719c4bac9993"
+      },
+      "files": [
+        "apps/podcast-pipeline/src/index-main.coverage.test.ts"
+      ],
+      "relatedPaths": [
+        "apps/podcast-pipeline/src/index.ts"
+      ],
+      "findings": []
+    },
+    "apps/app/src/components/podcast/OpenEpisodeInApp.web.tsx": {
+      "status": "clean",
+      "auditedAt": "2026-10-07T04:58:20.000Z",
+      "auditedCommit": "99426e898b6761765961fb97849da375fdcf6b15",
+      "pathShas": {
+        "apps/app/src/components/podcast/OpenEpisodeInApp.web.tsx": "06d9eedbe6d9655ff365ff434fb368af7c113d13",
+        "apps/app/tests/OpenEpisodeInApp.test.tsx": "d41e3cb2b7d089f7383f82503f7b36019c15e87c"
+      },
+      "files": [
+        "apps/app/tests/OpenEpisodeInApp.test.tsx"
+      ],
+      "relatedPaths": [
+        "apps/app/src/components/podcast/OpenEpisodeInApp.web.tsx"
+      ],
+      "findings": [],
+      "note": "Web mobile detection, encoded deep-link destination, desktop suppression, dismissal, prop update, and native null behavior are directly asserted; no clear Phase 1 test defect."
+    },
+    "apps/podcast-pipeline/src/services/share-page.ts": {
+      "status": "clean",
+      "auditedAt": "2026-10-07T04:58:20.000Z",
+      "auditedCommit": "99426e898b6761765961fb97849da375fdcf6b15",
+      "pathShas": {
+        "apps/podcast-pipeline/src/services/share-page.ts": "da0ec2cecab133f143fc474b893cb95764cc1707",
+        "apps/podcast-pipeline/src/services/share-page.test.ts": "5c106ea50bda4ccd1a9c0170e30f07a18a69aff1"
+      },
+      "files": [
+        "apps/podcast-pipeline/src/services/share-page.test.ts"
+      ],
+      "relatedPaths": [
+        "apps/podcast-pipeline/src/services/share-page.ts"
+      ],
+      "findings": [],
+      "note": "Share-page tests cover browser redirects, crawler metadata, fallback, not-found, escaping, media metadata, descriptions and web-only action; no clear Phase 1 test defect."
+    },
+    "packages/types/src/shared/podcast.ts": {
+      "status": "clean",
+      "auditedAt": "2026-10-07T04:58:20.000Z",
+      "auditedCommit": "99426e898b6761765961fb97849da375fdcf6b15",
+      "pathShas": {
+        "packages/types/src/shared/podcast.ts": "c61070f5c70eb7c1d3206d8f8c81c13ecac4f994",
+        "packages/types/tests/unit/shared/podcast.test.ts": "a2458babe2e36adf67fc4b384e6ebd5af3e20ef6"
+      },
+      "files": [
+        "packages/types/tests/unit/shared/podcast.test.ts"
+      ],
+      "relatedPaths": [
+        "packages/types/src/shared/podcast.ts"
+      ],
+      "findings": [],
+      "note": "Shared podcast tests cover share origin, component encoding, language vocabulary and video-stage contracts; no clear Phase 1 test defect."
+    },
+    "apps/analytics-engine/scripts/landing/market_signals.py": {
+      "status": "pending",
+      "auditedAt": "2026-10-07T14:00:13.000Z",
+      "auditedCommit": "bf7370597b2ea243bf6803dc98477d59590842f5",
+      "pathShas": {
+        "apps/analytics-engine/scripts/landing/market_signals.py": "899accd1b4a0af50eca2904b1d95036dc9d60454",
+        "apps/analytics-engine/tests/scripts/test_market_signals.py": "ab4a68bdcb2b80b7c43a3185b5a0fda7d78d1e97"
+      },
+      "files": [
+        "apps/analytics-engine/tests/scripts/test_market_signals.py"
+      ],
+      "relatedPaths": [
+        "apps/analytics-engine/scripts/landing/market_signals.py"
+      ],
+      "findings": [
+        {
+          "id": "market-signals-validator-boundaries-20261007",
+          "kind": "test",
+          "summary": "Added direct assertions that dashboard validation rejects non-object series/meta registries and a last snapshot missing snapshot_date."
+        }
+      ],
+      "note": "Worker commit 0e3a6ec8310d9cdb6d167effdfd1c48f74fb325e; PR creation blocked by connector safety checks."
+    }
+  },
+  "runs": [
+    {
+      "workerRunId": "20261007T030139Z",
+      "at": "2026-10-07T03:01:39.000Z",
+      "outcome": "changed",
+      "scopes": [
+        "apps/app/src/storage/podcastStorageCore.ts",
+        "apps/app/src/storage/keyValueStorage.ts",
+        "apps/app/src/integration/podcastSections.ts"
+      ]
+    },
+    {
+      "workerRunId": "20261006T235100Z",
+      "at": "2026-10-06T23:51:00.000Z",
+      "outcome": "clean",
+      "scopes": [
+        "apps/alpha-etl/src/modules/macro-fear-greed/schema.ts",
+        "apps/alpha-etl/src/modules/macro-fear-greed/writer.ts",
+        "apps/alpha-etl/src/modules/macro-fear-greed/processor.ts"
+      ]
+    },
+    {
+      "workerRunId": "20261006T235500Z",
+      "at": "2026-10-06T23:55:00.000Z",
+      "outcome": "clean",
+      "scopes": [
+        "apps/app/tests/coverage-handoff-pure-gaps.test.ts",
+        "apps/app/tests/coverage-handoff-simulation-gaps.test.ts",
+        "packages/app-core/tests/coverage/pureTailCoverage.test.ts"
+      ]
+    },
+    {
+      "workerRunId": "20261003T081000Z",
+      "at": "2026-10-03T08:10:00.000Z",
+      "outcome": "changed",
+      "scopes": [
+        "apps/app/tests/coverage-handoff-targets-income-gaps.test.ts",
+        "packages/app-core/tests/coverage-handoff-pure-gaps.test.ts"
+      ]
+    },
+    {
+      "workerRunId": "20261003T061500Z",
+      "at": "2026-10-03T06:15:00.000Z",
+      "outcome": "finding",
+      "scopes": [
+        "packages/app-core/tests/coverage-handoff-pure-gaps.test.ts",
+        "apps/app/tests/coverage-handoff-targets-income-gaps.test.ts",
+        "apps/app/src/integration/bridgeTestModel.ts"
+      ]
+    },
+    {
+      "workerRunId": "20261003T060000Z",
+      "at": "2026-10-03T06:02:00.000Z",
+      "outcome": "changed",
+      "scopes": [
+        "apps/app/tests/app-100-final-branches.test.tsx",
+        "apps/podcast-pipeline/src/lib/is-main-module.ts",
+        "apps/alpha-etl/src/routes/webhooks.responses.ts"
+      ]
+    },
+    {
+      "workerRunId": "20261003T051000Z",
+      "at": "2026-10-03T05:10:00.000Z",
+      "outcome": "changed",
+      "scopes": [
+        "apps/app/src/integration/podcastSections.ts",
+        "apps/app/tests/app-100-small-gaps.test.ts",
+        "apps/control-center/src/client/components/VisualEvidence.tsx"
+      ]
+    },
+    {
+      "workerRunId": "20261003T045500Z",
+      "at": "2026-10-03T04:55:00.000Z",
+      "outcome": "changed",
+      "scopes": [
+        "apps/control-center/src/client/App.tsx",
+        "apps/control-center/src/client/components/QueueDrawer.tsx",
+        "apps/control-center/src/client/pages/ReliabilityPage.tsx"
+      ]
+    },
+    {
+      "workerRunId": "20261007T035742Z",
+      "at": "2026-10-07T03:57:42.000Z",
+      "outcome": "clean",
+      "scopes": [
+        "apps/podcast-pipeline/src/social/state.ts",
+        "apps/control-center/src/server/app.ts",
+        "apps/podcast-pipeline/src/index.ts"
+      ],
+      "note": "Existing pending worker commit ce4c4d343fce8575e1726265d3e55982de9d1cf1 remains on test-qa/hourly-20261007; create_pull_request was blocked by safety checks and canonical GitHub re-read confirmed no open worker PR. Connector has no non-rewriting branch merge operation. Local selector/tests/coverage/lint/type-check/guard unavailable; GitHub source inspection used."
+    },
+    {
+      "workerRunId": "20261007T045820Z",
+      "at": "2026-10-07T04:58:20.000Z",
+      "outcome": "clean",
+      "scopes": [
+        "apps/app/src/components/podcast/OpenEpisodeInApp.web.tsx",
+        "apps/podcast-pipeline/src/services/share-page.ts",
+        "packages/types/src/shared/podcast.ts"
+      ],
+      "note": "Pending worker commit ce4c4d3 remains on test-qa/hourly-20261007. PR creation blocked by safety checks and canonical re-read confirmed no open worker PR. Connector-only local commands unavailable."
+    },
+    {
+      "workerRunId": "20261007T060316Z",
+      "at": "2026-10-07T06:03:16.000Z",
+      "outcome": "deferred",
+      "scopes": [
+        "apps/podcast-pipeline/src/social/state.ts",
+        "apps/app/src/storage/podcastStorageCore.ts",
+        "apps/app/src/integration/podcastSections.ts"
+      ],
+      "note": "Existing podcast progress worker commit ce4c4d3 remains un-PR'd: create_pull_request blocked by safety checks. Attempt to append social state language/platform isolation regression test also blocked. Podcast storage remains pending; podcast sections unchanged/clean. Connector-only commands unavailable."
+    },
+    {
+      "workerRunId": "20261007T140013Z",
+      "at": "2026-10-07T14:00:13.000Z",
+      "outcome": "changed",
+      "scopes": [
+        "apps/analytics-engine/scripts/landing/market_signals.py"
+      ],
+      "note": "Merged latest main non-rewriting into existing worker, added market-signals validator boundary tests. PR creation blocked; canonical re-read found no open test-qa worker PR. Connector-only local commands unavailable; current head status only Vercel success."
+    }
+  ]
+}
