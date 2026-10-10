@@ -305,6 +305,9 @@ describe('usePodcastPlayer web media lifecycle', () => {
     await act(async () => harness.root.unmount());
     remotePlay?.();
     expect(element.play).toHaveBeenCalledTimes(2);
+    act(() => harness.current().seekRelative(10));
+    // A stale snapshot outliving unmount must not touch the released element.
+    expect(element.currentTime).toBe(8);
     harness.container.remove();
     active = null;
     expect(element.removeAttribute).toHaveBeenCalledWith('src');
