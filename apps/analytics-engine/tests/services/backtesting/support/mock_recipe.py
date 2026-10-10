@@ -71,7 +71,7 @@ def register_mock_recipe(
         requires_sentiment=requires_sentiment,
         required_price_features=required_price_features,
     )
-    monkeypatch.setitem(strategy_registry_module._RECIPES, strategy_id, recipe)
+    monkeypatch.setitem(strategy_registry_module._recipes(), strategy_id, recipe)
     return recipe
 
 

@@ -922,3 +922,36 @@ def test_the_report_hash_does_not_depend_on_the_hash_seed(tmp_path: Path) -> Non
         hashes.append(json.loads(done.stdout)["result"]["report_hash"])
 
     assert hashes[0] == hashes[1]
+
+
+def test_the_spec_commands_run_while_the_reference_does_not_match_its_lock() -> None:
+    """A version bump is locked with `spec lock`, so the lab has to start while
+    the reference and its lock disagree; running the reference still refuses."""
+    import subprocess
+
+    from src.services.backtesting.lab.bundle import APP_ROOT
+
+    probe = "\n".join(
+        [
+            "from src.services.backtesting.spec import loader",
+            "def drifted(ref, directory=loader.STRATEGIES_DIR):",
+            "    raise loader.SpecLockError(f'{ref} does not match its lock')",
+            "loader.load_locked_spec = drifted",
+            "from src.services.backtesting.lab.cli import main",
+            "assert main(['spec', 'hash', 'reference/dma_fgi']) == 0",
+            "from src.services.backtesting.strategy_registry import get_strategy_recipe",
+            "try:",
+            "    get_strategy_recipe('dma_fgi_portfolio_rules')",
+            "except loader.SpecLockError:",
+            "    print('refused')",
+        ]
+    )
+    done = subprocess.run(
+        [sys.executable, "-c", probe],
+        cwd=APP_ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    assert done.stdout.splitlines()[-1] == "refused"
