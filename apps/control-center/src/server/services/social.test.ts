@@ -246,4 +246,17 @@ describe('save telemetry', () => {
     expect(result[1]?.platforms[0]?.savesSupport).toBe('unsupported');
     expect(result[2]?.platforms[0]?.savesSupport).toBe('native');
   });
+  it('declares unsupported saves for a platform outside the contract, measured or not', () => {
+    const result = buildEpisodes(
+      [
+        post('measured', { platform: 'tiktok' }),
+        post('unmeasured', { platform: 'tiktok' }),
+      ],
+      [metric('measured', 100, { saves: 5 })],
+      '24h',
+      new Date('2026-08-30'),
+    );
+    expect(result[0]?.platforms[0]?.savesSupport).toBe('unsupported');
+    expect(result[1]?.platforms[0]?.savesSupport).toBe('unsupported');
+  });
 });
