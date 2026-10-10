@@ -247,8 +247,12 @@ fixed-width day fields and explicit struct ABI are the principal constraints.
 
 User decisions still required: the live-state persistence gap, and whether a
 hackathon demo uses a separately named subset. The trade quota no longer exists
-in the strategy, so the complete kernel has no quota to carry. The five remaining
-rules and a mainnet deployment remain out of scope.
+in the strategy, so the complete kernel has no quota to carry. Since reference
+version 2 the exit keeps one cooldown per asset (`cooldown_scope:
+"trigger_symbol"`); the deployed slice still implements version 1's exit, one
+cooldown for the whole rule, and `tests/scripts/pinned_strategy` checks it against
+the reference with that one field set back (`benchmark.slice_spec()`). A version 2
+slice, the other four rules and a mainnet deployment remain out of scope.
 
 Compiler/host references: [Vyper compilation](https://docs.vyperlang.org/en/stable/compiling-a-contract.html),
 [pyrevm API/source](https://github.com/paradigmxyz/pyrevm).

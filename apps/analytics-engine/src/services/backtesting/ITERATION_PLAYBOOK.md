@@ -56,38 +56,64 @@ every spec that did not ask for the change must not move.
 
 The review of the reference proposed seven changes. They are hypotheses, not
 decisions: each is a candidate for Track A, one pull request each, and only a
-`promotable` record opens it. Make a copy with `spec new --from reference/dma_fgi`
-and apply the edit below to the copy; run them in this order, each on its own
-holdout lineage. `tests/services/backtesting/spec/test_review_queue.py` keeps every
-edit below a valid, runnable spec as the vocabulary changes.
+`promotable` record opens it. Reference version 2 made three of them (2, 4 and
+7), promoted together on the structural path; the other four are open. Make a
+copy with `spec new --from reference/dma_fgi` and apply the edit below to the
+copy; run them in this order, each on its own holdout lineage.
+`tests/services/backtesting/spec/test_review_queue.py` keeps every open edit below
+a valid, runnable spec as the vocabulary changes.
 
 1. **Trend guard.** Add to `overlays`: `{"kind": "trend_guard", "id": "trend_guard",
    "mode": "force_exit", "below_dma_buffer": 0.02, "confirm_days": 3}`. The
    invariant: an asset below its DMA is held at zero, whatever route brought it
    there. Compare `held_below_dma_days` and `buys_below_dma` with the reference's
    on the same bundle, and the days spent in stable.
-2. **Drop `fgi_downshift_dca_sell`.** Remove the rule. The earlier sweep and the
-   synthetic seeds found it a drag; the lab has to show it on real data.
+2. **Drop `fgi_downshift_dca_sell`.** Done in version 2.
 3. **One ratio rule, or no stable sweep.** Either remove `eth_btc_deviation_dca`
    (the trend rotation and the mean-reversion rotation bet opposite ways on one
    signal) or change `/rules[eth_btc_ratio_rotation]/cross_up/sources` from
    `["BTC", "STABLE"]` to `["BTC"]`.
-4. **Trim proceeds into stable only.** `/rules[dma_overextension_dca_sell]/proceeds/to`
-   to `[]`: half of every trim currently buys SPY whether or not SPY is above its
-   DMA.
+4. **Trim proceeds into stable only.** Done in version 2.
 5. **Relative trims, with a re-buy.** `sizing` `{"mode": "relative",
-   "floor_weight": 0.1}` on the two trims, and a `trend_dca_entry` rule below them
-   so what a trim sold comes back in steps while the trend holds.
+   "floor_weight": 0.1}` on the overextension trim, and a `trend_dca_entry` rule
+   below it so what a trim sold comes back in steps while the trend holds.
 6. **Staged entry.** Replace `dma_cross_up_rebalance` with `trend_dca_entry`
    (`buy_step` 0.1, `max_weight` 0.34), or keep it with `allocation`
    `deploy_stable` so a cross-up does not undo the trims.
-7. **Per-asset exit cooldown.** `/rules[cross_down_exit]/cooldown_scope` to
-   `"trigger_symbol"`, so one asset's exit does not make another asset's cross
-   down wait.
+7. **Per-asset exit cooldown.** Done in version 2.
 
 Each needs the recorded production bundle (an operator step: `bundle record`),
 about 720 days of complete data for the sweep and 90 more for the look.
 Nothing here can be decided on synthetic data.
+
+The review that led to version 2 found more, most of which the vocabulary cannot
+say yet (Track B first):
+
+- **A swallowed exit is not retried.** A cross-down inside the DMA signal's
+  cross cooldown (30 days after the asset's last cross, 14 for SPY) is dropped,
+  not delayed: ETH stayed held for 41 days below its average from 2025-06-14
+  (`signals/dma_gated_fgi/signal_engine.py`). An exit that waits for the
+  cooldown to end is engine work.
+- **A rule can win without trading.** A matched rule takes the day by priority
+  even when it moves nothing, so the cross-down of an asset not held beats a
+  same-day cross-up of another (`portfolio_rules/_matcher.py`). On the 944-day
+  production bundle version 2's overextension trim wins 284 days and trades on
+  63. Matching only when the target differs from the holdings is engine work.
+- **The ratio sweep ignores ETH's trend.** A ratio cross-up moves BTC and all
+  stable into ETH even when ETH is below its own average (2026-07-27, ETH 8%
+  and BTC 10% below theirs). Items 1 and 3 above say it today.
+- **Nothing buys back after trims.** From 2025-11-13 version 1 sat in stable
+  for 127 days while SPY stayed 10–12% above its average: trims kept firing and
+  only a cross-up could re-enter. Version 2, which trims into stable only, does
+  more of it: on the 944-day production bundle it spends 241 days in long
+  all-stable runs while an asset is above its average (`stuck_in_stable`),
+  against version 1's 177. Items 5 and 6 above say it today.
+- **The exit's own cooldown barely acts.** Under version 2, on the 944-day
+  production bundle, shortening `cross_down_exit`'s 30-day cooldown to 15 days
+  changes one day and lengthening it changes none. Removing it needs a kind
+  that allows a rule without a cooldown. (The review's 499-day recording
+  showed the same for the cross-up's cooldown, but on the longer bundle
+  lengthening that one to 60 days changes 215 days, so it stays.)
 
 ## Gate
 

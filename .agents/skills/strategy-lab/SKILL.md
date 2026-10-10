@@ -115,7 +115,7 @@ Change one thing per candidate and keep the candidate's `id` descriptive. Run `l
 
 ```bash
 strategy-lab promote --spec .lab/candidates/wider_cooldown.json --bundle prod:latest --sweep 3f9a1c2b7d4e8a60 --lineage dma-cooldowns
-strategy-lab promote --track structural --spec .lab/candidates/no_downshift.json --bundle prod:latest
+strategy-lab promote --track structural --spec .lab/candidates/one_ratio_rule.json --bundle prod:latest
 ```
 
 `promote` asks one question: may this candidate replace the reference? On the default search track it reads the sweep (judged against `reference/dma_fgi`) and the lineage's single holdout look; on either track it runs four checks of its own on `--bundle` (dead parameters, hard invariants, the behavioral validation events, the golden pins), and measures each against `src/config/strategies/PROMOTION_POLICY.json`. Never edit the policy to make a candidate pass: its thresholds are changed by their own reviewed change.
