@@ -90,10 +90,7 @@ class SnapshotCollection:
 
 def _is_excluded_strategy(strategy_id: str) -> bool:
     try:
-        recipe = get_strategy_recipe(strategy_id)
-        if recipe.deprecated:
-            return True
-        display_name = recipe.display_name
+        display_name = get_strategy_recipe(strategy_id).display_name
     except ValueError:
         display_name = STRATEGY_DISPLAY_NAMES.get(strategy_id, "")
     return display_name.startswith(EXCLUDED_DISPLAY_PREFIXES)
