@@ -55,7 +55,13 @@ export interface Storyboard<Scene extends SceneSpec = SceneSpec> {
   readonly height: number;
   /** Hard ceiling enforced by the timeline test. */
   readonly maxSeconds: number;
+  /** Cross-fade length between scenes; 0 hard-cuts. */
   readonly transitionFrames: number;
+  /**
+   * End every scene on the next beat of the music loop, so cuts land on the
+   * beat. Narration still decides how many beats a scene needs.
+   */
+  readonly beatGrid?: boolean;
   readonly leadIn: number;
   readonly tail: number;
   /** Frames between consecutive lines inside one scene. */

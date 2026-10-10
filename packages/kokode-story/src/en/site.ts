@@ -7,6 +7,9 @@ export const SITE_URL = 'https://www.kokode.xyz';
 /** Where the film sends viewers; the end card prints its host. */
 export const FILM_LINK = `${SITE_URL}/?utm_source=film&utm_medium=video&utm_campaign=kokode-clinic#contact`;
 
+/** Where the promo film sends viewers; its end card prints the same host. */
+export const PROMO_LINK = `${SITE_URL}/?utm_source=film&utm_medium=video&utm_campaign=kokode-promo#contact`;
+
 export const SITE: CopyShape<typeof Japanese.SITE> = {
   name: 'KOKODE',
   skip: 'Skip to content',

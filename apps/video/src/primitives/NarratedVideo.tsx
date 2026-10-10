@@ -34,6 +34,8 @@ export interface NarratedVideoProps<Scene extends SceneSpec> {
   /** Laid over the scenes, under the captions. */
   readonly overlay?: ReactNode;
   readonly captionStyle?: CSSProperties;
+  /** Where the caption box sits; centred above the bottom edge by default. */
+  readonly captionPlacement?: CSSProperties;
 }
 
 const MUSIC = {
@@ -65,9 +67,10 @@ const EstimateWarning: FC<{ readonly lines: readonly string[] }> = ({
   );
 
 /**
- * A storyboard played end to end: its scenes cross-faded in order, the
- * narration on the timeline's clock, a music bed that ducks under the voice,
- * and burned-in captions. A video supplies only how each scene looks.
+ * A storyboard played end to end: its scenes cross-faded in order (or hard
+ * cut, with `transitionFrames: 0`), the narration on the timeline's clock, a
+ * music bed that ducks under the voice, and burned-in captions. A video
+ * supplies only how each scene looks.
  */
 export function NarratedVideo<Scene extends SceneSpec>({
   storyboard,
@@ -79,6 +82,7 @@ export function NarratedVideo<Scene extends SceneSpec>({
   backdrop,
   overlay,
   captionStyle,
+  captionPlacement,
 }: NarratedVideoProps<Scene>) {
   const { fps } = useVideoConfig();
   const mix = {
@@ -100,7 +104,7 @@ export function NarratedVideo<Scene extends SceneSpec>({
           }>;
           return (
             <Fragment key={scene.spec.id}>
-              {index > 0 ? (
+              {index > 0 && storyboard.transitionFrames > 0 ? (
                 <TransitionSeries.Transition
                   presentation={fade()}
                   timing={linearTiming({
@@ -137,7 +141,11 @@ export function NarratedVideo<Scene extends SceneSpec>({
         />
       ) : null}
       {captions ? (
-        <Captions cues={timeline.captions} style={captionStyle} />
+        <Captions
+          cues={timeline.captions}
+          style={captionStyle}
+          placement={captionPlacement}
+        />
       ) : null}
       <EstimateWarning lines={timeline.estimatedLines} />
     </AbsoluteFill>

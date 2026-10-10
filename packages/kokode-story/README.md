@@ -1,6 +1,6 @@
 # Kokode story
 
-`@zapengine/kokode-story` owns the copy, locales and narrative sequences consumed by Kokode's landing page, web decks and the `kokode-clinic` film. It has no runtime dependencies. Exports are built JavaScript and declarations in `dist/`; consumers declare `workspace:*` dependencies.
+`@zapengine/kokode-story` owns the copy, locales and narrative sequences consumed by Kokode's landing page, web decks and the `kokode-clinic` and `kokode-promo` films. It has no runtime dependencies. Exports are built JavaScript and declarations in `dist/`; consumers declare `workspace:*` dependencies.
 
 Run from the repository root:
 

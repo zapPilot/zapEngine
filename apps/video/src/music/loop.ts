@@ -1,8 +1,10 @@
 import { z } from 'zod';
 
+import { LOOP_IDS } from './specs';
+
 export const loopSchema = z
   .object({
-    id: z.enum(['gentle-88', 'drive-112']),
+    id: z.enum(LOOP_IDS),
     sha256: z.string().regex(/^[a-f0-9]{64}$/),
     sampleRate: z.literal(48000),
     fps: z.literal(30),

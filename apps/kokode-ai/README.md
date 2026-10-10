@@ -33,8 +33,8 @@ links point to the same surface; canonical and hreflang tags cover all three.
 English and Traditional Chinese copy is a draft awaiting native-speaker review.
 The privacy policy remains Japanese, with its language marked beside links.
 
-Every word on the first three, and in the apps/video `kokode-clinic` film,
-comes from `packages/kokode-story/src/` (beats, the four sequences in `narrative.ts`, demos,
+Every word on the first three, and in the apps/video `kokode-clinic` and `kokode-promo` films,
+comes from `packages/kokode-story/src/` (beats, the sequences in `narrative.ts`, demos,
 disclaimers, form, meta). A Vite plugin (`src/site/plugin.ts`) replaces the
 `<!--kokode:<page>:<head|body>-->` markers in the HTML shells at build and dev
 time, choosing the locale from the shell’s `<html lang>`; the dev server restarts when a story file changes. Tests fence the

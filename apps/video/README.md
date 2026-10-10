@@ -16,10 +16,14 @@ before the team grows past that.
 | ------------------ | ---------------------------------------------------------------------------------------- | ------ |
 | `calculator-pitch` | HackQuest pitch for the Verifiable Strategy Calculator, 1080p30                          | ≈53 s  |
 | `kokode-clinic`    | Kokode sales film for clinics: Japanese / English / Traditional Chinese text, English VO | ≈81 s  |
+| `kokode-promo`     | Kokode app-style promo: kinetic type, 3D UI, hard cuts on a 120 BPM grid, same languages | ≈101 s |
 
-`kokode-clinic` belongs to Kokode, a separate product. Every word, the scene
-order and the disclaimers come from `packages/kokode-story/src`, the same
-source as the Kokode landing page and pitch decks. The end card prints the
+`kokode-clinic` and `kokode-promo` belong to Kokode, a separate product. Every
+word, the scene order and the disclaimers come from `packages/kokode-story/src`
+(`FILM`/`FILM_ORDER` and `PROMO`/`PROMO_ORDER`), the same source as the Kokode
+landing page and pitch decks. The promo narrates the reviewed film lines plus
+one of its own, draws an illustrative KOKODE console and device, and is not
+yet part of `sales:render`/`sales:publish`. The end card prints the
 host of the story's `FILM_LINK`; use that full UTM link in video
 descriptions. If Kokode is run by another company, check that company's own
 eligibility for Remotion's free license.
@@ -176,7 +180,7 @@ Kokode renders also write SHA-256/fingerprint sidecars next to the MP4 and a cap
 
 ## Shared BGM loops
 
-`gentle-88` (Kokode) and `drive-112` (Zap Pilot) reuse the existing paid arranged sources for $0. Original files/provenance are preserved in `music/sources/` and excluded from the Remotion bundle. Cut with `pnpm --filter @zapengine/video loop cut <id> [--candidates] [--start seconds] [--bars 4]`; auditions live in `out/loops/<id>/`. Candidate ranking uses prompt-guided comb ACF tempo, spectral flux beat phase, stable RMS regions, spectral/chroma/level comparisons and beat-aligned bar periods. Automated candidates remain drafts pending listening.
+`gentle-88` (Kokode clinic film) and `drive-112` (Zap Pilot) reuse the existing paid arranged sources for $0; `launch-120` (Kokode promo) was generated for the promo. `src/music/specs.ts` registers every loop: its source stem, finder tempo and, until a clip is cut, the generation prompt. Original files/provenance are preserved in `music/sources/` and excluded from the Remotion bundle. Cut with `pnpm --filter @zapengine/video loop cut <id> [--candidates] [--start seconds] [--bars 4]`; auditions live in `out/loops/<id>/`. Candidate ranking uses prompt-guided comb ACF tempo, spectral flux beat phase, stable RMS regions, spectral/chroma/level comparisons and beat-aligned bar periods. Automated candidates remain drafts pending listening.
 
 The spike measured identical 1105-sample decoder delay for three MP3 copies and unity steady gain, but a real-song render showed high-frequency envelope residuals around −40 to −43 dB. The selected fallback precomputes smooth sample-accurate full PCM beds before Studio/bundle/render. Runtime keeps one bed Audio track and existing narration ducking; no loop prop is used. Beds are disposable local output and not committed.
 

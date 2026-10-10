@@ -5,6 +5,7 @@ import * as jaNotes from './ja/disclaimers.js';
 import * as jaFigures from './ja/figures.js';
 import * as jaForm from './ja/form.js';
 import * as jaSite from './ja/site.js';
+import * as jaPromo from './ja/promo.js';
 import * as enMedia from './en/media.js';
 import * as enBeats from './en/beats.js';
 import * as enDemos from './en/demos.js';
@@ -12,6 +13,7 @@ import * as enNotes from './en/disclaimers.js';
 import * as enFigures from './en/figures.js';
 import * as enForm from './en/form.js';
 import * as enSite from './en/site.js';
+import * as enPromo from './en/promo.js';
 import * as zhMedia from './zh-Hant/media.js';
 import * as zhBeats from './zh-Hant/beats.js';
 import * as zhDemos from './zh-Hant/demos.js';
@@ -19,6 +21,7 @@ import * as zhNotes from './zh-Hant/disclaimers.js';
 import * as zhFigures from './zh-Hant/figures.js';
 import * as zhForm from './zh-Hant/form.js';
 import * as zhSite from './zh-Hant/site.js';
+import * as zhPromo from './zh-Hant/promo.js';
 import type { Locale } from './locales.js';
 import type { CopyShape } from './types.js';
 const ja = {
@@ -29,12 +32,13 @@ const ja = {
   ...jaFigures,
   ...jaForm,
   ...jaSite,
+  ...jaPromo,
 };
 export type Story = Omit<
   CopyShape<typeof ja>,
-  'BEATS' | 'DEMOS' | 'DEMO_FIGURES' | 'INTEREST'
+  'BEATS' | 'DEMOS' | 'DEMO_FIGURES' | 'INTEREST' | 'PROMO_UI'
 > &
-  Pick<typeof ja, 'BEATS' | 'DEMOS' | 'DEMO_FIGURES'> & {
+  Pick<typeof ja, 'BEATS' | 'DEMOS' | 'DEMO_FIGURES' | 'PROMO_UI'> & {
     readonly INTEREST: readonly {
       readonly id: import('./types.js').InterestId;
       readonly label: string;
@@ -50,6 +54,7 @@ const stories: Record<Locale, Story> = {
     ...enFigures,
     ...enForm,
     ...enSite,
+    ...enPromo,
     locale: 'en',
   },
   'zh-Hant': {
@@ -60,6 +65,7 @@ const stories: Record<Locale, Story> = {
     ...zhFigures,
     ...zhForm,
     ...zhSite,
+    ...zhPromo,
     locale: 'zh-Hant',
   },
 };

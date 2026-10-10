@@ -87,11 +87,17 @@ require secrets. From the repo root, prefix these commands with
   shells out to `npx skills … --yes` in the current directory and can write a
   project copy. Update by replacing that folder from a newer upstream commit.
 
-# Kokode film (`kokode-clinic`)
+# Kokode films (`kokode-clinic`, `kokode-promo`)
 
 - Every word comes from `packages/kokode-story/src` through
-  `src/videos/kokode-clinic/story.ts`, the adapter for the declared `@zapengine/kokode-story` dependency. Change copy there, never here: `clinic.test.ts` fails on any
-  Japanese or Chinese literal under `src/videos/kokode-clinic/` or `src/primitives/`.
+  `src/videos/kokode-clinic/story.ts` and `src/videos/kokode-promo/story.ts`, the adapters for the declared `@zapengine/kokode-story` dependency. Change copy there, never here: `clinic.test.ts` and `promo.test.ts` fail on any
+  Japanese or Chinese literal under the film folders or `src/primitives/`.
+- The promo reuses the clinic's primitives (chat, diagrams, footnotes, fonts,
+  theme) through `KokodeContext`; never copy them (jscpd threshold is 0).
+  It hard-cuts (`transitionFrames: 0`) and ends scenes on the music's beat
+  (`beatGrid`); visuals with no spoken word key to `beat(n)`, never to frames.
+  Its sound effects are synthesised by `scripts/lib/sfx.ts` during prepare;
+  they are effects, not music.
 - Captions and screen copy follow `lang` (`ja`, `en`, `zh-Hant`); narration
   is always the story's `en`, so cue phrases are English. Editing an `en` line requires re-synthesising the English narration.
 - `fonts.ts` loads only the selected language through the lazy composition in

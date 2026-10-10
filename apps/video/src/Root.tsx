@@ -6,6 +6,8 @@ import { CalculatorPitch } from './videos/calculator-pitch/Composition';
 import { storyboard as calculatorStoryboard } from './videos/calculator-pitch/storyboard';
 import { timelines as kokodeTimelines } from './videos/kokode-clinic/assets';
 import { storyboard as kokodeStoryboard } from './videos/kokode-clinic/storyboard';
+import { timelines as promoTimelines } from './videos/kokode-promo/assets';
+import { storyboard as promoStoryboard } from './videos/kokode-promo/storyboard';
 import {
   defaultVideoProps,
   storyboardMetadata,
@@ -19,6 +21,9 @@ import {
 // never fetches its Japanese font.
 const loadKokodeClinic = async () => ({
   default: (await import('./videos/kokode-clinic/Composition')).KokodeClinic,
+});
+const loadKokodePromo = async () => ({
+  default: (await import('./videos/kokode-promo/Composition')).KokodePromo,
 });
 
 export const RemotionRoot: React.FC = () => (
@@ -46,6 +51,19 @@ export const RemotionRoot: React.FC = () => (
         defaultProps={{ ...defaultVideoProps, lang: 'ja' }}
         calculateMetadata={({ props }) =>
           storyboardMetadata(kokodeStoryboard, kokodeTimelines[props.lang])
+        }
+        durationInFrames={1}
+        fps={30}
+        width={1920}
+        height={1080}
+      />
+      <Composition
+        id="kokode-promo"
+        lazyComponent={loadKokodePromo}
+        schema={videoPropsSchema}
+        defaultProps={{ ...defaultVideoProps, lang: 'ja' }}
+        calculateMetadata={({ props }) =>
+          storyboardMetadata(promoStoryboard, promoTimelines[props.lang])
         }
         durationInFrames={1}
         fps={30}

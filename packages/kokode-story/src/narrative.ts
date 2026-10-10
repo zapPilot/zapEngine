@@ -61,6 +61,24 @@ export type FilmBeatId = (typeof FILM_ORDER)[number]['beats'][number];
 
 export type FilmSceneId = (typeof FILM_ORDER)[number]['id'];
 
+/** The promo film, scene by scene (apps/video/src/videos/kokode-promo). */
+export const PROMO_ORDER = [
+  { id: 'cold-open', beats: ['painPatient'] },
+  { id: 'cold-images', beats: ['painContent'] },
+  { id: 'turn', beats: ['desiredWorld'] },
+  { id: 'reveal', beats: ['solution', 'hero'] },
+  { id: 'browser', beats: ['experience'] },
+  { id: 'referral', beats: ['beforeAfter', 'demoPatient'] },
+  { id: 'diagram', beats: ['demoImage'] },
+  { id: 'turnkey', beats: ['turnkey', 'ownership'] },
+  { id: 'boundary', beats: ['boundary'] },
+  { id: 'cta', beats: ['cta'] },
+] as const satisfies readonly Group[];
+
+export type PromoBeatId = (typeof PROMO_ORDER)[number]['beats'][number];
+
+export type PromoSceneId = (typeof PROMO_ORDER)[number]['id'];
+
 const PAINS: readonly BeatId[] = ['painPatient', 'painContent'];
 const ANSWERS: readonly BeatId[] = ['solution', 'desiredWorld'];
 const ENDINGS: readonly BeatId[] = ['cta', 'partnerCta'];
