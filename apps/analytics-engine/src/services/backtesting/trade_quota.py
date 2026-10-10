@@ -61,16 +61,6 @@ class TradeQuotaLimits:
             )
         )
 
-    @property
-    def history_lookback_days(self) -> int:
-        if not self.enabled:
-            return 0
-        return max(
-            self.min_trade_interval_days or 0,
-            7 if self.max_trades_7d is not None else 0,
-            30 if self.max_trades_30d is not None else 0,
-        )
-
     def resolve_block_state(
         self,
         current_date: date,

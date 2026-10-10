@@ -7,17 +7,17 @@ from datetime import date
 from typing import Any
 
 from src.models.backtesting import (
+    BacktestAssumptions,
     BacktestResponse,
     MarketSnapshot,
     StrategyState,
     TimelinePoint,
 )
-from src.services.backtesting.execution.config import RegimeConfig
-from src.services.backtesting.execution.cost_model import (
-    CostModel,
-    PercentageSlippageModel,
-)
+from src.services.backtesting.execution.cost_model import PercentageSlippageModel
 from src.services.backtesting.execution.portfolio import Portfolio
+from src.services.backtesting.execution.rebalance_calculator import (
+    plan_transfers_to_target,
+)
 from src.services.backtesting.execution.state import (
     build_strategy_state,
     build_strategy_summaries,
@@ -25,35 +25,9 @@ from src.services.backtesting.execution.state import (
 from src.services.backtesting.features import MACRO_FEAR_GREED_FEATURE
 from src.services.backtesting.strategies.base import (
     BaseStrategy,
-    StrategyAction,
+    Order,
     StrategyContext,
 )
-from src.services.backtesting.target_allocation import normalize_target_allocation
-
-
-@dataclass
-class EngineConfig:
-    trading_slippage_percent: float = 0.0
-    apr_by_regime: dict[str, dict[str, float | dict[str, float]]] = field(
-        default_factory=dict
-    )
-    cost_model: CostModel = field(default_factory=PercentageSlippageModel)
-
-    def __post_init__(self) -> None:
-        if (
-            isinstance(self.cost_model, PercentageSlippageModel)
-            and self.cost_model.percent == 0.0
-            and self.trading_slippage_percent != 0.0
-        ):
-            self.cost_model = PercentageSlippageModel(self.trading_slippage_percent)
-
-    @classmethod
-    def from_regime_config(cls, config: RegimeConfig) -> EngineConfig:
-        return cls(
-            trading_slippage_percent=config.trading_slippage_percent,
-            apr_by_regime=config.apr_by_regime,
-            cost_model=PercentageSlippageModel(config.trading_slippage_percent),
-        )
 
 
 @dataclass(frozen=True)
@@ -74,17 +48,39 @@ class _MarketDaySnapshot:
     extra_data: dict[str, Any]
 
 
+@dataclass(frozen=True)
+class _PlacedOrder:
+    order: Order
+    fill_bar: int
+
+
 @dataclass
 class _EngineRunState:
     timeline: list[TimelinePoint] = field(default_factory=list)
     price_history: list[float] = field(default_factory=list)
     price_history_map: dict[str, list[float]] = field(default_factory=dict)
     benchmark_daily_prices: list[float] = field(default_factory=list)
+    # Bars processed so far; an order's fill bar is counted in these.
+    bar_index: int = 0
+    previous_date: date | None = None
+    previous_valuation_price: float | dict[str, float] | None = None
+    pending_orders: dict[str, list[_PlacedOrder]] = field(default_factory=dict)
+    price_pnl_usd: dict[str, float] = field(default_factory=dict)
 
 
 class StrategyEngine:
-    def __init__(self, config: EngineConfig):
-        self.config = config
+    """Simulates strategies bar by bar under explicit ``BacktestAssumptions``.
+
+    Each bar, in order: price moves are attributed, stablecoin yield accrues for
+    the days since the last bar, orders whose fill bar has come are filled at this
+    bar's prices, then every strategy decides on the holdings those fills left.
+    An order placed on bar ``i`` fills on bar ``i + fill_lag_days``; orders still
+    pending when the data ends are never filled.
+    """
+
+    def __init__(self, assumptions: BacktestAssumptions | None = None):
+        self.assumptions = assumptions or BacktestAssumptions()
+        self.cost_model = PercentageSlippageModel(self.assumptions.slippage_rate)
 
     def run(
         self,
@@ -97,7 +93,9 @@ class StrategyEngine:
         user_start_date: date | None = None,
     ) -> BacktestResponse:
         if not prices:
-            return BacktestResponse(strategies={}, timeline=[])
+            return BacktestResponse(
+                assumptions=self.assumptions, strategies={}, timeline=[]
+            )
 
         allocation = initial_allocation or {"spot": 0.5, "stable": 0.5}
         first_price, init_date, init_extra_data, init_price_map = (
@@ -117,7 +115,10 @@ class StrategyEngine:
             total_capital=total_capital,
             token_symbol=token_symbol,
         )
-        run_state = _EngineRunState()
+        run_state = _EngineRunState(
+            pending_orders={strategy.strategy_id: [] for strategy in strategies},
+            price_pnl_usd={strategy.strategy_id: 0.0 for strategy in strategies},
+        )
 
         for price_data in prices:
             snapshot = self._build_market_day_snapshot(price_data, sentiments)
@@ -145,6 +146,12 @@ class StrategyEngine:
                 trade_counts=trade_counts,
                 strategy_daily_values=daily_values,
             )
+            if not flags.is_warmup:
+                run_state.bar_index += 1
+                run_state.previous_date = snapshot.current_date
+                run_state.previous_valuation_price = (
+                    dict(snapshot.price_map) if snapshot.price_map else snapshot.price
+                )
             if flags.record_point:
                 run_state.timeline.append(
                     TimelinePoint(
@@ -164,6 +171,7 @@ class StrategyEngine:
                 )
 
         return BacktestResponse(
+            assumptions=self.assumptions,
             strategies=build_strategy_summaries(
                 strategies=strategies,
                 portfolios=portfolios,
@@ -173,6 +181,8 @@ class StrategyEngine:
                 last_market_prices=self._resolve_price_map(prices[-1]),
                 strategy_daily_values=daily_values,
                 benchmark_daily_prices=run_state.benchmark_daily_prices,
+                price_pnl_usd=run_state.price_pnl_usd,
+                risk_free_apr=self.assumptions.stable_apr,
             ),
             timeline=run_state.timeline,
         )
@@ -272,7 +282,7 @@ class StrategyEngine:
                     initial_asset_allocation,
                     price_input,
                     spot_asset=spot_asset,
-                    cost_model=self.config.cost_model,
+                    cost_model=self.cost_model,
                 )
             else:
                 portfolios[strategy.strategy_id] = Portfolio.from_allocation(
@@ -280,13 +290,13 @@ class StrategyEngine:
                     allocation,
                     first_price,
                     spot_asset=spot_asset,
-                    cost_model=self.config.cost_model,
+                    cost_model=self.cost_model,
                 )
         for strategy in strategies:
             portfolio = portfolios[strategy.strategy_id]
             strategy.initialize(
                 portfolio,
-                self.config,
+                self.assumptions,
                 StrategyContext(
                     date=init_date,
                     price=portfolio.resolve_spot_price(
@@ -341,13 +351,11 @@ class StrategyEngine:
                 strategy=strategy,
                 portfolio=portfolio,
                 context=context,
-                sentiment_label=snapshot.sentiment_label,
+                run_state=run_state,
                 trade_counts=trade_counts,
-                record_point=day_flags.record_point,
                 strategy_daily_values=strategy_daily_values,
             )
-            if state is not None:
-                points[strategy.strategy_id] = state
+            points[strategy.strategy_id] = state
         return points
 
     def _process_single_strategy_day(
@@ -356,44 +364,69 @@ class StrategyEngine:
         strategy: BaseStrategy,
         portfolio: Portfolio,
         context: StrategyContext,
-        sentiment_label: str | None,
+        run_state: _EngineRunState,
         trade_counts: dict[str, int],
-        record_point: bool,
         strategy_daily_values: dict[str, list[float]],
-    ) -> StrategyState | None:
+    ) -> StrategyState:
+        strategy_id = strategy.strategy_id
+        price = context.portfolio_price
+        if run_state.previous_valuation_price is not None:
+            # The holdings carried over from the last bar, repriced; fills and
+            # yield below move value around or add to it, so only this is price.
+            run_state.price_pnl_usd[strategy_id] += portfolio.total_value(
+                price
+            ) - portfolio.total_value(run_state.previous_valuation_price)
+        if run_state.previous_date is not None:
+            portfolio.accrue_stable_yield(
+                self.assumptions.stable_apr,
+                (context.date - run_state.previous_date).days,
+            )
+        self._fill_due_orders(portfolio, run_state, strategy_id, price)
         action = strategy.on_day(context)
-        trade_executed = self._apply_action(portfolio, context, action)
-        if trade_executed:
-            trade_counts[strategy.strategy_id] += 1
-        yield_breakdown = self._apply_yield(
-            portfolio,
-            context.portfolio_price,
-            sentiment_label,
-            apply_yield=action.apply_yield,
-        )
-        equity = portfolio.equity(context.portfolio_price)
-        if not record_point:
-            return None
-        strategy_daily_values[strategy.strategy_id].append(equity)
-        strategy.record_day(context, action, yield_breakdown, trade_executed)
+        if action.order is not None:
+            run_state.pending_orders[strategy_id].append(
+                _PlacedOrder(
+                    order=action.order,
+                    fill_bar=run_state.bar_index + self.assumptions.fill_lag_days,
+                )
+            )
+            trade_counts[strategy_id] += 1
+            # Only fills now when there is no lag; otherwise the order waits.
+            self._fill_due_orders(portfolio, run_state, strategy_id, price)
+        strategy_daily_values[strategy_id].append(portfolio.total_value(price))
+        strategy.record_day(context, action)
         return build_strategy_state(
             portfolio=portfolio,
-            price=context.portfolio_price,
+            price=price,
             snapshot=action.snapshot,
         )
 
-    def _apply_action(
-        self,
+    @staticmethod
+    def _fill_due_orders(
         portfolio: Portfolio,
-        context: StrategyContext,
-        action: StrategyAction,
-    ) -> bool:
-        moved = False
-        price = context.portfolio_price
-        if action.debt_delta_usd > 0.0:
-            portfolio.borrow(action.debt_delta_usd)
-        if action.transfers:
-            for transfer in action.transfers:
+        run_state: _EngineRunState,
+        strategy_id: str,
+        price: float | dict[str, float],
+    ) -> None:
+        pending = run_state.pending_orders[strategy_id]
+        due = [placed for placed in pending if placed.fill_bar <= run_state.bar_index]
+        if not due:
+            return
+        pending[:] = [
+            placed for placed in pending if placed.fill_bar > run_state.bar_index
+        ]
+        for placed in due:
+            order = placed.order
+            transfers = (
+                plan_transfers_to_target(
+                    portfolio=portfolio,
+                    price=price,
+                    target_allocation=order.target_allocation,
+                )
+                if order.target_allocation is not None
+                else order.transfers
+            )
+            for transfer in transfers:
                 if transfer.amount_usd <= 0:
                     continue
                 portfolio.execute_transfer(
@@ -402,49 +435,6 @@ class StrategyEngine:
                     transfer.amount_usd,
                     price,
                 )
-                moved = True
-        elif action.target_allocations:
-            target = normalize_target_allocation(action.target_allocations)
-            total_value = portfolio.total_value(price)
-            target_values = {
-                bucket: total_value * pct for bucket, pct in target.items()
-            }
-            current_values = portfolio.values_for_allocation_keys(price, target)
-            deltas = {
-                bucket: target_values[bucket] - current_values[bucket]
-                for bucket in target_values
-            }
-            to_bucket = max(deltas, key=lambda key: deltas[key])
-            from_bucket = min(deltas, key=lambda key: deltas[key])
-            amount = min(
-                max(0.0, deltas[to_bucket]),
-                max(0.0, -deltas[from_bucket]),
-            )
-            if amount > 0:
-                portfolio.execute_transfer(from_bucket, to_bucket, amount, price)
-                moved = True
-        if action.stable_cost_usd > 0.0:
-            portfolio.charge_stable(action.stable_cost_usd)
-        if action.debt_delta_usd < 0.0:
-            portfolio.repay(-action.debt_delta_usd)
-        return moved
-
-    def _apply_yield(
-        self,
-        portfolio: Portfolio,
-        price: float | dict[str, float],
-        sentiment_label: str | None,
-        apply_yield: bool = True,
-    ) -> dict[str, float]:
-        if not apply_yield:
-            return {
-                "spot_yield": 0.0,
-                "stable_yield": 0.0,
-                "borrow_cost": 0.0,
-                "total_yield": 0.0,
-            }
-        apr_rates = self.config.apr_by_regime.get(sentiment_label or "neutral", {})
-        return portfolio.apply_daily_yield(price, apr_rates)
 
     @staticmethod
     def _resolve_context_price(

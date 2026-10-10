@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 
 from src.services.backtesting.decision import AllocationIntent, RuleGroup
 from src.services.backtesting.portfolio_rules.base import (
     DIAG_PORTFOLIO_RULE_TRIGGER_ASSETS,
     PortfolioRuleConfig,
     PortfolioSnapshot,
-    add_stable,
+    ProceedsRouting,
     allocation_key_for_symbol,
-    cross_down_cooldown_days_for,
     current_target,
     portfolio_target_intent,
     signals_consulted_for_symbols,
@@ -19,31 +18,20 @@ from src.services.backtesting.portfolio_rules.base import (
 )
 from src.services.backtesting.target_allocation import normalize_target_allocation
 
-_ASSET_CLASS_PEERS: dict[str, tuple[str, ...]] = {
-    "BTC": ("BTC", "ETH"),
-    "ETH": ("BTC", "ETH"),
-    "SPY": ("SPY",),
-}
 
-
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class CrossDownExitRule:
-    name: str = "cross_down_exit"
-    priority: int = 10
-    cooldown_days: int = 30
+    name: str
+    priority: int
+    cooldown_days: int
+    # Assets that exit together when any one of them crosses down.
+    peer_groups: tuple[tuple[str, ...], ...]
+    proceeds: ProceedsRouting
+    # One cooldown per asset that crossed, instead of one for the whole rule: an
+    # exit then never waits for another asset's cooldown.
+    cooldown_keyed_by_trigger_symbol: bool
     rule_group: RuleGroup = "cross"
     description: str = "Exit any asset that crosses below DMA; proceeds remain stable."
-    applicable_symbols: frozenset[str] | None = None
-    cross_down_cooldown_days_per_symbol: dict[str, int] = field(
-        default_factory=lambda: {"BTC": 30, "ETH": 30, "SPY": 14}
-    )
-
-    def cooldown_days_for(self, symbol: str) -> int:
-        return cross_down_cooldown_days_for(
-            symbol,
-            per_symbol=self.cross_down_cooldown_days_per_symbol,
-            default=self.cooldown_days,
-        )
 
     def matches(
         self,
@@ -52,7 +40,7 @@ class CrossDownExitRule:
         config: PortfolioRuleConfig,
     ) -> bool:
         del config
-        return bool(_cross_down_symbols(snapshot, rule=self))
+        return bool(_cross_down_symbols(snapshot))
 
     def build_intent(
         self,
@@ -60,7 +48,7 @@ class CrossDownExitRule:
         *,
         config: PortfolioRuleConfig,
     ) -> AllocationIntent:
-        matching_symbols = _cross_down_symbols(snapshot, rule=self)
+        matching_symbols = _cross_down_symbols(snapshot)
         exit_symbols = _exit_symbols_for_cross_down(matching_symbols, rule=self)
         target = current_target(snapshot)
         liquidated_symbols: list[str] = []
@@ -68,7 +56,7 @@ class CrossDownExitRule:
             key = allocation_key_for_symbol(symbol)
             released = max(0.0, float(target.get(key, 0.0)))
             target[key] = 0.0
-            add_stable(target, released)
+            self.proceeds.apply(target, released)
             if released > 0.0:
                 liquidated_symbols.append(symbol)
         intent = portfolio_target_intent(
@@ -96,16 +84,14 @@ class CrossDownExitRule:
         )
         return replace(intent, diagnostics=diagnostics)
 
+    def trigger_symbols_for_cooldown(self, snapshot: PortfolioSnapshot) -> list[str]:
+        return _cross_down_symbols(snapshot)
 
-def _cross_down_symbols(
-    snapshot: PortfolioSnapshot,
-    *,
-    rule: CrossDownExitRule,
-) -> list[str]:
+
+def _cross_down_symbols(snapshot: PortfolioSnapshot) -> list[str]:
     return [
         symbol
         for symbol in symbols_for_snapshot(snapshot)
-        if _is_applicable_symbol(rule, symbol)
         if snapshot.assets[symbol].actionable_cross_event == "cross_down"
     ]
 
@@ -117,16 +103,17 @@ def _exit_symbols_for_cross_down(
 ) -> list[str]:
     exit_symbols: list[str] = []
     for symbol in symbols:
-        for peer in _ASSET_CLASS_PEERS.get(symbol, (symbol,)):
-            if not _is_applicable_symbol(rule, peer):
-                continue
+        for peer in _peers_of(symbol, rule=rule):
             if peer not in exit_symbols:
                 exit_symbols.append(peer)
     return exit_symbols
 
 
-def _is_applicable_symbol(rule: CrossDownExitRule, symbol: str) -> bool:
-    return rule.applicable_symbols is None or symbol in rule.applicable_symbols
+def _peers_of(symbol: str, *, rule: CrossDownExitRule) -> tuple[str, ...]:
+    for group in rule.peer_groups:
+        if symbol in group:
+            return group
+    return (symbol,)
 
 
 __all__ = ["CrossDownExitRule"]

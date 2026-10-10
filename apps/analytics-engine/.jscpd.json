@@ -4,6 +4,7 @@
     "src/tests/**",
     "**/__pycache__/**",
     "src/services/backtesting/validation/constraint_predicates.py",
+    "src/services/backtesting/validation/event_histories.py",
     "src/services/backtesting/validation/event_runner.py"
   ],
   "ignorePattern": [

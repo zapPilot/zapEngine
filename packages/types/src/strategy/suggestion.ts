@@ -1,13 +1,14 @@
 import { z } from 'zod';
 
 import { MarketDataFreshnessSchema } from '../shared/market-freshness.js';
-import { TargetAllocationSchema } from './allocation.js';
+import { AssetAllocationSchema, TargetAllocationSchema } from './allocation.js';
 import { BucketTransferSchema } from './bucket.js';
 import {
   BacktestDecisionDetailsSchema,
   BacktestMarketPointSchema,
   BacktestSignalSchema,
   BacktestStrategyPortfolioSchema,
+  BacktestWindowInfoSchema,
 } from './backtesting.js';
 
 export const DailySuggestionPortfolioSchema =
@@ -49,12 +50,22 @@ export const DailySuggestionStrategyContextSchema = z.object({
   details: BacktestDecisionDetailsSchema.optional(),
 });
 
+/**
+ * The model portfolio the suggestion follows: its own holdings after its last
+ * bar and the rolling backtest window it was replayed over.
+ */
+export const DailySuggestionModelSchema = z.object({
+  allocation: AssetAllocationSchema,
+  window: BacktestWindowInfoSchema,
+});
+
 export const DailySuggestionContextSchema = z.object({
   market: BacktestMarketPointSchema,
   signal: BacktestSignalSchema,
   portfolio: DailySuggestionPortfolioSchema,
   target: DailySuggestionTargetSchema,
   strategy: DailySuggestionStrategyContextSchema,
+  model: DailySuggestionModelSchema,
 });
 
 export const DailySuggestionResponseSchema = z.object({
@@ -62,6 +73,7 @@ export const DailySuggestionResponseSchema = z.object({
   config_id: z.string(),
   config_display_name: z.string(),
   strategy_id: z.string(),
+  spec_ref: z.string(),
   action: DailySuggestionActionSchema,
   context: DailySuggestionContextSchema,
   data_freshness: MarketDataFreshnessSchema.nullable().optional(),

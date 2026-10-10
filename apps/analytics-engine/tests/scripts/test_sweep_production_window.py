@@ -65,10 +65,24 @@ class FakeCompareClient:
                 "sortino_ratio": 1.2,
                 "volatility": 0.18,
                 "ulcer_index": 4.5,
+                "pnl_attribution": {
+                    "price_usd": 210.0,
+                    "yield_usd": 40.0,
+                    "cost_usd": -2.5,
+                },
             }
             for config in json["configs"]
         }
-        return FakeResponse({"strategies": strategies})
+        return FakeResponse(
+            {
+                "assumptions": {
+                    "fill_lag_days": 1,
+                    "slippage_rate": 0.003,
+                    "stable_apr": 0.03,
+                },
+                "strategies": strategies,
+            }
+        )
 
 
 def test_collect_snapshot_can_use_in_process_client_without_endpoint(
@@ -101,6 +115,51 @@ def test_collect_snapshot_can_use_in_process_client_without_endpoint(
     assert client.requests[0]["end_date"] == "2026-04-15"
     assert snapshot["default_strategy_id"] == "strategy-a"
     assert snapshot["strategies"]["strategy-a"]["roi_percent"] == 24.75
+    assert snapshot["assumptions"] == {
+        "fill_lag_days": 1,
+        "slippage_rate": 0.003,
+        "stable_apr": 0.03,
+    }
+    # the ROI split is shares of the 1,000 USD of capital: price + yield + cost
+    entry = snapshot["strategies"]["strategy-a"]
+    assert entry["roi_price_percent"] == 21.0
+    assert entry["roi_yield_percent"] == 4.0
+    assert entry["roi_cost_percent"] == -0.25
+
+
+def test_collect_snapshot_rejects_a_response_without_its_assumptions(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        sweep_production_window,
+        "_default_strategy_universe",
+        lambda *, exclude_deprecated=False: ["strategy-a"],
+    )
+
+    class OldServer(FakeCompareClient):
+        def post(self, url: str, *, json: dict[str, Any], timeout: float):  # type: ignore[no-untyped-def,override]
+            response = super().post(url, json=json, timeout=timeout)
+            payload = response.json()
+            payload.pop("assumptions")
+            return FakeResponse(payload)
+
+    with pytest.raises(ValueError, match="echo the assumptions"):
+        collect_snapshot(
+            endpoint=None,
+            client=OldServer(),
+            reference_date=date(2026, 4, 15),
+            window_days=2,
+            total_capital=1_000.0,
+            tolerances=dict.fromkeys(METRIC_KEYS, 1.0),
+            show_progress=False,
+        )
+
+
+def test_snapshot_entry_requires_the_pnl_attribution() -> None:
+    with pytest.raises(ValueError, match="no pnl_attribution"):
+        sweep_production_window._snapshot_strategy_entry(
+            "strategy-a", {"roi_percent": 1.0}, total_capital=1_000.0
+        )
 
 
 def _stub_main_dependencies(

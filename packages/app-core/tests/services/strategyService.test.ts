@@ -25,6 +25,7 @@ function buildValidSuggestion() {
     config_id: 'dma_fgi_portfolio_rules_default',
     config_display_name: 'DMA + Fear & Greed',
     strategy_id: 'dma_fgi_portfolio_rules',
+    spec_ref: 'reference/dma_fgi@1#a22bccfabb4b',
     action: {
       status: 'no_action',
       required: false,
@@ -59,6 +60,22 @@ function buildValidSuggestion() {
         stance: 'hold',
         reason_code: 'within_tolerance',
         rule_group: 'dma_fgi',
+      },
+      model: {
+        allocation: { btc: 0.6, eth: 0, spy: 0, stable: 0.4, alt: 0 },
+        window: {
+          requested: {
+            start_date: '2025-02-20',
+            end_date: '2026-07-03',
+            days: 499,
+          },
+          effective: {
+            start_date: '2025-02-20',
+            end_date: '2026-07-03',
+            days: 499,
+          },
+          truncated: false,
+        },
       },
     },
   };

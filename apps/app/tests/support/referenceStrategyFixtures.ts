@@ -11,6 +11,7 @@ export const referenceRuleNames = [
   'dma_overextension_dca_sell',
   'fgi_downshift_dca_sell',
 ] as const;
+export const referenceSpecRef = 'reference/dma_fgi@1#a22bccfabb4b';
 export function referenceConfigs(): StrategyConfigsResponse {
   return {
     backtest_defaults: { days: 500, total_capital: 10000 },
@@ -20,7 +21,6 @@ export function referenceConfigs(): StrategyConfigsResponse {
       name,
       priority: index + 1,
       description: name,
-      default_enabled: true,
     })),
   };
 }
@@ -60,9 +60,6 @@ export function referencePoint(): BacktestStrategyPoint {
       blocked_reason: null,
       status: 'no_action',
       action_required: false,
-      step_count: 0,
-      steps_remaining: 0,
-      interval_days: 1,
     },
   };
 }
@@ -75,14 +72,24 @@ export function referenceResponse(): BacktestResponse {
     final_value: 10500,
     roi_percent: 5,
     trade_count: 0,
+    pnl_attribution: { price_usd: 500, yield_usd: 0, cost_usd: 0 },
     final_allocation: point.portfolio.allocation,
     final_asset_allocation: point.portfolio.asset_allocation,
     max_drawdown_percent: -2,
     parameters: {},
   };
   return {
+    assumptions: { fill_lag_days: 1, slippage_rate: 0.003, stable_apr: 0.03 },
+    window: {
+      requested: { start_date: '2026-10-01', end_date: '2026-10-02', days: 1 },
+      effective: { start_date: '2026-10-01', end_date: '2026-10-02', days: 1 },
+      truncated: false,
+    },
     strategies: {
-      reference: summary,
+      reference: {
+        ...summary,
+        parameters: { spec_ref: referenceSpecRef },
+      },
       dca_classic: {
         ...summary,
         strategy_id: 'dca_classic',

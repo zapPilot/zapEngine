@@ -1,30 +1,30 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import date
 
 from src.services.backtesting.portfolio_rules.base import (
     DIAG_PORTFOLIO_RULE_MATCHES,
 )
-from src.services.backtesting.portfolio_rules.cross_up_equal_weight import (
-    CrossUpEqualWeightRule,
-)
 from src.services.backtesting.portfolio_rules.decision_policy import (
     RuleBasedPortfolioDecisionPolicy,
 )
-from src.services.backtesting.portfolio_rules.dma_overextension_dca_sell import (
-    DmaOverextensionDcaSellRule,
-)
 from src.services.backtesting.signals.dma_gated_fgi.types import DmaMarketState
 from src.services.backtesting.signals.flat_minimum import FlatMinimumState
-from src.services.backtesting.strategies.rule_based_portfolio import (
-    RuleBasedPortfolioStrategy,
-)
 from tests.services.backtesting.portfolio_rules.helpers import state
+from tests.services.backtesting.support.reference_rules import (
+    reference_components,
+    reference_rule,
+    reference_strategy,
+)
 
 
 def test_decision_trace_records_shadowed_matching_rules() -> None:
     policy = RuleBasedPortfolioDecisionPolicy(
-        rules=(CrossUpEqualWeightRule(), DmaOverextensionDcaSellRule()),
+        rules=(
+            reference_rule("cross_up_equal_weight"),
+            reference_rule("dma_overextension_dca_sell"),
+        ),
     )
 
     intent = policy.decide(
@@ -61,10 +61,9 @@ def test_decision_trace_records_shadowed_matching_rules() -> None:
     }
 
 
-def test_enabled_rules_can_isolate_lower_priority_rule() -> None:
+def test_a_policy_without_the_higher_rule_lets_the_lower_one_decide() -> None:
     policy = RuleBasedPortfolioDecisionPolicy(
-        rules=(CrossUpEqualWeightRule(), DmaOverextensionDcaSellRule()),
-        enabled_rules=frozenset({"dma_overextension_dca_sell"}),
+        rules=(reference_rule("dma_overextension_dca_sell"),),
     )
 
     intent = policy.decide(
@@ -87,16 +86,17 @@ def test_enabled_rules_can_isolate_lower_priority_rule() -> None:
         entry["rule_name"]: entry
         for entry in intent.diagnostics[DIAG_PORTFOLIO_RULE_MATCHES]
     }
-    assert trace["cross_up_equal_weight"]["matched"] is True
-    assert trace["cross_up_equal_weight"]["suppressed_by"] is None
+    assert list(trace) == ["dma_overextension_dca_sell"]
     assert trace["dma_overextension_dca_sell"]["matched"] is True
     assert trace["dma_overextension_dca_sell"]["suppressed_by"] is None
 
 
-def test_strategy_enabled_rules_param_activates_default_rule_subset() -> None:
-    strategy = RuleBasedPortfolioStrategy(
-        total_capital=10_000.0,
-        params={"enabled_rules": ["dma_overextension_dca_sell"]},
+def test_a_strategy_runs_only_the_rules_of_its_components() -> None:
+    strategy = reference_strategy(
+        components=replace(
+            reference_components(),
+            rules=(reference_rule("dma_overextension_dca_sell"),),
+        )
     )
 
     intent = strategy.decision_policy.decide(

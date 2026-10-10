@@ -2,52 +2,48 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import date, timedelta
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy.orm import Session
-
+from src.core.cache_service import analytics_cache, build_service_cache_key
 from src.models.backtesting import (
+    BacktestCompareConfigV3,
     BacktestCompareRequestV3,
     BacktestPeriodInfo,
     BacktestResponse,
     BacktestWindowInfo,
 )
 from src.models.market_data_freshness import MarketDataFreshness, StaleFeatureInfo
+from src.models.strategy_config import SavedStrategyConfig
 from src.models.validation_utils import normalize_asset_symbol
-from src.services.backtesting.composition import (
-    ResolvedSavedStrategyConfig,
-    resolve_compare_request_config,
-    resolve_saved_strategy_config,
+from src.services.backtesting.constants import (
+    MODEL_TOTAL_CAPITAL,
+    MODEL_WINDOW_DAYS,
+    PRIMER_DAYS,
 )
-from src.services.backtesting.composition_catalog import (
-    CompositionCatalog,
-    get_default_composition_catalog,
-)
-from src.services.backtesting.constants import PRIMER_DAYS
 from src.services.backtesting.data.data_provider import BacktestDataProvider
 from src.services.backtesting.execution.compare import (
     materialize_compare_request,
     run_compare_v3_on_data,
 )
-from src.services.backtesting.execution.config import RegimeConfig
 from src.services.backtesting.execution.result_cache import (
     CompareResultCache,
     compare_result_key,
 )
 from src.services.backtesting.features import MarketDataRequirements
 from src.services.backtesting.strategy_registry import (
-    StrategyRecipe,
-    get_strategy_recipe,
+    ResolvedSavedStrategyConfig,
+    resolve_inline_strategy_config,
+    resolve_saved_strategy_config,
 )
 from src.services.exceptions import MarketDataUnavailableError
-from src.services.strategy.strategy_config_store import (
-    SeedStrategyConfigStore,
-    StrategyConfigStore,
-)
+from src.services.strategy.backtesting_protocol import ModelReplay
+from src.services.strategy.strategy_config_store import StrategyConfigStore
 
 if TYPE_CHECKING:  # pragma: no cover -- type-only import, never executed
     from src.services.market.macro_fear_greed_service import (
@@ -58,6 +54,12 @@ if TYPE_CHECKING:  # pragma: no cover -- type-only import, never executed
     from src.services.market.token_price_service import TokenPriceService
 
 logger = logging.getLogger(__name__)
+
+# Bump to invalidate cached replays after a change to how the model is replayed.
+MODEL_REPLAY_CACHE_VERSION = "v2"
+# The model decides once a day, so a short window keeps every user on one replay
+# without waiting for a server-side signal that the day's data has landed.
+MODEL_REPLAY_CACHE_TTL = timedelta(minutes=10)
 
 
 def _resolve_date_range(
@@ -117,32 +119,6 @@ def _resolve_recipe_warmup_days(configs: list[ResolvedSavedStrategyConfig]) -> i
     return max(PRIMER_DAYS, recipe_warmup_days)
 
 
-def _recipe_to_resolved_config(
-    recipe: StrategyRecipe,
-    *,
-    saved_config_id: str,
-    request_config_id: str,
-    display_name: str,
-    public_params: dict[str, Any],
-) -> ResolvedSavedStrategyConfig:
-    return ResolvedSavedStrategyConfig(
-        saved_config_id=saved_config_id,
-        request_config_id=request_config_id,
-        strategy_id=recipe.strategy_id,
-        display_name=display_name,
-        description=recipe.description,
-        primary_asset=recipe.primary_asset,
-        summary_signal_id=recipe.signal_id,
-        warmup_lookback_days=recipe.warmup_lookback_days,
-        market_data_requirements=recipe.market_data_requirements,
-        portfolio_bucket_mapper=recipe.portfolio_bucket_mapper,
-        runtime_portfolio_mode=recipe.runtime_portfolio_mode,
-        supports_daily_suggestion=recipe.supports_daily_suggestion,
-        public_params=public_params,
-        build_strategy=recipe.build_strategy,
-    )
-
-
 def _resolve_shared_primary_asset(configs: list[ResolvedSavedStrategyConfig]) -> str:
     primary_assets = sorted(
         {
@@ -163,15 +139,10 @@ def _materialize_compare_market_scope_with_store(
     request: BacktestCompareRequestV3,
     *,
     config_store: StrategyConfigStore,
-    composition_catalog: CompositionCatalog | None = None,
 ) -> tuple[BacktestCompareRequestV3, list[ResolvedSavedStrategyConfig], str]:
     effective_request = materialize_compare_request(request)
     resolved_configs = [
-        _resolve_runtime_config(
-            config,
-            config_store=config_store,
-            composition_catalog=composition_catalog,
-        )
+        _resolve_runtime_config(config, config_store=config_store)
         for config in effective_request.configs
     ]
     primary_asset = _resolve_shared_primary_asset(resolved_configs)
@@ -191,77 +162,26 @@ def _materialize_compare_market_scope_with_store(
 
 
 def _resolve_runtime_config(
-    request_config: Any,
+    request_config: BacktestCompareConfigV3,
     *,
     config_store: StrategyConfigStore,
-    composition_catalog: CompositionCatalog | None = None,
 ) -> ResolvedSavedStrategyConfig:
-    resolved_catalog = composition_catalog or get_default_composition_catalog()
     if request_config.saved_config_id:
-        recipe_alias = _resolve_saved_config_recipe_alias(
-            request_config=request_config,
-            config_store=config_store,
-        )
-        if recipe_alias is not None:
-            return recipe_alias
-    if _has_composition_path(request_config, resolved_catalog):
         resolved = resolve_saved_strategy_config(
-            resolve_compare_request_config(
-                request_config,
-                resolve_saved_config=config_store.resolve_config,
-                catalog=resolved_catalog,
-            ),
-            catalog=resolved_catalog,
+            config_store.resolve_config(request_config.saved_config_id)
         )
         return replace(
             resolved,
             request_config_id=request_config.config_id,
+            display_name=request_config.config_id,
         )
-    recipe = get_strategy_recipe(request_config.strategy_id)
-    return _recipe_to_resolved_config(
-        recipe,
-        saved_config_id=request_config.config_id,
-        request_config_id=request_config.config_id,
-        display_name=request_config.config_id,
-        public_params=dict(request_config.params),
+    # The request model requires either a saved config or an inline strategy.
+    assert request_config.strategy_id is not None
+    return resolve_inline_strategy_config(
+        config_id=request_config.config_id,
+        strategy_id=request_config.strategy_id,
+        params=request_config.params,
     )
-
-
-def _resolve_saved_config_recipe_alias(
-    *,
-    request_config: Any,
-    config_store: StrategyConfigStore,
-) -> ResolvedSavedStrategyConfig | None:
-    saved_config_id = str(request_config.saved_config_id)
-    if config_store.get_config(saved_config_id) is not None:
-        return None
-    try:
-        recipe = get_strategy_recipe(saved_config_id)
-    except ValueError:
-        return None
-    return _recipe_to_resolved_config(
-        recipe,
-        saved_config_id=saved_config_id,
-        request_config_id=request_config.config_id,
-        display_name=request_config.config_id,
-        public_params=recipe.normalize_public_params({}),
-    )
-
-
-def _has_composition_path(
-    request_config: Any,
-    catalog: CompositionCatalog,
-) -> bool:
-    """Check whether this request config should be resolved via the composition catalog."""
-    if request_config.saved_config_id:
-        return True
-    if request_config.strategy_id is None:
-        return False
-    try:
-        family = catalog.resolve_family(request_config.strategy_id)
-    except ValueError:
-        return False
-    return family.legacy_saved_config_builder is not None
 
 
 def _select_prices_in_window(
@@ -436,14 +356,28 @@ def _clamp_dma_window(
     )
 
 
+@dataclass(frozen=True)
+class _CompareOutcome:
+    response: BacktestResponse
+    resolved_configs: list[ResolvedSavedStrategyConfig]
+
+
+def _config_fingerprint(saved_config: SavedStrategyConfig) -> str:
+    """Stable digest of everything that can change what a saved config does."""
+    payload = json.dumps(
+        saved_config.model_dump(mode="json"),
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(payload.encode()).hexdigest()[:16]
+
+
 class BacktestingService:
     def __init__(
         self,
-        db: Session,
         token_price_service: TokenPriceService,
         sentiment_service: SentimentDatabaseService,
         strategy_config_store: StrategyConfigStore | None = None,
-        composition_catalog: CompositionCatalog | None = None,
         stock_price_service: StockPriceService | None = None,
         macro_fear_greed_service: MacroFearGreedDatabaseService | None = None,
         result_cache: CompareResultCache | None = None,
@@ -455,22 +389,16 @@ class BacktestingService:
             stock_price_service=stock_price_service,
             macro_fear_greed_service=macro_fear_greed_service,
         )
-        self.strategy_config_store = strategy_config_store or (
-            StrategyConfigStore(db) if db is not None else SeedStrategyConfigStore()
-        )
-        self.composition_catalog = (
-            composition_catalog or get_default_composition_catalog()
-        )
+        self.strategy_config_store = strategy_config_store or StrategyConfigStore()
 
-    async def _run_with_prepared_data(
+    def _run_with_prepared_data(
         self,
         *,
         request: BacktestCompareRequestV3,
         resolved_configs: list[ResolvedSavedStrategyConfig],
         runner: Callable[..., BacktestResponse],
-        config: RegimeConfig | None,
     ) -> BacktestResponse:
-        prepared = await self._prepare_market_data(
+        prepared = self.prepare_market_window(
             resolved_configs=resolved_configs,
             token_symbol=request.token_symbol,
             start_date=request.start_date,
@@ -498,7 +426,6 @@ class BacktestingService:
                 user_start_date=prepared.user_start_date,
                 resolved_configs=resolved_configs,
                 window=window,
-                config=config,
             )
 
         response = self.result_cache.get_or_compute(
@@ -508,7 +435,6 @@ class BacktestingService:
                 prepared.prices,
                 prepared.sentiments,
                 window,
-                config,
             ),
             compute,
         )
@@ -522,7 +448,7 @@ class BacktestingService:
             )
         return response
 
-    async def _prepare_market_data(
+    def prepare_market_window(
         self,
         *,
         resolved_configs: list[ResolvedSavedStrategyConfig],
@@ -540,7 +466,7 @@ class BacktestingService:
         warmup_days = _resolve_recipe_warmup_days(resolved_configs)
         fetch_start_date = requested_window.start_date - timedelta(days=warmup_days)
         market_data_requirements = _resolve_market_data_requirements(resolved_configs)
-        prices = await self.data_provider.fetch_token_prices(
+        prices = self.data_provider.fetch_token_prices(
             token_symbol,
             fetch_start_date,
             requested_window.end_date,
@@ -558,7 +484,7 @@ class BacktestingService:
                 oldest_data_date=None,
             )
         sentiments = (
-            await self.data_provider.fetch_sentiments(
+            self.data_provider.fetch_sentiments(
                 fetch_start_date,
                 requested_window.end_date,
             )
@@ -630,19 +556,85 @@ class BacktestingService:
             data_freshness=data_freshness,
         )
 
-    async def run_compare_v3(
-        self, request: BacktestCompareRequestV3, config: RegimeConfig | None = None
-    ) -> BacktestResponse:
+    def _compare(self, request: BacktestCompareRequestV3) -> _CompareOutcome:
         effective_request, resolved_configs, _primary_asset = (
             _materialize_compare_market_scope_with_store(
                 request,
                 config_store=self.strategy_config_store,
-                composition_catalog=self.composition_catalog,
             )
         )
-        return await self._run_with_prepared_data(
+        response = self._run_with_prepared_data(
             request=effective_request,
             resolved_configs=resolved_configs,
             runner=run_compare_v3_on_data,
-            config=config,
+        )
+        return _CompareOutcome(response=response, resolved_configs=resolved_configs)
+
+    async def run_compare_v3(
+        self, request: BacktestCompareRequestV3
+    ) -> BacktestResponse:
+        return self._compare(request).response
+
+    def replay_model(self, saved_config_id: str, requested_end: date) -> ModelReplay:
+        """Replay a saved config over the model window and return its last bar.
+
+        Runs the same compare path the API and the published snapshot use, over
+        ``MODEL_WINDOW_DAYS`` days ending at ``requested_end``. The replay does
+        not depend on any user, so one cached run serves everyone.
+        """
+        saved_config = self.strategy_config_store.resolve_config(saved_config_id)
+        cache_key = build_service_cache_key(
+            self.__class__.__name__,
+            MODEL_REPLAY_CACHE_VERSION,
+            saved_config.config_id,
+            _config_fingerprint(saved_config),
+            requested_end.isoformat(),
+        )
+        return analytics_cache.get_or_compute(
+            cache_key,
+            lambda: self._replay_model(saved_config, requested_end),
+            ttl=MODEL_REPLAY_CACHE_TTL,
+        )
+
+    def _replay_model(
+        self,
+        saved_config: SavedStrategyConfig,
+        requested_end: date,
+    ) -> ModelReplay:
+        config_id = saved_config.config_id
+        outcome = self._compare(
+            BacktestCompareRequestV3(
+                token_symbol=saved_config.primary_asset,
+                start_date=requested_end - timedelta(days=MODEL_WINDOW_DAYS - 1),
+                end_date=requested_end,
+                total_capital=MODEL_TOTAL_CAPITAL,
+                configs=[
+                    BacktestCompareConfigV3(
+                        config_id=config_id,
+                        saved_config_id=config_id,
+                    )
+                ],
+            ),
+        )
+        response = outcome.response
+        window = response.window
+        assert window is not None
+        resolved = outcome.resolved_configs[0]
+        max_lag_days = resolved.market_data_requirements.max_lag_days
+        effective_end = window.effective.end_date
+        if (requested_end - effective_end).days > max_lag_days:
+            raise MarketDataUnavailableError(
+                f"Market data lag exceeds {max_lag_days}-day tolerance "
+                f"for {resolved.strategy_id}",
+                missing_assets=[resolved.primary_asset],
+                # The newest date the data does reach, i.e. where it went stale.
+                oldest_data_date=effective_end,
+            )
+        last_point = response.timeline[-1]
+        return ModelReplay(
+            config_id=config_id,
+            window=window,
+            data_freshness=response.data_freshness,
+            market=last_point.market,
+            state=last_point.strategies[config_id],
         )

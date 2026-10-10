@@ -1,32 +1,37 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
-from src.services.backtesting.portfolio_rules.base import PortfolioRuleConfig
+from src.services.backtesting.portfolio_rules.base import (
+    FgiRegime,
+    PortfolioRuleConfig,
+    ProceedsRouting,
+)
 from src.services.backtesting.portfolio_rules.dma_overextension_dca_sell import (
     DmaOverextensionDcaSellRule,
 )
-from src.services.backtesting.public_params import DmaGatedFgiPublicParams
 from tests.services.backtesting.portfolio_rules.helpers import snapshot, state
+from tests.services.backtesting.support.reference_rules import reference_rule
 
 
-def test_overextension_rule_declares_and_binds_public_params_section() -> None:
-    params = DmaGatedFgiPublicParams(
-        top_escape={
-            "overextension_threshold_multiplier_greed": 0.67,
-            "overextension_threshold_multiplier_extreme_greed": 0.50,
-        }
+def _rule_with_multiplier(
+    regime: FgiRegime,
+    multiplier: float,
+) -> DmaOverextensionDcaSellRule:
+    default = reference_rule("dma_overextension_dca_sell")
+    return replace(
+        default,
+        fgi_threshold_multipliers={
+            **default.fgi_threshold_multipliers,
+            regime: multiplier,
+        },
     )
-
-    rule = DmaOverextensionDcaSellRule.with_public_params(params.top_escape)
-
-    assert DmaOverextensionDcaSellRule.public_params_section() == "top_escape"
-    assert rule.overextension_threshold_multiplier_greed == 0.67
-    assert rule.overextension_threshold_multiplier_extreme_greed == 0.50
 
 
 def test_btc_overextension_routes_50_50_spy_stable() -> None:
-    rule = DmaOverextensionDcaSellRule()
+    rule = reference_rule("dma_overextension_dca_sell")
     initial_spy = 0.20
     initial_stable = 0.10
     rule_snapshot = snapshot(
@@ -63,7 +68,7 @@ def test_btc_overextension_routes_50_50_spy_stable() -> None:
 
 
 def test_spy_overextension_self_rebuys_half() -> None:
-    rule = DmaOverextensionDcaSellRule()
+    rule = reference_rule("dma_overextension_dca_sell")
     initial_stable = 0.10
     rule_snapshot = snapshot(
         assets={
@@ -91,7 +96,7 @@ def test_spy_overextension_self_rebuys_half() -> None:
 
 
 def test_default_greed_multiplier_tightens_btc_overextension_threshold() -> None:
-    rule = DmaOverextensionDcaSellRule()
+    rule = reference_rule("dma_overextension_dca_sell")
     rule_snapshot = snapshot(
         assets={
             "BTC": state(
@@ -108,7 +113,7 @@ def test_default_greed_multiplier_tightens_btc_overextension_threshold() -> None
 
 
 def test_greed_multiplier_tightens_btc_overextension_threshold() -> None:
-    rule = DmaOverextensionDcaSellRule(overextension_threshold_multiplier_greed=0.67)
+    rule = _rule_with_multiplier(FgiRegime.GREED, 0.67)
     rule_snapshot = snapshot(
         assets={
             "BTC": state(
@@ -130,9 +135,7 @@ def test_greed_multiplier_tightens_btc_overextension_threshold() -> None:
 
 
 def test_extreme_greed_multiplier_tightens_btc_overextension_threshold() -> None:
-    rule = DmaOverextensionDcaSellRule(
-        overextension_threshold_multiplier_extreme_greed=0.50
-    )
+    rule = _rule_with_multiplier(FgiRegime.EXTREME_GREED, 0.50)
     rule_snapshot = snapshot(
         assets={
             "BTC": state(
@@ -151,3 +154,65 @@ def test_extreme_greed_multiplier_tightens_btc_overextension_threshold() -> None
     assert intent.reason == "portfolio_dma_overextension_dca_sell"
     assert intent.diagnostics is not None
     assert intent.diagnostics["portfolio_rule_assets"] == ["BTC"]
+
+
+def test_overextension_proceeds_can_be_routed_to_stable_only() -> None:
+    rule = reference_rule("dma_overextension_dca_sell", proceeds=ProceedsRouting())
+    rule_snapshot = snapshot(
+        assets={"BTC": state(symbol="BTC", zone="above", dma_distance=0.21)},
+        current={"btc": 0.40, "eth": 0.0, "spy": 0.0, "stable": 0.60, "alt": 0.0},
+    )
+
+    intent = rule.build_intent(rule_snapshot, config=PortfolioRuleConfig())
+
+    assert intent.target_allocation == pytest.approx(
+        {"btc": 0.35, "eth": 0.0, "spy": 0.0, "stable": 0.65, "alt": 0.0}
+    )
+
+
+def test_an_asset_without_a_regime_uses_its_plain_threshold() -> None:
+    rule = reference_rule("dma_overextension_dca_sell")
+    rule_snapshot = snapshot(
+        assets={
+            "BTC": state(
+                symbol="BTC", zone="above", dma_distance=0.15, fgi_regime="greed"
+            )
+        },
+    )
+    unknown_regime = replace(
+        rule_snapshot,
+        crypto_fgi_regime=None,
+        assets={
+            "BTC": replace(rule_snapshot.assets["BTC"], fgi_regime=None),
+        },
+    )
+
+    assert rule.matches(rule_snapshot, config=PortfolioRuleConfig())
+    assert not rule.matches(unknown_regime, config=PortfolioRuleConfig())
+
+
+def test_every_regime_has_its_own_multiplier() -> None:
+    rule = replace(
+        reference_rule("dma_overextension_dca_sell"),
+        fgi_threshold_multipliers={
+            FgiRegime.EXTREME_FEAR: 2.0,
+            FgiRegime.FEAR: 1.0,
+            FgiRegime.NEUTRAL: 1.0,
+            FgiRegime.GREED: 0.5,
+            FgiRegime.EXTREME_GREED: 0.33,
+        },
+    )
+    snapshot_in_extreme_fear = snapshot(
+        assets={
+            "BTC": state(
+                symbol="BTC",
+                zone="above",
+                dma_distance=0.30,
+                fgi_regime="extreme_fear",
+            )
+        },
+        crypto_regime="extreme_fear",
+    )
+
+    # 0.20 * 2.0 = 0.40 > 0.30: no sale in extreme fear.
+    assert not rule.matches(snapshot_in_extreme_fear, config=PortfolioRuleConfig())

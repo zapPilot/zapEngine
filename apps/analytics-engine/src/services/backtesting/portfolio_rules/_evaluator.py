@@ -9,13 +9,9 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
-from typing import Any
 
 from src.services.backtesting.decision import AllocationIntent
-from src.services.backtesting.portfolio_rules import DEFAULT_PORTFOLIO_RULES
-from src.services.backtesting.portfolio_rules._builders import (
-    active_rules,
-)
+from src.services.backtesting.domain import ExecutionOutcome
 from src.services.backtesting.portfolio_rules._matcher import (
     resolve_portfolio_rules_intent,
 )
@@ -50,11 +46,9 @@ PORTFOLIO_RULES_SIGNAL_ID = "dma_fgi_portfolio_rules_signal"
 class RulesEvaluator:
     """Evaluate portfolio rules against an explicit execution context."""
 
-    rules: tuple[PortfolioRule, ...] = DEFAULT_PORTFOLIO_RULES
+    rules: tuple[PortfolioRule, ...]
     risk_guards: tuple[RiskGuard, ...] = ()
     config: PortfolioRuleConfig = field(default_factory=PortfolioRuleConfig)
-    disabled_rules: frozenset[str] = field(default_factory=frozenset)
-    enabled_rules: frozenset[str] | None = None
 
     def evaluate(
         self,
@@ -73,8 +67,6 @@ class RulesEvaluator:
             portfolio_snapshot,
             rules=self.rules,
             config=self.config,
-            disabled_rules=self.disabled_rules,
-            enabled_rules=self.enabled_rules,
             cooldown_tracker=ctx.cooldown_tracker,
         )
         risk_result = self._apply_risk_guards(intent, portfolio_snapshot)
@@ -85,21 +77,14 @@ class RulesEvaluator:
         self._record_intent(intent)
         return intent
 
-    def _active_rules(self) -> tuple[PortfolioRule, ...]:
-        return active_rules(
-            self.rules,
-            disabled_rules=self.disabled_rules,
-            enabled_rules=self.enabled_rules,
-        )
-
     def _observe_components(self, snapshot: PortfolioSnapshot) -> None:
-        for component in (*self._active_rules(), *self.risk_guards):
+        for component in (*self.rules, *self.risk_guards):
             observe = getattr(component, "observe", None)
             if callable(observe):
                 observe(snapshot, config=self.config)
 
     def _record_intent(self, intent: AllocationIntent) -> None:
-        for component in (*self._active_rules(), *self.risk_guards):
+        for component in (*self.rules, *self.risk_guards):
             record_intent = getattr(component, "record_intent", None)
             if callable(record_intent):
                 record_intent(intent)
@@ -114,6 +99,7 @@ class RulesEvaluator:
             snapshot,
             risk_guards=self.risk_guards,
             config=self.config,
+            rules=self.rules,
         )
 
     def _apply_post_intent_adjustments(
@@ -124,7 +110,7 @@ class RulesEvaluator:
         return _apply_post_intent_adjustments(
             intent,
             snapshot,
-            rules=self._active_rules(),
+            rules=self.rules,
             config=self.config,
         )
 
@@ -133,12 +119,10 @@ class RulesEvaluator:
 class RuleBasedPortfolioDecisionPolicy(DecisionPolicy):
     """Decision policy that evaluates whole-portfolio rules."""
 
+    rules: tuple[PortfolioRule, ...]
     decision_policy_id: str = "dma_fgi_portfolio_rules_policy"
-    rules: tuple[PortfolioRule, ...] = DEFAULT_PORTFOLIO_RULES
     risk_guards: tuple[RiskGuard, ...] = ()
     config: PortfolioRuleConfig = field(default_factory=PortfolioRuleConfig)
-    disabled_rules: frozenset[str] = frozenset()
-    enabled_rules: frozenset[str] | None = None
     execution_state_provider: Callable[[], RuleExecutionState] | None = None
     _ctx: RuleExecutionContext = field(
         default_factory=RuleExecutionContext,
@@ -182,8 +166,6 @@ class RuleBasedPortfolioDecisionPolicy(DecisionPolicy):
             rules=self.rules,
             risk_guards=self.risk_guards,
             config=self.config,
-            disabled_rules=self.disabled_rules,
-            enabled_rules=self.enabled_rules,
         )
 
     def record_execution(
@@ -191,9 +173,9 @@ class RuleBasedPortfolioDecisionPolicy(DecisionPolicy):
         *,
         context: StrategyContext,
         intent: AllocationIntent,
-        execution: Any,
+        execution: ExecutionOutcome,
     ) -> None:
-        if not getattr(execution, "transfers", ()):
+        if not execution.transfers:
             return
         matched_rule_name = _matched_rule_name(intent)
         if matched_rule_name is None:

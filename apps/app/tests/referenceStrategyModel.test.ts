@@ -10,16 +10,11 @@ import {
 import {
   referenceConfigs,
   referenceResponse,
+  referenceSpecRef,
 } from './support/referenceStrategyFixtures';
-it('numbers enabled rules by priority without mutating catalog data', () => {
+it('numbers rules by priority without mutating catalog data', () => {
   const configs = referenceConfigs();
   configs.portfolio_rules!.reverse();
-  configs.portfolio_rules!.push({
-    name: 'disabled',
-    priority: 0,
-    default_enabled: false,
-    description: 'disabled',
-  });
   expect(
     defaultPortfolioRules(configs).map(({ name, number }) => [name, number]),
   ).toEqual(
@@ -68,6 +63,12 @@ it('converts the last real timeline point into a suggestion with its trace and f
   expect(suggestion.context.strategy.details).toEqual(
     response.timeline[1]?.strategies.reference?.decision.details,
   );
+  expect(suggestion.spec_ref).toBe(referenceSpecRef);
+  expect(suggestion.context.model).toEqual({
+    allocation:
+      response.timeline[1]?.strategies.reference?.portfolio.asset_allocation,
+    window: response.window,
+  });
 });
 it('derives status from transfers or blocked execution only when the server omits status', () => {
   const response = referenceResponse();
@@ -107,6 +108,12 @@ it('does not fabricate a decision when timeline or signal data is absent', () =>
   expect(referenceSuggestionFromBacktest(missing)).toBeNull();
   missing.strategies = {};
   expect(referenceSuggestionFromBacktest(missing)).toBeNull();
+  const unwindowed = referenceResponse();
+  delete unwindowed.window;
+  expect(referenceSuggestionFromBacktest(unwindowed)).toBeNull();
+  const unnamed = referenceResponse();
+  unnamed.strategies.reference!.parameters = {};
+  expect(referenceSuggestionFromBacktest(unnamed)).toBeNull();
 });
 it('maps decision reason codes to configured rule numbers and leaves hold unnumbered', () => {
   const rules = defaultPortfolioRules(referenceConfigs());

@@ -10,26 +10,28 @@ from src.services.backtesting.portfolio_rules.base import (
     DIAG_PORTFOLIO_RULE_TRIGGER_ASSETS,
     PortfolioRuleConfig,
     PortfolioSnapshot,
+    current_target,
     portfolio_target_intent,
+    reentry_blocked,
     signals_consulted_for_symbols,
     symbols_for_snapshot,
 )
 from src.services.backtesting.target_allocation import normalize_target_allocation
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class CrossUpEqualWeightRule:
-    name: str = "cross_up_equal_weight"
-    priority: int = 20
-    cooldown_days: int = 30
+    name: str
+    priority: int
+    cooldown_days: int
+    # False re-weights the whole portfolio equally across the assets above their
+    # DMA; True keeps every holding and splits only the stable between them.
+    deploy_stable_only: bool
+    # What the kind means (the cooldown follows the asset that crossed), not a
+    # knob a spec states.
     cooldown_keyed_by_trigger_symbol: bool = True
     rule_group: RuleGroup = "cross"
     description: str = "Equal-weight all currently above-DMA risk assets on a cross-up."
-    applicable_symbols: frozenset[str] | None = None
-
-    @classmethod
-    def public_params_section(cls) -> str | None:
-        return None
 
     def matches(
         self,
@@ -38,9 +40,7 @@ class CrossUpEqualWeightRule:
         config: PortfolioRuleConfig,
     ) -> bool:
         del config
-        return _has_cross_up(snapshot, rule=self) and bool(
-            _eligible_symbols(snapshot, rule=self)
-        )
+        return _has_cross_up(snapshot) and bool(_eligible_symbols(snapshot))
 
     def build_intent(
         self,
@@ -48,17 +48,17 @@ class CrossUpEqualWeightRule:
         *,
         config: PortfolioRuleConfig,
     ) -> AllocationIntent:
-        eligible_symbols = _eligible_symbols(snapshot, rule=self)
+        eligible_symbols = _eligible_symbols(snapshot)
         trigger_symbols = [
             symbol
             for symbol in eligible_symbols
-            if _is_cross_up_signal(snapshot, symbol, rule=self)
+            if _is_cross_up_signal(snapshot, symbol)
         ]
-        target = {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 0.0, "alt": 0.0}
-        if eligible_symbols:
-            per_asset = 1.0 / len(eligible_symbols)
-            for symbol in eligible_symbols:
-                target[ALLOCATION_KEY_BY_SYMBOL[symbol]] = per_asset
+        target = (
+            _stable_deployed(snapshot, eligible_symbols)
+            if self.deploy_stable_only
+            else _equal_weights(eligible_symbols)
+        )
         intent = portfolio_target_intent(
             action="buy",
             target=normalize_target_allocation(target),
@@ -85,53 +85,52 @@ class CrossUpEqualWeightRule:
         return [
             symbol
             for symbol in symbols_for_snapshot(snapshot)
-            if _is_cross_up_signal(snapshot, symbol, rule=self)
+            if _is_cross_up_signal(snapshot, symbol)
             and snapshot.assets[symbol].zone == "above"
         ]
 
 
-def _has_cross_up(
-    snapshot: PortfolioSnapshot,
-    *,
-    rule: CrossUpEqualWeightRule,
-) -> bool:
+def _equal_weights(symbols: list[str]) -> dict[str, float]:
+    target = {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 0.0, "alt": 0.0}
+    for symbol in symbols:
+        target[ALLOCATION_KEY_BY_SYMBOL[symbol]] = 1.0 / len(symbols)
+    return target
+
+
+def _stable_deployed(
+    snapshot: PortfolioSnapshot, symbols: list[str]
+) -> dict[str, float]:
+    """The current holdings, with the stable split equally across ``symbols``."""
+    target = current_target(snapshot)
+    stable = max(0.0, float(target["stable"]))
+    target["stable"] = 0.0
+    for symbol in symbols:
+        key = ALLOCATION_KEY_BY_SYMBOL[symbol]
+        target[key] = max(0.0, float(target[key])) + stable / len(symbols)
+    return target
+
+
+def _has_cross_up(snapshot: PortfolioSnapshot) -> bool:
     return any(
-        _is_cross_up_signal(snapshot, symbol, rule=rule)
-        for symbol in _eligible_symbols(snapshot, rule=rule)
+        _is_cross_up_signal(snapshot, symbol) for symbol in _eligible_symbols(snapshot)
     )
 
 
-def _eligible_symbols(
-    snapshot: PortfolioSnapshot,
-    *,
-    rule: CrossUpEqualWeightRule,
-) -> list[str]:
+def _eligible_symbols(snapshot: PortfolioSnapshot) -> list[str]:
     return [
         symbol
         for symbol in symbols_for_snapshot(snapshot)
         if snapshot.assets[symbol].zone == "above"
-        and (rule.applicable_symbols is None or symbol in rule.applicable_symbols)
         and symbol in ALLOCATION_KEY_BY_SYMBOL
         and (
-            _is_cross_up_signal(snapshot, symbol, rule=rule)
-            or not _is_reentry_cooldown_active(snapshot, symbol)
+            _is_cross_up_signal(snapshot, symbol)
+            or not reentry_blocked(snapshot, symbol)
         )
     ]
 
 
-def _is_cross_up_signal(
-    snapshot: PortfolioSnapshot,
-    symbol: str,
-    *,
-    rule: CrossUpEqualWeightRule,
-) -> bool:
-    del rule
+def _is_cross_up_signal(snapshot: PortfolioSnapshot, symbol: str) -> bool:
     return snapshot.assets[symbol].actionable_cross_event == "cross_up"
-
-
-def _is_reentry_cooldown_active(snapshot: PortfolioSnapshot, symbol: str) -> bool:
-    cooldown = snapshot.assets[symbol].cooldown_state
-    return cooldown.active and cooldown.blocked_zone == "above"
 
 
 __all__ = ["CrossUpEqualWeightRule"]

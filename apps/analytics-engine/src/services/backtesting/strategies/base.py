@@ -29,58 +29,28 @@ class TransferIntent:
 
 
 @dataclass(frozen=True)
-class StrategyAction:
-    """Action returned by a strategy for the current day."""
+class Order:
+    """Money a strategy asks to move on one bar; the engine fills it later.
 
-    snapshot: StrategySnapshot
-    target_allocations: dict[str, float] | None = None
-    transfers: list[TransferIntent] | None = None
-    apply_yield: bool = True
-    debt_delta_usd: float = 0.0
-    stable_cost_usd: float = 0.0
+    Exactly one of ``target_allocation`` (rebalance to these weights at the fill
+    bar's prices, from the holdings it finds then) or ``transfers`` (move exactly
+    these amounts) is set.
+    """
+
+    target_allocation: dict[str, float] | None = None
+    transfers: tuple[TransferIntent, ...] = ()
+
+    def __post_init__(self) -> None:
+        if (self.target_allocation is None) == (not self.transfers):
+            raise ValueError("an order sets either target_allocation or transfers")
 
 
 @dataclass(frozen=True)
-class DailyRecommendationInput:
-    """Input for single-day recommendation from endpoint.
+class StrategyAction:
+    """What a strategy decided on the current bar."""
 
-    This dataclass encapsulates all data needed for a strategy to generate
-    a daily recommendation, including fallback support when primary data
-    sources (sentiment aggregates) are unavailable.
-
-    Attributes:
-        current_date: The date for which to generate recommendation.
-        price: Current price of the primary asset (e.g., BTC).
-        portfolio: Portfolio instance with current holdings.
-        price_history: Historical prices for volatility calculation.
-        sentiment_aggregates: Historical sentiment rows from database.
-            Each row should have 'primary_classification' or 'avg_label' or 'label'.
-        current_sentiment: Today's sentiment data (label and value).
-        fallback_regime: Regime from RegimeTrackingService when aggregates are empty.
-        fallback_sentiment_value: Sentiment value from RegimeTrackingService fallback.
-    """
-
-    current_date: date
-    price: float
-    portfolio: Portfolio
-    price_history: list[float]
-
-    # Raw sentiment data (not pre-processed)
-    sentiment_aggregates: list[dict[str, Any]]  # Historical sentiment rows
-    current_sentiment: dict[str, Any] | None  # Today's sentiment (label, value)
-
-    # Fallback regime from RegimeTrackingService
-    fallback_regime: str | None = None
-    fallback_sentiment_value: int | None = None
-    price_map: dict[str, float] = field(default_factory=dict)
-    extra_data: dict[str, Any] = field(default_factory=dict)
-    warmup_extra_data_by_date: dict[date, dict[str, Any]] = field(default_factory=dict)
-    warmup_price_by_date: dict[date, float] = field(default_factory=dict)
-    warmup_price_map_by_date: dict[date, dict[str, float]] = field(default_factory=dict)
-
-    @property
-    def features(self) -> MarketFeatureSet:
-        return MarketFeatureSet.from_extra_data(self.extra_data)
+    snapshot: StrategySnapshot
+    order: Order | None = None
 
 
 @dataclass(frozen=True)
@@ -136,18 +106,6 @@ class BaseStrategy:
         """Return the action for a given day."""
         raise NotImplementedError
 
-    def get_daily_recommendation(
-        self,
-        input_data: DailyRecommendationInput,
-    ) -> StrategyAction:
-        """Return the action for a single day (endpoint use).
-
-        This optional entrypoint enables reuse of backtesting strategies in
-        synchronous endpoint scenarios where the caller provides the necessary
-        input data for a single recommendation.
-        """
-        raise NotImplementedError
-
     def warmup_day(self, context: StrategyContext) -> None:
         """Warm up strategy state using pre-start data.
 
@@ -192,14 +150,8 @@ class BaseStrategy:
         return getattr(strategy, "total_deployed", 0.0)
 
     # jscpd:ignore-start - record_day signature is intentionally shared by BaseStrategy subclass overrides
-    def record_day(
-        self,
-        context: StrategyContext,
-        action: StrategyAction,
-        yield_breakdown: dict[str, float],
-        trade_executed: bool,
-    ) -> None:
-        """Hook to record daily results after trades and yield."""
+    def record_day(self, context: StrategyContext, action: StrategyAction) -> None:
+        """Hook to record the day's result after fills and yield."""
         daily_data = self._get_daily_data(self)
         if daily_data is None:
             return

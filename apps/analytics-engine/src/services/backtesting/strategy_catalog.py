@@ -2,17 +2,21 @@
 
 from __future__ import annotations
 
+from pydantic import JsonValue
+
 from src.models.backtesting import (
     BacktestStrategyCatalogEntryV3,
     BacktestStrategyCatalogResponseV3,
 )
-from src.services.backtesting.public_params import (
-    get_default_public_params,
-    get_nested_public_params_schema,
-)
 from src.services.backtesting.strategy_registry import list_strategy_recipes
 
-CATALOG_VERSION = "3.0.0"
+CATALOG_VERSION = "4.0.0"
+# No strategy takes params: what a strategy does is stated by its spec.
+NO_PARAMS_SCHEMA: dict[str, JsonValue] = {
+    "type": "object",
+    "properties": {},
+    "additionalProperties": False,
+}
 
 
 def build_strategy_catalog_entries() -> list[BacktestStrategyCatalogEntryV3]:
@@ -21,8 +25,8 @@ def build_strategy_catalog_entries() -> list[BacktestStrategyCatalogEntryV3]:
             strategy_id=recipe.strategy_id,
             display_name=recipe.display_name,
             description=recipe.description,
-            param_schema=get_nested_public_params_schema(recipe.strategy_id),
-            default_params=get_default_public_params(recipe.strategy_id),
+            param_schema=dict(NO_PARAMS_SCHEMA),
+            default_params={},
             supports_daily_suggestion=recipe.supports_daily_suggestion,
         )
         for recipe in list_strategy_recipes()

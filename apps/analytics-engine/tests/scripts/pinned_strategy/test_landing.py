@@ -1,6 +1,7 @@
 """Never publish an invented deployment or a non-reproducible historical example."""
 
 import json
+from datetime import timedelta
 from decimal import Decimal
 
 import pytest
@@ -130,16 +131,27 @@ def test_exporter_replays_real_strategy_with_synthetic_test_inputs(
 ):
     from scripts.pinned_strategy import export_landing_examples as exporter
     from scripts.pinned_strategy.benchmark import run_compare
-    from tests.test_validation_events import EVENTS, _synthetic_market_history
-
-    history = _synthetic_market_history(
-        event=next(
-            e for e in EVENTS if e.id == "btc_cross_down_preserve_spy_2025_10_18"
-        )
+    from src.services.backtesting.lab.bundle import Bundle, build_manifest
+    from src.services.backtesting.validation.event_histories import (
+        synthetic_event_history,
     )
+    from tests.test_validation_events import EVENTS
+
+    prices, sentiments, start, end = synthetic_event_history(
+        next(e for e in EVENTS if e.id == "btc_cross_down_preserve_spy_2025_10_18")
+    )
+    # The exit is decided on the last synthetic day and fills on the next bar, so
+    # the history runs one day past it for the target to show up in the portfolio.
+    fill_day = {**prices[-1], "date": end + timedelta(days=1)}
+    sentiments[fill_day["date"]] = sentiments[end]
+    history = ([*prices, fill_day], sentiments, start, fill_day["date"])
     result = run_compare(history, True).model_dump(mode="json")
-    last = result["timeline"][-1]["strategies"]["slice"]["portfolio"][
-        "asset_allocation"
+    allocations = [
+        [
+            round(point["strategies"]["slice"]["portfolio"]["asset_allocation"][k], 4)
+            for k in ("btc", "eth", "spy", "stable")
+        ]
+        for point in result["timeline"][-2:]
     ]
     published = {
         "window": {"start": history[2].isoformat(), "end": history[3].isoformat()},
@@ -150,10 +162,15 @@ def test_exporter_replays_real_strategy_with_synthetic_test_inputs(
                 "fromAssets": ["BTC", "ETH"],
             }
         ],
-        "series": [{"id": "strategy", "values": [{"date": "2025-10-18"}]}],
+        "series": [
+            {
+                "id": "strategy",
+                "values": [{"date": "2025-10-18"}, {"date": "2025-10-19"}],
+            }
+        ],
         "allocations": {
             "assets": ["btc", "eth", "spy", "stable"],
-            "values": [[round(last[k], 4) for k in ("btc", "eth", "spy", "stable")]],
+            "values": allocations,
         },
     }
     artifact = json.loads(ARTIFACT.read_text())
@@ -161,13 +178,23 @@ def test_exporter_replays_real_strategy_with_synthetic_test_inputs(
     deployment.write_text(json.dumps({"runtimeCodehash": artifact["runtime_codehash"]}))
     track = tmp_path / "track.json"
     track.write_text(json.dumps(published))
-    history_path = tmp_path / "history"
-    history_path.write_text("synthetic-test-only")
+    bundle = Bundle(
+        manifest=build_manifest(
+            name="synthetic-test-only",
+            source="synthetic",
+            prices=history[0],
+            sentiments=history[1],
+            start=history[2],
+            end=history[3],
+            requirements={},
+        ),
+        prices=history[0],
+        sentiments=history[1],
+    )
     monkeypatch.setattr(exporter, "DEPLOYMENTS", deployment)
     monkeypatch.setattr(exporter, "TRACK_RECORD", track)
-    monkeypatch.setattr(exporter, "HISTORY", history_path)
     monkeypatch.setattr(exporter, "OUTPUT", tmp_path / "output.json")
-    monkeypatch.setattr(exporter, "read_history", lambda: history)
+    monkeypatch.setattr(exporter, "recorded_bundle", lambda: bundle)
     payload = exporter.generate(["2025-10-18"])
     assert len(payload["examples"]) == 1
     example = payload["examples"][0]
@@ -220,6 +247,13 @@ def _assert_obs_close(actual: list, expected: list) -> None:
 
 def test_approved_historical_example_before_deployment():
     from scripts.pinned_strategy.export_landing_examples import generate
+    from scripts.pinned_strategy.history import recorded_bundle
+    from src.services.backtesting.lab.bundle import BundleError
+
+    try:
+        recorded_bundle()
+    except BundleError:
+        pytest.skip("No recorded production history; an operator records prod:latest")
 
     before = OUTPUT.read_bytes()
     example = generate(["2025-10-18"], validate_only=True)["examples"][0]
@@ -272,3 +306,17 @@ def test_approved_historical_example_before_deployment():
     ):
         _assert_wad_close(actual, expected)
     assert OUTPUT.read_bytes() == before
+
+
+def test_a_missing_recording_says_how_to_make_one(monkeypatch):
+    from scripts.pinned_strategy import export_landing_examples as exporter
+    from scripts.pinned_strategy import history as history_module
+    from src.services.backtesting.lab.bundle import BundleNotFoundError
+
+    def missing(ref):
+        raise BundleNotFoundError("No bundle named 'prod'")
+
+    monkeypatch.setattr(history_module, "load_bundle", missing)
+
+    with pytest.raises(RuntimeError, match="strategy-lab bundle record"):
+        exporter.replay(["2025-10-18"])

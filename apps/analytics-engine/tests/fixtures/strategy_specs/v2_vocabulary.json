@@ -1,0 +1,148 @@
+{
+  "spec_format": "strategy-spec/1",
+  "id": "v2_vocabulary",
+  "version": 1,
+  "description": "The reference with every knob and kind added after it: a per-asset exit cooldown, a cross-up that only deploys stable, relative trims, a staged entry, and the trend guard. A fixture that pins the vocabulary, not a strategy anyone runs.",
+  "signals": {
+    "warmup_days": 14,
+    "dma": {
+      "feature": "dma_200",
+      "cross_cooldown_days": {
+        "SPY": 14,
+        "BTC": 30,
+        "ETH": 30
+      },
+      "cross_on_touch": true
+    },
+    "ratio": {
+      "cross_cooldown_days": 30
+    }
+  },
+  "rules": [
+    {
+      "kind": "dma_cross_down_exit",
+      "id": "cross_down_exit",
+      "cooldown_days": 30,
+      "peer_groups": [["SPY"], ["BTC", "ETH"]],
+      "proceeds": {
+        "to": []
+      },
+      "cooldown_scope": "trigger_symbol"
+    },
+    {
+      "kind": "dma_cross_up_rebalance",
+      "id": "cross_up_equal_weight",
+      "cooldown_days": 30,
+      "allocation": "deploy_stable"
+    },
+    {
+      "kind": "ratio_cross_rotation",
+      "id": "eth_btc_ratio_rotation",
+      "cooldown_days": 30,
+      "cross_up": {
+        "sources": ["BTC", "STABLE"],
+        "destination": "ETH"
+      },
+      "cross_down": {
+        "sources": ["ETH"],
+        "destination": "BTC"
+      }
+    },
+    {
+      "kind": "ratio_deviation_rotation",
+      "id": "eth_btc_deviation_dca",
+      "tiers": [
+        {
+          "name": "large",
+          "threshold": 0.65,
+          "rotation_fraction": 0.75,
+          "cooldown_days": 60
+        },
+        {
+          "name": "dca",
+          "threshold": 0.5,
+          "rotation_fraction": 0.25,
+          "cooldown_days": 14
+        }
+      ],
+      "below": {
+        "source": "BTC",
+        "destination": "ETH"
+      },
+      "above": {
+        "source": "ETH",
+        "destination": "BTC"
+      }
+    },
+    {
+      "kind": "dma_overextension_trim",
+      "id": "dma_overextension_dca_sell",
+      "cooldown_days": 7,
+      "sell_step": 0.25,
+      "thresholds": {
+        "SPY": 0.1,
+        "BTC": 0.2,
+        "ETH": 0.5
+      },
+      "fgi_multipliers": {
+        "extreme_fear": 1.0,
+        "fear": 1.0,
+        "neutral": 1.0,
+        "greed": 0.5,
+        "extreme_greed": 0.33
+      },
+      "proceeds": {
+        "to": [
+          {
+            "asset": "SPY",
+            "share": 0.5
+          }
+        ]
+      },
+      "sizing": {
+        "mode": "relative",
+        "floor_weight": 0.1
+      }
+    },
+    {
+      "kind": "fgi_downshift_trim",
+      "id": "fgi_downshift_dca_sell",
+      "cooldown_days": 7,
+      "sell_step": 0.25,
+      "from_regimes": ["greed", "extreme_greed"],
+      "to_regimes": ["neutral", "fear", "extreme_fear"],
+      "proceeds": {
+        "to": []
+      },
+      "sizing": {
+        "mode": "relative",
+        "floor_weight": 0.1
+      }
+    },
+    {
+      "kind": "trend_dca_entry",
+      "id": "trend_dca_entry",
+      "cooldown_days": 7,
+      "buy_step": 0.1,
+      "max_weight": 0.5
+    }
+  ],
+  "guards": [],
+  "overlays": [
+    {
+      "kind": "spy_latch",
+      "id": "spy_latch",
+      "follow_through_days": 14
+    },
+    {
+      "kind": "trend_guard",
+      "id": "trend_guard",
+      "mode": "force_exit",
+      "below_dma_buffer": 0.02,
+      "confirm_days": 3
+    }
+  ],
+  "execution": {
+    "mode": "full_target"
+  }
+}

@@ -190,7 +190,7 @@ class SentimentDatabaseService(QueryBackedMarketService):
         """Async wrapper for protocol compatibility. Delegates to sync implementation."""
         return self.get_current_sentiment_sync()
 
-    async def get_sentiment_history(
+    def get_sentiment_history(
         self,
         hours: int = 24,
         *,

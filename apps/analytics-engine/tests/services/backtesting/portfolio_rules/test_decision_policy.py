@@ -19,6 +19,7 @@ from src.services.backtesting.decision import (
     RuleGroup,
 )
 from src.services.backtesting.portfolio_rules.base import (
+    DIAG_MATCHED_RULE_NAME,
     DIAG_SIGNALS_CONSULTED,
     PortfolioRule,
     PortfolioRuleConfig,
@@ -33,17 +34,10 @@ from src.services.backtesting.portfolio_rules.decision_policy import (
     RuleExecutionState,
     RulesEvaluator,
     _matched_rule_priority,
-    _rule_with_public_params,
-    build_portfolio_rules_for_params,
     build_portfolio_snapshot,
-    build_risk_guards_for_params,
-    required_rule,
     resolve_portfolio_rules_intent,
 )
 from src.services.backtesting.signals.flat_minimum import FlatMinimumState
-from src.services.backtesting.strategies.rule_based_portfolio import (
-    DmaGatedFgiParams,
-)
 from tests.services.backtesting.portfolio_rules.helpers import snapshot, state
 
 
@@ -224,17 +218,6 @@ class _PostAdjustmentRule(_FakeRule):
         )
 
 
-class _PublicParamsNoSectionRule(_FakeRule):
-    @classmethod
-    def public_params_section(cls) -> str | None:
-        return None
-
-    @classmethod
-    def with_public_params(cls, section: object) -> _PublicParamsNoSectionRule:
-        del section
-        return cls(name="configured")
-
-
 def _as_rules(*fakes: _FakeRule) -> tuple[PortfolioRule, ...]:
     return tuple(cast(PortfolioRule, fake) for fake in fakes)
 
@@ -264,34 +247,6 @@ def test_no_matching_rule_returns_regime_no_signal_hold() -> None:
     assert intent.reason == "regime_no_signal"
     assert intent.diagnostics is not None
     assert intent.diagnostics["matched_rule_name"] == "regime_no_signal_hold"
-
-
-def test_disabled_rule_is_skipped_and_next_eligible_match_wins() -> None:
-    intent = resolve_portfolio_rules_intent(
-        snapshot(),
-        rules=_as_rules(
-            _FakeRule(name="alpha"),
-            _FakeRule(name="beta"),
-        ),
-        disabled_rules=frozenset({"alpha"}),
-    )
-
-    assert intent.diagnostics is not None
-    assert intent.diagnostics["matched_rule_name"] == "beta"
-
-
-def test_enabled_rules_acts_as_allowlist() -> None:
-    intent = resolve_portfolio_rules_intent(
-        snapshot(),
-        rules=_as_rules(
-            _FakeRule(name="alpha"),
-            _FakeRule(name="beta"),
-        ),
-        enabled_rules=frozenset({"beta"}),
-    )
-
-    assert intent.diagnostics is not None
-    assert intent.diagnostics["matched_rule_name"] == "beta"
 
 
 def test_resolver_uses_injected_cooldown_tracker() -> None:
@@ -379,14 +334,29 @@ def test_rule_trace_marks_lower_priority_matches_as_shadowed_by_winner() -> None
     intent = resolve_portfolio_rules_intent(
         snapshot(),
         rules=_as_rules(
-            _FakeRule(name="cross_down_exit"),
-            _FakeRule(name="cross_up_equal_weight"),
+            _FakeRule(name="cross_down_exit", priority=10),
+            _FakeRule(name="cross_up_equal_weight", priority=20),
         ),
     )
 
     assert intent.diagnostics is not None
     trace = intent.diagnostics["portfolio_rule_matches"]
     assert trace[1]["suppressed_by"] == "cross_down_exit"
+
+
+def test_shadowing_follows_the_priorities_of_the_rules_evaluated() -> None:
+    """A rule named like a default rule gets no priority from the registry."""
+    intent = resolve_portfolio_rules_intent(
+        snapshot(),
+        rules=_as_rules(
+            _FakeRule(name="cross_up_equal_weight", priority=5),
+            _FakeRule(name="cross_down_exit", priority=9),
+        ),
+    )
+
+    assert intent.diagnostics is not None
+    trace = intent.diagnostics["portfolio_rule_matches"]
+    assert [row["suppressed_by"] for row in trace] == [None, "cross_up_equal_weight"]
 
 
 def test_hold_intent_emits_signals_consulted_when_enabled() -> None:
@@ -766,54 +736,6 @@ def test_build_portfolio_snapshot_reports_missing_crypto_summary_as_none() -> No
     assert portfolio_snapshot.crypto_fgi_value is None
 
 
-def test_build_portfolio_rules_applies_public_params_and_include_inactive() -> None:
-    params = DmaGatedFgiParams.from_public_params(
-        {
-            "disabled_rules": ["cross_down_exit"],
-            "overextension_threshold_multiplier_greed": 0.67,
-            "overextension_threshold_multiplier_extreme_greed": 0.50,
-        }
-    )
-
-    active_rules = build_portfolio_rules_for_params(params)
-    all_rules = build_portfolio_rules_for_params(params, include_inactive=True)
-
-    assert "cross_down_exit" not in [rule.name for rule in active_rules]
-    overextension_rule = next(
-        rule for rule in all_rules if rule.name == "dma_overextension_dca_sell"
-    )
-    assert overextension_rule.overextension_threshold_multiplier_greed == 0.67
-    assert overextension_rule.overextension_threshold_multiplier_extreme_greed == 0.50
-    assert "spy_latch" in [rule.name for rule in all_rules]
-
-
-def test_public_params_rule_with_no_section_is_returned_unchanged() -> None:
-    rule = _PublicParamsNoSectionRule(name="no_section")
-
-    assert _rule_with_public_params(rule, object()) is rule
-
-
-def test_build_risk_guards_for_params_only_enables_trade_quota_when_configured() -> (
-    None
-):
-    assert build_risk_guards_for_params(DmaGatedFgiParams()) == ()
-
-    guards = build_risk_guards_for_params(DmaGatedFgiParams(min_trade_interval_days=3))
-
-    assert [guard.name for guard in guards] == ["trade_quota"]
-
-
-def test_decision_policy_validation_helpers_raise_for_unknown_names() -> None:
-    found = required_rule(
-        _as_rules(_FakeRule(name="alpha")),
-        _FakeRule,
-    )
-    assert found.name == "alpha"
-
-    with pytest.raises(ValueError, match="Missing required portfolio rule"):
-        required_rule((), type(cast(PortfolioRule, _FakeRule(name="alpha"))))
-
-
 def test_matched_rule_priority_returns_none_without_matched_rule_diagnostic() -> None:
     assert (
         _matched_rule_priority(
@@ -826,7 +748,26 @@ def test_matched_rule_priority_returns_none_without_matched_rule_diagnostic() ->
                 rule_group="none",
                 decision_score=0.0,
                 diagnostics=None,
-            )
+            ),
+            _as_rules(_FakeRule(name="alpha", priority=7)),
         )
         is None
     )
+
+
+def test_matched_rule_priority_reads_the_priority_of_the_named_rule() -> None:
+    intent = AllocationIntent(
+        action="buy",
+        target_allocation=None,
+        allocation_name=None,
+        immediate=False,
+        reason="alpha",
+        rule_group="none",
+        decision_score=0.0,
+        diagnostics={DIAG_MATCHED_RULE_NAME: "alpha"},
+    )
+
+    rules = _as_rules(_FakeRule(name="alpha", priority=7))
+
+    assert _matched_rule_priority(intent, rules) == 7
+    assert _matched_rule_priority(intent, ()) is None

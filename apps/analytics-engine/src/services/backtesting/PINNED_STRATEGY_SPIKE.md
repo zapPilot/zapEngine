@@ -36,14 +36,20 @@ agents' edits as described in the handoff. No commit or GitHub write was attempt
   state; Python winners drive selected/forced masks, including other rules.
   Only an executed cross_down_exit updates the rule cooldown date. DMA state is
   checked after observation, warmup, and commit against Python debug state.
-- `record_market_history.py`: capture prepared compare inputs before the engine,
-  including warmup, market features and sentiments; deterministic gzip JSONL;
-  collision check; reject overwrite/out-of-directory output. No snapshot writer.
+- `history.py`: loads the recorded production history, a strategy-lab bundle
+  (`prod:latest`, recorded by an operator with `strategy-lab bundle record`; see
+  `COMMANDS.md`), and refuses prices the codec would conflate. The prepared
+  compare inputs, warmup included, live in the bundle: deterministic gzip JSONL
+  with a manifest and a content hash. Nothing is committed; without a bundle the
+  real-history tests skip and the benchmark stops with the recording command.
 - Tests: existing validation histories, 500-day synthetic stream with missing ETH
   DMA and touch/direct-cross transitions, cooldown edges, peer exits with absent
   peers, alt recycling, empty holdings, epsilon, codec and five mutations.
 - `benchmark.py`: encode/call/decode latency and three-repeat median full compare
-  with/without shadow. Default and the actual optimized public params are used.
+  with/without shadow. Touch semantics are selected through
+  `scripts/pinned_strategy/touch_mode.py`. (The "Optimized" columns below are
+  historical: they came from the tuned preset removed on 2026-10-09, which the
+  benchmark used to borrow as its non-touch variant.)
   Real history is required unless `--synthetic` is explicitly selected.
 
 The installed runtime is CPython 3.11.15 on macOS 26.6.2 ARM64. `.python-version`
@@ -171,10 +177,10 @@ real-history run; no blanket acceptability claim is made.
 - Selected assets may start DMA cooldown even without an eventual fill; only
   actual transfers update the global rule execution date. Empty holdings and
   peer exit are retained rather than redesigned.
-- Python currently has execution plugin factory paths distinct from this
-  strategy's direct allocation executor. This spike does not wire plugins or
-  change quota/pacing behavior. Optimized params are passed through the real
-  strategy, rather than assuming only cross_on_touch matters.
+- Python executes this strategy through its direct allocation executor; there
+  are no execution plugins or pacing paths. This spike does not change quota
+  behavior. The reference strategy runs for real in both touch modes, rather
+  than assuming only cross_on_touch matters.
 - Live reset/warmup and missing persisted state remain outside this work. Pure
   bytecode does not authenticate prior state or market inputs. The supplied
   backend state remains a trust boundary. No production DB saved-config facts
@@ -214,7 +220,7 @@ uv run pytest tests/scripts/pinned_strategy -q
 uv run python scripts/pinned_strategy/benchmark.py --synthetic
 uv run --with titanoboa==0.2.8 python scripts/pinned_strategy/benchmark.py --backend py-evm
 # Only after explicit approval, using configured prod read-only secrets:
-infisical run --env=prod -- env DATABASE_READ_ONLY=true uv run python scripts/pinned_strategy/record_market_history.py
+node ../../scripts/env/run.mjs --environment prod -- pnpm strategy-lab bundle record --name prod --start 2017-01-01
 uv run python scripts/pinned_strategy/benchmark.py
 # Audit dev dependencies too (the existing security:audit excludes them):
 uv export --locked --no-emit-project --format requirements.txt --no-header --output-file /tmp/pinned-audit.txt

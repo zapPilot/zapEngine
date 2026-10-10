@@ -15,7 +15,11 @@ import httpx
 from scripts.attribution._helpers import _metric
 from scripts.landing.equity_curve import generate as generate_landing_equity_curve
 from src.config.strategy_presets import get_default_seed_strategy_config
-from src.services.backtesting.constants import STRATEGY_DISPLAY_NAMES
+from src.services.backtesting.constants import (
+    MODEL_TOTAL_CAPITAL,
+    MODEL_WINDOW_DAYS,
+    STRATEGY_DISPLAY_NAMES,
+)
 from src.services.backtesting.strategy_registry import (
     get_strategy_recipe,
     list_strategy_recipes,
@@ -25,8 +29,8 @@ APP_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_ENDPOINT = "http://localhost:8001"
 COMPARE_PATH = "/api/v3/backtesting/compare"
 DEFAULT_REFERENCE_DATE = "2026-04-15"
-DEFAULT_WINDOW_DAYS = 500
-DEFAULT_TOTAL_CAPITAL = 10_000.0
+DEFAULT_WINDOW_DAYS = MODEL_WINDOW_DAYS
+DEFAULT_TOTAL_CAPITAL = MODEL_TOTAL_CAPITAL
 DEFAULT_SNAPSHOT_PATH = (
     APP_ROOT / "tests/fixtures/strategy_performance_snapshot_500d.json"
 )
@@ -209,6 +213,8 @@ def _fetch_compare_payload(
     strategies = payload.get("strategies")
     if not isinstance(strategies, dict):
         raise ValueError("Compare response must include a strategies object")
+    if not isinstance(payload.get("assumptions"), dict):
+        raise ValueError("Compare response must echo the assumptions it ran under")
     missing = [
         strategy_id for strategy_id in strategy_ids if strategy_id not in strategies
     ]
@@ -218,8 +224,11 @@ def _fetch_compare_payload(
 
 
 def _snapshot_strategy_entry(
-    strategy_id: str, summary: dict[str, Any]
+    strategy_id: str, summary: dict[str, Any], *, total_capital: float
 ) -> dict[str, Any]:
+    attribution = summary.get("pnl_attribution")
+    if not isinstance(attribution, dict):
+        raise ValueError(f"Strategy {strategy_id!r} summary has no pnl_attribution")
     return {
         "display_name": STRATEGY_DISPLAY_NAMES.get(strategy_id, strategy_id),
         "calmar_ratio": _metric(summary, "calmar_ratio", round_digits=4),
@@ -238,7 +247,17 @@ def _snapshot_strategy_entry(
         "sortino_ratio": _metric(summary, "sortino_ratio", round_digits=4),
         "volatility": _metric(summary, "volatility", round_digits=4),
         "ulcer_index": _metric(summary, "ulcer_index", round_digits=4),
+        # Where the ROI came from; informational, never part of the drift gate.
+        "roi_price_percent": _share_of_capital(attribution, "price_usd", total_capital),
+        "roi_yield_percent": _share_of_capital(attribution, "yield_usd", total_capital),
+        "roi_cost_percent": _share_of_capital(attribution, "cost_usd", total_capital),
     }
+
+
+def _share_of_capital(
+    attribution: dict[str, Any], key: str, total_capital: float
+) -> float:
+    return round(float(_metric(attribution, key)) / total_capital * 100.0, 4)
 
 
 def _collect_snapshot_result(
@@ -302,9 +321,12 @@ def _collect_snapshot_result(
         "window_end": reference_date.isoformat(),
         "total_capital": total_capital,
         "default_strategy_id": default_strategy_id,
+        "assumptions": dict(compare_payload["assumptions"]),
         "tolerances": {key: tolerances[key] for key in METRIC_KEYS},
         "strategies": {
-            strategy_id: _snapshot_strategy_entry(strategy_id, summaries[strategy_id])
+            strategy_id: _snapshot_strategy_entry(
+                strategy_id, summaries[strategy_id], total_capital=total_capital
+            )
             for strategy_id in strategy_ids
         },
     }

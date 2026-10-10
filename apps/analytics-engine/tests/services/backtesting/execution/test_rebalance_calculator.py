@@ -6,7 +6,11 @@ from unittest.mock import Mock
 
 import pytest
 
-from src.services.backtesting.execution.rebalance_calculator import RebalanceCalculator
+from src.services.backtesting.execution.portfolio import Portfolio
+from src.services.backtesting.execution.rebalance_calculator import (
+    RebalanceCalculator,
+    plan_transfers_to_target,
+)
 from src.services.backtesting.strategies.base import StrategyContext
 
 
@@ -49,40 +53,6 @@ class TestCalculateDeltas:
         )
         assert result["btc"] == pytest.approx(0.0)
         assert result["stable"] == pytest.approx(5_000.0)
-
-
-class TestCalculateDeltasFromContext:
-    def test_extracts_values_from_context(self) -> None:
-        mock_portfolio = Mock()
-        mock_portfolio.total_value.return_value = 10_000.0
-        mock_portfolio.values_for_allocation_keys.return_value = {
-            "btc": 5_000.0,
-            "eth": 0.0,
-            "spy": 0.0,
-            "stable": 5_000.0,
-            "alt": 0.0,
-        }
-
-        context = StrategyContext(
-            date=Mock(),
-            price=100.0,
-            sentiment=None,
-            price_history=[],
-            portfolio=mock_portfolio,
-        )
-
-        result = RebalanceCalculator.calculate_deltas_from_context(
-            context,
-            target_allocation={
-                "btc": 0.6,
-                "eth": 0.0,
-                "spy": 0.0,
-                "stable": 0.4,
-                "alt": 0.0,
-            },
-        )
-        assert result["btc"] == pytest.approx(1_000.0)
-        assert result["stable"] == pytest.approx(-1_000.0)
 
 
 class TestCalculateCurrentAllocation:
@@ -166,67 +136,6 @@ class TestNormalizeTargetAllocation:
     def test_rejects_unsupported_keys(self) -> None:
         with pytest.raises(ValueError, match="unsupported buckets"):
             RebalanceCalculator._normalize_target_allocation({"lp": 0.5, "stable": 0.5})
-
-
-class TestCalculateDeltasFromContextNonDictValues:
-    def test_non_dict_values_for_keys_falls_back(self) -> None:
-        mock_portfolio = Mock()
-        mock_portfolio.total_value.return_value = 10_000.0
-        mock_portfolio.values_for_allocation_keys.return_value = "not_a_dict"
-        mock_portfolio.bucket_values.return_value = {"spot": 5_000.0, "stable": 5_000.0}
-
-        context = StrategyContext(
-            date=Mock(),
-            price=100.0,
-            sentiment=None,
-            price_history=[],
-            portfolio=mock_portfolio,
-        )
-
-        result = RebalanceCalculator.calculate_deltas_from_context(
-            context,
-            target_allocation={
-                "btc": 0.5,
-                "eth": 0.0,
-                "spy": 0.0,
-                "stable": 0.5,
-                "alt": 0.0,
-            },
-        )
-        # Fallback bucket_values has 'spot'/'stable' keys, target is canonical;
-        # union covers both spaces and missing buckets default to 0.
-        assert result["btc"] == pytest.approx(5_000.0)
-        assert result["stable"] == pytest.approx(0.0)
-        assert result["spot"] == pytest.approx(-5_000.0)
-
-    def test_no_values_for_keys_falls_back_to_bucket_values(self) -> None:
-        mock_portfolio = Mock(spec=[])
-        mock_portfolio.total_value = Mock(return_value=10_000.0)
-        mock_portfolio.bucket_values = Mock(
-            return_value={"spot": 5_000.0, "stable": 5_000.0}
-        )
-
-        context = StrategyContext(
-            date=Mock(),
-            price=100.0,
-            sentiment=None,
-            price_history=[],
-            portfolio=mock_portfolio,
-        )
-
-        result = RebalanceCalculator.calculate_deltas_from_context(
-            context,
-            target_allocation={
-                "btc": 0.5,
-                "eth": 0.0,
-                "spy": 0.0,
-                "stable": 0.5,
-                "alt": 0.0,
-            },
-        )
-        assert result["btc"] == pytest.approx(5_000.0)
-        assert result["stable"] == pytest.approx(0.0)
-        assert result["spot"] == pytest.approx(-5_000.0)
 
 
 class TestCurrentAllocationFromContextEdgeCases:
@@ -343,3 +252,64 @@ class TestCurrentAllocationFromContextEdgeCases:
         result = RebalanceCalculator.calculate_current_allocation_from_context(context)
         assert result["spot"] == pytest.approx(0.5)
         assert result["stable"] == pytest.approx(0.5)
+
+
+class TestPlanTransfersToTarget:
+    PRICES = {"btc": 100.0, "eth": 50.0, "spy": 10.0}
+
+    def _portfolio(self, **values: float) -> Portfolio:
+        return Portfolio.from_asset_values(
+            btc_value=values.get("btc", 0.0),
+            eth_value=values.get("eth", 0.0),
+            spy_value=values.get("spy", 0.0),
+            stable_value=values.get("stable", 0.0),
+            price=self.PRICES,
+        )
+
+    def _plan(
+        self, portfolio: Portfolio, **target: float
+    ) -> list[tuple[str, str, float]]:
+        full_target = {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 0.0, "alt": 0.0}
+        full_target.update(target)
+        transfers = plan_transfers_to_target(
+            portfolio=portfolio,
+            price=self.PRICES,
+            target_allocation=full_target,
+        )
+        return [(t.from_bucket, t.to_bucket, t.amount_usd) for t in transfers]
+
+    def test_portfolio_already_on_target_needs_no_transfers(self) -> None:
+        portfolio = self._portfolio(btc=5_000.0, stable=5_000.0)
+
+        assert self._plan(portfolio, btc=0.5, stable=0.5) == []
+
+    def test_deltas_inside_the_tolerance_count_as_on_target(self) -> None:
+        portfolio = self._portfolio(btc=5_000.0, stable=5_000.0)
+
+        assert self._plan(portfolio, btc=0.5 + 1e-12, stable=0.5 - 1e-12) == []
+
+    def test_cash_is_deployed_into_the_target_asset(self) -> None:
+        portfolio = self._portfolio(stable=10_000.0)
+
+        assert self._plan(portfolio, btc=0.05, stable=0.95) == [
+            ("stable", "btc", pytest.approx(500.0))
+        ]
+
+    def test_every_leg_of_a_multi_asset_rebalance_is_planned_at_once(self) -> None:
+        portfolio = self._portfolio(btc=5_000.0, eth=3_000.0, stable=2_000.0)
+
+        assert self._plan(portfolio, eth=0.4, stable=0.6) == [
+            ("btc", "eth", pytest.approx(1_000.0)),
+            ("btc", "stable", pytest.approx(4_000.0)),
+        ]
+
+    def test_exiting_everything_sends_all_value_to_stable(self) -> None:
+        portfolio = self._portfolio(btc=4_000.0, spy=6_000.0)
+
+        assert self._plan(portfolio, stable=1.0) == [
+            ("btc", "stable", pytest.approx(4_000.0)),
+            ("spy", "stable", pytest.approx(6_000.0)),
+        ]
+
+    def test_empty_portfolio_has_nothing_to_move(self) -> None:
+        assert self._plan(self._portfolio(), btc=0.5, stable=0.5) == []

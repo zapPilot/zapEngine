@@ -34,8 +34,8 @@ def _build_backtest_http_error(error: Exception) -> HTTPException:
     summary="Backtesting Strategy Catalog (v3)",
     description=(
         "Deprecated compatibility endpoint. Returns the same strategy family "
-        "catalog exposed at `/api/v3/strategy/configs.strategies`, including "
-        "param schemas and curated default params."
+        "catalog exposed at `/api/v3/strategy/configs.strategies`. No strategy "
+        "takes params, so every param schema is empty."
     ),
 )
 def list_backtesting_strategies_v3() -> BacktestStrategyCatalogResponseV3:
@@ -50,9 +50,10 @@ def list_backtesting_strategies_v3() -> BacktestStrategyCatalogResponseV3:
         "Runs a historical backtest for multiple client-provided configs.\n\n"
         "Request shape:\n"
         "- globals: token_symbol, start_date/end_date/days, total_capital\n"
-        "- configs: [{config_id, saved_config_id?} | {config_id, strategy_id, params}, ...]\n\n"
+        "- configs: [{config_id, saved_config_id?} | {config_id, strategy_id}, ...]\n\n"
         "Behavior:\n"
-        "- Canonical path is `saved_config_id`; legacy `strategy_id + params` remains supported as an adapter.\n"
+        "- Canonical path is `saved_config_id`; `strategy_id` alone runs a strategy's own spec.\n"
+        "- A strategy takes no params (its spec states what it does): a non-empty `params` is rejected.\n"
         "- The service compares exactly the configs provided in the request.\n\n"
         "Response shape:\n"
         "- BacktestResponse where `strategies` and `timeline[].strategies` are keyed by config_id."

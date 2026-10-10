@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  BacktestCompareParamsV3Schema,
+  BacktestAssumptionsSchema,
   BacktestMacroFearGreedSnapshotSchema,
+  BacktestPnlAttributionSchema,
   BacktestRequestSchema,
   BacktestRuleGroupSchema,
-  BacktestSignalParamsV3Schema,
   BacktestSignalSchema,
   BacktestSpotAssetSymbolSchema,
   BacktestStrategyPortfolioSchema,
@@ -167,41 +167,52 @@ describe('BacktestStrategyPortfolioSchema', () => {
   });
 });
 
-describe('BacktestSignalParamsV3Schema (strict + partial)', () => {
-  it('accepts an empty params object', () => {
-    expect(BacktestSignalParamsV3Schema.safeParse({}).success).toBe(true);
+describe('BacktestAssumptionsSchema (strict)', () => {
+  const defaults = { fill_lag_days: 1, slippage_rate: 0.003, stable_apr: 0.03 };
+
+  it('accepts the default assumptions', () => {
+    expect(BacktestAssumptionsSchema.safeParse(defaults).success).toBe(true);
   });
 
-  it('accepts a partial params object', () => {
-    expect(
-      BacktestSignalParamsV3Schema.safeParse({ cross_cooldown_days: 7 })
-        .success,
-    ).toBe(true);
+  it('accepts them as an optional request field, absent or null', () => {
+    const request = {
+      total_capital: 10_000,
+      configs: [{ config_id: 'a', saved_config_id: 'dma_fgi' }],
+    };
+    for (const assumptions of [undefined, null, defaults]) {
+      expect(
+        BacktestRequestSchema.safeParse({ ...request, assumptions }).success,
+      ).toBe(true);
+    }
   });
 
-  it('rejects unknown keys (strict mode)', () => {
-    expect(
-      BacktestSignalParamsV3Schema.safeParse({ junk_param: true }).success,
-    ).toBe(false);
+  it('rejects a fill lag beyond one bar, negative rates and unknown keys', () => {
+    for (const bad of [
+      { ...defaults, fill_lag_days: 2 },
+      { ...defaults, slippage_rate: -0.001 },
+      { ...defaults, stable_apr: 0.6 },
+      { ...defaults, spot_apr: 0.05 },
+    ]) {
+      expect(BacktestAssumptionsSchema.safeParse(bad).success).toBe(false);
+    }
   });
 });
 
-describe('BacktestCompareParamsV3Schema', () => {
-  it('accepts a nested partial config', () => {
+describe('BacktestPnlAttributionSchema', () => {
+  it('accepts signed parts: price can lose, cost is negative', () => {
     expect(
-      BacktestCompareParamsV3Schema.safeParse({
-        signal: { cross_cooldown_days: 5 },
-        disabled_rules: ['rule_a'],
+      BacktestPnlAttributionSchema.safeParse({
+        price_usd: -120.5,
+        yield_usd: 12.25,
+        cost_usd: -3,
       }).success,
     ).toBe(true);
   });
 
-  it('rejects unknown top-level keys (strict)', () => {
+  it('requires all three parts', () => {
     expect(
-      BacktestCompareParamsV3Schema.safeParse({
-        signal: {},
-        new_unknown_section: {},
-      }).success,
+      BacktestPnlAttributionSchema.safeParse({ price_usd: 1, yield_usd: 2 })
+        .success,
     ).toBe(false);
   });
 });

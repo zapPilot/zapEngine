@@ -25,62 +25,49 @@ def test_total_value_and_allocation_percentages_use_two_buckets() -> None:
     assert allocation == {"spot": pytest.approx(0.5), "stable": pytest.approx(0.5)}
 
 
-def test_apply_daily_yield_updates_spot_and_stable() -> None:
+def test_accrue_stable_yield_credits_stablecoins_only() -> None:
     portfolio = Portfolio(spot_balance=1.0, stable_balance=1_000.0)
-    breakdown = portfolio.apply_daily_yield(
-        100.0,
-        {"spot": 0.365, "stable": 0.365},
+
+    credited = portfolio.accrue_stable_yield(0.365, 1)
+
+    assert credited == pytest.approx(1.0)
+    assert portfolio.stable_balance == pytest.approx(1_001.0)
+    assert portfolio.spot_balance == pytest.approx(1.0)
+    assert portfolio.yield_usd == pytest.approx(1.0)
+
+
+def test_accrue_stable_yield_compounds_over_the_days_between_bars() -> None:
+    portfolio = Portfolio(stable_balance=1_000.0)
+
+    credited = portfolio.accrue_stable_yield(0.365, 3)
+
+    assert credited == pytest.approx(1_000.0 * (1.001**3 - 1.0))
+    assert portfolio.yield_usd == pytest.approx(credited)
+
+
+@pytest.mark.parametrize(
+    ("apr", "days", "stable"),
+    [(0.365, 0, 1_000.0), (0.365, -1, 1_000.0), (0.0, 1, 1_000.0), (0.365, 1, 0.0)],
+)
+def test_accrue_stable_yield_is_a_noop_without_time_rate_or_cash(
+    apr: float, days: int, stable: float
+) -> None:
+    portfolio = Portfolio(spot_balance=1.0, stable_balance=stable)
+
+    assert portfolio.accrue_stable_yield(apr, days) == 0.0
+    assert portfolio.stable_balance == pytest.approx(stable)
+    assert portfolio.yield_usd == 0.0
+
+
+def test_transfers_accumulate_the_cost_they_were_charged() -> None:
+    portfolio = Portfolio(
+        stable_balance=1_000.0, cost_model=PercentageSlippageModel(percent=0.01)
     )
-    assert breakdown["spot_yield"] == pytest.approx(0.1)
-    assert breakdown["stable_yield"] == pytest.approx(1.0)
-    assert portfolio.spot_balance > 1.0
-    assert portfolio.stable_balance > 1_000.0
 
+    portfolio.execute_transfer("stable", "btc", 500.0, 100.0)
+    portfolio.execute_transfer("btc", "stable", 100.0, 100.0)
 
-def test_borrow_repay_equity_ltv_and_health_factor() -> None:
-    portfolio = Portfolio(spot_balance=10.0, stable_balance=0.0)
-
-    assert portfolio.borrow(400.0) == pytest.approx(400.0)
-    assert portfolio.total_value(100.0) == pytest.approx(1_400.0)
-    assert portfolio.equity(100.0) == pytest.approx(1_000.0)
-    assert portfolio.ltv(100.0) == pytest.approx(0.4)
-    assert portfolio.health_factor(100.0, 0.8) == pytest.approx(2.0)
-
-    assert portfolio.repay(500.0) == pytest.approx(400.0)
-    assert portfolio.debt_balance == pytest.approx(0.0)
-    assert portfolio.stable_balance == pytest.approx(0.0)
-    assert portfolio.health_factor(100.0, 0.8) == float("inf")
-
-
-def test_repay_caps_at_available_stable_and_outstanding_debt() -> None:
-    portfolio = Portfolio(stable_balance=50.0, debt_balance=100.0)
-
-    assert portfolio.repay(1_000.0) == pytest.approx(50.0)
-    assert portfolio.stable_balance == pytest.approx(0.0)
-    assert portfolio.debt_balance == pytest.approx(50.0)
-
-
-def test_charge_stable_caps_at_available_balance() -> None:
-    portfolio = Portfolio(stable_balance=50.0)
-
-    assert portfolio.charge_stable(75.0) == pytest.approx(50.0)
-    assert portfolio.stable_balance == pytest.approx(0.0)
-
-
-def test_borrow_interest_compounds_daily() -> None:
-    portfolio = Portfolio(stable_balance=0.0, debt_balance=1_000.0)
-
-    first = portfolio.apply_daily_yield(100.0, {"borrow": 0.365})
-    second = portfolio.apply_daily_yield(100.0, {"borrow": 0.365})
-
-    assert first["borrow_cost"] == pytest.approx(1.0)
-    assert second["borrow_cost"] == pytest.approx(1.001)
-    assert portfolio.debt_balance == pytest.approx(1_002.001)
-
-
-def test_ltv_without_risk_assets_is_defined() -> None:
-    assert Portfolio(stable_balance=100.0).ltv(100.0) == pytest.approx(0.0)
-    assert Portfolio(stable_balance=100.0, debt_balance=50.0).ltv(100.0) == float("inf")
+    assert portfolio.cost_usd == pytest.approx(5.0 + 1.0)
 
 
 def test_execute_transfer_respects_spot_stable_only_and_costs() -> None:
@@ -193,17 +180,6 @@ def test_allocation_percentages_returns_all_stable_when_total_is_zero() -> None:
     portfolio = Portfolio(spot_balance=0.0, stable_balance=0.0)
     result = portfolio.allocation_percentages(50_000.0)
     assert result == {"spot": 0.0, "stable": 1.0}
-
-
-def test_apply_daily_yield_ignores_stable_rate_when_it_is_dict() -> None:
-    """Cover line 85: stable_rate is a dict → treated as 0.0."""
-    portfolio = Portfolio(spot_balance=0.0, stable_balance=1_000.0)
-    breakdown = portfolio.apply_daily_yield(
-        50_000.0,
-        {"stable": {"sub": 0.365}, "spot": 0.0},
-    )
-    assert breakdown["stable_yield"] == pytest.approx(0.0)
-    assert portfolio.stable_balance == pytest.approx(1_000.0)
 
 
 def test_execute_transfer_is_noop_for_non_positive_amount() -> None:

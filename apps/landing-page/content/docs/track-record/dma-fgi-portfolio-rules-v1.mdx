@@ -48,7 +48,7 @@ Deposits do not follow the strategy's target: the app's default mix is a fixed s
 
 ## Rules, in priority order
 
-On each daily snapshot the strategy walks this list top-down. The first rule whose trigger conditions are met produces that day's target allocation; the rest are skipped. A same-day cross-down always wins over a same-day cross-up. Exact thresholds and weights are code-owned in `apps/analytics-engine` (`portfolio_rules/__init__.py`) rather than duplicated here.
+On each daily snapshot the strategy walks this list top-down. The first rule whose trigger conditions are met produces that day's target allocation; the rest are skipped. A same-day cross-down always wins over a same-day cross-up. Exact thresholds and weights are owned by the strategy spec, `apps/analytics-engine/src/config/strategies/reference/dma_fgi.json`, rather than duplicated here.
 
 ### 1. Cross-down exit
 
@@ -78,17 +78,18 @@ When no rule fires, the strategy **holds**. That is the common case.
 
 ## Guards
 
-- **Cross cooldown.** After an actionable cross, repeat cross actions are suppressed for 30 days, tracked per asset.
-- **DMA buy gate.** Gradual buys wait until price has moved sideways relative to its 200-day average for several days, and each buy leg is capped.
-- **FGI pacing.** The size of each gradual step scales with Fear & Greed along a fixed curve.
+- **Cross cooldown.** After an actionable cross, repeat cross actions are suppressed for 30 days (14 for the S&P 500 sleeve), tracked per asset.
+- **Rule cooldowns.** After a rule acts it cannot fire again for a fixed spacing: 7 days for the overextension and FGI-downshift sells, 14 days for ETH/BTC deviation steps (60 for the largest tier), and 30 days for cross-up and ETH/BTC rotation.
 - **Trade quota.** Minimum spacing between trades and rolling 7-day and 30-day caps are available, but off by default.
 
 ## Backtest method
 
 The published backtest is hypothetical. It is recomputed daily over a rolling 500-day window, starting from $10,000, and compared with DCA Classic over the same window.
 
+- **Fills.** Signals are read from a day's closing prices, so a simulated trade is filled the next day at that day's prices. A trade decided on the last day of the window is never filled.
 - **Costs.** Every simulated trade pays a fixed 0.3% slippage. There is no separate gas or protocol-fee model.
-- **Assumed yield.** Balances earn an assumed annual rate that depends on the market regime: 5% to 25% APR on stablecoins and 1% to 5% on BTC and ETH, from extreme fear to extreme greed. DCA Classic receives the same assumption.
+- **Assumed yield.** Stablecoins earn an assumed fixed 3% APR. BTC, ETH and the S&P 500 sleeve earn nothing. DCA Classic receives the same assumption.
+- **Risk-adjusted ratios.** Sharpe and Sortino measure returns above that 3%, not above zero.
 - **S&P 500 sleeve.** The backtest holds an S&P 500 sleeve that Zap Pilot cannot execute today.
 - **Trades.** Trade counts are simulated trades, not executed ones.
 

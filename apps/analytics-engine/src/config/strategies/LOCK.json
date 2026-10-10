@@ -1,0 +1,9 @@
+{
+  "format": "strategy-lock/1",
+  "specs": {
+    "reference/dma_fgi": {
+      "version": 1,
+      "behavior_hash": "sha256:a22bccfabb4b35b28ba9b7144db4589840772b15295fca7e083517daa54ae96f"
+    }
+  }
+}

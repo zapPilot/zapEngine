@@ -6,8 +6,8 @@ import pytest
 
 from src.services.backtesting.decision import AllocationIntent
 from src.services.backtesting.portfolio_rules.base import PortfolioRuleConfig
-from src.services.backtesting.portfolio_rules.spy_latch import SpyLatchRule
 from tests.services.backtesting.portfolio_rules.helpers import snapshot, state
+from tests.services.backtesting.support.reference_rules import spy_latch_rule
 
 
 def _intent(target: dict[str, float]) -> AllocationIntent:
@@ -23,7 +23,7 @@ def _intent(target: dict[str, float]) -> AllocationIntent:
 
 
 def test_spy_latch_redeploys_existing_stable_on_activation_day() -> None:
-    rule = SpyLatchRule()
+    rule = spy_latch_rule()
     current_date = date(2025, 5, 12)
     rule_snapshot = snapshot(
         assets={
@@ -58,7 +58,7 @@ def test_spy_latch_redeploys_existing_stable_on_activation_day() -> None:
 
 
 def test_spy_latch_absorbs_fresh_stable_during_follow_through_window() -> None:
-    rule = SpyLatchRule()
+    rule = spy_latch_rule()
     activation_date = date(2025, 5, 12)
     activation_snapshot = snapshot(
         assets={
@@ -97,7 +97,7 @@ def test_spy_latch_absorbs_fresh_stable_during_follow_through_window() -> None:
 
 
 def test_spy_latch_expires_after_follow_through_window() -> None:
-    rule = SpyLatchRule(follow_through_days=14)
+    rule = spy_latch_rule()
     activation_date = date(2025, 5, 12)
     rule.observe(
         snapshot(
@@ -142,7 +142,7 @@ def test_spy_latch_expires_after_follow_through_window() -> None:
 
 
 def test_spy_latch_observe_ignores_missing_date_or_spy_state() -> None:
-    rule = SpyLatchRule()
+    rule = spy_latch_rule()
 
     rule.observe(
         snapshot(
@@ -172,7 +172,7 @@ def test_spy_latch_observe_ignores_missing_date_or_spy_state() -> None:
 
 
 def test_spy_latch_cross_down_resets_active_window() -> None:
-    rule = SpyLatchRule()
+    rule = spy_latch_rule()
     activation_date = date(2025, 5, 12)
     rule.observe(
         snapshot(
@@ -206,11 +206,11 @@ def test_spy_latch_cross_down_resets_active_window() -> None:
 
 def test_spy_latch_build_intent_is_not_supported() -> None:
     with pytest.raises(ValueError, match="only supports post-intent adjustments"):
-        SpyLatchRule().build_intent(snapshot(), config=PortfolioRuleConfig())
+        spy_latch_rule().build_intent(snapshot(), config=PortfolioRuleConfig())
 
 
 def test_spy_latch_returns_original_intent_when_no_stable_can_be_redeployed() -> None:
-    rule = SpyLatchRule()
+    rule = spy_latch_rule()
     activation_date = date(2025, 5, 12)
     snap = snapshot(
         assets={"SPY": state(symbol="SPY", actionable_cross_event="cross_up")},

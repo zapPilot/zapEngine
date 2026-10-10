@@ -4,8 +4,11 @@ from __future__ import annotations
 
 from src.services.backtesting.sizing.base import SizingStrategy
 from src.services.backtesting.sizing.flat import FlatSizing
+from src.services.backtesting.sizing.weights import HeadroomSizing, RelativeSizing
 
 __all__ = [
     "FlatSizing",
+    "HeadroomSizing",
+    "RelativeSizing",
     "SizingStrategy",
 ]

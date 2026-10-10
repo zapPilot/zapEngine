@@ -27,7 +27,6 @@ class Portfolio:
         btc_balance: float | None = None,
         eth_balance: float | None = None,
         spy_balance: float | None = None,
-        debt_balance: float = 0.0,
     ) -> None:
         normalized_asset = self._normalize_asset_symbol(spot_asset)
         self.default_spot_asset = normalized_asset
@@ -40,7 +39,8 @@ class Portfolio:
             self.eth_balance = float(0.0 if eth_balance is None else eth_balance)
         self.spy_balance = float(0.0 if spy_balance is None else spy_balance)
         self.stable_balance = float(stable_balance)
-        self.debt_balance = max(0.0, float(debt_balance))
+        self.yield_usd = 0.0
+        self.cost_usd = 0.0
         self._clamp_small_balance_residue()
 
     @classmethod
@@ -170,53 +170,6 @@ class Portfolio:
             + asset_values["stable"]
         )
 
-    def equity(self, price: float | Mapping[str, float]) -> float:
-        """Return net portfolio value after outstanding debt."""
-        return self.total_value(price) - self.debt_balance
-
-    def ltv(self, price: float | Mapping[str, float]) -> float:
-        """Return debt relative to the collateralized risk-asset value."""
-        risk_value = self.total_risk_value(price)
-        if risk_value <= _BALANCE_EPSILON:
-            return float("inf") if self.debt_balance > _BALANCE_EPSILON else 0.0
-        return self.debt_balance / risk_value
-
-    def health_factor(
-        self,
-        price: float | Mapping[str, float],
-        liquidation_threshold: float,
-    ) -> float:
-        """Return collateral health using lending-protocol terminology."""
-        if self.debt_balance <= _BALANCE_EPSILON:
-            return float("inf")
-        threshold = max(0.0, float(liquidation_threshold))
-        return self.total_risk_value(price) * threshold / self.debt_balance
-
-    def borrow(self, amount_usd: float) -> float:
-        """Borrow stable value without treating the loan as a trade."""
-        amount = max(0.0, float(amount_usd))
-        self.debt_balance += amount
-        self.stable_balance += amount
-        return amount
-
-    def repay(self, amount_usd: float) -> float:
-        """Repay as much debt as available stable value allows."""
-        requested = max(0.0, float(amount_usd))
-        repaid = min(requested, self.stable_balance, self.debt_balance)
-        self.stable_balance -= repaid
-        self.debt_balance -= repaid
-        self._clamp_small_balance_residue()
-        if self.debt_balance <= _BALANCE_EPSILON:
-            self.debt_balance = 0.0
-        return repaid
-
-    def charge_stable(self, amount_usd: float) -> float:
-        """Deduct an explicit financing cost without counting it as a trade."""
-        charged = min(max(0.0, float(amount_usd)), self.stable_balance)
-        self.stable_balance -= charged
-        self._clamp_small_balance_residue()
-        return charged
-
     def bucket_values(self, price: float | Mapping[str, float]) -> dict[str, float]:
         asset_values = self.asset_values(price)
         return {
@@ -287,56 +240,23 @@ class Portfolio:
             "alt": 0.0,
         }
 
-    def apply_daily_yield(
-        self,
-        price: float | Mapping[str, float],
-        apr_rates: dict[str, float | dict[str, float]],
-    ) -> dict[str, float]:
-        stable_rate = apr_rates.get("stable", 0.0)
-        if isinstance(stable_rate, dict):
-            stable_rate = 0.0
+    def accrue_stable_yield(self, stable_apr: float, elapsed_days: int) -> float:
+        """Credit compounding daily yield on stablecoins for the days since the last bar.
 
-        spot_rates = apr_rates.get("spot", 0.0)
-        if isinstance(spot_rates, dict):
-            fallback_rate = next(iter(spot_rates.values()), 0.0)
-            btc_rate = float(spot_rates.get("btc", fallback_rate))
-            eth_rate = float(spot_rates.get("eth", fallback_rate))
-        else:
-            btc_rate = float(spot_rates)
-            eth_rate = float(spot_rates)
-
-        btc_price = (
-            0.0
-            if self.btc_balance <= 0.0
-            else self._resolve_asset_value_price(price, "BTC")
+        BTC, ETH and SPY earn nothing. Returns the USD credited.
+        """
+        if elapsed_days <= 0 or stable_apr <= 0.0 or self.stable_balance <= 0.0:
+            return 0.0
+        daily_rate = stable_apr / 365.0
+        growth = (
+            daily_rate
+            if elapsed_days == 1
+            else (1.0 + daily_rate) ** elapsed_days - 1.0
         )
-        eth_price = (
-            0.0
-            if self.eth_balance <= 0.0
-            else self._resolve_asset_value_price(price, "ETH")
-        )
-        btc_yield = self.btc_balance * btc_price * (btc_rate / 365.0)
-        eth_yield = self.eth_balance * eth_price * (eth_rate / 365.0)
-        stable_yield = self.stable_balance * (float(stable_rate) / 365.0)
-        borrow_rate = apr_rates.get("borrow", 0.0)
-        if isinstance(borrow_rate, dict):
-            borrow_rate = 0.0
-        borrow_cost = self.debt_balance * (float(borrow_rate) / 365.0)
-
-        if btc_yield > 0 and btc_price > 0:
-            self.btc_balance += btc_yield / btc_price
-        if eth_yield > 0 and eth_price > 0:
-            self.eth_balance += eth_yield / eth_price
-        self.stable_balance += stable_yield
-        self.debt_balance += borrow_cost
-        self._clamp_small_balance_residue()
-
-        return {
-            "spot_yield": btc_yield + eth_yield,
-            "stable_yield": stable_yield,
-            "borrow_cost": borrow_cost,
-            "total_yield": btc_yield + eth_yield + stable_yield,
-        }
+        credited = self.stable_balance * growth
+        self.stable_balance += credited
+        self.yield_usd += credited
+        return credited
 
     def execute_transfer(
         self,
@@ -484,7 +404,7 @@ class Portfolio:
         withdrawn = self._withdraw_asset_value(source_bucket, amount_usd, prices)
         if withdrawn is None:
             return
-        self.stable_balance += self._apply_cost(withdrawn, self.cost_model)
+        self.stable_balance += self._net_of_cost(withdrawn)
         self._clamp_small_balance_residue()
 
     def _move_asset_to_asset(
@@ -514,7 +434,7 @@ class Portfolio:
         amount_usd: float,
         target_price: float,
     ) -> None:
-        net_amount = self._apply_cost(amount_usd, self.cost_model)
+        net_amount = self._net_of_cost(amount_usd)
         self._add_asset_balance(target_bucket, net_amount / target_price)
 
     def _withdraw_asset_value(
@@ -565,10 +485,11 @@ class Portfolio:
             return
         raise ValueError(f"Unsupported asset bucket '{bucket}'")
 
-    @staticmethod
-    def _apply_cost(amount_usd: float, cost_model: CostModel) -> float:
-        cost = float(cost_model.calculate_cost(amount_usd))
-        return max(0.0, amount_usd - cost)
+    def _net_of_cost(self, amount_usd: float) -> float:
+        """Return ``amount_usd`` after the cost model's charge, recording the charge."""
+        net = max(0.0, amount_usd - float(self.cost_model.calculate_cost(amount_usd)))
+        self.cost_usd += amount_usd - net
+        return net
 
     @staticmethod
     def _sanitize_balance(value: float) -> float:

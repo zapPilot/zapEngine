@@ -6,9 +6,6 @@ from datetime import date
 import pytest
 
 from src.services.backtesting.decision import RuleGroup
-from src.services.backtesting.portfolio_rules import (
-    DEFAULT_PORTFOLIO_RULES,
-)
 from src.services.backtesting.portfolio_rules.base import (
     DIAG_SIGNALS_CONSULTED,
     DcaBuyRuleBase,
@@ -16,22 +13,20 @@ from src.services.backtesting.portfolio_rules.base import (
     FgiRegime,
     PortfolioRuleConfig,
     PortfolioSnapshot,
+    ProceedsRouting,
     _DcaRuleBase,
-    add_split_proceeds,
-    add_stable,
     allocation_key_for_symbol,
     build_dca_buy_intent,
-    cross_down_cooldown_days_for,
     current_fgi_regime_for_symbol,
     normalize_regime,
     ratio_signals_consulted,
     rule_cooldown_remaining_days,
     signals_consulted_for_symbols,
 )
-from src.services.backtesting.portfolio_rules.cross_down_exit import CrossDownExitRule
-from src.services.backtesting.risk import DmaBuyGateGuard, TradeQuotaGuard
+from src.services.backtesting.risk import TradeQuotaGuard
 from src.services.backtesting.signals.ratio_state import EthBtcRatioState
 from tests.services.backtesting.portfolio_rules.helpers import snapshot, state
+from tests.services.backtesting.support.reference_rules import reference_rules
 
 
 class _FlatSizing:
@@ -72,107 +67,53 @@ class _ConcreteDcaSellRule(DcaSellRuleBase):
         return ["BTC"] if "BTC" in snapshot.assets else []
 
     def proceeds_handler(self, target: dict[str, float], sold: float) -> None:
-        add_stable(target, sold)
+        ProceedsRouting().apply(target, sold)
 
 
-def test_default_rule_priorities_leave_room_for_new_rule_layers() -> None:
-    assert [(rule.name, rule.priority) for rule in DEFAULT_PORTFOLIO_RULES] == [
+def test_the_reference_rules_are_ranked_by_their_position_in_the_spec() -> None:
+    assert [(rule.name, rule.priority) for rule in reference_rules()] == [
         ("cross_down_exit", 10),
         ("cross_up_equal_weight", 20),
-        ("eth_btc_ratio_rotation", 21),
-        ("eth_btc_deviation_dca", 22),
-        ("dma_overextension_dca_sell", 30),
-        ("fgi_downshift_dca_sell", 50),
+        ("eth_btc_ratio_rotation", 30),
+        ("eth_btc_deviation_dca", 40),
+        ("dma_overextension_dca_sell", 50),
+        ("fgi_downshift_dca_sell", 60),
     ]
 
 
-def test_risk_guard_priorities_preserve_existing_ordering() -> None:
+def test_trade_quota_guard_runs_before_every_rule() -> None:
     assert TradeQuotaGuard().priority == 0
-    assert DmaBuyGateGuard().priority == 35
 
 
-def test_add_split_proceeds_default_50_50() -> None:
+def test_proceeds_routing_splits_the_proceeds_between_its_shares_and_stable() -> None:
     target = {"spy": 0.10, "stable": 0.20}
 
-    add_split_proceeds(target, 0.10)
+    ProceedsRouting(to=(("SPY", 0.5),)).apply(target, 0.10)
 
     assert target["spy"] == pytest.approx(0.15)
     assert target["stable"] == pytest.approx(0.25)
 
 
-def test_add_split_proceeds_custom_share() -> None:
+def test_proceeds_routing_without_shares_keeps_everything_in_stable() -> None:
     target = {"spy": 0.0, "stable": 0.0}
 
-    add_split_proceeds(target, 0.10, spy_share=0.25)
+    ProceedsRouting().apply(target, 0.10)
 
-    assert target["spy"] == pytest.approx(0.025)
-    assert target["stable"] == pytest.approx(0.075)
+    assert target == {"spy": 0.0, "stable": pytest.approx(0.10)}
 
 
-def test_add_split_proceeds_skips_zero_amount() -> None:
+def test_proceeds_routing_skips_zero_amount() -> None:
     target = {"spy": 0.10, "stable": 0.20}
 
-    add_split_proceeds(target, 0.0)
+    ProceedsRouting(to=(("SPY", 0.25),)).apply(target, 0.0)
 
-    assert target["spy"] == pytest.approx(0.10)
-    assert target["stable"] == pytest.approx(0.20)
-
-
-def test_add_stable_skips_zero_amount() -> None:
-    target = {"stable": 0.20}
-
-    add_stable(target, 0.0)
-
-    assert target == {"stable": 0.20}
+    assert target == {"spy": 0.10, "stable": 0.20}
 
 
 def test_portfolio_rule_config_only_contains_cross_cutting_diagnostics_flag() -> None:
     assert [field.name for field in fields(PortfolioRuleConfig)] == [
         "emit_signals_consulted"
     ]
-
-
-def test_cross_down_cooldown_default_map() -> None:
-    rule = CrossDownExitRule()
-
-    assert rule.cooldown_days_for("BTC") == 30
-    assert rule.cooldown_days_for("ETH") == 30
-    assert rule.cooldown_days_for("SPY") == 14
-
-
-def test_cross_down_cooldown_unknown_symbol_falls_back_to_default() -> None:
-    rule = CrossDownExitRule()
-
-    assert rule.cooldown_days_for("DOGE") == 30
-
-
-def test_cross_down_cooldown_normalizes_symbol_case() -> None:
-    rule = CrossDownExitRule()
-
-    assert rule.cooldown_days_for("spy") == 14
-    assert rule.cooldown_days_for(" btc ") == 30
-
-
-def test_cross_down_cooldown_custom_override() -> None:
-    rule = CrossDownExitRule(
-        cross_down_cooldown_days_per_symbol={"SPY": 14, "BTC": 21},
-        cooldown_days=10,
-    )
-
-    assert rule.cooldown_days_for("SPY") == 14
-    assert rule.cooldown_days_for("BTC") == 21
-    assert rule.cooldown_days_for("ETH") == 10
-
-
-def test_cross_down_cooldown_helper_accepts_rule_local_values() -> None:
-    assert (
-        cross_down_cooldown_days_for(
-            "spy",
-            per_symbol={"SPY": 14},
-            default=30,
-        )
-        == 14
-    )
 
 
 def test_allocation_key_for_symbol_rejects_unknown_asset() -> None:
@@ -318,3 +259,32 @@ def test_dca_rule_base_abstract_hooks_raise_when_not_implemented() -> None:
         DcaSellRuleBase().proceeds_handler({}, 0.10)
     with pytest.raises(NotImplementedError):
         _DcaRuleBase().build_intent(snapshot(), config=PortfolioRuleConfig())
+
+
+def test_proceeds_routing_sends_shares_to_assets_and_the_rest_to_stable() -> None:
+    target = {"spy": 0.10, "btc": 0.20, "stable": 0.30}
+
+    ProceedsRouting(to=(("SPY", 0.5), ("BTC", 0.25))).apply(target, 0.08)
+
+    assert target == pytest.approx({"spy": 0.14, "btc": 0.22, "stable": 0.32})
+
+
+def test_proceeds_routing_with_no_destinations_keeps_everything_in_stable() -> None:
+    target = {"stable": 0.30}
+
+    ProceedsRouting().apply(target, 0.08)
+
+    assert target == pytest.approx({"stable": 0.38})
+
+
+def test_proceeds_routing_ignores_an_empty_sale() -> None:
+    target = {"spy": 0.10}
+
+    ProceedsRouting(to=(("SPY", 0.5),)).apply(target, 0.0)
+
+    assert target == {"spy": 0.10}
+
+
+def test_proceeds_routing_rejects_an_unknown_asset() -> None:
+    with pytest.raises(ValueError, match="Unsupported portfolio rule asset"):
+        ProceedsRouting(to=(("DOGE", 0.5),)).apply({}, 0.10)

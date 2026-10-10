@@ -280,9 +280,9 @@ export function ReplayBoard({ progress = 1 }: { progress?: number }) {
       <p className="zp-r-disc">
         Hypothetical backtest, {replay.window.start} to {replay.window.end}.
         Index 100 = ${replay.snapshot.total_capital.toLocaleString('en-US')}. It
-        assumes yield on stablecoin and crypto balances and includes an S&amp;P
-        500 sleeve Zap Pilot can’t execute yet. Past performance does not
-        guarantee future results.{' '}
+        fills each trade the day after its signal, assumes a yield on stablecoin
+        balances only, and includes an S&amp;P 500 sleeve Zap Pilot can’t
+        execute yet. Past performance does not guarantee future results.{' '}
         <a className="zp-tlink" href="/track-record/">
           Track record
         </a>

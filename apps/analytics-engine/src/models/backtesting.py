@@ -16,11 +16,12 @@ from pydantic import (
 
 from src.models.market_data_freshness import MarketDataFreshness
 from src.models.validation_utils import validate_config_id
-from src.services.backtesting.decision import RuleGroup
-from src.services.backtesting.public_params import (
-    public_params_to_runtime_params,
-    supports_nested_public_params,
+from src.services.backtesting.constants import (
+    DEFAULT_FILL_LAG_DAYS,
+    DEFAULT_SLIPPAGE_RATE,
+    DEFAULT_STABLE_APR,
 )
+from src.services.backtesting.decision import RuleGroup
 from src.services.backtesting.target_allocation import normalize_target_allocation
 
 StrategyId = str
@@ -46,6 +47,50 @@ def _assert_sums_to_one(total: float, label: str = "allocation") -> None:
     """Validate that a total is approximately 1.0 (within 0.001 tolerance)."""
     if abs(total - 1.0) > 0.001:
         raise ValueError(f"{label} must sum to 1.0, got {total:.6f}")
+
+
+class BacktestAssumptions(BaseModel):
+    """What a backtest assumes about execution and yield.
+
+    Echoed on every response. BTC, ETH and SPY earn no yield; only idle
+    stablecoins accrue ``stable_apr``.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    fill_lag_days: int = Field(
+        default=DEFAULT_FILL_LAG_DAYS,
+        ge=0,
+        le=1,
+        description=(
+            "Bars between a decision and its fill. 1 = filled on the next bar "
+            "(someone acts on the reminder the day after); 0 = filled on the "
+            "decision bar."
+        ),
+    )
+    slippage_rate: float = Field(
+        default=DEFAULT_SLIPPAGE_RATE,
+        ge=0.0,
+        le=0.05,
+        description="Fraction of every transfer's gross amount lost to fees and spread.",
+    )
+    stable_apr: float = Field(
+        default=DEFAULT_STABLE_APR,
+        ge=0.0,
+        le=0.5,
+        description="Annual yield credited daily on idle stablecoins.",
+    )
+
+
+class PnlAttribution(BaseModel):
+    """Where a strategy's profit and loss came from.
+
+    The three parts add up to ``final_value - total_invested``.
+    """
+
+    price_usd: float = Field(description="Gain or loss from asset prices moving.")
+    yield_usd: float = Field(description="Stablecoin yield credited.")
+    cost_usd: float = Field(description="Slippage paid (zero or negative).")
 
 
 class Allocation(BaseModel):
@@ -127,20 +172,12 @@ class DecisionState(BaseModel):
     details: dict[str, JsonValue] = Field(default_factory=dict)
 
 
-class ExecutionDiagnostics(BaseModel):
-    plugins: dict[str, dict[str, JsonValue] | None] = Field(default_factory=dict)
-
-
 class ExecutionState(BaseModel):
     event: str | None = None
     transfers: list[TransferRecord] = Field(default_factory=list)
     blocked_reason: str | None = None
     status: ExecutionStatus = "no_action"
     action_required: bool = False
-    step_count: int = Field(ge=0)
-    steps_remaining: int = Field(ge=0)
-    interval_days: int = Field(ge=0)
-    diagnostics: ExecutionDiagnostics = Field(default_factory=ExecutionDiagnostics)
 
 
 class StrategyState(BaseModel):
@@ -189,6 +226,7 @@ class StrategySummary(BaseModel):
     ulcer_index: float = 0.0
     alpha: float = 0.0
     information_ratio: float = 0.0
+    pnl_attribution: PnlAttribution
     # win_rate_percent stays None: a meaningful trade-level win rate needs
     # forward-PnL per executed decision (hot-path trade accounting, separate
     # track). Deriving it from daily returns would be positive-day rate, which
@@ -216,6 +254,7 @@ class BacktestWindowInfo(BaseModel):
 
 
 class BacktestResponse(BaseModel):
+    assumptions: BacktestAssumptions
     strategies: dict[str, StrategySummary]
     timeline: list[TimelinePoint]
     window: BacktestWindowInfo | None = None
@@ -236,8 +275,6 @@ class BacktestCompareConfigV3(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def validate_config(cls, data: Any) -> Any:
-        from src.services.backtesting.strategy_registry import get_strategy_recipe
-
         if isinstance(data, cls):
             return data
 
@@ -270,14 +307,9 @@ class BacktestCompareConfigV3(BaseModel):
 
         normalized_strategy_id = _validate_strategy_id(strategy_id)
         raw["strategy_id"] = normalized_strategy_id
-        recipe = get_strategy_recipe(normalized_strategy_id)
-        if supports_nested_public_params(normalized_strategy_id):
-            raw["params"] = public_params_to_runtime_params(
-                normalized_strategy_id,
-                params,
-            )
-        else:
-            raw["params"] = recipe.normalize_public_params(params)
+        if params:
+            raise ValueError(f"{normalized_strategy_id} does not accept params")
+        raw["params"] = {}
         return raw
 
 
@@ -287,6 +319,10 @@ class BacktestCompareRequestV3(BaseModel):
     end_date: date | None = None
     days: int | None = None
     total_capital: float = Field(default=10000.0, gt=0.0)
+    assumptions: BacktestAssumptions | None = Field(
+        default=None,
+        description="Execution and yield assumptions; the defaults apply when omitted.",
+    )
     configs: list[BacktestCompareConfigV3]
 
     @model_validator(mode="after")

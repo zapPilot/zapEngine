@@ -1,7 +1,6 @@
 # flake8: noqa
 # pylint: skip-file
 # mypy: ignore-errors
-market_cap  # unused variable (src/services/backtesting/execution/pacing/base.py:35)
 min_usd_value  # unused variable (src/core/config.py:65)
 min_percentage  # unused variable (src/core/config.py:70)
 max_percentage  # unused variable (src/core/config.py:74)
@@ -152,10 +151,6 @@ get_token_price_history  # unused function (src/api/routers/market.py:343)
 _.aggregate_assets_only  # unused method (src/services/transformers/category_data_transformer.py:186)
 
 # Strategy Models & Daily Suggestions (API Contract)
-_.threshold  # unused variable (src/models/strategy.py:109)
-_.regime_history_days  # unused variable (src/models/strategy.py:217)
-_.regime_history_days  # unused variable (src/models/strategy.py:237)
-_.pacing  # unused variable (src/models/strategy.py:278)
 DailySuggestionResponse  # unused class (src/models/strategy.py:153)
 
 # Sentiment Service
@@ -180,16 +175,6 @@ max_drawdown_percent  # unused variable (src/models/backtesting.py:85)
 # ============================================================================
 from src.services.backtesting.constants import PRIMER_DAYS  # noqa: F401
 from src.services.backtesting.data.data_provider import BacktestDataProvider
-from src.services.backtesting.execution.engine import (
-    _build_pacing_policy_from_name,  # noqa: F401 (used in tests)
-    _instantiate_policy_dataclass,  # noqa: F401 (used in tests)
-    run_compare_v3_on_data,  # noqa: F401
-    simulate_normal_dca_pool,  # noqa: F401 (used in tests only)
-)
-
-_ = _build_pacing_policy_from_name  # noqa: F841
-_ = _instantiate_policy_dataclass  # noqa: F841
-_ = simulate_normal_dca_pool  # noqa: F841 (used in tests only)
 
 # Methods called on instances
 _ = BacktestDataProvider.fetch_token_prices  # noqa: F841
@@ -212,11 +197,6 @@ _ = BacktestCompareRequestV3.validate_configs  # noqa: F841
 _ = BacktestStrategyCatalogEntryV3.hyperparam_schema  # noqa: F841
 _ = BacktestStrategyCatalogEntryV3.recommended_params  # noqa: F841
 _ = BacktestStrategyCatalogResponseV3.catalog_version  # noqa: F841
-
-# StepPlanExecutor field - stored for introspection
-from src.services.backtesting.execution.step_plan_executor import StepPlanExecutor
-
-_ = StepPlanExecutor.rebalance_step_count  # noqa: F841
 
 # API route handlers - called by FastAPI
 from src.api.routers import backtesting
@@ -272,12 +252,8 @@ _ = get_benchmark_strategy_preset  # noqa: F841
 
 # DMA-first response models - runtime serialization / Pydantic-only access
 spot_usd  # unused variable (src/models/backtesting.py)
+pnl_attribution  # unused variable (src/models/backtesting.py)
 stable_usd  # unused variable (src/models/backtesting.py)
-range_value  # unused variable (src/models/backtesting.py)
-leg_cap_pct  # unused variable (src/models/backtesting.py)
-leg_cap_usd  # unused variable (src/models/backtesting.py)
-leg_spent_usd  # unused variable (src/models/backtesting.py)
-episode_state  # unused variable (src/models/backtesting.py)
 distance  # unused variable (src/models/backtesting.py)
 cooldown_remaining_days  # unused variable (src/models/backtesting.py)
 cooldown_blocked_zone  # unused variable (src/models/backtesting.py)
@@ -306,7 +282,7 @@ fgi_ema_current  # unused variable (src/services/backtesting/signals/dma_gated_f
 outer_dma_asset  # unused variable (src/services/backtesting/domain.py:22) - used via dataclasses.replace()
 
 # ============================================================================
-# Saved Strategy Config - composition framework & admin API
+# Saved Strategy Config
 # ============================================================================
 
 # Strategy presets - used in tests and strategy_config_store.py
@@ -320,54 +296,7 @@ _ = STRATEGY_PRESETS  # noqa: F841
 _ = get_default_strategy_preset  # noqa: F841
 _ = resolve_strategy_preset  # noqa: F841
 
-# Config store methods - used via management service and tests
-from src.services.strategy.strategy_config_store import (
-    StrategyConfigStore as _StrategyConfigStore,
-)
-
-_ = _StrategyConfigStore.upsert_config  # noqa: F841
-
 # Pydantic validators - called by framework
-from src.models.strategy_config import (
-    StrategyComponentRef as _StrategyComponentRef,
-    StrategyComposition as _StrategyComposition,
-)
+from src.models.strategy_config import SavedStrategyConfig as _SavedStrategyConfig
 
-_ = _StrategyComponentRef.check_component_id  # noqa: F841
-_ = _StrategyComposition.validate_composition  # noqa: F841
-
-# CompositionCatalog extensibility method - used in test mock helpers
-from src.services.backtesting.composition_catalog import (
-    CompositionCatalog as _CompositionCatalog,
-)
-
-_ = _CompositionCatalog.with_extensions  # noqa: F841
-
-# Saved strategy config CRUD validators
-from src.models.strategy_config import (
-    CreateSavedStrategyConfigRequest as _CreateSavedStrategyConfigRequest,
-    SavedStrategyConfigMutationBase as _SavedStrategyConfigMutationBase,
-    SavedStrategyConfig as _SavedStrategyConfig,
-)
-
-_ = _CreateSavedStrategyConfigRequest.validate_create_request  # noqa: F841
-_ = _SavedStrategyConfigMutationBase.validate_mutation  # noqa: F841
 _ = _SavedStrategyConfig.validate_saved_config  # noqa: F841
-
-# v3_strategy router endpoint functions - called by FastAPI
-from src.api.routers import v3_strategy
-
-_ = v3_strategy.list_saved_strategy_configs  # noqa: F841
-_ = v3_strategy.get_saved_strategy_config  # noqa: F841
-_ = v3_strategy.create_saved_strategy_config  # noqa: F841
-_ = v3_strategy.update_saved_strategy_config  # noqa: F841
-_ = v3_strategy.set_default_saved_strategy_config  # noqa: F841
-
-# Public params Pydantic model fields - accessed dynamically via getattr() in _nested_to_flat()
-from src.services.backtesting.public_params import (
-    DmaGatedFgiPublicParams as _DmaGatedFgiPublicParams,
-)
-
-_ = _DmaGatedFgiPublicParams.buy_gate  # noqa: F841
-_ = _DmaGatedFgiPublicParams.trade_quota  # noqa: F841
-_ = _DmaGatedFgiPublicParams.top_escape  # noqa: F841

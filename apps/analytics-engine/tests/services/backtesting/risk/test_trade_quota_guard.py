@@ -157,10 +157,9 @@ def test_trade_quota_limit_validation_rejects_bool_and_nonpositive_values() -> N
         normalize_limit(0, field_name="max_trades_30d")
 
 
-def test_trade_quota_disabled_limits_have_zero_lookback_and_no_release_date() -> None:
+def test_trade_quota_disabled_limits_have_no_release_date() -> None:
     limits = TradeQuotaLimits()
 
-    assert limits.history_lookback_days == 0
     assert (
         limits.window_release_date(
             date(2025, 1, 5),

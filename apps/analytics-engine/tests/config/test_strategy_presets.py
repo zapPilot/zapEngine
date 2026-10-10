@@ -8,49 +8,32 @@ import pytest
 
 from src.config.strategy_presets import (
     DMA_FGI_PORTFOLIO_RULES_CONFIG_ID,
-    DMA_FGI_PORTFOLIO_RULES_OPTIMIZED_CONFIG_ID,
     STRATEGY_PRESETS,
-    STRATEGY_TUNING_OVERRIDES,
-    _get_params_model,
     get_backtest_defaults,
     get_benchmark_seed_strategy_config,
     get_default_seed_strategy_config,
     get_default_strategy_preset,
+    list_seed_strategy_configs,
     list_strategy_presets,
     resolve_seed_strategy_config,
-    resolve_strategy_default_params,
-    resolve_strategy_default_runtime_params,
     resolve_strategy_preset,
 )
-from src.services.backtesting.constants import STRATEGY_DMA_FGI_PORTFOLIO_RULES
+from src.services.backtesting.constants import MODEL_WINDOW_DAYS
+from src.services.backtesting.strategy_registry import get_strategy_recipe
 
 
 def test_list_strategy_presets_returns_live_non_benchmark_presets() -> None:
     presets = list_strategy_presets()
+
     assert [preset.config_id for preset in presets] == [
-        DMA_FGI_PORTFOLIO_RULES_CONFIG_ID,
-        DMA_FGI_PORTFOLIO_RULES_OPTIMIZED_CONFIG_ID,
+        DMA_FGI_PORTFOLIO_RULES_CONFIG_ID
     ]
     assert presets[0].strategy_id == "dma_fgi_portfolio_rules"
-    assert presets[0].params["signal"]["cross_cooldown_days"] == 30
 
 
-def test_optimized_preset_exposes_tuned_params_and_is_not_default() -> None:
-    optimized = resolve_seed_strategy_config(
-        DMA_FGI_PORTFOLIO_RULES_OPTIMIZED_CONFIG_ID
-    )
-    # Same strategy family as the default — only the params differ, so the
-    # snapshot universe (keyed on strategy_id) is unchanged.
-    assert optimized.strategy_id == "dma_fgi_portfolio_rules"
-    assert optimized.is_default is False
-    assert optimized.is_benchmark is False
-    assert optimized.params["signal"]["cross_cooldown_days"] == 90
-    assert optimized.params["signal"]["cross_on_touch"] is False
-    assert optimized.params["pacing"]["k"] == pytest.approx(1.51880140214303)
-    # The default preset stays anchored to its canonical params.
-    default = resolve_seed_strategy_config(DMA_FGI_PORTFOLIO_RULES_CONFIG_ID)
-    assert default.params["signal"]["cross_cooldown_days"] == 30
-    assert default.params["signal"]["cross_on_touch"] is True
+def test_the_tuned_variant_that_never_ran_in_production_is_gone() -> None:
+    with pytest.raises(ValueError, match="Unknown config_id"):
+        resolve_seed_strategy_config("dma_fgi_portfolio_rules_optimized")
 
 
 def test_default_preset_is_dma_fgi_portfolio_rules() -> None:
@@ -75,7 +58,7 @@ def test_resolve_strategy_preset_rejects_unknown_id() -> None:
 
 def test_backtest_defaults_match_public_contract() -> None:
     defaults = get_backtest_defaults()
-    assert defaults.days == 500
+    assert defaults.days == MODEL_WINDOW_DAYS == 500
     assert defaults.total_capital == 10000
 
 
@@ -86,62 +69,36 @@ def test_curated_presets_have_single_default_and_single_benchmark() -> None:
     assert len(benchmarks) == 1
 
 
-def test_seed_live_configs_expose_nested_params() -> None:
+def test_the_default_seed_names_the_locked_reference_it_runs() -> None:
     config = resolve_seed_strategy_config(DMA_FGI_PORTFOLIO_RULES_CONFIG_ID)
 
-    assert config.params == resolve_strategy_default_params(
-        STRATEGY_DMA_FGI_PORTFOLIO_RULES
+    assert config.spec_ref == "reference/dma_fgi"
+    assert resolve_seed_strategy_config("dca_classic").spec_ref is None
+    assert resolve_strategy_preset(DMA_FGI_PORTFOLIO_RULES_CONFIG_ID).spec_ref == (
+        "reference/dma_fgi"
     )
-    assert isinstance(config.params["signal"], dict)
 
 
-def test_seed_live_configs_attach_rule_based_composition_refs() -> None:
-    config = resolve_seed_strategy_config(DMA_FGI_PORTFOLIO_RULES_CONFIG_ID)
+def test_a_seed_whose_reference_drifted_from_the_lock_stops_the_import(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.config import strategy_presets
+    from src.services.backtesting.spec.loader import SpecLockError
 
-    assert config.composition.signal is not None
-    assert config.composition.signal.component_id == "dma_fgi_portfolio_rules_signal"
-    assert config.composition.decision_policy is not None
-    assert (
-        config.composition.decision_policy.component_id
-        == "dma_fgi_portfolio_rules_policy"
-    )
-    assert config.composition.bucket_mapper_id == "spy_eth_btc_stable"
-    assert config.composition.plugins == []
+    def drifted(ref: str) -> None:
+        raise SpecLockError(f"{ref} does not match its entry in LOCK.json")
 
+    monkeypatch.setattr(strategy_presets, "reference_spec", drifted)
 
-def test_resolve_strategy_default_params_applies_nested_tuning_overrides() -> None:
-    with patch.dict(
-        STRATEGY_TUNING_OVERRIDES,
-        {
-            STRATEGY_DMA_FGI_PORTFOLIO_RULES: {
-                "trade_quota": {"min_trade_interval_days": 2},
-            },
-        },
-    ):
-        params = resolve_strategy_default_params(STRATEGY_DMA_FGI_PORTFOLIO_RULES)
-
-    assert params["trade_quota"]["min_trade_interval_days"] == 2
+    with pytest.raises(SpecLockError, match="does not match its entry"):
+        strategy_presets._check_seed_references()
 
 
-def test_resolve_strategy_default_params_rejects_unsupported_tuning_keys() -> None:
-    with patch.dict(
-        STRATEGY_TUNING_OVERRIDES,
-        {STRATEGY_DMA_FGI_PORTFOLIO_RULES: {"unsupported_group": {"value": 1}}},
-    ):
-        with pytest.raises(ValueError, match="Extra inputs are not permitted"):
-            resolve_strategy_default_params(STRATEGY_DMA_FGI_PORTFOLIO_RULES)
-
-
-def test_get_params_model_rejects_unknown_strategy_id() -> None:
-    with pytest.raises(ValueError, match="does not define preset params"):
-        _get_params_model("unknown_strategy")
-
-
-def test_resolve_strategy_default_runtime_params_returns_flat_contract() -> None:
-    params = resolve_strategy_default_runtime_params(STRATEGY_DMA_FGI_PORTFOLIO_RULES)
-
-    assert "cross_cooldown_days" in params
-    assert "signal" not in params
+def test_seed_configs_name_the_recipe_that_runs_them() -> None:
+    for config in list_seed_strategy_configs():
+        recipe = get_strategy_recipe(config.strategy_id)
+        assert recipe.strategy_id == config.strategy_id
+        assert recipe.supports_daily_suggestion is config.supports_daily_suggestion
 
 
 def test_get_default_seed_strategy_config_raises_when_no_default() -> None:

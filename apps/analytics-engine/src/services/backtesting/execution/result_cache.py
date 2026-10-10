@@ -6,7 +6,6 @@ import hashlib
 import json
 import pickle
 from collections.abc import Callable
-from dataclasses import asdict
 from datetime import date, timedelta
 from typing import Any, cast
 
@@ -17,8 +16,7 @@ from src.models.backtesting import (
     BacktestResponse,
     BacktestWindowInfo,
 )
-from src.services.backtesting.composition import ResolvedSavedStrategyConfig
-from src.services.backtesting.execution.config import RegimeConfig
+from src.services.backtesting.strategy_registry import ResolvedSavedStrategyConfig
 
 COMPARE_RESULT_TTL = timedelta(hours=1)
 # The app's 500-day, two-config compare is ~10 MiB as a live response graph but
@@ -72,7 +70,6 @@ def compare_result_key(
     prices: list[dict[str, Any]],
     sentiments: dict[date, Any],
     window: BacktestWindowInfo,
-    config: RegimeConfig | None,
 ) -> str:
     normalized = request.model_dump(
         mode="json",
@@ -84,13 +81,17 @@ def compare_result_key(
             "configs",
         },
     )
+    # ``spec_ref`` carries the spec's behavior hash, so an edited spec (or a
+    # saved config pointing at another one) never reads an older run. A benchmark
+    # has no spec; its strategy_id is its whole behavior.
     normalized["configs"] = [
         {
             "config_id": item.request_config_id,
+            "saved_config_id": item.saved_config_id,
             "strategy_id": item.strategy_id,
-            "params": item.public_params,
-            "composition": item.cache_identity,
+            "spec_ref": item.spec_ref,
             "display_name": item.display_name,
+            "description": item.description,
             "primary_asset": item.primary_asset,
             "signal_id": item.summary_signal_id,
             "runtime_mode": item.runtime_portfolio_mode,
@@ -106,7 +107,6 @@ def compare_result_key(
         "sentiments": [
             (day.isoformat(), value) for day, value in sorted(sentiments.items())
         ],
-        "engine": asdict(config or RegimeConfig.default()),
     }
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
     return "backtesting:compare:v1:" + hashlib.sha256(encoded.encode()).hexdigest()

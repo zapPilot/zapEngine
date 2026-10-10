@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import replace
 
 from src.services.backtesting.decision import AllocationIntent
-from src.services.backtesting.portfolio_rules import RULE_PRIORITIES
 from src.services.backtesting.portfolio_rules.base import (
     DIAG_COOLDOWN_SKIPPED_RULES,
     DIAG_MATCHED_RULE_NAME,
@@ -23,8 +22,9 @@ def _apply_risk_guards(
     *,
     risk_guards: tuple[RiskGuard, ...],
     config: PortfolioRuleConfig,
+    rules: tuple[PortfolioRule, ...],
 ) -> RiskGuardResult:
-    matched_rule_priority = _matched_rule_priority(intent)
+    matched_rule_priority = _matched_rule_priority(intent, rules)
     for guard in risk_guards:
         if (
             matched_rule_priority is not None
@@ -68,11 +68,16 @@ def _apply_post_intent_adjustments(
     return adjusted
 
 
-def _matched_rule_priority(intent: AllocationIntent) -> int | None:
+def _matched_rule_priority(
+    intent: AllocationIntent,
+    rules: tuple[PortfolioRule, ...],
+) -> int | None:
+    """Priority of the rule that produced ``intent``, read from the rules evaluated."""
     matched_rule = _matched_rule_name(intent)
     if matched_rule is None:
         return None
-    return RULE_PRIORITIES.get(matched_rule)
+    rule = _rule_for_name(rules, matched_rule)
+    return None if rule is None else rule.priority
 
 
 def _matched_rule_name(intent: AllocationIntent) -> str | None:

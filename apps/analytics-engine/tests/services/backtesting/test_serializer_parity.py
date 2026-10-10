@@ -4,7 +4,6 @@ from src.services.backtesting.decision import AllocationIntent
 from src.services.backtesting.domain import (
     DmaSignalDiagnostics,
     ExecutionOutcome,
-    ExecutionPluginDiagnostic,
     RatioSignalDiagnostics,
     SignalObservation,
     StrategySnapshot,
@@ -64,26 +63,6 @@ def test_strategy_state_serializer_preserves_signal_decision_and_execution_field
             event=None,
             transfers=[],
             blocked_reason="interval_wait",
-            step_count=5,
-            steps_remaining=4,
-            interval_days=2,
-            plugin_diagnostics=(
-                ExecutionPluginDiagnostic(
-                    plugin_id="dma_buy_gate",
-                    payload={
-                        "buy_strength": None,
-                        "sideways_confirmed": None,
-                        "window_days": None,
-                        "range_value": None,
-                        "leg_index": None,
-                        "leg_cap_pct": None,
-                        "leg_cap_usd": None,
-                        "leg_spent_usd": None,
-                        "episode_state": None,
-                        "block_reason": None,
-                    },
-                ),
-            ),
         ),
     )
     portfolio = Portfolio(spot_balance=0.0, stable_balance=10_000.0)
@@ -108,7 +87,6 @@ def test_strategy_state_serializer_preserves_signal_decision_and_execution_field
     assert serialized.execution.blocked_reason == "interval_wait"
     assert serialized.execution.status == "blocked"
     assert serialized.execution.action_required is False
-    assert serialized.execution.diagnostics.plugins["dma_buy_gate"] is not None
 
 
 def test_strategy_state_serializer_marks_hold_transfers_as_action_required() -> None:
@@ -139,10 +117,6 @@ def test_strategy_state_serializer_marks_hold_transfers_as_action_required() -> 
                 )
             ],
             blocked_reason=None,
-            step_count=1,
-            steps_remaining=0,
-            interval_days=1,
-            plugin_diagnostics=(),
         ),
     )
 
@@ -179,10 +153,6 @@ def test_strategy_state_serializer_marks_idle_hold_as_no_action() -> None:
             event=None,
             transfers=[],
             blocked_reason=None,
-            step_count=0,
-            steps_remaining=0,
-            interval_days=0,
-            plugin_diagnostics=(),
         ),
     )
 

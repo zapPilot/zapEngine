@@ -7,9 +7,9 @@ from typing import Any, cast
 from src.models.backtesting import (
     Allocation,
     DecisionState,
-    ExecutionDiagnostics,
     ExecutionState,
     ExecutionStatus,
+    PnlAttribution,
     PortfolioState,
     SignalState,
     SpotAssetType,
@@ -22,14 +22,7 @@ from src.models.backtesting import (
 from src.services.backtesting.asset_allocation_serialization import (
     serialize_asset_allocation,
 )
-from src.services.backtesting.domain import (
-    DmaSignalDiagnostics,
-    ExecutionPluginDiagnostic,
-    StrategySnapshot,
-)
-from src.services.backtesting.execution.block_reasons import (
-    resolve_effective_block_reason,
-)
+from src.services.backtesting.domain import DmaSignalDiagnostics, StrategySnapshot
 from src.services.backtesting.execution.performance_metrics import (
     PerformanceMetricsCalculator,
 )
@@ -96,6 +89,8 @@ def build_strategy_summaries(
     last_market_prices: dict[str, float] | None,
     strategy_daily_values: dict[str, list[float]],
     benchmark_daily_prices: list[float],
+    price_pnl_usd: dict[str, float],
+    risk_free_apr: float,
 ) -> dict[str, StrategySummary]:
     summaries: dict[str, StrategySummary] = {}
     for strategy in strategies:
@@ -106,7 +101,7 @@ def build_strategy_summaries(
             last_price=last_price,
             last_market_prices=last_market_prices,
         )
-        final_value = portfolio.equity(summary_price)
+        final_value = portfolio.total_value(summary_price)
         allocation = sanitize_runtime_allocation(
             portfolio.allocation_percentages(summary_price)
         )
@@ -118,6 +113,7 @@ def build_strategy_summaries(
         performance_metrics = _calculate_performance_metrics(
             strategy_daily_values[strategy.strategy_id],
             benchmark_daily_prices,
+            risk_free_apr,
         )
         canonical_strategy_id = cast(
             StrategyId,
@@ -141,6 +137,11 @@ def build_strategy_summaries(
             ulcer_index=performance_metrics["ulcer_index"],
             alpha=performance_metrics["alpha"],
             information_ratio=performance_metrics["information_ratio"],
+            pnl_attribution=PnlAttribution(
+                price_usd=price_pnl_usd[strategy.strategy_id],
+                yield_usd=portfolio.yield_usd,
+                cost_usd=-portfolio.cost_usd,
+            ),
             final_allocation=Allocation(**allocation),
             final_asset_allocation=asset_allocation,
             parameters={**parameters, **(result.metrics or {})},
@@ -177,13 +178,9 @@ def _build_execution_state(snapshot: StrategySnapshot) -> ExecutionState:
         )
         for transfer in snapshot.execution.transfers
     ]
-    diagnostics = _serialize_execution_diagnostics(
-        snapshot.execution.plugin_diagnostics
-    )
     status, action_required = _resolve_execution_actionability(
         transfers=transfers,
         blocked_reason=snapshot.execution.blocked_reason,
-        diagnostics=diagnostics,
     )
     return ExecutionState(
         event=snapshot.execution.event,
@@ -191,10 +188,6 @@ def _build_execution_state(snapshot: StrategySnapshot) -> ExecutionState:
         blocked_reason=snapshot.execution.blocked_reason,
         status=status,
         action_required=action_required,
-        step_count=snapshot.execution.step_count,
-        steps_remaining=snapshot.execution.steps_remaining,
-        interval_days=snapshot.execution.interval_days,
-        diagnostics=ExecutionDiagnostics(plugins=diagnostics),
     )
 
 
@@ -254,27 +247,15 @@ def _serialize_decision_details(snapshot: StrategySnapshot) -> dict[str, Any]:
     return details
 
 
-def _serialize_execution_diagnostics(
-    diagnostics: tuple[ExecutionPluginDiagnostic, ...],
-) -> dict[str, dict[str, Any] | None]:
-    return {
-        diagnostic.plugin_id: dict(diagnostic.payload) for diagnostic in diagnostics
-    }
-
-
 def _resolve_execution_actionability(
     *,
     transfers: list[TransferRecord],
     blocked_reason: str | None,
-    diagnostics: dict[str, dict[str, Any] | None],
 ) -> tuple[ExecutionStatus, bool]:
     if transfers:
         return ("action_required", True)
 
-    if resolve_effective_block_reason(
-        blocked_reason=blocked_reason,
-        diagnostics=diagnostics,
-    ):
+    if blocked_reason:
         return ("blocked", False)
 
     return ("no_action", False)
@@ -283,9 +264,12 @@ def _resolve_execution_actionability(
 def _calculate_performance_metrics(
     strategy_values: list[float],
     benchmark_prices: list[float],
+    risk_free_apr: float,
 ) -> dict[str, float]:
     calculator = PerformanceMetricsCalculator()
-    return calculator.calculate_all_metrics(strategy_values, benchmark_prices)
+    return calculator.calculate_all_metrics(
+        strategy_values, benchmark_prices, risk_free_apr
+    )
 
 
 def _resolve_target_allocation(

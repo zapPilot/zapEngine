@@ -212,6 +212,112 @@
           ],
           "type": "object"
         },
+        "model": {
+          "additionalProperties": false,
+          "properties": {
+            "allocation": {
+              "additionalProperties": false,
+              "properties": {
+                "alt": {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                "btc": {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                "eth": {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                "spy": {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                "stable": {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                }
+              },
+              "required": [
+                "btc",
+                "eth",
+                "spy",
+                "stable",
+                "alt"
+              ],
+              "type": "object"
+            },
+            "window": {
+              "additionalProperties": false,
+              "properties": {
+                "effective": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "days": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "end_date": {
+                      "type": "string"
+                    },
+                    "start_date": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "start_date",
+                    "end_date",
+                    "days"
+                  ],
+                  "type": "object"
+                },
+                "requested": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "days": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "end_date": {
+                      "type": "string"
+                    },
+                    "start_date": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "start_date",
+                    "end_date",
+                    "days"
+                  ],
+                  "type": "object"
+                },
+                "truncated": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "requested",
+                "effective",
+                "truncated"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "allocation",
+            "window"
+          ],
+          "type": "object"
+        },
         "portfolio": {
           "additionalProperties": false,
           "properties": {
@@ -612,7 +718,8 @@
         "signal",
         "portfolio",
         "target",
-        "strategy"
+        "strategy",
+        "model"
       ],
       "type": "object"
     },
@@ -690,6 +797,9 @@
         }
       ]
     },
+    "spec_ref": {
+      "type": "string"
+    },
     "strategy_id": {
       "type": "string"
     }
@@ -699,6 +809,7 @@
     "config_id",
     "config_display_name",
     "strategy_id",
+    "spec_ref",
     "action",
     "context"
   ],

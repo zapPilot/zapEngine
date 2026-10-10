@@ -12,7 +12,7 @@ export const en = {
   'runtime.reference': 'Reference strategy · evaluated daily',
   'runtime.replay': 'Open the replay',
   'runtime.hypothetical':
-    'Hypothetical backtest, including a sleeve that cannot be executed yet.',
+    'Hypothetical backtest. It fills each trade the day after its signal, assumes a yield on stablecoin balances only, and includes a sleeve that cannot be executed yet.',
   'runtime.rulesRoi': 'Rules ROI',
   'runtime.dcaRoi': 'DCA ROI',
   'runtime.maxDd': 'Max drawdown',
@@ -67,7 +67,8 @@ export const zhHant = {
   'runtime.alerts': '提醒 · Telegram',
   'runtime.reference': '參考策略 · 每日評估',
   'runtime.replay': '開啟回放',
-  'runtime.hypothetical': '假設性回測，包含尚無法執行的配置。',
+  'runtime.hypothetical':
+    '假設性回測：每筆交易在訊號出現後一天成交，僅假設穩定幣部位可獲得收益，並包含尚無法執行的配置。',
   'runtime.rulesRoi': '規則報酬',
   'runtime.dcaRoi': '定投報酬',
   'runtime.maxDd': '最大回撤',
@@ -117,7 +118,8 @@ export const ja = {
   'runtime.alerts': '通知 · Telegram',
   'runtime.reference': '参照戦略 · 毎日評価',
   'runtime.replay': 'リプレイを開く',
-  'runtime.hypothetical': '仮想バックテスト。まだ実行できない配分を含みます。',
+  'runtime.hypothetical':
+    '仮想バックテストです。各取引はシグナルの翌日に約定するものとし、利回りはステーブルコインの残高にのみ仮定し、まだ実行できない配分を含みます。',
   'runtime.rulesRoi': 'ルール収益率',
   'runtime.dcaRoi': '積立収益率',
   'runtime.maxDd': '最大ドローダウン',

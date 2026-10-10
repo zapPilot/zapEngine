@@ -1,0 +1,1737 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "A rule strategy over SPY, BTC and ETH against stable.",
+  "properties": {
+    "spec_format": {
+      "const": "strategy-spec/1",
+      "description": "Version of this format.",
+      "type": "string"
+    },
+    "id": {
+      "description": "Name of the strategy.",
+      "pattern": "^[a-z][a-z0-9_]{2,47}$",
+      "type": "string"
+    },
+    "version": {
+      "description": "Bumped whenever the behavior changes; pinned by the lock file.",
+      "minimum": 1,
+      "type": "integer"
+    },
+    "description": {
+      "description": "What the strategy does, in a sentence or two.",
+      "maxLength": 500,
+      "minLength": 1,
+      "type": "string"
+    },
+    "signals": {
+      "additionalProperties": false,
+      "properties": {
+        "warmup_days": {
+          "description": "Days of history replayed before the first decision.",
+          "maximum": 365,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "dma": {
+          "additionalProperties": false,
+          "description": "The 200-day moving-average signal of each asset.",
+          "properties": {
+            "feature": {
+              "const": "dma_200",
+              "description": "Moving average that prices are compared with.",
+              "type": "string"
+            },
+            "cross_cooldown_days": {
+              "additionalProperties": false,
+              "description": "Days after a cross during which the opposite cross of the same asset is ignored.",
+              "properties": {
+                "SPY": {
+                  "description": "Cooldown for SPY.",
+                  "maximum": 365,
+                  "minimum": 0,
+                  "type": "integer",
+                  "x-tunable": true
+                },
+                "BTC": {
+                  "description": "Cooldown for BTC.",
+                  "maximum": 365,
+                  "minimum": 0,
+                  "type": "integer",
+                  "x-tunable": true
+                },
+                "ETH": {
+                  "description": "Cooldown for ETH.",
+                  "maximum": 365,
+                  "minimum": 0,
+                  "type": "integer",
+                  "x-tunable": true
+                }
+              },
+              "required": [
+                "SPY",
+                "BTC",
+                "ETH"
+              ],
+              "type": "object"
+            },
+            "cross_on_touch": {
+              "description": "Count a price that touches its DMA as a cross.",
+              "type": "boolean",
+              "x-tunable": true
+            }
+          },
+          "required": [
+            "feature",
+            "cross_cooldown_days",
+            "cross_on_touch"
+          ],
+          "type": "object"
+        },
+        "ratio": {
+          "additionalProperties": false,
+          "description": "The ETH/BTC ratio against its own 200-day moving average.",
+          "properties": {
+            "cross_cooldown_days": {
+              "description": "Days after a ratio rotation during which the next cross is ignored.",
+              "maximum": 365,
+              "minimum": 0,
+              "type": "integer",
+              "x-tunable": true
+            }
+          },
+          "required": [
+            "cross_cooldown_days"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "warmup_days",
+        "dma",
+        "ratio"
+      ],
+      "type": "object",
+      "description": "How the signals the rules read are built."
+    },
+    "rules": {
+      "description": "Rules in precedence order: the first one that matches and is off cooldown decides the day.",
+      "items": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "description": "Sells an asset to stable when its price crosses below its 200-day DMA.",
+            "properties": {
+              "kind": {
+                "const": "dma_cross_down_exit",
+                "type": "string"
+              },
+              "id": {
+                "description": "Name of the rule in decision traces.",
+                "pattern": "^[a-z][a-z0-9_]{2,47}$",
+                "type": "string"
+              },
+              "cooldown_days": {
+                "description": "Days the rule stays off after it trades.",
+                "maximum": 365,
+                "minimum": 0,
+                "type": "integer",
+                "x-tunable": true
+              },
+              "peer_groups": {
+                "description": "Assets that leave together when one of them crosses down. An asset in no group leaves alone.",
+                "items": {
+                  "items": {
+                    "enum": [
+                      "SPY",
+                      "BTC",
+                      "ETH"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "type": "array"
+              },
+              "proceeds": {
+                "additionalProperties": false,
+                "description": "Where the cash from the exits goes.",
+                "properties": {
+                  "to": {
+                    "description": "Assets that receive a share of the proceeds, in order.",
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "asset": {
+                          "description": "Asset that receives part of the proceeds.",
+                          "enum": [
+                            "SPY",
+                            "BTC",
+                            "ETH"
+                          ],
+                          "type": "string"
+                        },
+                        "share": {
+                          "description": "Fraction of the proceeds that goes to the asset.",
+                          "exclusiveMinimum": 0.0,
+                          "maximum": 1.0,
+                          "type": "number",
+                          "x-tunable": true
+                        }
+                      },
+                      "required": [
+                        "asset",
+                        "share"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "to"
+                ],
+                "type": "object"
+              },
+              "cooldown_scope": {
+                "x-default": "rule",
+                "description": "What the cooldown is kept for. `rule`: one cooldown for the whole rule, so after any exit another asset's cross down is skipped until it ends. `trigger_symbol`: one per asset that crossed, so an exit never waits for another asset's.",
+                "enum": [
+                  "rule",
+                  "trigger_symbol"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id",
+              "cooldown_days",
+              "peer_groups",
+              "proceeds",
+              "cooldown_scope"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "Moves the portfolio into the assets above their DMA when one of them crosses up.",
+            "properties": {
+              "kind": {
+                "const": "dma_cross_up_rebalance",
+                "type": "string"
+              },
+              "id": {
+                "description": "Name of the rule in decision traces.",
+                "pattern": "^[a-z][a-z0-9_]{2,47}$",
+                "type": "string"
+              },
+              "cooldown_days": {
+                "description": "Days an asset that triggered the rule cannot trigger it again.",
+                "maximum": 365,
+                "minimum": 0,
+                "type": "integer",
+                "x-tunable": true
+              },
+              "allocation": {
+                "x-default": "equal_weight",
+                "description": "`equal_weight` re-weights the whole portfolio equally across the assets above their DMA, which undoes earlier trims and rotations. `deploy_stable` keeps every holding and splits only the stable equally across those assets.",
+                "enum": [
+                  "equal_weight",
+                  "deploy_stable"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id",
+              "cooldown_days",
+              "allocation"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "Rotates between BTC and ETH when the ETH/BTC ratio crosses its 200-day DMA.",
+            "properties": {
+              "kind": {
+                "const": "ratio_cross_rotation",
+                "type": "string"
+              },
+              "id": {
+                "description": "Name of the rule in decision traces.",
+                "pattern": "^[a-z][a-z0-9_]{2,47}$",
+                "type": "string"
+              },
+              "cooldown_days": {
+                "description": "Days the rule stays off after it trades.",
+                "maximum": 365,
+                "minimum": 0,
+                "type": "integer",
+                "x-tunable": true
+              },
+              "cross_up": {
+                "additionalProperties": false,
+                "properties": {
+                  "sources": {
+                    "description": "Holdings swept into the destination.",
+                    "items": {
+                      "enum": [
+                        "SPY",
+                        "BTC",
+                        "ETH",
+                        "STABLE"
+                      ],
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "destination": {
+                    "description": "Holding that receives everything.",
+                    "enum": [
+                      "SPY",
+                      "BTC",
+                      "ETH",
+                      "STABLE"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "sources",
+                  "destination"
+                ],
+                "type": "object",
+                "description": "Move when the ratio crosses above its DMA (ETH is the stronger leg)."
+              },
+              "cross_down": {
+                "additionalProperties": false,
+                "properties": {
+                  "sources": {
+                    "description": "Holdings swept into the destination.",
+                    "items": {
+                      "enum": [
+                        "SPY",
+                        "BTC",
+                        "ETH",
+                        "STABLE"
+                      ],
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "destination": {
+                    "description": "Holding that receives everything.",
+                    "enum": [
+                      "SPY",
+                      "BTC",
+                      "ETH",
+                      "STABLE"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "sources",
+                  "destination"
+                ],
+                "type": "object",
+                "description": "Move when the ratio crosses below its DMA."
+              }
+            },
+            "required": [
+              "kind",
+              "id",
+              "cooldown_days",
+              "cross_up",
+              "cross_down"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "Moves part of BTC or ETH into the other when the ratio is far from its DMA.",
+            "properties": {
+              "kind": {
+                "const": "ratio_deviation_rotation",
+                "type": "string"
+              },
+              "id": {
+                "description": "Name of the rule in decision traces.",
+                "pattern": "^[a-z][a-z0-9_]{2,47}$",
+                "type": "string"
+              },
+              "tiers": {
+                "description": "Distance bands, strongest first. A stronger move is not blocked by the cooldown of a milder one.",
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "name": {
+                      "description": "Tier name; it appears in the trade's name.",
+                      "pattern": "^[a-z][a-z0-9_]{2,47}$",
+                      "type": "string"
+                    },
+                    "threshold": {
+                      "description": "The tier applies from this distance from the ratio's DMA outwards.",
+                      "exclusiveMinimum": 0.0,
+                      "maximum": 10.0,
+                      "type": "number",
+                      "x-tunable": true
+                    },
+                    "rotation_fraction": {
+                      "description": "Share of the source leg that moves.",
+                      "exclusiveMinimum": 0.0,
+                      "maximum": 1.0,
+                      "type": "number",
+                      "x-tunable": true
+                    },
+                    "cooldown_days": {
+                      "description": "Days this tier stays off after it trades.",
+                      "maximum": 365,
+                      "minimum": 0,
+                      "type": "integer",
+                      "x-tunable": true
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "threshold",
+                    "rotation_fraction",
+                    "cooldown_days"
+                  ],
+                  "type": "object"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              "below": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "source": {
+                        "description": "Holding the rotation sells.",
+                        "enum": [
+                          "BTC",
+                          "ETH"
+                        ],
+                        "type": "string"
+                      },
+                      "destination": {
+                        "description": "Holding it buys.",
+                        "enum": [
+                          "BTC",
+                          "ETH"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "source",
+                      "destination"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Move when the ratio is far below its DMA; null turns it off."
+              },
+              "above": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "source": {
+                        "description": "Holding the rotation sells.",
+                        "enum": [
+                          "BTC",
+                          "ETH"
+                        ],
+                        "type": "string"
+                      },
+                      "destination": {
+                        "description": "Holding it buys.",
+                        "enum": [
+                          "BTC",
+                          "ETH"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "source",
+                      "destination"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Move when the ratio is far above its DMA; null turns it off."
+              }
+            },
+            "required": [
+              "kind",
+              "id",
+              "tiers",
+              "below",
+              "above"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "Sells a slice of an asset that has run far above its DMA.",
+            "properties": {
+              "kind": {
+                "const": "dma_overextension_trim",
+                "type": "string"
+              },
+              "id": {
+                "description": "Name of the rule in decision traces.",
+                "pattern": "^[a-z][a-z0-9_]{2,47}$",
+                "type": "string"
+              },
+              "cooldown_days": {
+                "description": "Days the rule stays off after it trades.",
+                "maximum": 365,
+                "minimum": 0,
+                "type": "integer",
+                "x-tunable": true
+              },
+              "sell_step": {
+                "description": "Share sold per matching asset: of the portfolio under absolute sizing, of the asset's own position under relative sizing.",
+                "exclusiveMinimum": 0.0,
+                "maximum": 1.0,
+                "type": "number",
+                "x-tunable": true
+              },
+              "sizing": {
+                "x-default": {
+                  "mode": "absolute"
+                },
+                "description": "How `sell_step` is read: of the portfolio, or of the position.",
+                "oneOf": [
+                  {
+                    "additionalProperties": false,
+                    "description": "A sale is a share of the portfolio. This is how every sale read before sizing existed.",
+                    "properties": {
+                      "mode": {
+                        "const": "absolute",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "mode"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "description": "A sale is a share of the asset's own position, and it never cuts into a core.",
+                    "properties": {
+                      "mode": {
+                        "const": "relative",
+                        "type": "string"
+                      },
+                      "floor_weight": {
+                        "description": "Share of the portfolio the asset is never sold below.",
+                        "exclusiveMaximum": 1.0,
+                        "minimum": 0.0,
+                        "type": "number",
+                        "x-tunable": true
+                      }
+                    },
+                    "required": [
+                      "mode",
+                      "floor_weight"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              },
+              "thresholds": {
+                "additionalProperties": false,
+                "description": "How far above its DMA an asset may run before it is sold into.",
+                "properties": {
+                  "SPY": {
+                    "description": "Threshold for SPY.",
+                    "exclusiveMinimum": 0.0,
+                    "maximum": 10.0,
+                    "type": "number",
+                    "x-tunable": true
+                  },
+                  "BTC": {
+                    "description": "Threshold for BTC.",
+                    "exclusiveMinimum": 0.0,
+                    "maximum": 10.0,
+                    "type": "number",
+                    "x-tunable": true
+                  },
+                  "ETH": {
+                    "description": "Threshold for ETH.",
+                    "exclusiveMinimum": 0.0,
+                    "maximum": 10.0,
+                    "type": "number",
+                    "x-tunable": true
+                  }
+                },
+                "required": [
+                  "SPY",
+                  "BTC",
+                  "ETH"
+                ],
+                "type": "object"
+              },
+              "fgi_multipliers": {
+                "additionalProperties": false,
+                "description": "Multiplies the thresholds by the asset's fear/greed regime. Below 1 the sale starts earlier.",
+                "properties": {
+                  "extreme_fear": {
+                    "description": "Multiplier while the regime is extreme fear.",
+                    "maximum": 2.0,
+                    "minimum": 0.0,
+                    "type": "number",
+                    "x-tunable": true
+                  },
+                  "fear": {
+                    "description": "Multiplier while the regime is fear.",
+                    "maximum": 2.0,
+                    "minimum": 0.0,
+                    "type": "number",
+                    "x-tunable": true
+                  },
+                  "neutral": {
+                    "description": "Multiplier while the regime is neutral.",
+                    "maximum": 2.0,
+                    "minimum": 0.0,
+                    "type": "number",
+                    "x-tunable": true
+                  },
+                  "greed": {
+                    "description": "Multiplier while the regime is greed.",
+                    "maximum": 2.0,
+                    "minimum": 0.0,
+                    "type": "number",
+                    "x-tunable": true
+                  },
+                  "extreme_greed": {
+                    "description": "Multiplier while the regime is extreme greed.",
+                    "maximum": 2.0,
+                    "minimum": 0.0,
+                    "type": "number",
+                    "x-tunable": true
+                  }
+                },
+                "required": [
+                  "extreme_fear",
+                  "fear",
+                  "neutral",
+                  "greed",
+                  "extreme_greed"
+                ],
+                "type": "object"
+              },
+              "proceeds": {
+                "additionalProperties": false,
+                "description": "Where the cash from the sales goes.",
+                "properties": {
+                  "to": {
+                    "description": "Assets that receive a share of the proceeds, in order.",
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "asset": {
+                          "description": "Asset that receives part of the proceeds.",
+                          "enum": [
+                            "SPY",
+                            "BTC",
+                            "ETH"
+                          ],
+                          "type": "string"
+                        },
+                        "share": {
+                          "description": "Fraction of the proceeds that goes to the asset.",
+                          "exclusiveMinimum": 0.0,
+                          "maximum": 1.0,
+                          "type": "number",
+                          "x-tunable": true
+                        }
+                      },
+                      "required": [
+                        "asset",
+                        "share"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "to"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "kind",
+              "id",
+              "cooldown_days",
+              "sell_step",
+              "sizing",
+              "thresholds",
+              "fgi_multipliers",
+              "proceeds"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "Sells a slice of an asset when its fear/greed regime cools off.",
+            "properties": {
+              "kind": {
+                "const": "fgi_downshift_trim",
+                "type": "string"
+              },
+              "id": {
+                "description": "Name of the rule in decision traces.",
+                "pattern": "^[a-z][a-z0-9_]{2,47}$",
+                "type": "string"
+              },
+              "cooldown_days": {
+                "description": "Days the rule stays off after it trades.",
+                "maximum": 365,
+                "minimum": 0,
+                "type": "integer",
+                "x-tunable": true
+              },
+              "sell_step": {
+                "description": "Share sold per matching asset: of the portfolio under absolute sizing, of the asset's own position under relative sizing.",
+                "exclusiveMinimum": 0.0,
+                "maximum": 1.0,
+                "type": "number",
+                "x-tunable": true
+              },
+              "sizing": {
+                "x-default": {
+                  "mode": "absolute"
+                },
+                "description": "How `sell_step` is read: of the portfolio, or of the position.",
+                "oneOf": [
+                  {
+                    "additionalProperties": false,
+                    "description": "A sale is a share of the portfolio. This is how every sale read before sizing existed.",
+                    "properties": {
+                      "mode": {
+                        "const": "absolute",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "mode"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "description": "A sale is a share of the asset's own position, and it never cuts into a core.",
+                    "properties": {
+                      "mode": {
+                        "const": "relative",
+                        "type": "string"
+                      },
+                      "floor_weight": {
+                        "description": "Share of the portfolio the asset is never sold below.",
+                        "exclusiveMaximum": 1.0,
+                        "minimum": 0.0,
+                        "type": "number",
+                        "x-tunable": true
+                      }
+                    },
+                    "required": [
+                      "mode",
+                      "floor_weight"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              },
+              "from_regimes": {
+                "description": "Regimes the asset was in the day before.",
+                "items": {
+                  "enum": [
+                    "extreme_fear",
+                    "fear",
+                    "neutral",
+                    "greed",
+                    "extreme_greed"
+                  ],
+                  "type": "string"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              "to_regimes": {
+                "description": "Regimes the asset is in today.",
+                "items": {
+                  "enum": [
+                    "extreme_fear",
+                    "fear",
+                    "neutral",
+                    "greed",
+                    "extreme_greed"
+                  ],
+                  "type": "string"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              "proceeds": {
+                "additionalProperties": false,
+                "description": "Where the cash from the sales goes.",
+                "properties": {
+                  "to": {
+                    "description": "Assets that receive a share of the proceeds, in order.",
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "asset": {
+                          "description": "Asset that receives part of the proceeds.",
+                          "enum": [
+                            "SPY",
+                            "BTC",
+                            "ETH"
+                          ],
+                          "type": "string"
+                        },
+                        "share": {
+                          "description": "Fraction of the proceeds that goes to the asset.",
+                          "exclusiveMinimum": 0.0,
+                          "maximum": 1.0,
+                          "type": "number",
+                          "x-tunable": true
+                        }
+                      },
+                      "required": [
+                        "asset",
+                        "share"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "to"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "kind",
+              "id",
+              "cooldown_days",
+              "sell_step",
+              "sizing",
+              "from_regimes",
+              "to_regimes",
+              "proceeds"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "Sells a slice of an asset above its DMA when a technical signal fires.",
+            "properties": {
+              "kind": {
+                "const": "technical_trim",
+                "type": "string"
+              },
+              "id": {
+                "description": "Name of the rule in decision traces.",
+                "pattern": "^[a-z][a-z0-9_]{2,47}$",
+                "type": "string"
+              },
+              "cooldown_days": {
+                "description": "Days the rule stays off after it trades.",
+                "maximum": 365,
+                "minimum": 0,
+                "type": "integer",
+                "x-tunable": true
+              },
+              "sell_step": {
+                "description": "Share sold per matching asset: of the portfolio under absolute sizing, of the asset's own position under relative sizing.",
+                "exclusiveMinimum": 0.0,
+                "maximum": 1.0,
+                "type": "number",
+                "x-tunable": true
+              },
+              "sizing": {
+                "x-default": {
+                  "mode": "absolute"
+                },
+                "description": "How `sell_step` is read: of the portfolio, or of the position.",
+                "oneOf": [
+                  {
+                    "additionalProperties": false,
+                    "description": "A sale is a share of the portfolio. This is how every sale read before sizing existed.",
+                    "properties": {
+                      "mode": {
+                        "const": "absolute",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "mode"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "description": "A sale is a share of the asset's own position, and it never cuts into a core.",
+                    "properties": {
+                      "mode": {
+                        "const": "relative",
+                        "type": "string"
+                      },
+                      "floor_weight": {
+                        "description": "Share of the portfolio the asset is never sold below.",
+                        "exclusiveMaximum": 1.0,
+                        "minimum": 0.0,
+                        "type": "number",
+                        "x-tunable": true
+                      }
+                    },
+                    "required": [
+                      "mode",
+                      "floor_weight"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              },
+              "trigger": {
+                "description": "The technical signal, read for each asset that is above its DMA.",
+                "oneOf": [
+                  {
+                    "additionalProperties": false,
+                    "description": "Price makes a newer high while the trailing RSI fails to confirm it.",
+                    "properties": {
+                      "signal": {
+                        "const": "rsi_bearish_divergence",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "signal"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "description": "Price makes a newer low while the trailing RSI refuses to follow it down.",
+                    "properties": {
+                      "signal": {
+                        "const": "rsi_bullish_divergence",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "signal"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "description": "RSI(14) is overbought and its five-day slope has turned down.",
+                    "properties": {
+                      "signal": {
+                        "const": "rsi_overbought_turning_down",
+                        "type": "string"
+                      },
+                      "rsi_at_least": {
+                        "description": "RSI(14) level at or above which the asset counts as overbought.",
+                        "exclusiveMaximum": 100.0,
+                        "exclusiveMinimum": 0.0,
+                        "type": "number",
+                        "x-tunable": true
+                      }
+                    },
+                    "required": [
+                      "signal",
+                      "rsi_at_least"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "description": "RSI(14) is oversold and its five-day slope has turned up.",
+                    "properties": {
+                      "signal": {
+                        "const": "rsi_oversold_recovering",
+                        "type": "string"
+                      },
+                      "rsi_at_most": {
+                        "description": "RSI(14) level at or below which the asset counts as oversold.",
+                        "exclusiveMaximum": 100.0,
+                        "exclusiveMinimum": 0.0,
+                        "type": "number",
+                        "x-tunable": true
+                      }
+                    },
+                    "required": [
+                      "signal",
+                      "rsi_at_most"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "description": "The MACD(12, 26, 9) histogram crosses below zero today.",
+                    "properties": {
+                      "signal": {
+                        "const": "macd_bearish_cross",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "signal"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "description": "The MACD(12, 26, 9) histogram crosses above zero today.",
+                    "properties": {
+                      "signal": {
+                        "const": "macd_bullish_cross",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "signal"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "description": "Short-term momentum has turned down while the longer trend still stands.",
+                    "properties": {
+                      "signal": {
+                        "const": "momentum_breakdown",
+                        "type": "string"
+                      },
+                      "short_momentum_below": {
+                        "description": "30-day price change must be below this (a fraction, 0.1 is 10%).",
+                        "maximum": 5.0,
+                        "minimum": -1.0,
+                        "type": "number",
+                        "x-tunable": true
+                      },
+                      "long_momentum_above": {
+                        "description": "90-day price change must be above this (a fraction).",
+                        "maximum": 5.0,
+                        "minimum": -1.0,
+                        "type": "number",
+                        "x-tunable": true
+                      }
+                    },
+                    "required": [
+                      "signal",
+                      "short_momentum_below",
+                      "long_momentum_above"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "description": "Annualized 20-day realized volatility is at or above the asset's level.",
+                    "properties": {
+                      "signal": {
+                        "const": "volatility_spike",
+                        "type": "string"
+                      },
+                      "thresholds": {
+                        "additionalProperties": false,
+                        "description": "Annualized volatility per asset (0.8 is 80%).",
+                        "properties": {
+                          "SPY": {
+                            "description": "Volatility at which SPY counts as spiking.",
+                            "exclusiveMinimum": 0.0,
+                            "maximum": 10.0,
+                            "type": "number",
+                            "x-tunable": true
+                          },
+                          "BTC": {
+                            "description": "Volatility at which BTC counts as spiking.",
+                            "exclusiveMinimum": 0.0,
+                            "maximum": 10.0,
+                            "type": "number",
+                            "x-tunable": true
+                          },
+                          "ETH": {
+                            "description": "Volatility at which ETH counts as spiking.",
+                            "exclusiveMinimum": 0.0,
+                            "maximum": 10.0,
+                            "type": "number",
+                            "x-tunable": true
+                          }
+                        },
+                        "required": [
+                          "SPY",
+                          "BTC",
+                          "ETH"
+                        ],
+                        "type": "object"
+                      }
+                    },
+                    "required": [
+                      "signal",
+                      "thresholds"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "description": "The 20-day Bollinger z-score has reached the upper band.",
+                    "properties": {
+                      "signal": {
+                        "const": "bollinger_upper_band",
+                        "type": "string"
+                      },
+                      "zscore_at_least": {
+                        "description": "Standard deviations above the 20-day mean at which it fires.",
+                        "exclusiveMinimum": 0.0,
+                        "maximum": 10.0,
+                        "type": "number",
+                        "x-tunable": true
+                      }
+                    },
+                    "required": [
+                      "signal",
+                      "zscore_at_least"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "description": "The 20-day Bollinger z-score has reached the lower band.",
+                    "properties": {
+                      "signal": {
+                        "const": "bollinger_lower_band",
+                        "type": "string"
+                      },
+                      "zscore_at_most": {
+                        "description": "Standard deviations below the 20-day mean at which it fires.",
+                        "exclusiveMaximum": 0.0,
+                        "minimum": -10.0,
+                        "type": "number",
+                        "x-tunable": true
+                      }
+                    },
+                    "required": [
+                      "signal",
+                      "zscore_at_most"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "description": "Today's close is above the highest close of the 20 days before it.",
+                    "properties": {
+                      "signal": {
+                        "const": "breakout_20d",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "signal"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "description": "Today's close is below the lowest close of the 20 days before it.",
+                    "properties": {
+                      "signal": {
+                        "const": "breakdown_20d",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "signal"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              },
+              "proceeds": {
+                "additionalProperties": false,
+                "description": "Where the cash from the sales goes.",
+                "properties": {
+                  "to": {
+                    "description": "Assets that receive a share of the proceeds, in order.",
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "asset": {
+                          "description": "Asset that receives part of the proceeds.",
+                          "enum": [
+                            "SPY",
+                            "BTC",
+                            "ETH"
+                          ],
+                          "type": "string"
+                        },
+                        "share": {
+                          "description": "Fraction of the proceeds that goes to the asset.",
+                          "exclusiveMinimum": 0.0,
+                          "maximum": 1.0,
+                          "type": "number",
+                          "x-tunable": true
+                        }
+                      },
+                      "required": [
+                        "asset",
+                        "share"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "to"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "kind",
+              "id",
+              "cooldown_days",
+              "sell_step",
+              "sizing",
+              "trigger",
+              "proceeds"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "Buys into an asset above its DMA, out of stable, when a technical signal fires.",
+            "properties": {
+              "kind": {
+                "const": "technical_add",
+                "type": "string"
+              },
+              "id": {
+                "description": "Name of the rule in decision traces.",
+                "pattern": "^[a-z][a-z0-9_]{2,47}$",
+                "type": "string"
+              },
+              "cooldown_days": {
+                "description": "Days the rule stays off after it trades.",
+                "maximum": 365,
+                "minimum": 0,
+                "type": "integer",
+                "x-tunable": true
+              },
+              "buy_step": {
+                "description": "Share of the portfolio bought per matching asset, out of stable.",
+                "exclusiveMinimum": 0.0,
+                "maximum": 1.0,
+                "type": "number",
+                "x-tunable": true
+              },
+              "trigger": {
+                "description": "The technical signal, read for each asset that is above its DMA.",
+                "oneOf": [
+                  {
+                    "additionalProperties": false,
+                    "description": "Price makes a newer high while the trailing RSI fails to confirm it.",
+                    "properties": {
+                      "signal": {
+                        "const": "rsi_bearish_divergence",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "signal"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "description": "Price makes a newer low while the trailing RSI refuses to follow it down.",
+                    "properties": {
+                      "signal": {
+                        "const": "rsi_bullish_divergence",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "signal"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "description": "RSI(14) is overbought and its five-day slope has turned down.",
+                    "properties": {
+                      "signal": {
+                        "const": "rsi_overbought_turning_down",
+                        "type": "string"
+                      },
+                      "rsi_at_least": {
+                        "description": "RSI(14) level at or above which the asset counts as overbought.",
+                        "exclusiveMaximum": 100.0,
+                        "exclusiveMinimum": 0.0,
+                        "type": "number",
+                        "x-tunable": true
+                      }
+                    },
+                    "required": [
+                      "signal",
+                      "rsi_at_least"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "description": "RSI(14) is oversold and its five-day slope has turned up.",
+                    "properties": {
+                      "signal": {
+                        "const": "rsi_oversold_recovering",
+                        "type": "string"
+                      },
+                      "rsi_at_most": {
+                        "description": "RSI(14) level at or below which the asset counts as oversold.",
+                        "exclusiveMaximum": 100.0,
+                        "exclusiveMinimum": 0.0,
+                        "type": "number",
+                        "x-tunable": true
+                      }
+                    },
+                    "required": [
+                      "signal",
+                      "rsi_at_most"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "description": "The MACD(12, 26, 9) histogram crosses below zero today.",
+                    "properties": {
+                      "signal": {
+                        "const": "macd_bearish_cross",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "signal"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "description": "The MACD(12, 26, 9) histogram crosses above zero today.",
+                    "properties": {
+                      "signal": {
+                        "const": "macd_bullish_cross",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "signal"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "description": "Short-term momentum has turned down while the longer trend still stands.",
+                    "properties": {
+                      "signal": {
+                        "const": "momentum_breakdown",
+                        "type": "string"
+                      },
+                      "short_momentum_below": {
+                        "description": "30-day price change must be below this (a fraction, 0.1 is 10%).",
+                        "maximum": 5.0,
+                        "minimum": -1.0,
+                        "type": "number",
+                        "x-tunable": true
+                      },
+                      "long_momentum_above": {
+                        "description": "90-day price change must be above this (a fraction).",
+                        "maximum": 5.0,
+                        "minimum": -1.0,
+                        "type": "number",
+                        "x-tunable": true
+                      }
+                    },
+                    "required": [
+                      "signal",
+                      "short_momentum_below",
+                      "long_momentum_above"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "description": "Annualized 20-day realized volatility is at or above the asset's level.",
+                    "properties": {
+                      "signal": {
+                        "const": "volatility_spike",
+                        "type": "string"
+                      },
+                      "thresholds": {
+                        "additionalProperties": false,
+                        "description": "Annualized volatility per asset (0.8 is 80%).",
+                        "properties": {
+                          "SPY": {
+                            "description": "Volatility at which SPY counts as spiking.",
+                            "exclusiveMinimum": 0.0,
+                            "maximum": 10.0,
+                            "type": "number",
+                            "x-tunable": true
+                          },
+                          "BTC": {
+                            "description": "Volatility at which BTC counts as spiking.",
+                            "exclusiveMinimum": 0.0,
+                            "maximum": 10.0,
+                            "type": "number",
+                            "x-tunable": true
+                          },
+                          "ETH": {
+                            "description": "Volatility at which ETH counts as spiking.",
+                            "exclusiveMinimum": 0.0,
+                            "maximum": 10.0,
+                            "type": "number",
+                            "x-tunable": true
+                          }
+                        },
+                        "required": [
+                          "SPY",
+                          "BTC",
+                          "ETH"
+                        ],
+                        "type": "object"
+                      }
+                    },
+                    "required": [
+                      "signal",
+                      "thresholds"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "description": "The 20-day Bollinger z-score has reached the upper band.",
+                    "properties": {
+                      "signal": {
+                        "const": "bollinger_upper_band",
+                        "type": "string"
+                      },
+                      "zscore_at_least": {
+                        "description": "Standard deviations above the 20-day mean at which it fires.",
+                        "exclusiveMinimum": 0.0,
+                        "maximum": 10.0,
+                        "type": "number",
+                        "x-tunable": true
+                      }
+                    },
+                    "required": [
+                      "signal",
+                      "zscore_at_least"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "description": "The 20-day Bollinger z-score has reached the lower band.",
+                    "properties": {
+                      "signal": {
+                        "const": "bollinger_lower_band",
+                        "type": "string"
+                      },
+                      "zscore_at_most": {
+                        "description": "Standard deviations below the 20-day mean at which it fires.",
+                        "exclusiveMaximum": 0.0,
+                        "minimum": -10.0,
+                        "type": "number",
+                        "x-tunable": true
+                      }
+                    },
+                    "required": [
+                      "signal",
+                      "zscore_at_most"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "description": "Today's close is above the highest close of the 20 days before it.",
+                    "properties": {
+                      "signal": {
+                        "const": "breakout_20d",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "signal"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "description": "Today's close is below the lowest close of the 20 days before it.",
+                    "properties": {
+                      "signal": {
+                        "const": "breakdown_20d",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "signal"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "kind",
+              "id",
+              "cooldown_days",
+              "buy_step",
+              "trigger"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "Buys into an asset above its DMA in steps, out of stable, up to a weight cap.",
+            "properties": {
+              "kind": {
+                "const": "trend_dca_entry",
+                "type": "string"
+              },
+              "id": {
+                "description": "Name of the rule in decision traces.",
+                "pattern": "^[a-z][a-z0-9_]{2,47}$",
+                "type": "string"
+              },
+              "cooldown_days": {
+                "description": "Days the rule stays off after it trades.",
+                "maximum": 365,
+                "minimum": 0,
+                "type": "integer",
+                "x-tunable": true
+              },
+              "buy_step": {
+                "description": "Share of the portfolio bought per matching asset, out of stable.",
+                "exclusiveMinimum": 0.0,
+                "maximum": 1.0,
+                "type": "number",
+                "x-tunable": true
+              },
+              "max_weight": {
+                "description": "Share of the portfolio an asset may reach through these purchases.",
+                "exclusiveMinimum": 0.0,
+                "maximum": 1.0,
+                "type": "number",
+                "x-tunable": true
+              }
+            },
+            "required": [
+              "kind",
+              "id",
+              "cooldown_days",
+              "buy_step",
+              "max_weight"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "guards": {
+      "description": "Limits applied after a rule has decided.",
+      "items": {
+        "additionalProperties": false,
+        "description": "Holds the portfolio instead of trading when a trade-frequency limit is hit.",
+        "properties": {
+          "kind": {
+            "const": "trade_quota",
+            "type": "string"
+          },
+          "min_trade_interval_days": {
+            "anyOf": [
+              {
+                "maximum": 365,
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Least days between two trades; null for no limit.",
+            "x-tunable": true
+          },
+          "max_trades_7d": {
+            "anyOf": [
+              {
+                "maximum": 365,
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Most trades in any 7 days; null for no limit.",
+            "x-tunable": true
+          },
+          "max_trades_30d": {
+            "anyOf": [
+              {
+                "maximum": 365,
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Most trades in any 30 days; null for no limit.",
+            "x-tunable": true
+          }
+        },
+        "required": [
+          "kind",
+          "min_trade_interval_days",
+          "max_trades_7d",
+          "max_trades_30d"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "overlays": {
+      "description": "Adjustments applied to the decision after the rules and guards.",
+      "items": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "description": "After SPY crosses up, parks fresh stable in SPY for a few days.",
+            "properties": {
+              "kind": {
+                "const": "spy_latch",
+                "type": "string"
+              },
+              "id": {
+                "description": "Name of the overlay in decision traces.",
+                "pattern": "^[a-z][a-z0-9_]{2,47}$",
+                "type": "string"
+              },
+              "follow_through_days": {
+                "description": "Days after the cross-up during which new stable goes to SPY.",
+                "maximum": 90,
+                "minimum": 1,
+                "type": "integer",
+                "x-tunable": true
+              }
+            },
+            "required": [
+              "kind",
+              "id",
+              "follow_through_days"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "Keeps the portfolio out of assets that stay below their DMA, every day.",
+            "properties": {
+              "kind": {
+                "const": "trend_guard",
+                "type": "string"
+              },
+              "id": {
+                "description": "Name of the overlay in decision traces.",
+                "pattern": "^[a-z][a-z0-9_]{2,47}$",
+                "type": "string"
+              },
+              "mode": {
+                "description": "`block_adds` stops any rule from adding to an asset that counts as below its DMA. `force_exit` also sells what is held of it.",
+                "enum": [
+                  "block_adds",
+                  "force_exit"
+                ],
+                "type": "string"
+              },
+              "below_dma_buffer": {
+                "description": "How far under its DMA, as a fraction of the DMA, an asset must close to count as below.",
+                "maximum": 0.5,
+                "minimum": 0.0,
+                "type": "number",
+                "x-tunable": true
+              },
+              "confirm_days": {
+                "description": "Days in a row an asset must close below that distance before the guard acts.",
+                "maximum": 60,
+                "minimum": 1,
+                "type": "integer",
+                "x-tunable": true
+              }
+            },
+            "required": [
+              "kind",
+              "id",
+              "mode",
+              "below_dma_buffer",
+              "confirm_days"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "type": "array"
+    },
+    "execution": {
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "const": "full_target",
+          "description": "A matched rule moves the portfolio to its target in full.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "mode"
+      ],
+      "type": "object",
+      "description": "How a decision becomes trades."
+    }
+  },
+  "required": [
+    "spec_format",
+    "id",
+    "version",
+    "description",
+    "signals",
+    "rules",
+    "guards",
+    "overlays",
+    "execution"
+  ],
+  "type": "object"
+}

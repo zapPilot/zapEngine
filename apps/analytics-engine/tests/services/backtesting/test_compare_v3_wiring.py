@@ -18,7 +18,6 @@ from src.services.backtesting.execution.compare import (
     materialize_compare_request,
     run_compare_v3_on_data,
 )
-from src.services.backtesting.execution.config import RegimeConfig
 from src.services.backtesting.features import (
     ETH_BTC_RATIO_DMA_200_FEATURE,
     ETH_BTC_RATIO_FEATURE,
@@ -26,42 +25,10 @@ from src.services.backtesting.features import (
     SPY_DMA_200_FEATURE,
     SPY_PRICE_FEATURE,
 )
+from src.services.backtesting.spec import StrategySpec, parse_spec
+from src.services.backtesting.strategy_registry import resolve_spec_strategy_config
+from tests.services.backtesting.spec.helpers import reference_raw
 from tests.services.backtesting.support import register_mock_recipe
-
-
-def _dma_public_params(
-    *,
-    cross_cooldown_days: int = 30,
-    cross_on_touch: bool = True,
-    pacing_k: float = 5.0,
-    pacing_r_max: float = 1.0,
-    buy_sideways_window_days: int = 5,
-    buy_sideways_max_range: float = 0.04,
-    buy_leg_caps: list[float] | None = None,
-    min_trade_interval_days: int | None = None,
-    max_trades_7d: int | None = None,
-    max_trades_30d: int | None = None,
-) -> dict[str, object]:
-    return {
-        "signal": {
-            "cross_cooldown_days": cross_cooldown_days,
-            "cross_on_touch": cross_on_touch,
-        },
-        "pacing": {
-            "k": pacing_k,
-            "r_max": pacing_r_max,
-        },
-        "buy_gate": {
-            "window_days": buy_sideways_window_days,
-            "sideways_max_range": buy_sideways_max_range,
-            "leg_caps": [0.05, 0.10, 0.20] if buy_leg_caps is None else buy_leg_caps,
-        },
-        "trade_quota": {
-            "min_trade_interval_days": min_trade_interval_days,
-            "max_trades_7d": max_trades_7d,
-            "max_trades_30d": max_trades_30d,
-        },
-    }
 
 
 def _price_row(
@@ -134,7 +101,6 @@ def _build_dma_long_run_inputs(
             BacktestCompareConfigV3(
                 config_id="portfolio_rules_runtime",
                 strategy_id="dma_fgi_portfolio_rules",
-                params=_dma_public_params(),
             )
         ],
     )
@@ -173,7 +139,6 @@ def test_run_compare_v3_on_data_supports_portfolio_rules_mode() -> None:
                 BacktestCompareConfigV3(
                     config_id="portfolio_rules_runtime",
                     strategy_id="dma_fgi_portfolio_rules",
-                    params=_dma_public_params(),
                 )
             ],
         )
@@ -190,7 +155,6 @@ def test_run_compare_v3_on_data_supports_portfolio_rules_mode() -> None:
         },
         request=request,
         user_start_date=date(2025, 1, 1),
-        config=RegimeConfig.default(),
     )
 
     assert set(result.strategies) == {"portfolio_rules_runtime"}
@@ -237,7 +201,6 @@ def test_run_compare_v3_on_data_writes_decision_log(tmp_path: Path) -> None:
                 BacktestCompareConfigV3(
                     config_id="portfolio_rules_runtime",
                     strategy_id="dma_fgi_portfolio_rules",
-                    params=_dma_public_params(),
                 )
             ],
         )
@@ -254,7 +217,6 @@ def test_run_compare_v3_on_data_writes_decision_log(tmp_path: Path) -> None:
         },
         request=request,
         user_start_date=date(2025, 1, 1),
-        config=RegimeConfig.default(),
         decision_log_dir=tmp_path,
     )
 
@@ -278,6 +240,20 @@ def test_run_compare_v3_on_data_writes_decision_log(tmp_path: Path) -> None:
     }
 
 
+def _spec_with_min_trade_interval(days: int | None) -> StrategySpec:
+    raw = reference_raw()
+    if days is not None:
+        raw["guards"] = [
+            {
+                "kind": "trade_quota",
+                "min_trade_interval_days": days,
+                "max_trades_7d": None,
+                "max_trades_30d": None,
+            }
+        ]
+    return parse_spec(raw)
+
+
 def test_run_compare_v3_on_data_trade_quota_reduces_trade_count() -> None:
     request = materialize_compare_request(
         BacktestCompareRequestV3(
@@ -289,19 +265,20 @@ def test_run_compare_v3_on_data_trade_quota_reduces_trade_count() -> None:
                 BacktestCompareConfigV3(
                     config_id="dma_unbounded",
                     strategy_id="dma_fgi_portfolio_rules",
-                    params=_dma_public_params(cross_cooldown_days=0),
                 ),
                 BacktestCompareConfigV3(
                     config_id="dma_quota",
                     strategy_id="dma_fgi_portfolio_rules",
-                    params=_dma_public_params(
-                        cross_cooldown_days=0,
-                        min_trade_interval_days=7,
-                    ),
                 ),
             ],
         )
     )
+    resolved = [
+        resolve_spec_strategy_config(
+            _spec_with_min_trade_interval(days), config_id=config_id
+        )
+        for config_id, days in (("dma_unbounded", None), ("dma_quota", 7))
+    ]
 
     result = run_compare_v3_on_data(
         prices=[
@@ -328,7 +305,7 @@ def test_run_compare_v3_on_data_trade_quota_reduces_trade_count() -> None:
         },
         request=request,
         user_start_date=date(2025, 1, 1),
-        config=RegimeConfig.default(),
+        resolved_configs=resolved,
     )
 
     unbounded_state = result.timeline[2].strategies["dma_unbounded"]
@@ -371,7 +348,6 @@ def test_run_compare_v3_on_data_supports_mock_recipe_without_sentiment(
         sentiments={},
         request=request,
         user_start_date=date(2025, 1, 1),
-        config=RegimeConfig.default(),
     )
 
     assert set(result.strategies) == {"mock_no_sentiment"}
@@ -390,7 +366,6 @@ def test_run_compare_v3_on_data_sanitizes_dma_allocation_residue() -> None:
         sentiments=sentiments,
         request=request,
         user_start_date=date(2025, 1, 1),
-        config=RegimeConfig.default(),
     )
 
     summary = result.strategies["portfolio_rules_runtime"]
@@ -466,7 +441,6 @@ def test_run_compare_v3_on_data_attaches_window_and_respects_effective_start() -
         request=request,
         user_start_date=date(2025, 1, 3),
         window=window,
-        config=RegimeConfig.default(),
     )
 
     assert result.window == window
@@ -523,7 +497,6 @@ def _build_parabolic_rise_inputs() -> tuple[
             BacktestCompareConfigV3(
                 config_id="dma_overextension_test",
                 strategy_id="dma_fgi_portfolio_rules",
-                params=_dma_public_params(cross_cooldown_days=0),
             )
         ],
     )
@@ -539,7 +512,6 @@ def test_run_compare_v3_on_data_triggers_overextension_sell_on_parabolic_rise() 
         sentiments=sentiments,
         request=request,
         user_start_date=date(2025, 6, 1),
-        config=RegimeConfig.default(),
     )
 
     points = {
@@ -607,7 +579,6 @@ def _build_greed_fading_inputs() -> tuple[
             BacktestCompareConfigV3(
                 config_id="dma_greed_fading_test",
                 strategy_id="dma_fgi_portfolio_rules",
-                params=_dma_public_params(cross_cooldown_days=0),
             )
         ],
     )
@@ -623,7 +594,6 @@ def test_run_compare_v3_on_data_triggers_greed_fading_sell_on_declining_fgi() ->
         sentiments=sentiments,
         request=request,
         user_start_date=date(2025, 6, 1),
-        config=RegimeConfig.default(),
     )
 
     points = {

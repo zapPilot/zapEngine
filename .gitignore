@@ -124,3 +124,6 @@ apps/video/public/music/beds/
 .signing-backups/
 signing-backup-*.zip
 signing-backup-*.password.txt
+
+# Strategy lab working files: bundles, candidates, runs, ledger (never committed)
+apps/analytics-engine/.lab/
