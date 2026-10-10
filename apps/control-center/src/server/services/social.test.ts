@@ -199,3 +199,51 @@ it.each(['1h', '6h', '24h', '72h', '7d', 'unknown'])(
     });
   },
 );
+
+describe('save telemetry', () => {
+  it.each([
+    [null, 100, null, null],
+    [0, 100, null, 0],
+    [5, 100, null, 0.05],
+    [5, 100, 200, 0.025],
+    [5, 100, 0, null],
+    [5, 0, null, null],
+    [5, null, null, null],
+  ])(
+    'preserves saves %s with views %s and impressions %s',
+    (saves, views, impressions, saveRate) => {
+      const result = buildEpisodes(
+        [post('save')],
+        [metric('save', views, { saves, impressions })],
+        '24h',
+        new Date('2026-08-30'),
+      );
+      expect(result[0]?.platforms[0]).toMatchObject({
+        saves,
+        saveRate,
+        savesSupport: 'native',
+        playlistAdds: null,
+      });
+    },
+  );
+  it('keeps playlist additions separate from saves and declares platform support', () => {
+    const result = buildEpisodes(
+      [
+        post('youtube', { platform: 'youtube' }),
+        post('threads', { platform: 'threads' }),
+        post('rednote', { platform: 'rednote' }),
+      ],
+      [metric('youtube', 100, { details: { youtubePlaylistAdds: 0 } })],
+      '24h',
+      new Date('2026-08-30'),
+    );
+    expect(result[0]?.platforms[0]).toMatchObject({
+      saves: null,
+      saveRate: null,
+      playlistAdds: 0,
+      savesSupport: 'playlist_add_proxy',
+    });
+    expect(result[1]?.platforms[0]?.savesSupport).toBe('unsupported');
+    expect(result[2]?.platforms[0]?.savesSupport).toBe('native');
+  });
+});

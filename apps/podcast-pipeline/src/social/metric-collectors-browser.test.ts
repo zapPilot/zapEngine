@@ -118,6 +118,12 @@ function xArticle(
       ariaError?: Error;
       textError?: Error;
     };
+    bookmarks?: {
+      aria?: string | null;
+      text?: string;
+      ariaError?: Error;
+      textError?: Error;
+    };
     likes?: {
       aria?: string | null;
       text?: string;
@@ -140,6 +146,8 @@ function xArticle(
         return metricLocator(input.comments);
       if (selector === '[data-testid="retweet"]')
         return metricLocator(input.reposts);
+      if (selector === '[data-testid="bookmark"]')
+        return metricLocator(input.bookmarks);
       if (selector === '[data-testid="like"]')
         return metricLocator(input.likes);
       if (selector === 'a[href$="/analytics"]')
@@ -313,6 +321,23 @@ beforeEach(() => {
 });
 
 describe('X browser metrics and reconciliation', () => {
+  it.each([
+    [{ aria: '1.2K Bookmarks' }, 1200],
+    [{ aria: '0 Bookmarks' }, 0],
+    [
+      { ariaError: new Error('missing'), textError: new Error('missing') },
+      null,
+    ],
+    [{ aria: 'Bookmark', text: '' }, null],
+    [{ aria: 'Bookmark', text: '1.2K' }, 1200],
+  ])(
+    'reads bookmark counts without inventing zero: %j',
+    async (bookmarks, saves) => {
+      installPage(xPage([xArticle({ bookmarks })]));
+      expect(await collectXMetrics(post('x'))).toMatchObject({ saves });
+    },
+  );
+
   it('bounds absent optional X counters and keeps their null fallback', async () => {
     const missing = {
       getAttribute: vi.fn(async () => {
@@ -333,8 +358,8 @@ describe('X browser metrics and reconciliation', () => {
       comments: null,
       shares: null,
     });
-    expect(missing.getAttribute).toHaveBeenCalledTimes(3);
-    expect(missing.innerText).toHaveBeenCalledTimes(4);
+    expect(missing.getAttribute).toHaveBeenCalledTimes(4);
+    expect(missing.innerText).toHaveBeenCalledTimes(5);
     expect(missing.getAttribute).toHaveBeenCalledWith('aria-label', {
       timeout: 30_000,
     });
@@ -684,7 +709,7 @@ describe('Rednote browser metrics and reconciliation', () => {
           }),
           rednoteCard({
             noteId: 'wanted-note',
-            stats: ['1.2K', '7', '35', '9', '4'],
+            stats: ['1.2万', '7', '35', '9', '4'],
           }),
         ],
       }),
@@ -698,7 +723,7 @@ describe('Rednote browser metrics and reconciliation', () => {
     ).resolves.toMatchObject({
       status: 'collected',
       metrics: {
-        views: 1200,
+        views: 12000,
         comments: 7,
         likes: 35,
         saves: 9,
