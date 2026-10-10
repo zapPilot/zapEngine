@@ -211,20 +211,12 @@ from src.services.strategy.backtesting_service import BacktestingService
 _ = BacktestingService.run_compare_v3  # noqa: F841
 _ = BacktestingServiceProtocol.run_compare_v3  # noqa: F841
 
-from src.services.backtesting.response_utils import (
-    coerce_action,
-    coerce_rule_group,
-    optional_float,
-)
 from src.services.backtesting.signals.contracts import SignalOutput
 
 _ = SignalOutput.score  # noqa: F841
 _ = SignalOutput.confidence  # noqa: F841
 _ = SignalOutput.source  # noqa: F841
 _ = SignalOutput.metadata  # noqa: F841
-_ = coerce_action  # noqa: F841
-_ = coerce_rule_group  # noqa: F841
-_ = optional_float  # noqa: F841
 
 operation  # unused variable (src/services/backtesting/strategies/base.py:26)
 

@@ -20,11 +20,6 @@ from src.services.backtesting.execution.state import (
     calculate_roi_percent,
 )
 from src.services.backtesting.features import MACRO_FEAR_GREED_FEATURE
-from src.services.backtesting.response_utils import (
-    coerce_action,
-    coerce_rule_group,
-    optional_float,
-)
 from src.services.backtesting.strategies.base import (
     BaseStrategy,
     StrategyAction,
@@ -163,7 +158,7 @@ def test_engine_serializes_macro_fear_greed_on_market_snapshot() -> None:
     assert market["macro_fear_greed"] == macro_fear_greed
 
 
-def test_allocation_helpers_and_coercion_fallbacks() -> None:
+def test_allocation_helpers_fall_back_to_all_stable() -> None:
     assert normalize_runtime_allocation({"spot": 0.0, "stable": 0.0}) == {
         "spot": 0.0,
         "stable": 1.0,
@@ -172,10 +167,6 @@ def test_allocation_helpers_and_coercion_fallbacks() -> None:
         "spot": 0.0,
         "stable": 1.0,
     }
-    assert coerce_action("bad") == "hold"
-    assert coerce_rule_group("bad") == "none"
-    assert optional_float(None) is None
-    assert optional_float("oops") is None
 
 
 def test_misc_engine_helpers_cover_edge_cases() -> None:

@@ -5,15 +5,20 @@ import pytest
 from src.services.backtesting.signals.dma_gated_fgi.config import DmaGatedFgiConfig
 
 
-def test_default_values() -> None:
-    cfg = DmaGatedFgiConfig()
+def test_cross_cooldown_days_is_required() -> None:
+    # A strategy spec states the cooldown for each asset, so a config cannot omit it.
+    with pytest.raises(TypeError, match="cross_cooldown_days"):
+        DmaGatedFgiConfig()  # type: ignore[call-arg]
 
-    assert cfg.cross_cooldown_days == 30
+
+def test_cross_on_touch_defaults_to_true() -> None:
+    cfg = DmaGatedFgiConfig(cross_cooldown_days=30)
+
     assert cfg.cross_on_touch is True
 
 
 def test_immutability() -> None:
-    cfg = DmaGatedFgiConfig()
+    cfg = DmaGatedFgiConfig(cross_cooldown_days=30)
 
     with pytest.raises(AttributeError):
         cfg.cross_cooldown_days = 10  # type: ignore[misc]

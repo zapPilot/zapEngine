@@ -64,7 +64,7 @@ def _build_signal_observation(
 class DmaGatedFgiSignalComponent(StatefulSignalComponent):
     """Stateful DMA signal component used by composed strategies."""
 
-    config: DmaGatedFgiConfig = field(default_factory=DmaGatedFgiConfig)
+    config: DmaGatedFgiConfig
     signal_id: SignalId = "dma_gated_fgi"
     market_data_requirements: MarketDataRequirements = field(
         default_factory=lambda: MarketDataRequirements(
@@ -72,7 +72,6 @@ class DmaGatedFgiSignalComponent(StatefulSignalComponent):
             required_price_features=frozenset({DMA_200_FEATURE}),
         )
     )
-    warmup_lookback_days: int = 14
 
     _runtime: DmaGatedFgiSignalRuntime = field(init=False, repr=False)
     _ath_tracker: ATHTracker = field(init=False, repr=False)

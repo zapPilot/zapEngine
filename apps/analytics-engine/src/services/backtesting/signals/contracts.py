@@ -20,7 +20,6 @@ class StatefulSignalComponent(Protocol):
 
     signal_id: str
     market_data_requirements: MarketDataRequirements
-    warmup_lookback_days: int
 
     def reset(self) -> None: ...
 

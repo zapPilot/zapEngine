@@ -74,7 +74,7 @@
         "id": "cooldown_period_2025_03_24",
         "event_type": "decision_action_assertion",
         "applicable_strategies": ["dma_fgi_portfolio_rules"],
-        "description": "SPY must not be increased while its 30-day signal re-entry cooldown remains active; existing BTC/ETH exposure from prior DCA can be preserved by a hold.",
+        "description": "SPY must not be increased while its 14-day signal re-entry cooldown remains active; existing BTC/ETH exposure from prior DCA can be preserved by a hold.",
         "assertions": [
           {
             "type": "target_spy_not_greater_than_current",

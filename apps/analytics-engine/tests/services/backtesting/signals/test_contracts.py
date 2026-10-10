@@ -7,6 +7,10 @@ from src.services.backtesting.signals.contracts import (
     SignalContext,
     SignalOutput,
 )
+from src.services.backtesting.signals.dma_gated_fgi.config import DmaGatedFgiConfig
+from src.services.backtesting.signals.dma_gated_fgi.runtime import (
+    DmaGatedFgiSignalRuntime,
+)
 from src.services.backtesting.signals.runtime import SignalRuntime
 
 
@@ -116,21 +120,17 @@ def test_signal_output_is_frozen():
         signal.score = 0.5  # type: ignore[misc]
 
 
+def _dma_runtime() -> DmaGatedFgiSignalRuntime:
+    return DmaGatedFgiSignalRuntime(config=DmaGatedFgiConfig(cross_cooldown_days=30))
+
+
 def test_signal_runtime_protocol() -> None:
     """Test that the DMA signal runtime implements the runtime protocol."""
-    from src.services.backtesting.signals.dma_gated_fgi.runtime import (
-        DmaGatedFgiSignalRuntime,
-    )
-
-    assert isinstance(DmaGatedFgiSignalRuntime(), SignalRuntime)
+    assert isinstance(_dma_runtime(), SignalRuntime)
 
 
 def test_signal_runtime_observe_returns_dma_market_state() -> None:
-    from src.services.backtesting.signals.dma_gated_fgi.runtime import (
-        DmaGatedFgiSignalRuntime,
-    )
-
-    runtime = DmaGatedFgiSignalRuntime()
+    runtime = _dma_runtime()
     snapshot = runtime.observe(
         SignalContext(
             date=date(2024, 1, 1),

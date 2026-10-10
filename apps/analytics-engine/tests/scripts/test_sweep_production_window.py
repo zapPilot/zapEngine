@@ -91,7 +91,7 @@ def test_collect_snapshot_can_use_in_process_client_without_endpoint(
     monkeypatch.setattr(
         sweep_production_window,
         "_default_strategy_universe",
-        lambda *, exclude_deprecated=False: ["strategy-a"],
+        lambda: ["strategy-a"],
     )
     monkeypatch.setattr(
         sweep_production_window,
@@ -133,7 +133,7 @@ def test_collect_snapshot_rejects_a_response_without_its_assumptions(
     monkeypatch.setattr(
         sweep_production_window,
         "_default_strategy_universe",
-        lambda *, exclude_deprecated=False: ["strategy-a"],
+        lambda: ["strategy-a"],
     )
 
     class OldServer(FakeCompareClient):
@@ -324,7 +324,6 @@ def test_update_snapshot_allows_a_large_move_when_committed_history_reproduces(
     assert [snapshot["marker"] for snapshot in written] == ["fresh"]
     assert len(collection_requests) == 2
     assert collection_requests[1]["reference_date"] == date(2026, 4, 15)
-    assert collection_requests[1]["exclude_deprecated"] is True
 
 
 def test_update_snapshot_refuses_a_large_move_when_committed_history_drifts(

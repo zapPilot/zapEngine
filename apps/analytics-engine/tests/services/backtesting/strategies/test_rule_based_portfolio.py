@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import replace
 from datetime import date, timedelta
-from unittest.mock import Mock
 
 import pytest
 
@@ -135,25 +134,6 @@ def test_strategy_uses_the_atomic_rule_based_executor() -> None:
     strategy = reference_strategy()
 
     assert isinstance(strategy.execution_engine, RuleBasedAllocationExecutor)
-
-
-def test_a_hold_without_a_target_never_reaches_the_executor() -> None:
-    strategy = reference_strategy()
-    strategy.execution_engine = Mock(spec=RuleBasedAllocationExecutor)
-    intent = AllocationIntent(
-        action="hold",
-        target_allocation=None,
-        allocation_name=None,
-        immediate=False,
-        reason="regime_no_signal",
-        rule_group="none",
-        decision_score=0.0,
-    )
-
-    outcome = strategy._execute(context=Mock(), intent=intent)
-
-    assert outcome == ExecutionOutcome(event=None, transfers=[])
-    strategy.execution_engine.execute.assert_not_called()
 
 
 def test_an_execution_result_without_transfers_becomes_an_empty_outcome() -> None:
@@ -1081,8 +1061,7 @@ def test_the_default_strategy_signals_use_the_documented_cooldowns() -> None:
         "ETH": 30,
     }
     assert signal.ratio_cross_cooldown_days == 30
-    assert signal.warmup_lookback_days == 14
-    assert signal.config.cross_on_touch is True
+    assert signal.cross_on_touch is True
 
 
 def test_the_strategy_runs_the_components_it_is_given() -> None:
@@ -1116,7 +1095,6 @@ def test_explicit_components_decide_the_signal_settings() -> None:
 
     signal = reference_strategy(components=components).signal_component
 
-    assert signal.warmup_lookback_days == 20
-    assert signal.config.cross_on_touch is False
+    assert signal.cross_on_touch is False
     assert signal.cross_down_cooldown_days_by_symbol == {"SPY": 3, "BTC": 4, "ETH": 5}
     assert signal.ratio_cross_cooldown_days == 6

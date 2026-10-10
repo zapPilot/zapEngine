@@ -50,7 +50,7 @@ class DmaSignalEngine:
     - emit typed market state without making portfolio decisions
     """
 
-    config: DmaGatedFgiConfig = field(default_factory=DmaGatedFgiConfig)
+    config: DmaGatedFgiConfig
     _regime_classifier: RegimeClassifier = field(
         default_factory=RegimeClassifier,
         init=False,

@@ -114,7 +114,7 @@ class Shadow:
                 self.states,
                 self.observations(context),
                 epoch_day(context.date),
-                component.config.cross_on_touch,
+                component.cross_on_touch,
             )
             self.metrics.days += 1
             for i, key in enumerate(("spy", "btc", "eth")):
