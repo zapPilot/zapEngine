@@ -191,18 +191,26 @@ export class DeBankFetcher extends BaseApiFetcher {
       return data as DeBankTokenBalance[];
     }
 
+    const validationIssues = validation.error.issues
+      .slice(0, 5)
+      .map((issue) => ({
+        path: issue.path.join('.'),
+        message: issue.message,
+        code: issue.code,
+      }));
     logger.warn('DeBank token list validation failed, returning raw data', {
       walletAddress: maskWalletAddress(walletAddress),
       error: validation.error.message,
       tokenCount: data.length,
-      validationIssues: validation.error.issues.slice(0, 5).map((issue) => ({
-        path: issue.path.join('.'),
-        message: issue.message,
-        code: issue.code,
-      })),
+      validationIssues,
     });
     if (this.strictErrors) {
-      throw new Error('DeBank token list validation failed');
+      const fields = validationIssues
+        .map((issue) => `${issue.path} (${issue.code})`)
+        .join(', ');
+      throw new Error(
+        `DeBank token list validation failed${fields ? `: ${fields}` : ''}`,
+      );
     }
     return data as DeBankTokenBalance[];
   }
