@@ -344,6 +344,29 @@ describe('YouTube metric collection', () => {
     });
   });
 
+  it('leaves counts null when YouTube omits statistics', async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        json({ items: [{ id: 'video-1', statistics: {} }] }),
+      )
+      .mockResolvedValueOnce(json({ rows: [] }))
+      .mockResolvedValueOnce(json({ rows: [] }))
+      .mockResolvedValueOnce(json({ rows: [] }));
+
+    await expect(
+      collectYouTubeMetrics(
+        post('youtube', 'video-1', { video_duration_sec: null }),
+        fetchImpl,
+      ),
+    ).resolves.toMatchObject({
+      views: null,
+      likes: null,
+      comments: null,
+      details: {},
+    });
+  });
+
   it('ignores unavailable demographics and retention independently', async () => {
     const fetchImpl = vi
       .fn<typeof fetch>()
