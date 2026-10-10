@@ -404,7 +404,7 @@ async function main(): Promise<void> {
     schemaVersion: process.env['TRACK_RECORD_SCHEMA_VERSION'] ?? '1',
     strategyId:
       process.env['TRACK_RECORD_STRATEGY_ID'] ?? 'dma_fgi_portfolio_rules',
-    strategyVersion: process.env['TRACK_RECORD_STRATEGY_VERSION'] ?? 'v1',
+    strategyVersion: process.env['TRACK_RECORD_STRATEGY_VERSION'] ?? 'v2',
     date:
       process.env['TRACK_RECORD_DATE'] ?? new Date().toISOString().slice(0, 10),
     timestamp: new Date().toISOString(),

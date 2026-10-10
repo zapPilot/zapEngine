@@ -45,7 +45,6 @@ function suggestion(
             outer_dma_asset: 'btc',
             cooldown_active: true,
             cooldown_remaining_days: 3,
-            fgi_slope: -0.08,
           },
         },
       },
@@ -78,7 +77,6 @@ describe('daily suggestion Decision Packet', () => {
 
   it.each([
     ['cross_down_exit', 'BTC · 200-DMA 92000.00'],
-    ['fgi_downshift_dca_sell', 'FGI slope -8.0%'],
     ['new_unknown_rule', 'Rule: New unknown rule'],
   ])('dispatches %s evidence', (rule, expected) => {
     expect(buildDecisionPacketMessage(suggestion(rule)).message).toContain(
@@ -296,11 +294,9 @@ describe('decision packet branch sweep', () => {
 
   it('locks macro fear-greed score/label overrides', () => {
     // Locks: `market?.macro_fear_greed?.score/label ?? …` left-defined
-    // outcomes in both fgiEvidence and checksBlock.
+    // outcomes in checksBlock.
     const { message } = buildDecisionPacketMessage(
       mutate((draft) => {
-        const details = draft.context.strategy.details;
-        if (details) details.matched_rule_name = 'fgi_downshift_dca_sell';
         draft.context.market = {
           macro_fear_greed: { score: 25, label: 'Extreme Fear' },
         };
@@ -319,32 +315,6 @@ describe('decision packet branch sweep', () => {
       }),
     );
     expect(message).toContain('FGI unavailable · Regime ⚪ Weird regime');
-  });
-
-  it('locks fgi evidence with missing score and slope', () => {
-    // Locks: fgiEvidence `score == null` true; `slope == null` true;
-    // `details?.dma?.fgi_slope` short-circuits.
-    const { message } = buildDecisionPacketMessage(
-      mutate((draft) => {
-        const details = draft.context.strategy.details;
-        if (details) details.matched_rule_name = 'fgi_downshift_dca_sell';
-        draft.context.signal.details = null;
-        draft.context.market = { sentiment: null, sentiment_label: null };
-      }),
-    );
-    expect(message).toContain('*TRIGGER*\nRule: Fgi downshift dca sell\n\n');
-  });
-
-  it('locks fgi evidence with a score but no label', () => {
-    // Locks: `label ? (label) : ''` false in fgiEvidence.
-    const { message } = buildDecisionPacketMessage(
-      mutate((draft) => {
-        const details = draft.context.strategy.details;
-        if (details) details.matched_rule_name = 'fgi_downshift_dca_sell';
-        draft.context.market = { sentiment: 10, sentiment_label: null };
-      }),
-    );
-    expect(message).toContain('FGI 10\nFGI slope -8.0%');
   });
 
   it('locks active cooldown without remaining days', () => {

@@ -9,13 +9,13 @@ import { StatusBadge } from '@/components/StatusBadge';
 
 <StatusBadge capability="verifiable-rule" />
 
-The [On-chain Calculator](/track-record/calculator/?date=2025-10-18) demonstrates **one of six rules**, `cross_down_exit`, plus its per-asset DMA state machine. It is a **research slice, not the production strategy**. It does not execute trades or require a wallet.
+The [On-chain Calculator](/track-record/calculator/?date=2025-10-18) demonstrates **version 1's exit rule**, `cross_down_exit`, plus its per-asset DMA state machine. It is a **research slice, not the production strategy**. The contract keeps one exit cooldown for the whole rule, as version 1 did; since [version 2](/docs/track-record/dma-fgi-portfolio-rules-v2) the reference keeps one per asset, and no slice of that is deployed. It does not execute trades or require a wallet.
 
 ## Current availability
 
 The calculator is available as a research tool. The contract is deployed on Arbitrum Sepolia and Sourcify-verified; the identity card shows its address, deployment transaction, block and pinned codehash. On load, the page fetches the deployed bytecode at a fixed block and checks it against the pinned codehash, reporting "Codehash matches at block …" before any call. Edit the 2025-10-18 real example or try the three what-if scenarios; the crossing tracks visualize your inputs without deciding crosses. **Call contract** sends the supplied inputs to the deployed contract as read-only `eth_call`s — warmup → observe → cross_down_exit — at one block. The recorded Python backtest event is labeled separately from the contract answer.
 
-This remains a **research slice covering one of six rules, not the production strategy**. A contract answer proves what this bytecode returns for the supplied inputs; it does not verify the market data, prior state or production execution. The unedited 2025-10-18 example matches the recorded Python backtest; this does not establish full Python/EVM parity.
+This remains a **research slice covering version 1's exit rule, not the production strategy**. A contract answer proves what this bytecode returns for the supplied inputs; it does not verify the market data, prior state or production execution. The unedited 2025-10-18 example matches the recorded Python backtest; this does not establish full Python/EVM parity.
 
 ## Verification method
 

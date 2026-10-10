@@ -170,8 +170,8 @@ export const PITCH_STRATEGY = {
     capability: 'tokenized-equities',
   },
   footerLink: {
-    href: '/docs/track-record/dma-fgi-portfolio-rules-v1#rules-in-priority-order',
-    label: 'See the six rules in priority order',
+    href: '/docs/track-record/dma-fgi-portfolio-rules-v2#rules-in-priority-order',
+    label: 'See the five rules in priority order',
   },
 } as const satisfies {
   sleeves: StatusPart<'planned'>;

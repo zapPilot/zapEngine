@@ -14,7 +14,6 @@ const indicatorSchema = z
     cooldown_active: z.boolean().nullish(),
     cooldown_remaining_days: optionalNumber,
     outer_dma_asset: optionalString,
-    fgi_slope: optionalNumber,
   })
   .nullish();
 
@@ -27,17 +26,7 @@ const suggestionEvidenceSchema = z.looseObject({
     target: z.looseObject({
       allocation: z.record(z.string(), z.number()),
     }),
-    market: z
-      .looseObject({
-        sentiment: optionalNumber,
-        sentiment_label: optionalString,
-        macro_fear_greed: z
-          .looseObject({ score: optionalNumber, label: optionalString })
-          .nullish(),
-      })
-      .nullish(),
     signal: z.looseObject({
-      regime: z.string(),
       details: z
         .looseObject({
           ratio: indicatorSchema,
@@ -84,7 +73,7 @@ export interface EvidenceMetric {
   value: string;
 }
 export interface TriggerEvidence {
-  kind: 'ratio' | 'dma' | 'fgi' | 'none';
+  kind: 'ratio' | 'dma' | 'none';
   ruleName: string | null;
   ruleLabel: string;
   metrics: EvidenceMetric[];
@@ -148,23 +137,6 @@ export function deriveTriggerEvidence(input: unknown): TriggerEvidence {
         ['200-DMA', dma?.dma_200],
         ['Distance', percent(dma?.distance)],
         ['Cross', dma?.cross_event],
-      ]),
-    };
-  }
-  if (rule.startsWith('fgi_')) {
-    const market = data.context.market;
-    const score = market?.macro_fear_greed?.score ?? market?.sentiment;
-    const label = market?.macro_fear_greed?.label ?? market?.sentiment_label;
-    return {
-      kind: 'fgi',
-      ruleName: rule,
-      ruleLabel: humanize(rule),
-      chartSeriesId: null,
-      metrics: compactMetrics([
-        ['FGI', score],
-        ['Sentiment', label],
-        ['Slope', percent(details?.dma?.fgi_slope)],
-        ['Regime', data.context.signal.regime],
       ]),
     };
   }

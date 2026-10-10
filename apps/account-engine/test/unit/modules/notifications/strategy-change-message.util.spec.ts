@@ -113,7 +113,7 @@ describe('buildStrategyChangeMessage', () => {
     ).toThrow('at least one event');
   });
 
-  it('renders the real 2026-08-19 trade exactly', () => {
+  it('renders a single scheduled trim exactly', () => {
     const event = createCurveEventFixture({
       date: '2026-08-19',
       type: 'sell',
@@ -121,7 +121,7 @@ describe('buildStrategyChangeMessage', () => {
       fromAssets: ['SPY'],
       amountUsd: 921.15,
       amountPercent: 5,
-      reason: 'portfolio_fgi_downshift_dca_sell',
+      reason: 'portfolio_dma_overextension_dca_sell',
     });
     const curve = createEquityCurveFixture({
       window: { end: '2026-08-19' },
@@ -151,7 +151,7 @@ describe('buildStrategyChangeMessage', () => {
         '📈 *Strategy Update — 2026-08-19*',
         '',
         'Sold SPY — $921 (5.0% of portfolio)',
-        'Why: Market sentiment fell out of greed, so risk was trimmed with a scheduled sell.',
+        'Why: Price ran far above its long-term average, so the strategy trimmed on a schedule.',
         '',
         'Before: ETH 26.1% · SPY 66.4% · Cash 7.5%',
         'After: ETH 26.3% · SPY 61.2% · Cash 12.5%',
@@ -236,7 +236,6 @@ describe('buildStrategyChangeMessage', () => {
         'portfolio_eth_btc_deviation_large_to_eth',
         'portfolio_eth_btc_ratio_rotation_to_btc',
         'portfolio_eth_btc_ratio_rotation_to_eth',
-        'portfolio_fgi_downshift_dca_sell',
       ];
 
       for (const reason of slugs) {

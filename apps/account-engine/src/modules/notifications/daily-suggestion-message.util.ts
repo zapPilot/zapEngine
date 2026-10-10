@@ -156,7 +156,6 @@ function triggerEvidenceLine(
   if (rule?.startsWith('cross_') || rule?.startsWith('dma_overextension_')) {
     return dmaEvidence(signal?.dma);
   }
-  if (rule?.startsWith('fgi_')) return fgiEvidence(data);
   return null;
 }
 
@@ -180,17 +179,6 @@ function dmaEvidence(
   const asset = dma.outer_dma_asset;
   return [
     `${asset ? `${humanizeSlug(asset).toUpperCase()} · ` : ''}200-DMA ${dma.dma_200.toFixed(2)}${formatDistance(dma.distance)}${formatCross(dma.cross_event)}`,
-  ];
-}
-
-function fgiEvidence(data: DailySuggestionSubset): string[] {
-  const market = data.context.market;
-  const score = market?.macro_fear_greed?.score ?? market?.sentiment;
-  const label = market?.macro_fear_greed?.label ?? market?.sentiment_label;
-  const slope = data.context.signal.details?.dma?.fgi_slope;
-  return [
-    ...(score == null ? [] : [`FGI ${score}${label ? ` (${label})` : ''}`]),
-    ...(slope == null ? [] : [`FGI slope ${formatSignedPercent(slope)}`]),
   ];
 }
 

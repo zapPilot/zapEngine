@@ -20,7 +20,6 @@ const indicatorSchema = z
     distance: nullableNumber,
     zone: nullableString,
     cross_event: nullableString,
-    fgi_slope: nullableNumber,
     outer_dma_asset: nullableString,
     ...cooldownFields,
   })

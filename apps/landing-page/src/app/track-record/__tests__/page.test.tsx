@@ -62,6 +62,7 @@ describe('TrackRecordPage', () => {
 
     expect(screen.getByText(/Backtest mode/)).toBeInTheDocument();
     expect(screen.getByText('Historical performance')).toBeInTheDocument();
+    expect(screen.getByText('v1')).toBeInTheDocument();
     expect(screen.queryByText(DEMO_WALLET)).toBeNull();
     expect(
       screen.getByText(/only shown in Snapshots mode/),

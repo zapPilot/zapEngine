@@ -58,7 +58,7 @@ it('counts only default rule trace and uses the canonical planned rebalance stat
     observed: true,
     evaluated: true,
     fired: 0,
-    ruleCount: 6,
+    ruleCount: 5,
     planStatus: 'planned',
     signPending: false,
   });
@@ -160,7 +160,7 @@ it('marks observed steps live and carries sign requests into check and sign', ()
   ]);
   expect(decisionStepCopy(steps)).toEqual([
     { key: 'today.signalsRead' },
-    { key: 'today.firedCount', params: { fired: 0, count: 6 } },
+    { key: 'today.firedCount', params: { fired: 0, count: 5 } },
     { key: 'today.targetUpdated' },
     { key: 'status.planned' },
     { key: 'today.pending' },

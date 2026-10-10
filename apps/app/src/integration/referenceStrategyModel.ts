@@ -172,7 +172,6 @@ export function ruleNameFromReason(reason: string): string | null {
     'eth_btc_ratio_rotation',
     'eth_btc_deviation_dca',
     'dma_overextension_dca_sell',
-    'fgi_downshift_dca_sell',
   ].includes(name)
     ? name
     : null;

@@ -7,7 +7,6 @@ export const RULE_LABEL_KEYS: Readonly<Record<string, TranslationKey>> = {
   eth_btc_ratio_rotation: 'strategy.rule.ethBtcRatioRotation',
   eth_btc_deviation_dca: 'strategy.rule.ethBtcDeviationDca',
   dma_overextension_dca_sell: 'strategy.rule.dmaOverextensionDcaSell',
-  fgi_downshift_dca_sell: 'strategy.rule.fgiDownshiftDcaSell',
 };
 export function defaultRuleTrace(
   rules: readonly { name: string; number: number }[],

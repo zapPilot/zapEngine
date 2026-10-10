@@ -33,7 +33,7 @@ function makeDailySuggestion(
     config_display_name: 'Default',
     config_id: 'default',
     strategy_id: 'strategy-default',
-    spec_ref: 'reference/dma_fgi@1#a22bccfabb4b',
+    spec_ref: 'reference/dma_fgi@2#ffc3614028fb',
     action: {
       kind: 'rebalance',
       reason_code: 'rebalance_needed',

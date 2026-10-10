@@ -332,7 +332,6 @@ describe('AnalyticsClientService', () => {
               cooldown_active: false,
               cooldown_remaining_days: 0,
               cooldown_blocked_zone: null,
-              fgi_slope: -0.02,
               outer_dma_asset: 'BTC',
             },
             ratio: {
@@ -406,12 +405,6 @@ describe('AnalyticsClientService', () => {
                 matched: true,
                 would_have_acted_action: 'sell',
                 suppressed_by: 'eth_btc_ratio_rotation',
-              },
-              {
-                rule_name: 'fgi_downshift_dca_sell',
-                matched: false,
-                would_have_acted_action: null,
-                suppressed_by: null,
               },
             ],
             cooldown_skipped_rules: [

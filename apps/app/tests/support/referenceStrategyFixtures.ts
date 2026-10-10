@@ -9,9 +9,8 @@ export const referenceRuleNames = [
   'eth_btc_ratio_rotation',
   'eth_btc_deviation_dca',
   'dma_overextension_dca_sell',
-  'fgi_downshift_dca_sell',
 ] as const;
-export const referenceSpecRef = 'reference/dma_fgi@1#a22bccfabb4b';
+export const referenceSpecRef = 'reference/dma_fgi@2#ffc3614028fb';
 export function referenceConfigs(): StrategyConfigsResponse {
   return {
     backtest_defaults: { days: 500, total_capital: 10000 },

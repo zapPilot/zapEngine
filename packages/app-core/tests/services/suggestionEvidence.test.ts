@@ -11,9 +11,7 @@ function fixture(rule: string, asset?: string) {
     context: {
       portfolio: { asset_allocation: { btc: 0.4, stable: 0.6 } },
       target: { allocation: { btc: 0.2, eth: 0.8 } },
-      market: { sentiment: 39, sentiment_label: 'Fear' },
       signal: {
-        regime: 'fear',
         details: {
           ratio: {
             ratio: 0.04,
@@ -27,7 +25,6 @@ function fixture(rule: string, asset?: string) {
             outer_dma_asset: asset,
             cooldown_active: true,
             cooldown_remaining_days: 2,
-            fgi_slope: -0.1,
           },
         },
       },
@@ -71,7 +68,7 @@ function fixture(rule: string, asset?: string) {
               suppressed_by: null,
             },
             {
-              rule_name: 'fgi_downshift_dca_sell',
+              rule_name: 'eth_btc_deviation_dca',
               matched: true,
               would_have_acted_action: 'sell',
               suppressed_by: rule,
@@ -94,7 +91,6 @@ describe('suggestion evidence', () => {
     ['eth_btc_ratio_rotation', 'ratio', 'eth_btc'],
     ['cross_down_exit', 'dma', 'btc'],
     ['dma_overextension_dca_sell', 'dma', 'eth'],
-    ['fgi_downshift_dca_sell', 'fgi', null],
   ])('maps %s to evidence and chart series', (rule, kind, series) => {
     const evidence = deriveTriggerEvidence(
       fixture(rule, rule.startsWith('dma_') ? 'ETH' : undefined),
@@ -172,32 +168,6 @@ describe('suggestion evidence', () => {
     ).toBe('btc');
   });
 
-  it('uses macro FGI values first and falls back to market sentiment', () => {
-    const macro = fixture('fgi_downshift');
-    macro.context.market = {
-      ...macro.context.market,
-      macro_fear_greed: { score: 72, label: 'Greed' },
-    } as never;
-    const macroMetrics = deriveTriggerEvidence(macro).metrics;
-    expect(macroMetrics).toEqual(
-      expect.arrayContaining([
-        { label: 'FGI', value: '72' },
-        { label: 'Sentiment', value: 'Greed' },
-        { label: 'Slope', value: '-10.0%' },
-      ]),
-    );
-
-    const fallbackMetrics = deriveTriggerEvidence(
-      fixture('fgi_downshift'),
-    ).metrics;
-    expect(fallbackMetrics).toEqual(
-      expect.arrayContaining([
-        { label: 'FGI', value: '39' },
-        { label: 'Sentiment', value: 'Fear' },
-      ]),
-    );
-  });
-
   it('omits null evidence metrics and formats large positive percentages', () => {
     const data = fixture('cross_up');
     data.context.signal.details.dma = {
@@ -211,6 +181,15 @@ describe('suggestion evidence', () => {
       { label: 'Asset', value: 'BTC' },
       { label: 'Distance', value: '+12.5%' },
     ]);
+  });
+
+  it('formats a negative distance without a plus sign', () => {
+    const data = fixture('cross_down_exit');
+    data.context.signal.details.dma.distance = -0.032;
+    expect(deriveTriggerEvidence(data).metrics).toContainEqual({
+      label: 'Distance',
+      value: '-3.2%',
+    });
   });
 
   it('omits the distance metric when the backend sends no distance', () => {
@@ -290,7 +269,7 @@ describe('suggestion evidence', () => {
         cooldownRemainingDays: null,
       },
       {
-        ruleName: 'fgi_downshift_dca_sell',
+        ruleName: 'eth_btc_deviation_dca',
         status: 'shadowed',
         suppressedBy: 'dma_overextension_dca_sell',
         cooldownRemainingDays: null,

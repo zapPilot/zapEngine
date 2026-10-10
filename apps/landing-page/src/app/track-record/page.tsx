@@ -60,7 +60,7 @@ export default function TrackRecordPage() {
         <div className="status-block">
           <p className="status-kicker">Strategy</p>
           <strong>{meta?.strategyId ?? '—'}</strong>
-          <span>v{meta?.strategyVersion ?? '—'}</span>
+          <span>{meta?.strategyVersion ?? '—'}</span>
         </div>
         <div className="status-block">
           <p className="status-kicker">Snapshots</p>
@@ -154,7 +154,7 @@ export default function TrackRecordPage() {
           the first IPFS snapshot. They are linked by CID but unsigned today.
         </p>
         <p>
-          <Link href="/docs/track-record/dma-fgi-portfolio-rules-v1">
+          <Link href="/docs/track-record/dma-fgi-portfolio-rules-v2">
             Read strategy methodology →
           </Link>
         </p>

@@ -154,7 +154,7 @@ interface MessagesContract {
 }
 const TRACE = engineDecision();
 const CALCULATOR_HREF = `/track-record/calculator/?date=${TRACE.date}`;
-const REFERENCE_SPEC_HREF = '/docs/track-record/dma-fgi-portfolio-rules-v1';
+const REFERENCE_SPEC_HREF = '/docs/track-record/dma-fgi-portfolio-rules-v2';
 
 export const MESSAGES = {
   meta: {
@@ -250,7 +250,7 @@ export const MESSAGES = {
     verifyLink: {
       label: `Recompute the ${TRACE.date} exit on-chain`,
       href: CALCULATOR_HREF,
-      text: '1 of 6 rules · testnet',
+      text: 'Version 1 exit rule · testnet',
       capability: 'verifiable-rule',
     },
     chart: {
