@@ -25,6 +25,9 @@ from src.services.backtesting.features import (
     SPY_DMA_200_FEATURE,
     SPY_PRICE_FEATURE,
 )
+from src.services.backtesting.spec import parse_spec
+from src.services.backtesting.strategy_registry import resolve_spec_strategy_config
+from tests.services.backtesting.spec.helpers import reference_raw, with_fgi_downshift
 from tests.services.backtesting.support import register_mock_recipe
 
 
@@ -510,12 +513,20 @@ def _build_greed_fading_inputs() -> tuple[
 def test_run_compare_v3_on_data_triggers_greed_fading_sell_on_declining_fgi() -> None:
     prices, sentiments, request = _build_greed_fading_inputs()
     request = materialize_compare_request(request)
+    # Version 2 of the reference has no downshift trim; the kind is still in the
+    # vocabulary, so its wiring through compare runs the rule version 1 ran.
+    with_downshift = parse_spec(with_fgi_downshift(reference_raw()))
 
     result = run_compare_v3_on_data(
         prices=prices,
         sentiments=sentiments,
         request=request,
         user_start_date=date(2025, 6, 1),
+        resolved_configs=[
+            resolve_spec_strategy_config(
+                with_downshift, config_id="dma_greed_fading_test"
+            )
+        ],
     )
 
     points = {

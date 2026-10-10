@@ -253,7 +253,7 @@
           },
           {
             "additionalProperties": false,
-            "description": "Rotates between BTC and ETH when the ETH/BTC ratio crosses its 200-day DMA.",
+            "description": "Rotates between BTC and ETH when the ETH/BTC ratio crosses its 200-day DMA.\n\nIt has no cooldown of its own: every rotation starts the ratio signal's cross\ncooldown (`signals.ratio`), which is what holds the next rotation back.",
             "properties": {
               "kind": {
                 "const": "ratio_cross_rotation",
@@ -263,21 +263,6 @@
                 "description": "Name of the rule in decision traces.",
                 "pattern": "^[a-z][a-z0-9_]{2,47}$",
                 "type": "string"
-              },
-              "cooldown_days": {
-                "anyOf": [
-                  {
-                    "maximum": 365,
-                    "minimum": 0,
-                    "type": "integer"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "x-default": null,
-                "description": "Days the rule stays off after it trades. Null: no cooldown of its own, so the ratio signal's cross cooldown (`signals.ratio`), which every rotation starts, is what holds the next rotation back.",
-                "x-tunable": true
               },
               "cross_up": {
                 "additionalProperties": false,
@@ -351,7 +336,6 @@
             "required": [
               "kind",
               "id",
-              "cooldown_days",
               "cross_up",
               "cross_down"
             ],

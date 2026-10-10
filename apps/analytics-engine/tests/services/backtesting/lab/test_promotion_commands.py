@@ -35,7 +35,8 @@ def _invoke(lab: Path, *argv: str) -> tuple[int, dict[str, Any]]:
 
 def _candidate_raw() -> dict[str, Any]:
     raw = reference_raw()
-    raw["id"] = "guarded"
+    # A candidate starts at version 1, as `spec new` writes it.
+    raw["id"], raw["version"] = "guarded", 1
     raw["description"] = "The reference with a force-exit trend guard."
     raw["overlays"] = [
         {
@@ -104,7 +105,7 @@ def _write_sweep(lab: Path, **overrides: Any) -> None:
                 "behavior_hash": behavior_hash(parse_spec(_candidate_raw())),
             },
             "reference": {
-                "ref": "dma_fgi@1#a22bccfabb4b",
+                "ref": "dma_fgi@2#ffc3614028fb",
                 "behavior_hash": behavior_hash(REFERENCE),
             },
             "bundle": {"ref": "prod:1", "content_sha256": "x", "source": "prod"},
@@ -147,7 +148,7 @@ def _write_look(lab: Path, **overrides: Any) -> None:
             "behavior_hash": behavior_hash(parse_spec(_candidate_raw())),
         },
         "reference": {
-            "ref": "dma_fgi@1#a22bccfabb4b",
+            "ref": "dma_fgi@2#ffc3614028fb",
             "behavior_hash": behavior_hash(REFERENCE),
         },
         "edge": {"roi_pp": 1.0, "max_drawdown_pp": 0.5, "sharpe": 0.2},
@@ -202,7 +203,7 @@ def test_a_candidate_with_every_piece_of_evidence_is_promotable(
     assert {gate["status"] for gate in result["gates"]} == {"pass"}
     assert out["warnings"] == []
     assert result["candidate"]["ref"].startswith("guarded@1#")
-    assert result["reference"]["ref"] == "dma_fgi@1#a22bccfabb4b"
+    assert result["reference"]["ref"] == "dma_fgi@2#ffc3614028fb"
     assert result["ledger"] == {"distinct_candidates": 1}
     assert result["log_entry"].startswith("### 2026-10-10 - Promotion of guarded@1#")
     assert "- **Status**: active" in result["log_entry"]
@@ -595,15 +596,15 @@ def structural_policy(tmp_path: Path) -> Path:
 
 def _structural_candidate(tmp_path: Path, name: str, edit: Any) -> Path:
     raw = reference_raw()
-    raw["id"] = name
+    raw["id"], raw["version"] = name, 1
     edit(raw)
     path = tmp_path / f"{name}.json"
     path.write_text(json.dumps(raw))
     return path
 
 
-def _without_downshift(raw: dict[str, Any]) -> None:
-    raw["rules"] = [r for r in raw["rules"] if r["id"] != "fgi_downshift_dca_sell"]
+def _one_ratio_rule(raw: dict[str, Any]) -> None:
+    raw["rules"] = [r for r in raw["rules"] if r["id"] != "eth_btc_deviation_dca"]
 
 
 def _tuned_exit(raw: dict[str, Any]) -> None:
@@ -642,7 +643,7 @@ def test_a_structural_candidate_is_promoted_without_a_sweep_or_a_look(
     own_checks_stub: dict[str, Any],
     structural_stub: dict[str, Any],
 ) -> None:
-    candidate = _structural_candidate(tmp_path, "no_downshift", _without_downshift)
+    candidate = _structural_candidate(tmp_path, "one_ratio_rule", _one_ratio_rule)
 
     code, out = _promote(
         tmp_path, candidate, structural_policy, "--track", "structural"
@@ -676,11 +677,11 @@ def test_the_structural_track_runs_the_policys_suite_against_the_real_comparison
     own_checks_stub: dict[str, Any],
     structural_stub: dict[str, Any],
 ) -> None:
-    candidate = _structural_candidate(tmp_path, "no_downshift", _without_downshift)
+    candidate = _structural_candidate(tmp_path, "one_ratio_rule", _one_ratio_rule)
 
     _, out = _promote(tmp_path, candidate, structural_policy, "--track", "structural")
 
-    assert structural_stub["specs"] == ("dma_fgi", "no_downshift")
+    assert structural_stub["specs"] == ("dma_fgi", "one_ratio_rule")
     kwargs = structural_stub["kwargs"]
     assert list(kwargs["suite"]) == SHORT_SUITE
     assert kwargs["real"] == out["result"]["comparison"]
@@ -694,7 +695,7 @@ def test_the_structural_track_refuses_search_evidence(
     own_checks_stub: dict[str, Any],
     flag: list[str],
 ) -> None:
-    candidate = _structural_candidate(tmp_path, "no_downshift", _without_downshift)
+    candidate = _structural_candidate(tmp_path, "one_ratio_rule", _one_ratio_rule)
 
     code, out = _promote(
         tmp_path, candidate, structural_policy, "--track", "structural", *flag
@@ -708,7 +709,7 @@ def test_the_structural_track_refuses_search_evidence(
 def test_the_committed_policy_rejects_a_structural_candidate_on_synthetic_data(
     tmp_path: Path, own_checks_stub: dict[str, Any], structural_stub: dict[str, Any]
 ) -> None:
-    candidate = _structural_candidate(tmp_path, "no_downshift", _without_downshift)
+    candidate = _structural_candidate(tmp_path, "one_ratio_rule", _one_ratio_rule)
 
     code, out = _invoke(
         tmp_path,
@@ -751,7 +752,7 @@ def test_a_candidate_that_moves_a_number_fails_the_structural_check(
 def test_the_structural_gates_read_the_numbers_the_runs_produced(
     tmp_path: Path, structural_policy: Path, own_checks_stub: dict[str, Any]
 ) -> None:
-    candidate = _structural_candidate(tmp_path, "no_downshift", _without_downshift)
+    candidate = _structural_candidate(tmp_path, "one_ratio_rule", _one_ratio_rule)
 
     _, out = _promote(tmp_path, candidate, structural_policy, "--track", "structural")
 

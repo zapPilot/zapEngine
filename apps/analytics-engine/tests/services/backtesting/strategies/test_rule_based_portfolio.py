@@ -37,6 +37,7 @@ from src.services.backtesting.strategies.rule_based_portfolio import (
 )
 from tests.services.backtesting.portfolio_rules.helpers import state
 from tests.services.backtesting.support.reference_rules import (
+    fgi_downshift_rule,
     reference_components,
     reference_rule,
     reference_rules,
@@ -56,7 +57,6 @@ def test_strategy_feature_summary_reflects_default_active_rules() -> None:
             "eth_btc_ratio_rotation",
             "eth_btc_deviation_dca",
             "dma_overextension_dca_sell",
-            "fgi_downshift_dca_sell",
         ],
         "ratio_rotation": True,
         "research_only": True,
@@ -364,7 +364,9 @@ def test_cross_down_cooldown_keeps_spy_and_btc_blocked_for_default_window() -> N
 
 
 def test_decision_policy_persists_previous_fgi_regimes_for_downshift_rule() -> None:
-    policy = RuleBasedPortfolioDecisionPolicy(rules=reference_rules())
+    policy = RuleBasedPortfolioDecisionPolicy(
+        rules=(*reference_rules(), fgi_downshift_rule())
+    )
     first_snapshot = _flat_state(
         btc=state(symbol="BTC", fgi_regime="greed"),
         current={"btc": 0.50, "eth": 0.0, "spy": 0.0, "stable": 0.50, "alt": 0.0},

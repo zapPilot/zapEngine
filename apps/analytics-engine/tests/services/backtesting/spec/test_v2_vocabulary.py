@@ -21,9 +21,6 @@ from src.services.backtesting.portfolio_rules.cross_up_equal_weight import (
 from src.services.backtesting.portfolio_rules.dma_overextension_dca_sell import (
     DmaOverextensionDcaSellRule,
 )
-from src.services.backtesting.portfolio_rules.eth_btc_ratio_rotation import (
-    EthBtcRatioRotationRule,
-)
 from src.services.backtesting.portfolio_rules.fgi_downshift_dca_sell import (
     FgiDownshiftDcaSellRule,
 )
@@ -43,8 +40,26 @@ from tests.services.backtesting.spec.helpers import (
     reference_raw,
     rule_index,
     v2_raw,
+    with_fgi_downshift,
     with_value,
 )
+
+
+def _pre_knob_raw() -> dict[str, Any]:
+    """A spec that predates the knobs, with every kind one was added to.
+
+    The reference uses one knob since version 2 (its exit keeps a cooldown per
+    asset) and dropped the downshift trim, so this is the reference without the
+    exit's scope and with version 1's downshift trim.
+    """
+    raw = with_fgi_downshift(reference_raw())
+    del raw["rules"][rule_index(raw, "dma_cross_down_exit")]["cooldown_scope"]
+    return raw
+
+
+def _pre_knob_hash() -> str:
+    return behavior_hash(parse_spec(_pre_knob_raw()))
+
 
 # What a spec that predates the knobs would have to say, spelled out.
 SPELLED_DEFAULTS: list[Callable[[dict[str, Any]], None]] = [
@@ -100,41 +115,45 @@ def _pointers(raw: dict[str, Any]) -> list[tuple[str, str]]:
     return [(issue.pointer, issue.code) for issue in issues_for(raw)]
 
 
-def test_the_reference_canonical_form_mentions_none_of_the_later_knobs() -> None:
-    canonical = canonical_json(load_spec(REFERENCE_REF))
+LATER_KNOBS = (
+    "cooldown_scope",
+    "allocation",
+    "sizing",
+    "trend_dca_entry",
+    "trend_guard",
+)
 
-    for knob in (
-        "cooldown_scope",
-        "allocation",
-        "sizing",
-        "trend_dca_entry",
-        "trend_guard",
-    ):
-        assert knob not in canonical
+
+def test_the_canonical_form_mentions_only_the_knobs_a_spec_uses() -> None:
+    before = canonical_json(parse_spec(_pre_knob_raw()))
+    reference = canonical_json(load_spec(REFERENCE_REF))
+
+    assert [knob for knob in LATER_KNOBS if knob in before] == []
+    assert [knob for knob in LATER_KNOBS if knob in reference] == ["cooldown_scope"]
 
 
 @pytest.mark.parametrize("spell", SPELLED_DEFAULTS)
 def test_spelling_out_a_default_is_the_same_strategy(
     spell: Callable[[dict[str, Any]], None],
 ) -> None:
-    raw = reference_raw()
+    raw = _pre_knob_raw()
     spell(raw)
 
-    assert behavior_hash(parse_spec(raw)) == behavior_hash(load_spec(REFERENCE_REF))
+    assert behavior_hash(parse_spec(raw)) == _pre_knob_hash()
 
 
 @pytest.mark.parametrize("use", CHANGED_KNOBS)
 def test_using_a_knob_is_a_different_strategy(
     use: Callable[[dict[str, Any]], None],
 ) -> None:
-    raw = reference_raw()
+    raw = _pre_knob_raw()
     use(raw)
 
-    assert behavior_hash(parse_spec(raw)) != behavior_hash(load_spec(REFERENCE_REF))
+    assert behavior_hash(parse_spec(raw)) != _pre_knob_hash()
 
 
 def test_a_spec_that_omits_the_knobs_reads_them_at_their_defaults() -> None:
-    spec = load_spec(REFERENCE_REF)
+    spec = parse_spec(_pre_knob_raw())
     by_id = {rule.id: rule for rule in spec.rules}
 
     assert by_id["cross_down_exit"].cooldown_scope == "rule"
@@ -143,8 +162,10 @@ def test_a_spec_that_omits_the_knobs_reads_them_at_their_defaults() -> None:
     assert by_id["fgi_downshift_dca_sell"].sizing.mode == "absolute"
 
 
-def test_the_reference_compiles_to_the_rules_it_always_did() -> None:
-    rules = {rule.name: rule for rule in compile_spec(load_spec(REFERENCE_REF)).rules}
+def test_a_spec_that_omits_the_knobs_compiles_to_the_rules_it_always_did() -> None:
+    rules = {
+        rule.name: rule for rule in compile_spec(parse_spec(_pre_knob_raw())).rules
+    }
 
     exit_rule = rules["cross_down_exit"]
     assert isinstance(exit_rule, CrossDownExitRule)
@@ -298,37 +319,3 @@ def test_every_number_the_new_kinds_add_is_a_tunable_leaf() -> None:
         "/overlays[trend_guard]/below_dma_buffer",
         "/overlays[trend_guard]/confirm_days",
     } <= leaves
-
-
-def _ratio_rotation(raw: dict[str, Any]) -> dict[str, Any]:
-    rule: dict[str, Any] = raw["rules"][rule_index(raw, "ratio_cross_rotation")]
-    return rule
-
-
-def test_a_ratio_rotation_may_leave_its_cooldown_to_the_ratio_signal() -> None:
-    raw = reference_raw()
-    del _ratio_rotation(raw)["cooldown_days"]
-
-    spec = parse_spec(raw)
-    rule = compile_spec(spec).rules[rule_index(raw, "ratio_cross_rotation")]
-
-    assert isinstance(rule, EthBtcRatioRotationRule)
-    assert rule.cooldown_days == 0
-    assert "/rules[eth_btc_ratio_rotation]/cooldown_days" not in {
-        leaf.pointer for leaf in tunable_leaves(spec)
-    }
-    assert behavior_hash(spec) != behavior_hash(load_spec(REFERENCE_REF))
-
-
-def test_a_null_ratio_cooldown_is_the_same_strategy_as_leaving_it_out() -> None:
-    omitted = reference_raw()
-    del _ratio_rotation(omitted)["cooldown_days"]
-    null = reference_raw()
-    _ratio_rotation(null)["cooldown_days"] = None
-
-    assert behavior_hash(parse_spec(omitted)) == behavior_hash(parse_spec(null))
-
-
-def test_the_reference_states_its_ratio_cooldown_so_its_hash_holds() -> None:
-    assert _ratio_rotation(reference_raw())["cooldown_days"] == 30
-    assert '"cooldown_days":30' in canonical_json(load_spec(REFERENCE_REF))

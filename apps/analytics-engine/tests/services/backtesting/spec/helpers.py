@@ -36,6 +36,29 @@ def v2_raw() -> dict[str, Any]:
     return copy.deepcopy(raw)
 
 
+def fgi_downshift_raw() -> dict[str, Any]:
+    """The FGI downshift trim as version 1 of the reference stated it.
+
+    Version 2 dropped the rule. The kind stays in the vocabulary, so the tests of
+    the kind run the rule version 1 ran, appended last as it was there.
+    """
+    return {
+        "kind": "fgi_downshift_trim",
+        "id": "fgi_downshift_dca_sell",
+        "cooldown_days": 7,
+        "sell_step": 0.05,
+        "from_regimes": ["greed", "extreme_greed"],
+        "to_regimes": ["neutral", "fear", "extreme_fear"],
+        "proceeds": {"to": []},
+    }
+
+
+def with_fgi_downshift(raw: dict[str, Any]) -> dict[str, Any]:
+    """``raw`` with version 1's FGI downshift trim appended."""
+    raw["rules"].append(fgi_downshift_raw())
+    return raw
+
+
 def with_value(raw: dict[str, Any], path: Path, value: Any) -> dict[str, Any]:
     """``raw`` with the value at ``path`` replaced."""
     target: Any = raw

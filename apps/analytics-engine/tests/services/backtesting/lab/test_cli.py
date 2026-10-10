@@ -179,7 +179,10 @@ def test_lock_creates_the_file_when_there_is_none(
     assert out["artifacts"] == [str(strategies / LOCK_FILENAME)]
     assert json.loads((strategies / LOCK_FILENAME).read_text())["specs"][
         REFERENCE_REF
-    ] == {"version": 1, "behavior_hash": out["result"]["behavior_hash"]}
+    ] == {
+        "version": reference_raw()["version"],
+        "behavior_hash": out["result"]["behavior_hash"],
+    }
 
 
 def test_lock_refuses_a_behavior_change_without_a_version_bump(
@@ -201,13 +204,16 @@ def test_lock_follows_a_version_bump(
     strategies: Path,
 ) -> None:
     raw = with_value(reference_raw(), ("signals", "warmup_days"), 15)
-    raw["version"] = 2
+    raw["version"] += 1
     _write_reference(strategies, raw)
 
     code, out = _run(capsys, strategies, "spec", "lock", REFERENCE_REF)
 
     assert code == 0
-    assert (out["result"]["changed"], out["result"]["version"]) == (True, 2)
+    assert (out["result"]["changed"], out["result"]["version"]) == (
+        True,
+        raw["version"],
+    )
 
 
 def test_lock_only_pins_references(
@@ -840,6 +846,8 @@ def test_diff_names_the_changes_and_follows_them_on_a_bundle(
         ("/description", "changed"),
         ("/id", "changed"),
         ("/rules[cross_down_exit]", "removed"),
+        # A new candidate starts at version 1.
+        ("/version", "changed"),
     ]
     comparison = out["result"]["comparison"]
     assert comparison["first_divergence"]["base"]["rule"] == "cross_down_exit"

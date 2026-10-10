@@ -41,19 +41,24 @@ def test_setting_returns_a_copy_and_leaves_the_original() -> None:
 def test_a_list_element_can_be_set_by_position() -> None:
     raw = reference_raw()
 
-    changed = pointers.set_at(raw, "/rules/4/proceeds/to/0/share", 0.25)
+    changed = pointers.set_at(raw, "/rules/3/tiers/1/rotation_fraction", 0.2)
 
-    assert changed["rules"][4]["proceeds"]["to"][0]["share"] == 0.25
+    assert changed["rules"][3]["tiers"][1]["rotation_fraction"] == 0.2
 
 
 def test_a_whole_list_element_can_be_replaced_by_position() -> None:
     raw = reference_raw()
-    share = {"asset": "stable", "share": 1.0}
+    tier = {
+        "name": "dca",
+        "threshold": 0.4,
+        "rotation_fraction": 0.2,
+        "cooldown_days": 7,
+    }
 
-    changed = pointers.set_at(raw, "/rules/4/proceeds/to/0", share)
+    changed = pointers.set_at(raw, "/rules/3/tiers/1", tier)
 
-    assert changed["rules"][4]["proceeds"]["to"][0] == share
-    assert raw["rules"][4]["proceeds"]["to"][0] != share
+    assert changed["rules"][3]["tiers"][1] == tier
+    assert raw["rules"][3]["tiers"][1] != tier
 
 
 @pytest.mark.parametrize(

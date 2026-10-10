@@ -1,9 +1,11 @@
 """The review's queue (``ITERATION_PLAYBOOK.md``) stays writable.
 
-The playbook lists seven edits to the reference as candidates. They are
-hypotheses, and nothing here says any of them is good; what this pins is that
-each one is a valid spec in today's vocabulary and runs, so a change to the
-vocabulary cannot silently strand the queue.
+The playbook lists the edits to the reference still to try. They are hypotheses,
+and nothing here says any of them is good; what this pins is that each one is a
+valid spec in today's vocabulary and runs, so a change to the vocabulary cannot
+silently strand the queue. Version 2 of the reference made three of the
+original edits (no downshift trim, trim proceeds into stable, a per-asset exit
+cooldown), so they are no longer edits to it.
 """
 
 from __future__ import annotations
@@ -37,10 +39,6 @@ def _trend_guard(raw: dict[str, Any]) -> None:
     )
 
 
-def _drop_fgi_downshift(raw: dict[str, Any]) -> None:
-    raw["rules"] = [r for r in raw["rules"] if r["id"] != "fgi_downshift_dca_sell"]
-
-
 def _one_ratio_rule(raw: dict[str, Any]) -> None:
     raw["rules"] = [r for r in raw["rules"] if r["id"] != "eth_btc_deviation_dca"]
 
@@ -49,13 +47,11 @@ def _no_stable_sweep(raw: dict[str, Any]) -> None:
     _rule(raw, "eth_btc_ratio_rotation")["cross_up"]["sources"] = ["BTC"]
 
 
-def _proceeds_to_stable(raw: dict[str, Any]) -> None:
-    _rule(raw, "dma_overextension_dca_sell")["proceeds"] = {"to": []}
-
-
 def _relative_trims_with_a_rebuy(raw: dict[str, Any]) -> None:
-    for rule_id in ("dma_overextension_dca_sell", "fgi_downshift_dca_sell"):
-        _rule(raw, rule_id)["sizing"] = {"mode": "relative", "floor_weight": 0.1}
+    _rule(raw, "dma_overextension_dca_sell")["sizing"] = {
+        "mode": "relative",
+        "floor_weight": 0.1,
+    }
     raw["rules"].append(
         {
             "kind": "trend_dca_entry",
@@ -81,20 +77,13 @@ def _deploy_stable_on_cross_up(raw: dict[str, Any]) -> None:
     _rule(raw, "cross_up_equal_weight")["allocation"] = "deploy_stable"
 
 
-def _per_asset_exit_cooldown(raw: dict[str, Any]) -> None:
-    _rule(raw, "cross_down_exit")["cooldown_scope"] = "trigger_symbol"
-
-
 QUEUE: dict[str, Edit] = {
     "trend_guard": _trend_guard,
-    "drop_fgi_downshift": _drop_fgi_downshift,
     "one_ratio_rule": _one_ratio_rule,
     "no_stable_sweep": _no_stable_sweep,
-    "proceeds_to_stable": _proceeds_to_stable,
     "relative_trims_with_a_rebuy": _relative_trims_with_a_rebuy,
     "staged_entry": _staged_entry,
     "deploy_stable_on_cross_up": _deploy_stable_on_cross_up,
-    "per_asset_exit_cooldown": _per_asset_exit_cooldown,
 }
 
 

@@ -61,7 +61,7 @@ def test_a_report_names_everything_it_depends_on(report: Report, spec, bundle) -
 
 
 def test_a_spec_ref_is_id_version_and_a_short_hash(spec) -> None:
-    assert spec_ref(spec) == "dma_fgi@1#a22bccfabb4b"
+    assert spec_ref(spec) == "dma_fgi@2#ffc3614028fb"
 
 
 def test_the_window_is_what_was_evaluated(report: Report, bundle) -> None:

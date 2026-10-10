@@ -93,7 +93,7 @@ def _daily_response() -> DailySuggestionResponse:
         config_id="dma_fgi_portfolio_rules_default",
         config_display_name="DMA/FGI Portfolio Rules",
         strategy_id="dma_fgi_portfolio_rules",
-        spec_ref="reference/dma_fgi@1#a22bccfabb4b",
+        spec_ref="reference/dma_fgi@2#ffc3614028fb",
         action=DailySuggestionActionState(
             status="blocked",
             required=False,
@@ -221,7 +221,6 @@ async def test_get_strategy_configs_returns_nested_recipe_presets(
         ("eth_btc_ratio_rotation", 30, True),
         ("eth_btc_deviation_dca", 40, True),
         ("dma_overextension_dca_sell", 50, True),
-        ("fgi_downshift_dca_sell", 60, True),
     ]
     assert body["backtest_defaults"] == {"days": 500, "total_capital": 10000}
 
@@ -348,7 +347,7 @@ async def test_get_daily_suggestion_returns_shared_snapshot_shape(
 
     parsed = DailySuggestionResponse.model_validate(response.json())
     assert parsed.strategy_id == "dma_fgi_portfolio_rules"
-    assert parsed.spec_ref == "reference/dma_fgi@1#a22bccfabb4b"
+    assert parsed.spec_ref == "reference/dma_fgi@2#ffc3614028fb"
     assert parsed.config_display_name == "DMA/FGI Portfolio Rules"
     assert parsed.context.signal.id == "dma_fgi_portfolio_rules_signal"
     assert parsed.context.signal.details["ath_event"] == "token_ath"

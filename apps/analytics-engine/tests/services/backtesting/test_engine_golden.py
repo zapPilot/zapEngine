@@ -158,7 +158,6 @@ def test_golden_runs_exercise_every_default_rule() -> None:
         "dma_overextension_dca_sell",
         "eth_btc_deviation_dca",
         "eth_btc_ratio_rotation",
-        "fgi_downshift_dca_sell",
         "regime_no_signal_hold",
     }
 

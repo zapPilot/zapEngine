@@ -12,6 +12,7 @@ from tests.services.backtesting.spec.helpers import (
     issues_for,
     reference_raw,
     rule_index,
+    with_fgi_downshift,
     with_value,
     without,
 )
@@ -55,6 +56,12 @@ def test_reference_with_an_overlay_is_valid() -> None:
             "/rules/0/cooldown_days",
             "greater_than_equal",
         ),
+        # The ratio signal's cross cooldown is the rotation's only cooldown.
+        (
+            lambda raw: with_value(raw, ("rules", 2, "cooldown_days"), 30),
+            "/rules/2/cooldown_days",
+            "extra_forbidden",
+        ),
         (
             lambda raw: with_value(
                 raw, ("rules", 3, "tiers", 0, "rotation_fraction"), 1.5
@@ -95,6 +102,7 @@ def test_reference_with_an_overlay_is_valid() -> None:
         "unknown-key",
         "unknown-kind",
         "rule-field-out-of-range",
+        "a-ratio-rotation-cooldown",
         "nested-field-out-of-range",
         "bad-slug",
         "no-rules",
@@ -243,14 +251,14 @@ SEMANTIC_CASES = [
     ),
     (
         lambda raw: with_value(
-            raw, ("rules", _downshift(raw), "from_regimes"), ["greed", "greed"]
+            with_fgi_downshift(raw), ("rules", 5, "from_regimes"), ["greed", "greed"]
         ),
         "/rules/5/from_regimes",
         "duplicate_regime",
     ),
     (
         lambda raw: with_value(
-            raw, ("rules", _downshift(raw), "to_regimes"), ["neutral", "greed"]
+            with_fgi_downshift(raw), ("rules", 5, "to_regimes"), ["neutral", "greed"]
         ),
         "/rules/5",
         "regimes_overlap",
@@ -302,7 +310,7 @@ def test_an_error_at_the_root_reads_as_a_slash() -> None:
 
 
 def test_regime_lists_are_order_insensitive() -> None:
-    raw = reference_raw()
+    raw = with_fgi_downshift(reference_raw())
     index = _downshift(raw)
     raw["rules"][index]["from_regimes"] = ["extreme_greed", "greed"]
 

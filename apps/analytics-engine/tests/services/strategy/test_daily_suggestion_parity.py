@@ -63,7 +63,6 @@ DEFAULT_RULES = {
     "dma_overextension_dca_sell",
     "eth_btc_deviation_dca",
     "eth_btc_ratio_rotation",
-    "fgi_downshift_dca_sell",
 }
 USER_HOLDINGS = {"btc": 3_000.0, "eth": 1_500.0, "spy": 1_000.0, "stable": 4_500.0}
 
@@ -242,17 +241,6 @@ def test_a_live_response_survives_the_json_wire_round_trip(scan: Scan) -> None:
 
         assert DailySuggestionResponse.model_validate(wire) == live
         assert wire["context"]["model"]["window"]["truncated"] is False
-
-
-def test_fgi_downshift_fires_live_as_it_does_in_the_backtest(scan: Scan) -> None:
-    """The live path used to start each request without FGI history."""
-    fired = [
-        day
-        for day, response in scan.live_by_day.items()
-        if _matched_rule(response) == "fgi_downshift_dca_sell"
-    ]
-
-    assert fired
 
 
 def test_overextension_trims_respect_their_seven_day_cooldown(scan: Scan) -> None:

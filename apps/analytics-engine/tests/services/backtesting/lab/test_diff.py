@@ -83,9 +83,9 @@ def test_a_removed_rule_is_one_removal() -> None:
     changes = _changes(raw)
 
     assert [(item["pointer"], item["kind"]) for item in changes] == [
-        ("/rules[fgi_downshift_dca_sell]", "removed")
+        ("/rules[dma_overextension_dca_sell]", "removed")
     ]
-    assert changes[0]["before"]["kind"] == "fgi_downshift_trim"
+    assert changes[0]["before"]["kind"] == "dma_overextension_trim"
 
 
 def test_an_added_rule_and_overlay() -> None:
@@ -179,7 +179,7 @@ def test_a_change_is_followed_to_the_first_day_it_decides_differently(bundle) ->
     assert result["roi_pp"] == pytest.approx(
         result["candidate"]["roi_percent"] - result["base"]["roi_percent"], abs=1e-5
     )
-    assert result["base"]["ref"].startswith("dma_fgi@1#")
+    assert result["base"]["ref"].startswith("dma_fgi@2#")
 
 
 def test_the_comparison_follows_the_window(bundle) -> None:

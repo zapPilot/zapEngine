@@ -14,8 +14,15 @@ from src.services.backtesting.portfolio_rules.eth_btc_deviation_dca import (
 )
 from src.services.backtesting.portfolio_rules.trend_guard import TrendGuardRule
 from src.services.backtesting.spec import compile_spec, parse_spec
-from tests.services.backtesting.spec.helpers import reference_raw, rule_index
-from tests.services.backtesting.support.reference_rules import reference_rule
+from tests.services.backtesting.spec.helpers import (
+    reference_raw,
+    rule_index,
+    with_fgi_downshift,
+)
+from tests.services.backtesting.support.reference_rules import (
+    fgi_downshift_rule,
+    reference_rule,
+)
 
 
 def _compiled(raw: dict[str, Any]) -> tuple[PortfolioRule, ...]:
@@ -29,7 +36,7 @@ def _rule(raw: dict[str, Any], kind: str) -> PortfolioRule:
 def test_priority_is_the_position_in_the_spec() -> None:
     rules = _compiled(reference_raw())
 
-    assert [rule.priority for rule in rules] == [10, 20, 30, 40, 50, 60]
+    assert [rule.priority for rule in rules] == [10, 20, 30, 40, 50]
 
 
 def test_reordering_the_spec_reorders_the_rules() -> None:
@@ -59,7 +66,7 @@ def test_an_overlay_follows_the_rules() -> None:
 
     assert guard == TrendGuardRule(
         name="trend_guard",
-        priority=70,
+        priority=10 * (len(raw["rules"]) + 1),
         mode="force_exit",
         below_dma_buffer=0.02,
         confirm_days=3,
@@ -128,15 +135,14 @@ def test_ratio_cross_rotation_kind() -> None:
     raw = reference_raw()
     index = rule_index(raw, "ratio_cross_rotation")
     raw["rules"][index].update(
-        cooldown_days=15,
         cross_up={"sources": ["BTC"], "destination": "ETH"},
         cross_down={"sources": ["ETH", "STABLE"], "destination": "BTC"},
     )
 
+    assert _compiled(raw)[index].cooldown_days == 0
     assert _compiled(raw)[index] == reference_rule(
         "eth_btc_ratio_rotation",
         priority=10 * (index + 1),
-        cooldown_days=15,
         up_sources=("btc",),
         up_destination="eth",
         down_sources=("eth", "stable"),
@@ -211,7 +217,7 @@ def test_overextension_trim_kind() -> None:
 
 
 def test_fgi_downshift_trim_kind() -> None:
-    raw = reference_raw()
+    raw = with_fgi_downshift(reference_raw())
     index = rule_index(raw, "fgi_downshift_trim")
     raw["rules"][index].update(
         cooldown_days=3,
@@ -221,8 +227,7 @@ def test_fgi_downshift_trim_kind() -> None:
         proceeds={"to": [{"asset": "SPY", "share": 1.0}]},
     )
 
-    assert _compiled(raw)[index] == reference_rule(
-        "fgi_downshift_dca_sell",
+    assert _compiled(raw)[index] == fgi_downshift_rule(
         priority=10 * (index + 1),
         cooldown_days=3,
         sell_step=0.02,

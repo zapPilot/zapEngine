@@ -8,11 +8,11 @@ from src.services.backtesting.portfolio_rules.base import (
     ProceedsRouting,
 )
 from tests.services.backtesting.portfolio_rules.helpers import snapshot, state
-from tests.services.backtesting.support.reference_rules import reference_rule
+from tests.services.backtesting.support.reference_rules import fgi_downshift_rule
 
 
 def test_downshift_sell_matches_greed_to_neutral_transition() -> None:
-    rule = reference_rule("fgi_downshift_dca_sell")
+    rule = fgi_downshift_rule()
     rule_snapshot = snapshot(
         assets={
             "SPY": state(symbol="SPY"),
@@ -37,7 +37,7 @@ def test_downshift_sell_matches_greed_to_neutral_transition() -> None:
 
 
 def test_downshift_sell_uses_macro_fgi_for_spy() -> None:
-    rule = reference_rule("fgi_downshift_dca_sell")
+    rule = fgi_downshift_rule()
     rule_snapshot = snapshot(
         assets={
             "SPY": state(
@@ -64,7 +64,7 @@ def test_downshift_sell_uses_macro_fgi_for_spy() -> None:
 
 
 def test_downshift_sell_ignores_non_transition_days() -> None:
-    rule = reference_rule("fgi_downshift_dca_sell")
+    rule = fgi_downshift_rule()
     rule_snapshot = snapshot(
         assets={"BTC": state(symbol="BTC", fgi_regime="greed")},
         previous={"BTC": "greed"},
@@ -75,8 +75,7 @@ def test_downshift_sell_ignores_non_transition_days() -> None:
 
 
 def test_the_regimes_of_a_downshift_are_configurable() -> None:
-    rule = reference_rule(
-        "fgi_downshift_dca_sell",
+    rule = fgi_downshift_rule(
         from_regimes=frozenset({FgiRegime.EXTREME_GREED}),
         to_regimes=frozenset({FgiRegime.GREED}),
     )
@@ -96,9 +95,7 @@ def test_the_regimes_of_a_downshift_are_configurable() -> None:
 
 
 def test_downshift_proceeds_can_be_routed() -> None:
-    rule = reference_rule(
-        "fgi_downshift_dca_sell", proceeds=ProceedsRouting(to=(("SPY", 0.5),))
-    )
+    rule = fgi_downshift_rule(proceeds=ProceedsRouting(to=(("SPY", 0.5),)))
     rule_snapshot = snapshot(
         assets={"BTC": state(symbol="BTC", fgi_regime="neutral")},
         current={"btc": 0.40, "eth": 0.0, "spy": 0.0, "stable": 0.60, "alt": 0.0},

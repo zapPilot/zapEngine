@@ -76,7 +76,6 @@ def test_the_reference_rules_are_ranked_by_their_position_in_the_spec() -> None:
         ("eth_btc_ratio_rotation", 30),
         ("eth_btc_deviation_dca", 40),
         ("dma_overextension_dca_sell", 50),
-        ("fgi_downshift_dca_sell", 60),
     ]
 
 

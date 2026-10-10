@@ -16,11 +16,20 @@ from src.services.backtesting.portfolio_rules.components import (
     PortfolioRuleComponents,
     SignalSettings,
 )
-from src.services.backtesting.spec import StrategySpec, compile_spec, load_spec
+from src.services.backtesting.spec import (
+    StrategySpec,
+    compile_spec,
+    load_spec,
+    parse_spec,
+)
 from src.services.backtesting.strategies.rule_based_portfolio import (
     RuleBasedPortfolioStrategy,
 )
-from tests.services.backtesting.spec.helpers import REFERENCE_REF
+from tests.services.backtesting.spec.helpers import (
+    REFERENCE_REF,
+    reference_raw,
+    with_fgi_downshift,
+)
 
 _RuleT = TypeVar("_RuleT", bound=PortfolioRule)
 
@@ -48,6 +57,15 @@ def reference_rule(name: str, **overrides: Any) -> Any:
     Returns ``Any`` so a test can read the rule's own fields and replace them.
     """
     rule = next(rule for rule in reference_rules() if rule.name == name)
+    return replace(rule, **overrides) if overrides else rule  # type: ignore[type-var]
+
+
+def fgi_downshift_rule(**overrides: Any) -> Any:
+    """The FGI downshift trim version 1 of the reference ran, with ``overrides``.
+
+    Version 2 dropped it from the reference; the kind is still in the vocabulary.
+    """
+    rule = compile_spec(parse_spec(with_fgi_downshift(reference_raw()))).rules[-1]
     return replace(rule, **overrides) if overrides else rule  # type: ignore[type-var]
 
 

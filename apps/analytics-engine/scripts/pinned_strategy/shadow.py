@@ -1,4 +1,8 @@
-"""Instance-scoped EVM instrumentation of the unchanged Python production strategy."""
+"""Instance-scoped EVM instrumentation of the unchanged Python rule strategy.
+
+The contract implements version 1's exit, one cooldown for the whole rule, so the
+strategy it shadows is ``benchmark.slice_spec()``: the reference with that exit.
+"""
 
 from __future__ import annotations
 
@@ -65,6 +69,11 @@ class Shadow:
             for rule in strategy.decision_policy.rules
             if isinstance(rule, CrossDownExitRule)
         )
+        if self.rule.cooldown_keyed_by_trigger_symbol:
+            raise ValueError(
+                "The contract keeps one exit cooldown for the whole rule; shadow "
+                "benchmark.slice_spec(), not an exit with a cooldown per asset"
+            )
         self.config = PortfolioRuleConfig()
         self.install()
 

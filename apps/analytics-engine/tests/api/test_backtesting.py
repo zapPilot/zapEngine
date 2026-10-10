@@ -65,7 +65,7 @@ def _strategy_parameters() -> dict[str, object]:
     return {"signal_id": "dma_fgi_portfolio_rules_signal", "spec_ref": SPEC_REF}
 
 
-SPEC_REF = "reference/dma_fgi@1#a22bccfabb4b"
+SPEC_REF = "reference/dma_fgi@2#ffc3614028fb"
 
 
 def _compare_payload(**overrides: object) -> dict[str, object]:

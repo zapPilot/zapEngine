@@ -64,12 +64,14 @@ Fires on a day an asset crosses above its DMA. Under `equal_weight` the portfoli
 
 Rotates between BTC and ETH when the ETH/BTC ratio crosses its 200-day DMA.
 
+It has no cooldown of its own: every rotation starts the ratio signal's cross
+cooldown (`signals.ratio`), which is what holds the next rotation back.
+
 Fires when the ETH/BTC ratio crosses its own 200-day DMA. A cross up sweeps `cross_up.sources` into `cross_up.destination`, a cross down does the same with `cross_down`. It starts the ratio cross cooldown (`signals.ratio`).
 
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `id` | string `^[a-z][a-z0-9_]{2,47}$` | Name of the rule in decision traces. |
-| `cooldown_days` | integer (>= 0, <= 365) \| null | Days the rule stays off after it trades. Null: no cooldown of its own, so the ratio signal's cross cooldown (`signals.ratio`), which every rotation starts, is what holds the next rotation back. *(tunable)* *(optional, default `null`)* |
 | `cross_up` | object | Move when the ratio crosses above its DMA (ETH is the stronger leg). |
 | `cross_up.sources` | array of `"SPY"` \| `"BTC"` \| `"ETH"` \| `"STABLE"` | Holdings swept into the destination. |
 | `cross_up.destination` | `"SPY"` \| `"BTC"` \| `"ETH"` \| `"STABLE"` | Holding that receives everything. |

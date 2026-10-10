@@ -29,7 +29,6 @@ REFERENCE_LEAVES = [
     "/signals/ratio/cross_cooldown_days",
     "/rules[cross_down_exit]/cooldown_days",
     "/rules[cross_up_equal_weight]/cooldown_days",
-    "/rules[eth_btc_ratio_rotation]/cooldown_days",
     "/rules[eth_btc_deviation_dca]/tiers/0/threshold",
     "/rules[eth_btc_deviation_dca]/tiers/0/rotation_fraction",
     "/rules[eth_btc_deviation_dca]/tiers/0/cooldown_days",
@@ -46,9 +45,6 @@ REFERENCE_LEAVES = [
     "/rules[dma_overextension_dca_sell]/fgi_multipliers/neutral",
     "/rules[dma_overextension_dca_sell]/fgi_multipliers/greed",
     "/rules[dma_overextension_dca_sell]/fgi_multipliers/extreme_greed",
-    "/rules[dma_overextension_dca_sell]/proceeds/to/0/share",
-    "/rules[fgi_downshift_dca_sell]/cooldown_days",
-    "/rules[fgi_downshift_dca_sell]/sell_step",
 ]
 
 
@@ -242,12 +238,15 @@ def test_the_reference_has_live_dormant_and_dead_knobs(spec, bundles) -> None:
 
     # A price touching its average is rare: only the stress history shows it.
     assert status["/signals/dma/cross_on_touch"].status == DORMANT
-    # One cooldown already masks the other: nothing moves.
+    # Per asset, the exit's cooldown sits behind that asset's cross cooldown:
+    # one stress day moves.
+    assert status["/rules[cross_down_exit]/cooldown_days"].status == DORMANT
+    # Every later ratio cross here is a whipsaw within two weeks of a rotation,
+    # which 15 or 60 days of cooldown block alike: nothing moves.
     assert status["/signals/ratio/cross_cooldown_days"].status == DEAD
     btc = status["/signals/dma/cross_cooldown_days/BTC"]
     assert (btc.status, btc.one_sided) == (LIVE, True)
-    assert status["/rules[cross_down_exit]/cooldown_days"].status == LIVE
-    assert report.counts == {LIVE: 2, DORMANT: 1, DEAD: 1, UNPROBED: 0}
+    assert report.counts == {LIVE: 1, DORMANT: 2, DEAD: 1, UNPROBED: 0}
 
 
 def test_the_report_names_its_evidence(spec, bundles) -> None:
@@ -263,7 +262,7 @@ def test_the_report_names_its_evidence(spec, bundles) -> None:
     assert leaf["pointer"] == "/signals/dma/cross_on_touch"
     [probe] = leaf["probes"]
     assert probe["direction"] == "flip" and probe["value"] is False
-    assert probe["days_differing"] == {"regimes": 0, "stress": 108}
+    assert probe["days_differing"] == {"regimes": 0, "stress": 59}
 
 
 def test_a_knob_with_no_perturbation_is_still_listed_as_unprobed(

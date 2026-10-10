@@ -15,6 +15,9 @@ from src.services.backtesting.portfolio_rules.dma_overextension_dca_sell import 
 from tests.services.backtesting.portfolio_rules.helpers import snapshot, state
 from tests.services.backtesting.support.reference_rules import reference_rule
 
+# Version 1 of the reference sent half of every trim into SPY.
+HALF_TO_SPY = ProceedsRouting(to=(("SPY", 0.5),))
+
 
 def _rule_with_multiplier(
     regime: FgiRegime,
@@ -30,8 +33,8 @@ def _rule_with_multiplier(
     )
 
 
-def test_btc_overextension_routes_50_50_spy_stable() -> None:
-    rule = reference_rule("dma_overextension_dca_sell")
+def test_btc_overextension_can_route_half_its_proceeds_to_spy() -> None:
+    rule = reference_rule("dma_overextension_dca_sell", proceeds=HALF_TO_SPY)
     initial_spy = 0.20
     initial_stable = 0.10
     rule_snapshot = snapshot(
@@ -67,8 +70,8 @@ def test_btc_overextension_routes_50_50_spy_stable() -> None:
     assert intent.diagnostics["portfolio_rule_assets"] == ["BTC"]
 
 
-def test_spy_overextension_self_rebuys_half() -> None:
-    rule = reference_rule("dma_overextension_dca_sell")
+def test_a_spy_trim_routed_half_to_spy_rebuys_half() -> None:
+    rule = reference_rule("dma_overextension_dca_sell", proceeds=HALF_TO_SPY)
     initial_stable = 0.10
     rule_snapshot = snapshot(
         assets={
@@ -156,8 +159,8 @@ def test_extreme_greed_multiplier_tightens_btc_overextension_threshold() -> None
     assert intent.diagnostics["portfolio_rule_assets"] == ["BTC"]
 
 
-def test_overextension_proceeds_can_be_routed_to_stable_only() -> None:
-    rule = reference_rule("dma_overextension_dca_sell", proceeds=ProceedsRouting())
+def test_the_reference_trims_into_stable_only() -> None:
+    rule = reference_rule("dma_overextension_dca_sell")
     rule_snapshot = snapshot(
         assets={"BTC": state(symbol="BTC", zone="above", dma_distance=0.21)},
         current={"btc": 0.40, "eth": 0.0, "spy": 0.0, "stable": 0.60, "alt": 0.0},
