@@ -26,10 +26,11 @@ def test_recorded_history(touch):
     except BundleError:
         pytest.skip("No recorded production history; an operator records prod:latest")
     history = bundle.history()
+    prices, _, start, end = history
     with shadow_compare(strict_distance=True) as metrics:
         run_compare(history, touch)
-    # The first 14 rows are warmup; every later row is an evaluated day.
-    assert metrics.days == len(history[0]) - 14
+    # Rows before the window are warmup; every row inside it is an evaluated day.
+    assert metrics.days == sum(start <= row["date"] <= end for row in prices)
     assert metrics.matched > 0
 
 
