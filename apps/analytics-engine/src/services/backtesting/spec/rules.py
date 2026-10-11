@@ -30,11 +30,6 @@ from src.services.backtesting.portfolio_rules.eth_btc_ratio_rotation import (
 from src.services.backtesting.portfolio_rules.fgi_downshift_dca_sell import (
     FgiDownshiftDcaSellRule,
 )
-from src.services.backtesting.portfolio_rules.spy_latch import SpyLatchRule
-from src.services.backtesting.portfolio_rules.technical_experiments import (
-    TechnicalDcaBuyRule,
-    TechnicalDcaSellRule,
-)
 from src.services.backtesting.portfolio_rules.trend_dca_entry import TrendDcaEntryRule
 from src.services.backtesting.portfolio_rules.trend_guard import TrendGuardRule
 from src.services.backtesting.spec.common import (
@@ -54,7 +49,6 @@ from src.services.backtesting.spec.common import (
     Slug,
     SpecModel,
 )
-from src.services.backtesting.spec.triggers import TriggerSpec
 
 REGIME_ORDER: tuple[Regime, ...] = (
     "extreme_fear",
@@ -141,11 +135,14 @@ class RotationLeg(SpecModel):
 
 
 class RatioCrossRotation(SpecModel):
-    """Rotates between BTC and ETH when the ETH/BTC ratio crosses its 200-day DMA."""
+    """Rotates between BTC and ETH when the ETH/BTC ratio crosses its 200-day DMA.
+
+    It has no cooldown of its own: every rotation starts the ratio signal's cross
+    cooldown (`signals.ratio`), which is what holds the next rotation back.
+    """
 
     kind: Literal["ratio_cross_rotation"]
     id: RuleId
-    cooldown_days: RuleCooldown
     cross_up: RotationLeg = Field(
         description="Move when the ratio crosses above its DMA (ETH is the stronger leg).",
     )
@@ -157,7 +154,7 @@ class RatioCrossRotation(SpecModel):
         return EthBtcRatioRotationRule(
             name=self.id,
             priority=priority,
-            cooldown_days=self.cooldown_days,
+            cooldown_days=0,
             up_sources=_keys(self.cross_up.sources),
             up_destination=self.cross_up.destination.lower(),
             down_sources=_keys(self.cross_down.sources),
@@ -303,57 +300,6 @@ class FgiDownshiftTrim(SpecModel):
         )
 
 
-class TechnicalTrim(SpecModel):
-    """Sells a slice of an asset above its DMA when a technical signal fires."""
-
-    kind: Literal["technical_trim"]
-    id: RuleId
-    cooldown_days: RuleCooldown
-    sell_step: SellStep
-    sizing: SizingSpec = Field(
-        default=ABSOLUTE_SIZING,
-        description="How `sell_step` is read: of the portfolio, or of the position.",
-    )
-    trigger: TriggerSpec = Field(
-        description="The technical signal, read for each asset that is above its DMA.",
-    )
-    proceeds: ProceedsSpec = Field(description="Where the cash from the sales goes.")
-
-    def to_rule(self, priority: int) -> PortfolioRule:
-        return TechnicalDcaSellRule(
-            name=self.id,
-            priority=priority,
-            description=_research_description("trim", self.trigger.signal),
-            predicate=self.trigger.to_trigger(),
-            cooldown_days=self.cooldown_days,
-            sell_step=self.sell_step,
-            sizing=self.sizing.to_sizing(),
-            proceeds=self.proceeds.to_routing(),
-        )
-
-
-class TechnicalAdd(SpecModel):
-    """Buys into an asset above its DMA, out of stable, when a technical signal fires."""
-
-    kind: Literal["technical_add"]
-    id: RuleId
-    cooldown_days: RuleCooldown
-    buy_step: BuyStep
-    trigger: TriggerSpec = Field(
-        description="The technical signal, read for each asset that is above its DMA.",
-    )
-
-    def to_rule(self, priority: int) -> PortfolioRule:
-        return TechnicalDcaBuyRule(
-            name=self.id,
-            priority=priority,
-            description=_research_description("buy", self.trigger.signal),
-            predicate=self.trigger.to_trigger(),
-            cooldown_days=self.cooldown_days,
-            buy_step=self.buy_step,
-        )
-
-
 class TrendDcaEntry(SpecModel):
     """Buys into an asset above its DMA in steps, out of stable, up to a weight cap."""
 
@@ -385,8 +331,6 @@ RuleModel = (
     | RatioDeviationRotation
     | DmaOverextensionTrim
     | FgiDownshiftTrim
-    | TechnicalTrim
-    | TechnicalAdd
     | TrendDcaEntry
 )
 RuleSpec = Annotated[RuleModel, Field(discriminator="kind")]
@@ -394,26 +338,6 @@ RuleSpec = Annotated[RuleModel, Field(discriminator="kind")]
 RULE_KINDS: frozenset[str] = frozenset(
     get_args(model.model_fields["kind"].annotation)[0] for model in get_args(RuleModel)
 )
-
-
-class SpyLatchOverlay(SpecModel):
-    """After SPY crosses up, parks fresh stable in SPY for a few days."""
-
-    kind: Literal["spy_latch"]
-    id: Slug = Field(description="Name of the overlay in decision traces.")
-    follow_through_days: int = Field(
-        ge=1,
-        le=90,
-        description="Days after the cross-up during which new stable goes to SPY.",
-        json_schema_extra=TUNABLE,
-    )
-
-    def to_rule(self, priority: int) -> PortfolioRule:
-        return SpyLatchRule(
-            name=self.id,
-            priority=priority,
-            follow_through_days=self.follow_through_days,
-        )
 
 
 class TrendGuardOverlay(SpecModel):
@@ -456,17 +380,9 @@ class TrendGuardOverlay(SpecModel):
         )
 
 
-OverlayModel = SpyLatchOverlay | TrendGuardOverlay
-OverlaySpec = Annotated[OverlayModel, Field(discriminator="kind")]
-# The tag each overlay model carries, as pydantic reports it in an error location.
-OVERLAY_KINDS: frozenset[str] = frozenset(
-    get_args(model.model_fields["kind"].annotation)[0]
-    for model in get_args(OverlayModel)
-)
-
-
-def _research_description(verb: str, signal: str) -> str:
-    return f"Research-only {verb} on the {signal} signal."
+# One overlay kind today. A second one makes this a union discriminated by
+# ``kind``, as the rules are.
+OverlaySpec = TrendGuardOverlay
 
 
 def _keys(holdings: tuple[Holding, ...]) -> tuple[str, ...]:
@@ -484,8 +400,6 @@ __all__ = [
     "DmaCrossUpRebalance",
     "DmaOverextensionTrim",
     "FgiDownshiftTrim",
-    "OVERLAY_KINDS",
-    "OverlayModel",
     "OverlaySpec",
     "REGIME_ORDER",
     "RULE_KINDS",
@@ -493,9 +407,6 @@ __all__ = [
     "RatioDeviationRotation",
     "RuleModel",
     "RuleSpec",
-    "SpyLatchOverlay",
-    "TechnicalAdd",
-    "TechnicalTrim",
     "TrendDcaEntry",
     "TrendGuardOverlay",
 ]

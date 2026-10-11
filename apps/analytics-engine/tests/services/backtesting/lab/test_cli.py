@@ -179,7 +179,10 @@ def test_lock_creates_the_file_when_there_is_none(
     assert out["artifacts"] == [str(strategies / LOCK_FILENAME)]
     assert json.loads((strategies / LOCK_FILENAME).read_text())["specs"][
         REFERENCE_REF
-    ] == {"version": 1, "behavior_hash": out["result"]["behavior_hash"]}
+    ] == {
+        "version": reference_raw()["version"],
+        "behavior_hash": out["result"]["behavior_hash"],
+    }
 
 
 def test_lock_refuses_a_behavior_change_without_a_version_bump(
@@ -201,13 +204,16 @@ def test_lock_follows_a_version_bump(
     strategies: Path,
 ) -> None:
     raw = with_value(reference_raw(), ("signals", "warmup_days"), 15)
-    raw["version"] = 2
+    raw["version"] += 1
     _write_reference(strategies, raw)
 
     code, out = _run(capsys, strategies, "spec", "lock", REFERENCE_REF)
 
     assert code == 0
-    assert (out["result"]["changed"], out["result"]["version"]) == (True, 2)
+    assert (out["result"]["changed"], out["result"]["version"]) == (
+        True,
+        raw["version"],
+    )
 
 
 def test_lock_only_pins_references(
@@ -840,6 +846,8 @@ def test_diff_names_the_changes_and_follows_them_on_a_bundle(
         ("/description", "changed"),
         ("/id", "changed"),
         ("/rules[cross_down_exit]", "removed"),
+        # A new candidate starts at version 1.
+        ("/version", "changed"),
     ]
     comparison = out["result"]["comparison"]
     assert comparison["first_divergence"]["base"]["rule"] == "cross_down_exit"
@@ -922,3 +930,36 @@ def test_the_report_hash_does_not_depend_on_the_hash_seed(tmp_path: Path) -> Non
         hashes.append(json.loads(done.stdout)["result"]["report_hash"])
 
     assert hashes[0] == hashes[1]
+
+
+def test_the_spec_commands_run_while_the_reference_does_not_match_its_lock() -> None:
+    """A version bump is locked with `spec lock`, so the lab has to start while
+    the reference and its lock disagree; running the reference still refuses."""
+    import subprocess
+
+    from src.services.backtesting.lab.bundle import APP_ROOT
+
+    probe = "\n".join(
+        [
+            "from src.services.backtesting.spec import loader",
+            "def drifted(ref, directory=loader.STRATEGIES_DIR):",
+            "    raise loader.SpecLockError(f'{ref} does not match its lock')",
+            "loader.load_locked_spec = drifted",
+            "from src.services.backtesting.lab.cli import main",
+            "assert main(['spec', 'hash', 'reference/dma_fgi']) == 0",
+            "from src.services.backtesting.strategy_registry import get_strategy_recipe",
+            "try:",
+            "    get_strategy_recipe('dma_fgi_portfolio_rules')",
+            "except loader.SpecLockError:",
+            "    print('refused')",
+        ]
+    )
+    done = subprocess.run(
+        [sys.executable, "-c", probe],
+        cwd=APP_ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    assert done.stdout.splitlines()[-1] == "refused"

@@ -40,9 +40,7 @@ class ModelReplay:
 class BacktestingServiceProtocol(Protocol):
     """Protocol for the deliberately lazy-loaded backtesting service."""
 
-    async def run_compare_v3(
-        self, request: BacktestCompareRequestV3
-    ) -> BacktestResponse:
+    def run_compare_v3(self, request: BacktestCompareRequestV3) -> BacktestResponse:
         """Run the v3 multi-config strategy comparison endpoint."""
         ...  # pragma: no cover
 

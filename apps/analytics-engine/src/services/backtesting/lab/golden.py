@@ -18,7 +18,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections import Counter
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -41,12 +41,10 @@ SCENARIOS: tuple[tuple[Scenario, int], ...] = (
     ("stress", 3),
 )
 STRATEGY = "strategy"
-# What a golden pins by default: the production reference, one spec that uses
-# every research kind, the SPY latch overlay and the trade quota guard, and one
-# that uses every knob and kind added after the reference was locked.
+# What a golden pins by default: the production reference, and one spec that
+# uses every knob and kind added after the reference was locked.
 DEFAULT_SPECS = (
     "reference/dma_fgi",
-    "tests/fixtures/strategy_specs/all_research_rules.json",
     "tests/fixtures/strategy_specs/v2_vocabulary.json",
 )
 
@@ -105,27 +103,38 @@ def trace_summary(response: BacktestResponse, key: str) -> dict[str, Any]:
 
 
 def run_scenario(
-    spec: StrategySpec,
+    specs: Sequence[StrategySpec],
     scenario: Scenario,
     seed: int,
     *,
     days: int = DAYS,
-) -> dict[str, Any]:
-    """The summary of ``spec`` run over one synthetic history."""
+) -> list[dict[str, Any]]:
+    """The summary of each of ``specs`` over one synthetic history, in order.
+
+    The specs run side by side in one simulation, each with its own portfolio,
+    so the history is built once however many specs a golden pins.
+    """
     bundle = synthetic_bundle(f"synthetic:{scenario}?seed={seed}&days={days}")
     config = EvalConfig(leave_one_out=False, benchmarks=())
-    response = run_specs({STRATEGY: spec}, prepare(bundle, config), config)
-    return trace_summary(response, STRATEGY)
+    keys = [f"{STRATEGY}_{index}" for index in range(len(specs))]
+    response = run_specs(
+        dict(zip(keys, specs, strict=True)), prepare(bundle, config), config
+    )
+    return [trace_summary(response, key) for key in keys]
 
 
-def entry_for(spec: StrategySpec) -> dict[str, Any]:
-    """What a golden file holds for one spec."""
+def entries_for(specs: Mapping[str, StrategySpec]) -> dict[str, dict[str, Any]]:
+    """What a golden file holds for each spec, keyed like ``specs``."""
+    runs = {
+        scenario_key(scenario, seed): run_scenario(list(specs.values()), scenario, seed)
+        for scenario, seed in SCENARIOS
+    }
     return {
-        "behavior_hash": behavior_hash(spec),
-        "scenarios": {
-            scenario_key(scenario, seed): run_scenario(spec, scenario, seed)
-            for scenario, seed in SCENARIOS
-        },
+        ref: {
+            "behavior_hash": behavior_hash(spec),
+            "scenarios": {key: summaries[index] for key, summaries in runs.items()},
+        }
+        for index, (ref, spec) in enumerate(specs.items())
     }
 
 
@@ -200,7 +209,7 @@ __all__ = [
     "STRATEGY",
     "decision_trace",
     "differences",
-    "entry_for",
+    "entries_for",
     "matched_rule_name",
     "read",
     "render",

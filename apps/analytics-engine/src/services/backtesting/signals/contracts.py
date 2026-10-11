@@ -20,7 +20,6 @@ class StatefulSignalComponent(Protocol):
 
     signal_id: str
     market_data_requirements: MarketDataRequirements
-    warmup_lookback_days: int
 
     def reset(self) -> None: ...
 
@@ -94,9 +93,7 @@ class SignalContext:
     date: date
     price: float
     sentiment: dict[str, Any] | None
-    price_history: list[float]
     portfolio_value: float
-    regime_history: list[str] = field(default_factory=list)
     ath_event: str | None = None
     extra_data: dict[str, Any] = field(default_factory=dict)
 
@@ -105,7 +102,6 @@ class SignalContext:
         cls,
         context: StrategyContext,
         ath_tracker: ATHTracker | None = None,
-        regime_history: list[str] | None = None,
         extra_data: dict[str, Any] | None = None,
     ) -> SignalContext:
         """Create SignalContext from StrategyContext.
@@ -113,7 +109,6 @@ class SignalContext:
         Args:
             context: Strategy execution context
             ath_tracker: Optional ATH tracker for ATH event detection
-            regime_history: Optional regime history for pattern matching
             extra_data: Optional external indicator payload for runtimes
 
         Returns:
@@ -123,9 +118,7 @@ class SignalContext:
             date=context.date,
             price=context.price,
             sentiment=context.sentiment,
-            price_history=list(context.price_history),
             portfolio_value=_resolve_signal_context_portfolio_value(context),
-            regime_history=list(regime_history) if regime_history else [],
             ath_event=_resolve_signal_context_ath_event(ath_tracker),
             extra_data=_resolve_signal_context_extra_data(
                 context=context,

@@ -72,9 +72,7 @@ class PortfolioSnapshot:
     crypto_fgi_value: float | None = None
     cycle_open_per_symbol: Mapping[str, bool] = field(default_factory=dict)
     eth_btc_ratio_state: EthBtcRatioState | None = None
-    last_trade_date: date | None = None
     current_date: date | None = None
-    trade_dates: tuple[date, ...] = ()
 
 
 # jscpd:ignore-start
@@ -495,36 +493,8 @@ class _DcaRuleBase:
         del config
         return bool(self._matching_symbols(snapshot))
 
-    def build_intent(
-        self,
-        snapshot: PortfolioSnapshot,
-        *,
-        config: PortfolioRuleConfig,
-    ) -> AllocationIntent:
-        return self._decorate_intent(
-            self._build_base_intent(snapshot, config=config),
-            snapshot,
-        )
-
     def _matching_symbols(self, snapshot: PortfolioSnapshot) -> list[str]:
         raise NotImplementedError
-
-    def _build_base_intent(
-        self,
-        snapshot: PortfolioSnapshot,
-        *,
-        config: PortfolioRuleConfig,
-    ) -> AllocationIntent:
-        raise NotImplementedError
-
-    def _decorate_intent(
-        self,
-        intent: AllocationIntent,
-        snapshot: PortfolioSnapshot,
-    ) -> AllocationIntent:
-        """Single seam for rules that attach extra diagnostics to their intent."""
-        del snapshot
-        return intent
 
 
 class ProceedsRoutingMixin:
@@ -543,7 +513,7 @@ class DcaSellRuleBase(_DcaRuleBase):
     sell_step: float
     sizing: SizingStrategy
 
-    def _build_base_intent(
+    def build_intent(
         self,
         snapshot: PortfolioSnapshot,
         *,
@@ -572,7 +542,7 @@ class DcaBuyRuleBase(_DcaRuleBase):
     rule_group: RuleGroup
     sizing: SizingStrategy
 
-    def _build_base_intent(
+    def build_intent(
         self,
         snapshot: PortfolioSnapshot,
         *,

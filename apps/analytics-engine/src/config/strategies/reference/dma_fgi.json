@@ -1,8 +1,8 @@
 {
   "spec_format": "strategy-spec/1",
   "id": "dma_fgi",
-  "version": 1,
-  "description": "The production reference: SPY, BTC and ETH follow their 200-day DMA, BTC and ETH rotate on the ETH/BTC ratio, and strength is sold into on greed.",
+  "version": 2,
+  "description": "The production reference: SPY, BTC and ETH follow their 200-day DMA, each with its own exit cooldown; BTC and ETH rotate on the ETH/BTC ratio; and an asset far above its DMA is trimmed into stable, sooner on greed.",
   "signals": {
     "warmup_days": 14,
     "dma": {
@@ -17,6 +17,7 @@
       "kind": "dma_cross_down_exit",
       "id": "cross_down_exit",
       "cooldown_days": 30,
+      "cooldown_scope": "trigger_symbol",
       "peer_groups": [["SPY"], ["BTC", "ETH"]],
       "proceeds": { "to": [] }
     },
@@ -28,7 +29,6 @@
     {
       "kind": "ratio_cross_rotation",
       "id": "eth_btc_ratio_rotation",
-      "cooldown_days": 30,
       "cross_up": { "sources": ["BTC", "STABLE"], "destination": "ETH" },
       "cross_down": { "sources": ["ETH"], "destination": "BTC" }
     },
@@ -65,15 +65,6 @@
         "greed": 0.5,
         "extreme_greed": 0.33
       },
-      "proceeds": { "to": [{ "asset": "SPY", "share": 0.5 }] }
-    },
-    {
-      "kind": "fgi_downshift_trim",
-      "id": "fgi_downshift_dca_sell",
-      "cooldown_days": 7,
-      "sell_step": 0.05,
-      "from_regimes": ["greed", "extreme_greed"],
-      "to_regimes": ["neutral", "fear", "extreme_fear"],
       "proceeds": { "to": [] }
     }
   ],

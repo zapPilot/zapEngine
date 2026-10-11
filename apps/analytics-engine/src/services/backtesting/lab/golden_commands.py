@@ -50,11 +50,8 @@ def _spec_arg(ref: str) -> str:
 
 
 def _entries_for(refs: list[str], context: Context) -> dict[str, dict[str, Any]]:
-    entries = {}
-    for ref in refs:
-        _, spec = load_spec_or_fail(_spec_arg(ref), context)
-        entries[ref] = golden.entry_for(spec)
-    return entries
+    specs = {ref: load_spec_or_fail(_spec_arg(ref), context)[1] for ref in refs}
+    return golden.entries_for(specs)
 
 
 def _recorded(path: Path) -> dict[str, dict[str, Any]]:

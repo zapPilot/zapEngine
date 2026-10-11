@@ -6,6 +6,7 @@ from decimal import Decimal
 
 import pytest
 
+from scripts.pinned_strategy.benchmark import run_compare, slice_spec
 from scripts.pinned_strategy.codec import (
     EMPTY_STATES,
     WAD,
@@ -16,9 +17,9 @@ from scripts.pinned_strategy.codec import (
 from scripts.pinned_strategy.compile import ARTIFACT, compile_source
 from scripts.pinned_strategy.evm import SliceEVM
 from scripts.pinned_strategy.shadow import shadow_compare
-from scripts.pinned_strategy.touch_mode import cross_on_touch_mode
 from src.models.backtesting import BacktestCompareConfigV3, BacktestCompareRequestV3
 from src.services.backtesting.execution.compare import run_compare_v3_on_data
+from src.services.backtesting.spec import load_spec
 from src.services.backtesting.validation.event_histories import synthetic_event_history
 from tests.services.backtesting.support.reference_rules import reference_rule
 from tests.test_validation_events import EVENTS
@@ -29,7 +30,31 @@ def evm():
     return SliceEVM()
 
 
-def compare(prices, sentiments, start, end, touch):
+@pytest.mark.parametrize("touch", [True, False])
+@pytest.mark.parametrize("event", EVENTS, ids=lambda event: event.id)
+def test_validation_shadow(evm, event, touch):
+    history = synthetic_event_history(event)
+    baseline = run_compare(history, touch)
+    with shadow_compare(evm, strict_distance=True) as metrics:
+        actual = run_compare(history, touch)
+    assert actual == baseline
+    assert metrics.days > 0
+
+
+def test_the_slice_is_the_reference_with_version_1s_exit():
+    """The contract keeps one exit cooldown for the rule; the reference, since
+    version 2, keeps one per asset. Nothing else differs."""
+    reference = load_spec("reference/dma_fgi").model_dump(mode="json")
+    sliced = slice_spec().model_dump(mode="json")
+
+    assert reference["rules"][0]["cooldown_scope"] == "trigger_symbol"
+    assert sliced["rules"][0]["cooldown_scope"] == "rule"
+    sliced["rules"][0]["cooldown_scope"] = "trigger_symbol"
+    assert sliced == reference
+
+
+def test_the_shadow_refuses_an_exit_with_a_cooldown_per_asset(evm):
+    prices, sentiments, start, end = synthetic_event_history(EVENTS[0])
     request = BacktestCompareRequestV3(
         token_symbol="BTC",
         start_date=start,
@@ -37,25 +62,16 @@ def compare(prices, sentiments, start, end, touch):
         total_capital=10000,
         configs=[
             BacktestCompareConfigV3(
-                config_id="slice",
-                strategy_id="dma_fgi_portfolio_rules",
-                params={},
+                config_id="reference", strategy_id="dma_fgi_portfolio_rules"
             )
         ],
     )
-    with cross_on_touch_mode(touch):
-        return run_compare_v3_on_data(prices, sentiments, request, start)
 
-
-@pytest.mark.parametrize("touch", [True, False])
-@pytest.mark.parametrize("event", EVENTS, ids=lambda event: event.id)
-def test_validation_shadow(evm, event, touch):
-    prices, sentiments, start, end = synthetic_event_history(event)
-    baseline = compare(prices, sentiments, start, end, touch)
-    with shadow_compare(evm, strict_distance=True) as metrics:
-        actual = compare(prices, sentiments, start, end, touch)
-    assert actual == baseline
-    assert metrics.days > 0
+    with (
+        shadow_compare(evm),
+        pytest.raises(ValueError, match="one exit cooldown for the whole rule"),
+    ):
+        run_compare_v3_on_data(prices, sentiments, request, start)
 
 
 def test_artifact():

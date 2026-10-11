@@ -74,10 +74,10 @@ operator's live analytics suggestion and sends Telegram only when
 quiet on Telegram and remain visible in the authenticated Strategy tab.
 
 The message explains the matched rule, threshold evidence, allocation change,
-cooldown, and trade quota. Its **☑️ Done** button records an executed decision
+and cooldown. Its **☑️ Done** button records an executed decision
 in `strategy_trade_history` as the operator's execution log only; analytics no
 longer reads it. The suggestion follows the backtest model's last bar, which
-carries its own cooldowns and trade quota. It never records skipped decisions.
+carries its own cooldowns. It never records skipped decisions.
 
 Run this from an external Pipedream schedule after the alpha ETL daily refresh,
 at a different time from the 03:30 UTC public strategy-change broadcast. The

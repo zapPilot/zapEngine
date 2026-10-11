@@ -6,7 +6,6 @@ from src.services.backtesting.portfolio_rules.components import (
     PortfolioRuleComponents,
     SignalSettings,
 )
-from src.services.backtesting.risk import TradeQuotaGuard
 from src.services.backtesting.spec.model import StrategySpec
 from src.services.backtesting.spec.validation import require_valid
 
@@ -14,11 +13,11 @@ PRIORITY_STEP = 10
 
 
 def compile_spec(spec: StrategySpec) -> PortfolioRuleComponents:
-    """Rules, guards and signal settings for ``spec``.
+    """Rules and signal settings for ``spec``.
 
     Array order is precedence, so priorities are the position in the spec.
     Overlays follow the rules. Each call builds fresh rule objects, because
-    some rules (the SPY latch) carry state.
+    some (the trend guard) carry state.
     """
     require_valid(spec)
     ordered = [*spec.rules, *spec.overlays]
@@ -26,14 +25,6 @@ def compile_spec(spec: StrategySpec) -> PortfolioRuleComponents:
         rules=tuple(
             item.to_rule(priority=PRIORITY_STEP * (position + 1))
             for position, item in enumerate(ordered)
-        ),
-        risk_guards=tuple(
-            TradeQuotaGuard(
-                min_trade_interval_days=guard.min_trade_interval_days,
-                max_trades_7d=guard.max_trades_7d,
-                max_trades_30d=guard.max_trades_30d,
-            )
-            for guard in spec.guards
         ),
         signals=SignalSettings(
             warmup_days=spec.signals.warmup_days,

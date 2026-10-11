@@ -12,16 +12,17 @@ from tests.services.backtesting.spec.helpers import (
     issues_for,
     reference_raw,
     rule_index,
+    with_fgi_downshift,
     with_value,
     without,
 )
 
-SPY_LATCH = {"kind": "spy_latch", "id": "spy_latch", "follow_through_days": 14}
-QUOTA = {
-    "kind": "trade_quota",
-    "min_trade_interval_days": 3,
-    "max_trades_7d": None,
-    "max_trades_30d": None,
+TREND_GUARD = {
+    "kind": "trend_guard",
+    "id": "trend_guard",
+    "mode": "block_adds",
+    "below_dma_buffer": 0.02,
+    "confirm_days": 3,
 }
 
 
@@ -29,10 +30,9 @@ def test_reference_is_valid() -> None:
     assert issues_for(reference_raw()) == []
 
 
-def test_reference_with_a_guard_and_an_overlay_is_valid() -> None:
+def test_reference_with_an_overlay_is_valid() -> None:
     raw = reference_raw()
-    raw["guards"] = [QUOTA]
-    raw["overlays"] = [SPY_LATCH]
+    raw["overlays"] = [TREND_GUARD]
 
     assert issues_for(raw) == []
 
@@ -56,6 +56,12 @@ def test_reference_with_a_guard_and_an_overlay_is_valid() -> None:
             "/rules/0/cooldown_days",
             "greater_than_equal",
         ),
+        # The ratio signal's cross cooldown is the rotation's only cooldown.
+        (
+            lambda raw: with_value(raw, ("rules", 2, "cooldown_days"), 30),
+            "/rules/2/cooldown_days",
+            "extra_forbidden",
+        ),
         (
             lambda raw: with_value(
                 raw, ("rules", 3, "tiers", 0, "rotation_fraction"), 1.5
@@ -75,10 +81,15 @@ def test_reference_with_a_guard_and_an_overlay_is_valid() -> None:
         ),
         (
             lambda raw: with_value(
-                raw, ("overlays",), [{**SPY_LATCH, "follow_through_days": 0}]
+                raw, ("overlays",), [{**TREND_GUARD, "confirm_days": 0}]
             ),
-            "/overlays/0/follow_through_days",
+            "/overlays/0/confirm_days",
             "greater_than_equal",
+        ),
+        (
+            lambda raw: with_value(raw, ("guards",), [{"kind": "trade_quota"}]),
+            "/guards",
+            "too_long",
         ),
         (
             lambda raw: with_value(raw, ("spec_format",), "strategy-spec/2"),
@@ -91,10 +102,12 @@ def test_reference_with_a_guard_and_an_overlay_is_valid() -> None:
         "unknown-key",
         "unknown-kind",
         "rule-field-out-of-range",
+        "a-ratio-rotation-cooldown",
         "nested-field-out-of-range",
         "bad-slug",
         "no-rules",
         "overlay-field-out-of-range",
+        "a-guard",
         "unknown-format",
     ],
 )
@@ -134,22 +147,12 @@ def _duplicate_rule_id(raw: dict[str, Any]) -> dict[str, Any]:
 
 
 def _overlay_reuses_rule_id(raw: dict[str, Any]) -> dict[str, Any]:
-    raw["overlays"] = [{**SPY_LATCH, "id": raw["rules"][0]["id"]}]
+    raw["overlays"] = [{**TREND_GUARD, "id": raw["rules"][0]["id"]}]
     return raw
 
 
 def _two_overlays(raw: dict[str, Any]) -> dict[str, Any]:
-    raw["overlays"] = [SPY_LATCH, {**SPY_LATCH, "id": "another_latch"}]
-    return raw
-
-
-def _two_guards(raw: dict[str, Any]) -> dict[str, Any]:
-    raw["guards"] = [QUOTA, QUOTA]
-    return raw
-
-
-def _empty_guard(raw: dict[str, Any]) -> dict[str, Any]:
-    raw["guards"] = [{**QUOTA, "min_trade_interval_days": None}]
+    raw["overlays"] = [TREND_GUARD, {**TREND_GUARD, "id": "another_guard"}]
     return raw
 
 
@@ -157,8 +160,6 @@ SEMANTIC_CASES = [
     (_duplicate_rule_id, "/rules/1/id", "duplicate_id"),
     (_overlay_reuses_rule_id, "/overlays/0/id", "duplicate_id"),
     (_two_overlays, "/overlays/1", "duplicate_overlay"),
-    (_two_guards, "/guards/1", "duplicate_guard"),
-    (_empty_guard, "/guards/0", "empty_guard"),
     (
         lambda raw: with_value(
             raw, ("rules", _cross_down(raw), "peer_groups"), [[], ["BTC", "ETH"]]
@@ -250,14 +251,14 @@ SEMANTIC_CASES = [
     ),
     (
         lambda raw: with_value(
-            raw, ("rules", _downshift(raw), "from_regimes"), ["greed", "greed"]
+            with_fgi_downshift(raw), ("rules", 5, "from_regimes"), ["greed", "greed"]
         ),
         "/rules/5/from_regimes",
         "duplicate_regime",
     ),
     (
         lambda raw: with_value(
-            raw, ("rules", _downshift(raw), "to_regimes"), ["neutral", "greed"]
+            with_fgi_downshift(raw), ("rules", 5, "to_regimes"), ["neutral", "greed"]
         ),
         "/rules/5",
         "regimes_overlap",
@@ -309,7 +310,7 @@ def test_an_error_at_the_root_reads_as_a_slash() -> None:
 
 
 def test_regime_lists_are_order_insensitive() -> None:
-    raw = reference_raw()
+    raw = with_fgi_downshift(reference_raw())
     index = _downshift(raw)
     raw["rules"][index]["from_regimes"] = ["extreme_greed", "greed"]
 

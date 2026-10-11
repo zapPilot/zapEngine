@@ -31,7 +31,6 @@ and paste the printed dictionary.
 
 from __future__ import annotations
 
-import asyncio
 import pprint
 from typing import Any
 
@@ -106,10 +105,10 @@ DCA_GOLDEN: dict[tuple[str, int], dict[str, Any]] = {
 }
 
 
-async def _compare_like_the_snapshot(market: SyntheticMarket) -> BacktestResponse:
+def _compare_like_the_snapshot(market: SyntheticMarket) -> BacktestResponse:
     """Same request shape as the snapshot: inline strategy ids, empty params."""
     service = SyntheticMarketServices(market).build_backtesting_service()
-    return await service.run_compare_v3(
+    return service.run_compare_v3(
         BacktestCompareRequestV3(
             token_symbol="BTC",
             start_date=market.user_start_date,
@@ -123,15 +122,15 @@ async def _compare_like_the_snapshot(market: SyntheticMarket) -> BacktestRespons
     )
 
 
-async def _summaries(scenario: Scenario, seed: int) -> dict[str, dict[str, Any]]:
+def _summaries(scenario: Scenario, seed: int) -> dict[str, dict[str, Any]]:
     market = synthetic_market(seed=seed, scenario=scenario, days=DAYS)
-    response = await _compare_like_the_snapshot(market)
+    response = _compare_like_the_snapshot(market)
     return {strategy: golden_summary(response, strategy) for strategy in (RULES, DCA)}
 
 
 @pytest.mark.parametrize(("scenario", "seed"), sorted(DCA_GOLDEN))
-async def test_compare_engine_matches_golden(scenario: Scenario, seed: int) -> None:
-    summaries = await _summaries(scenario, seed)
+def test_compare_engine_matches_golden(scenario: Scenario, seed: int) -> None:
+    summaries = _summaries(scenario, seed)
 
     assert summaries[RULES] == RULES_GOLDEN[golden.scenario_key(scenario, seed)]
     assert summaries[DCA] == DCA_GOLDEN[(scenario, seed)]
@@ -159,14 +158,13 @@ def test_golden_runs_exercise_every_default_rule() -> None:
         "dma_overextension_dca_sell",
         "eth_btc_deviation_dca",
         "eth_btc_ratio_rotation",
-        "fgi_downshift_dca_sell",
         "regime_no_signal_hold",
     }
 
 
 if __name__ == "__main__":  # pragma: no cover - regeneration helper
     refreshed = {
-        (scenario, seed): asyncio.run(_summaries(scenario, seed))[DCA]
+        (scenario, seed): _summaries(scenario, seed)[DCA]
         for scenario, seed in sorted(DCA_GOLDEN)
     }
     pprint.pprint(refreshed, width=100, sort_dicts=False)

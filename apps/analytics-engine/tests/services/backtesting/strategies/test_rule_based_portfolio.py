@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import replace
 from datetime import date, timedelta
-from unittest.mock import Mock
 
 import pytest
 
@@ -26,7 +25,6 @@ from src.services.backtesting.portfolio_rules.components import (
 from src.services.backtesting.portfolio_rules.decision_policy import (
     RuleBasedPortfolioDecisionPolicy,
 )
-from src.services.backtesting.risk import TradeQuotaGuard
 from src.services.backtesting.signals.dma_gated_fgi.types import (
     DmaCooldownState,
     DmaMarketState,
@@ -39,6 +37,7 @@ from src.services.backtesting.strategies.rule_based_portfolio import (
 )
 from tests.services.backtesting.portfolio_rules.helpers import state
 from tests.services.backtesting.support.reference_rules import (
+    fgi_downshift_rule,
     reference_components,
     reference_rule,
     reference_rules,
@@ -58,7 +57,6 @@ def test_strategy_feature_summary_reflects_default_active_rules() -> None:
             "eth_btc_ratio_rotation",
             "eth_btc_deviation_dca",
             "dma_overextension_dca_sell",
-            "fgi_downshift_dca_sell",
         ],
         "ratio_rotation": True,
         "research_only": True,
@@ -91,7 +89,6 @@ def _context(
         date=context_date,
         price=prices["btc"],
         sentiment=sentiment or {"label": "neutral", "value": 50},
-        price_history=[prices["btc"]],
         portfolio=portfolio,
         price_map=prices,
         extra_data=extra_data,
@@ -137,25 +134,6 @@ def test_strategy_uses_the_atomic_rule_based_executor() -> None:
     strategy = reference_strategy()
 
     assert isinstance(strategy.execution_engine, RuleBasedAllocationExecutor)
-
-
-def test_a_hold_without_a_target_never_reaches_the_executor() -> None:
-    strategy = reference_strategy()
-    strategy.execution_engine = Mock(spec=RuleBasedAllocationExecutor)
-    intent = AllocationIntent(
-        action="hold",
-        target_allocation=None,
-        allocation_name=None,
-        immediate=False,
-        reason="regime_no_signal",
-        rule_group="none",
-        decision_score=0.0,
-    )
-
-    outcome = strategy._execute(context=Mock(), intent=intent)
-
-    assert outcome == ExecutionOutcome(event=None, transfers=[])
-    strategy.execution_engine.execute.assert_not_called()
 
 
 def test_an_execution_result_without_transfers_becomes_an_empty_outcome() -> None:
@@ -386,7 +364,9 @@ def test_cross_down_cooldown_keeps_spy_and_btc_blocked_for_default_window() -> N
 
 
 def test_decision_policy_persists_previous_fgi_regimes_for_downshift_rule() -> None:
-    policy = RuleBasedPortfolioDecisionPolicy(rules=reference_rules())
+    policy = RuleBasedPortfolioDecisionPolicy(
+        rules=(*reference_rules(), fgi_downshift_rule())
+    )
     first_snapshot = _flat_state(
         btc=state(symbol="BTC", fgi_regime="greed"),
         current={"btc": 0.50, "eth": 0.0, "spy": 0.0, "stable": 0.50, "alt": 0.0},
@@ -641,7 +621,6 @@ def test_per_rule_cooldown_skips_only_that_rule_after_execution() -> None:
             date=date(2025, 3, 11),
             price=100.0,
             sentiment={"label": "neutral", "value": 50},
-            price_history=[100.0],
             portfolio=Portfolio.from_asset_allocation(
                 10_000.0, current, {"btc": 100.0}
             ),
@@ -718,7 +697,6 @@ def test_per_rule_cooldown_requires_actual_transfers() -> None:
             date=date(2025, 3, 11),
             price=100.0,
             sentiment={"label": "neutral", "value": 50},
-            price_history=[100.0],
             portfolio=Portfolio.from_asset_allocation(
                 10_000.0, current, {"btc": 100.0}
             ),
@@ -971,48 +949,6 @@ def test_cross_up_equal_weight_per_symbol_cooldown_requires_actual_transfers() -
     assert retry_btc_cross_up.reason == "portfolio_cross_up_equal_weight"
 
 
-def _with_trade_quota() -> RuleBasedPortfolioStrategy:
-    return reference_strategy(
-        components=replace(
-            reference_components(),
-            risk_guards=(
-                TradeQuotaGuard(
-                    min_trade_interval_days=3, max_trades_7d=None, max_trades_30d=None
-                ),
-            ),
-        )
-    )
-
-
-def test_strategy_wires_the_trade_quota_guard_of_its_components() -> None:
-    strategy = _with_trade_quota()
-
-    assert [guard.name for guard in strategy.decision_policy.risk_guards] == [
-        "trade_quota",
-    ]
-
-
-def test_policy_receives_executor_trade_dates_for_quota_guards() -> None:
-    strategy = _with_trade_quota()
-    strategy.execution_engine.trade_dates.append(date(2025, 1, 1))
-    strategy.execution_engine.last_trade_date = date(2025, 1, 1)
-
-    intent = strategy.decision_policy.decide(
-        _flat_state(
-            btc=state(
-                symbol="BTC",
-                zone="below",
-                dma_distance=-0.05,
-                fgi_regime="extreme_fear",
-            ),
-            current={"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0, "alt": 0.0},
-            current_date=date(2025, 1, 2),
-        )
-    )
-
-    assert intent.reason == "trade_quota_min_interval_active"
-
-
 def _execution_context(context_date: date) -> StrategyContext:
     current = {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0}
     prices = {"btc": 100.0, "eth": 100.0, "spy": 100.0}
@@ -1020,7 +956,6 @@ def _execution_context(context_date: date) -> StrategyContext:
         date=context_date,
         price=100.0,
         sentiment={"label": "neutral", "value": 50},
-        price_history=[100.0],
         portfolio=Portfolio.from_asset_allocation(10_000.0, current, prices),
         price_map=prices,
         extra_data={},
@@ -1128,8 +1063,7 @@ def test_the_default_strategy_signals_use_the_documented_cooldowns() -> None:
         "ETH": 30,
     }
     assert signal.ratio_cross_cooldown_days == 30
-    assert signal.warmup_lookback_days == 14
-    assert signal.config.cross_on_touch is True
+    assert signal.cross_on_touch is True
 
 
 def test_the_strategy_runs_the_components_it_is_given() -> None:
@@ -1163,7 +1097,6 @@ def test_explicit_components_decide_the_signal_settings() -> None:
 
     signal = reference_strategy(components=components).signal_component
 
-    assert signal.warmup_lookback_days == 20
-    assert signal.config.cross_on_touch is False
+    assert signal.cross_on_touch is False
     assert signal.cross_down_cooldown_days_by_symbol == {"SPY": 3, "BTC": 4, "ETH": 5}
     assert signal.ratio_cross_cooldown_days == 6

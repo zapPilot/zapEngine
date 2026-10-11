@@ -57,8 +57,6 @@ class _PlacedOrder:
 @dataclass
 class _EngineRunState:
     timeline: list[TimelinePoint] = field(default_factory=list)
-    price_history: list[float] = field(default_factory=list)
-    price_history_map: dict[str, list[float]] = field(default_factory=dict)
     benchmark_daily_prices: list[float] = field(default_factory=list)
     # Bars processed so far; an order's fill bar is counted in these.
     bar_index: int = 0
@@ -122,13 +120,6 @@ class StrategyEngine:
 
         for price_data in prices:
             snapshot = self._build_market_day_snapshot(price_data, sentiments)
-            run_state.price_history.append(snapshot.price)
-            _append_price_history_map(
-                run_state.price_history_map,
-                price_map=snapshot.price_map,
-                fallback_key=token_symbol.lower(),
-                fallback_price=snapshot.price,
-            )
             flags = _DayFlags(
                 record_point=user_start_date is None
                 or snapshot.current_date >= user_start_date,
@@ -303,7 +294,6 @@ class StrategyEngine:
                         init_price_map or {"btc": first_price}
                     ),
                     sentiment=sentiments.get(init_date),
-                    price_history=[],
                     portfolio=portfolio,
                     price_map=dict(init_price_map),
                     extra_data=init_extra_data,
@@ -338,10 +328,8 @@ class StrategyEngine:
                 date=snapshot.current_date,
                 price=context_price,
                 sentiment=snapshot.sentiment,
-                price_history=run_state.price_history,
                 portfolio=portfolio,
                 price_map=dict(snapshot.price_map),
-                price_history_map=run_state.price_history_map,
                 extra_data=dict(snapshot.extra_data),
             )
             if day_flags.is_warmup:
@@ -449,19 +437,3 @@ class StrategyEngine:
             return portfolio.resolve_spot_price(price_map)
         except ValueError:
             return fallback_price
-
-
-def _append_price_history_map(
-    price_history_map: dict[str, list[float]],
-    *,
-    price_map: dict[str, float],
-    fallback_key: str,
-    fallback_price: float,
-) -> None:
-    seen_keys: set[str] = set()
-    for key, price in price_map.items():
-        normalized_key = key.lower()
-        price_history_map.setdefault(normalized_key, []).append(price)
-        seen_keys.add(normalized_key)
-    if fallback_key not in seen_keys and fallback_price > 0.0:
-        price_history_map.setdefault(fallback_key, []).append(float(fallback_price))

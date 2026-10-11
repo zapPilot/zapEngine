@@ -1,7 +1,7 @@
 """Public re-export hub for the portfolio-rule decision policy.
 
 The implementation is split across focused sibling modules so that adding a
-new rule group / risk guard / shadowing tweak only touches one of them:
+new rule group or a shadowing tweak only touches one of them:
 
 - ``_evaluator`` — :class:`RulesEvaluator` and
   :class:`RuleBasedPortfolioDecisionPolicy` (the public entry points)
@@ -10,9 +10,9 @@ new rule group / risk guard / shadowing tweak only touches one of them:
 - ``_builders`` — the intent builder every rule shares and its score table
 - ``_snapshot_builder`` — :func:`build_portfolio_snapshot` and
   per-day context advancement
-- ``_post_processing`` — risk-guard application + intent adjustments
+- ``_post_processing`` — post-intent adjustments and the matched rule
 - ``_state_accessors`` — FGI / regime accessors + crypto-cycle tracking
-- ``_types`` — shared :class:`RuleExecutionContext` / ``RuleExecutionState``
+- ``_types`` — the shared :class:`RuleExecutionContext`
 
 This module re-exports the stable public surface so existing imports
 (``from src.services.backtesting.portfolio_rules.decision_policy import …``)
@@ -29,28 +29,16 @@ from src.services.backtesting.portfolio_rules._evaluator import (
 from src.services.backtesting.portfolio_rules._matcher import (
     resolve_portfolio_rules_intent,
 )
-from src.services.backtesting.portfolio_rules._post_processing import (
-    _matched_rule_priority,
-)
 from src.services.backtesting.portfolio_rules._snapshot_builder import (
     build_portfolio_snapshot,
 )
-from src.services.backtesting.portfolio_rules._types import (
-    RuleExecutionContext,
-    RuleExecutionState,
-)
+from src.services.backtesting.portfolio_rules._types import RuleExecutionContext
 
 __all__ = [
     "PORTFOLIO_RULES_SIGNAL_ID",
     "RuleBasedPortfolioDecisionPolicy",
     "RuleExecutionContext",
-    "RuleExecutionState",
     "RulesEvaluator",
     "build_portfolio_snapshot",
     "resolve_portfolio_rules_intent",
 ]
-
-# Re-exports kept available for legacy test imports — these are private
-# helpers consumed only by ``tests/services/backtesting/portfolio_rules/
-# test_decision_policy.py`` and should not be relied on by production code.
-_PRIVATE_TEST_REEXPORTS = (_matched_rule_priority,)

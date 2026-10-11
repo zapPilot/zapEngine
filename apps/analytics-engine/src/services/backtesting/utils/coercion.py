@@ -7,11 +7,6 @@ from datetime import date
 from src.core.utils import normalize_date
 
 
-def normalize_regime_label(label: str) -> str:
-    """Normalize a sentiment regime label to snake_case."""
-    return label.lower().strip().replace(" ", "_")
-
-
 def coerce_to_date(raw: object) -> date | None:
     """Coerce a datetime, date, or ISO-8601 string to a date object."""
     value = raw[:10] if isinstance(raw, str) else raw

@@ -61,7 +61,7 @@ def test_a_report_names_everything_it_depends_on(report: Report, spec, bundle) -
 
 
 def test_a_spec_ref_is_id_version_and_a_short_hash(spec) -> None:
-    assert spec_ref(spec) == "dma_fgi@1#a22bccfabb4b"
+    assert spec_ref(spec) == "dma_fgi@2#ffc3614028fb"
 
 
 def test_the_window_is_what_was_evaluated(report: Report, bundle) -> None:
@@ -326,32 +326,29 @@ def test_the_report_fills_in_the_revision_itself(
     assert report.body["fingerprint"]["git"] == {"sha": "from-git", "dirty": True}
 
 
+TREND_GUARD = {
+    "kind": "trend_guard",
+    "id": "trend_guard",
+    "mode": "force_exit",
+    "below_dma_buffer": 0.02,
+    "confirm_days": 3,
+}
+
+
 def test_every_piece_that_can_be_left_out_has_a_variant() -> None:
     raw = reference_raw()
-    raw["overlays"] = [
-        {"kind": "spy_latch", "id": "spy_latch", "follow_through_days": 14}
-    ]
-    raw["guards"] = [
-        {
-            "kind": "trade_quota",
-            "min_trade_interval_days": 2,
-            "max_trades_7d": None,
-            "max_trades_30d": None,
-        }
-    ]
+    raw["overlays"] = [TREND_GUARD]
     spec = parse_spec(raw)
 
     variants = components(spec)
 
     assert list(variants) == [
         *(f"rule:{rule.id}" for rule in spec.rules),
-        "overlay:spy_latch",
-        "guard:trade_quota",
+        "overlay:trend_guard",
     ]
     assert len(variants["rule:cross_down_exit"].rules) == len(spec.rules) - 1
-    assert variants["overlay:spy_latch"].overlays == ()
-    assert variants["guard:trade_quota"].guards == ()
-    assert variants["overlay:spy_latch"].rules == spec.rules
+    assert variants["overlay:trend_guard"].overlays == ()
+    assert variants["overlay:trend_guard"].rules == spec.rules
 
 
 def test_the_only_rule_is_not_left_out(spec) -> None:
@@ -361,25 +358,13 @@ def test_the_only_rule_is_not_left_out(spec) -> None:
     assert components(parse_spec(raw)) == {}
 
 
-def test_leaving_out_an_overlay_and_a_guard_runs(bundle: Bundle) -> None:
+def test_leaving_out_an_overlay_runs(bundle: Bundle) -> None:
     raw = reference_raw()
-    raw["overlays"] = [
-        {"kind": "spy_latch", "id": "spy_latch", "follow_through_days": 14}
-    ]
-    raw["guards"] = [
-        {
-            "kind": "trade_quota",
-            "min_trade_interval_days": 2,
-            "max_trades_7d": None,
-            "max_trades_30d": None,
-        }
-    ]
+    raw["overlays"] = [TREND_GUARD]
 
     report = evaluate(parse_spec(raw), bundle, git=GIT)
 
-    contributions = report.body["attribution"]["leave_one_out"]
-    assert "overlay:spy_latch" in contributions
-    assert "guard:trade_quota" in contributions
+    assert "overlay:trend_guard" in report.body["attribution"]["leave_one_out"]
 
 
 def test_the_config_is_plain_data() -> None:

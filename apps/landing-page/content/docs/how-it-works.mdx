@@ -19,7 +19,7 @@ Every day, Zap Pilot-hosted jobs collect token and stock prices, crypto Fear & G
 
 <StatusBadge capability="reference-strategy" qualifier="advisory" />
 
-The reference strategy, [DMA/FGI Portfolio Rules](/docs/track-record/dma-fgi-portfolio-rules-v1), runs once a day on Zap Pilot-hosted servers. It walks six rules in priority order; the first rule that fires sets the day's target allocation, and guards limit churn. The output is a decision packet: the target, the rule that fired, and the raw signals behind it. It is advisory. Nothing executes because a rule fired.
+The reference strategy, [DMA/FGI Portfolio Rules](/docs/track-record/dma-fgi-portfolio-rules-v2), runs once a day on Zap Pilot-hosted servers. It walks five rules in priority order; the first rule that fires sets the day's target allocation, and guards limit churn. The output is a decision packet: the target, the rule that fired, and the raw signals behind it. It is advisory. Nothing executes because a rule fired.
 
 ## Plan
 
@@ -77,7 +77,7 @@ Hyperliquid deposits are the one place with a standing permission <StatusBadge c
 
 <StatusBadge capability="snapshot-chain" />
 
-Every day a snapshot of one reference address is published to IPFS and linked to the previous one by CID. The snapshots are unsigned today. Separately, one of the six rules can be recomputed on-chain <StatusBadge capability="verifiable-rule" /> with the [verifiable strategy calculator](/docs/track-record/verifiable-strategy).
+Every day a snapshot of one reference address is published to IPFS and linked to the previous one by CID. The snapshots are unsigned today. Separately, version 1's exit rule can be recomputed on-chain <StatusBadge capability="verifiable-rule" /> with the [verifiable strategy calculator](/docs/track-record/verifiable-strategy).
 
 ## The gate in front of unattended
 

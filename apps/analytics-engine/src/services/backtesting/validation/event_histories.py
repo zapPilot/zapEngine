@@ -1,8 +1,9 @@
 """Synthetic market histories shaped around each hierarchical validation event.
 
-Each history is a 46-day flat market (everything 10% above its DMA, neutral
-sentiment) with the few days around the event bent to produce it: a cross, a
-ratio move, a fear spike. They are small enough to read, and shared by the
+Each history is a 46-day flat market with the few days around the event bent to
+produce it: a cross, a ratio move, a fear spike. The flat market has BTC and ETH
+10% above their DMA and SPY 5% above (its overextension trim starts at 10%, so
+nothing trims it before the event), with neutral sentiment. They are small enough to read, and shared by the
 validation test, the live-versus-model parity tests and the strategy lab, which
 runs a candidate spec through the same events before it may be promoted.
 """
@@ -13,6 +14,9 @@ from datetime import date, timedelta
 from typing import Any
 
 from src.services.backtesting.validation.event_runner import ValidationEvent
+
+# SPY above its 100 DMA, but under the 10% at which the reference trims it.
+SPY_ABOVE = 105.0
 
 
 def strategy_timeline(payload: dict[str, Any], key: str) -> list[dict[str, Any]]:
@@ -38,12 +42,12 @@ def synthetic_event_history(
         current: {
             "date": current,
             "price": 110.0,
-            "prices": {"btc": 110.0, "eth": 110.0, "spy": 110.0},
+            "prices": {"btc": 110.0, "eth": 110.0, "spy": SPY_ABOVE},
             "extra_data": _extra_data(
                 btc_dma=100.0,
                 eth_price=110.0,
                 eth_dma=100.0,
-                spy_price=110.0,
+                spy_price=SPY_ABOVE,
                 spy_dma=100.0,
                 ratio=1.0,
                 ratio_dma=1.0,
@@ -208,8 +212,8 @@ def _set_spy_zone(
     *,
     above: bool,
 ) -> None:
-    rows[target_date]["extra_data"]["spy_price"] = 110.0 if above else 90.0
-    rows[target_date]["prices"]["spy"] = 110.0 if above else 90.0
+    rows[target_date]["extra_data"]["spy_price"] = SPY_ABOVE if above else 90.0
+    rows[target_date]["prices"]["spy"] = SPY_ABOVE if above else 90.0
 
 
 def _set_ratio(

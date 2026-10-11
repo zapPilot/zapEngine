@@ -288,16 +288,7 @@ class StrategyDailySuggestionService:
 
     @staticmethod
     def _resolve_block_reason(replay: ModelReplay) -> str | None:
-        block_reason = replay.state.execution.blocked_reason or None
-        decision = replay.state.decision
-        if (
-            block_reason is None
-            and decision.action == "hold"
-            and decision.reason.startswith("trade_quota_")
-        ):
-            # The trade-quota guard turns a decision into a hold named for its limit.
-            return decision.reason
-        return block_reason
+        return replay.state.execution.blocked_reason or None
 
     @staticmethod
     def _resolve_asset_allocation(

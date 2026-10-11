@@ -26,7 +26,6 @@ def _context(
         date=context_date,
         price=resolved_prices["btc"],
         sentiment={"label": "neutral", "value": 50},
-        price_history=[resolved_prices["btc"]] * 2,
         portfolio=portfolio,
         price_map=resolved_prices,
         extra_data={},
@@ -62,8 +61,6 @@ def test_executor_returns_noop_when_already_at_target() -> None:
 
     assert result.event is None
     assert result.transfers is None
-    assert executor.last_trade_date is None
-    assert executor.trade_dates == []
 
 
 def test_executor_applies_full_delta_atomically_in_one_bar() -> None:
@@ -87,8 +84,6 @@ def test_executor_applies_full_delta_atomically_in_one_bar() -> None:
     assert result.transfers[0].from_bucket == "stable"
     assert result.transfers[0].to_bucket == "btc"
     assert result.transfers[0].amount_usd == pytest.approx(500.0)
-    assert executor.last_trade_date == date(2025, 1, 2)
-    assert executor.trade_dates == [date(2025, 1, 2)]
 
 
 def test_executor_builds_all_required_multi_asset_transfers_at_once() -> None:

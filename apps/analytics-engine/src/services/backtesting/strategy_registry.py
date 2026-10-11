@@ -227,23 +227,31 @@ def reference_identity(ref: str) -> str:
     return spec_ref(reference_spec(ref), ref)
 
 
-# The rule-based recipe reads its reference when it is built, so a reference that
-# drifted from the lock stops the process on import instead of on the first run.
-_RECIPES: dict[str, StrategyRecipe] = {
-    STRATEGY_DCA_CLASSIC: _build_dca_classic_recipe(),
-    STRATEGY_DMA_FGI_PORTFOLIO_RULES: _build_portfolio_rules_recipe(),
-}
+@cache
+def _recipes() -> dict[str, StrategyRecipe]:
+    """The recipes, built on first use.
+
+    The rule-based recipe reads its reference, which refuses a reference that
+    drifted from the lock. Building them here instead of on import keeps the
+    lab's spec commands (`spec lock` above all) usable in exactly that state; the
+    service still stops when it starts, because the seed configs check their
+    references on import (`src/config/strategy_presets.py`).
+    """
+    return {
+        STRATEGY_DCA_CLASSIC: _build_dca_classic_recipe(),
+        STRATEGY_DMA_FGI_PORTFOLIO_RULES: _build_portfolio_rules_recipe(),
+    }
 
 
 def get_strategy_recipe(strategy_id: str) -> StrategyRecipe:
     try:
-        return _RECIPES[strategy_id]
+        return _recipes()[strategy_id]
     except KeyError as exc:  # pragma: no cover - validated upstream
         raise ValueError(f"Unknown strategy_id '{strategy_id}'") from exc
 
 
 def list_strategy_recipes() -> list[StrategyRecipe]:
-    return list(_RECIPES.values())
+    return list(_recipes().values())
 
 
 def validate_strategy_id(strategy_id: str) -> str:

@@ -6,7 +6,9 @@ from src.services.backtesting.portfolio_rules.base import (
     PortfolioRuleConfig,
     ProceedsRouting,
 )
+from src.services.backtesting.spec import compile_spec, parse_spec
 from tests.services.backtesting.portfolio_rules.helpers import snapshot, state
+from tests.services.backtesting.spec.helpers import reference_raw, rule_index
 from tests.services.backtesting.support.reference_rules import reference_rule
 
 
@@ -257,8 +259,17 @@ def test_proceeds_can_be_routed_instead_of_kept_in_stable() -> None:
     )
 
 
-def test_the_cooldown_is_kept_for_the_rule_unless_the_spec_says_per_asset() -> None:
-    assert reference_rule("cross_down_exit").cooldown_keyed_by_trigger_symbol is False
+def test_the_reference_keeps_one_exit_cooldown_per_asset() -> None:
+    rule_scoped = reference_raw()
+    del rule_scoped["rules"][rule_index(rule_scoped, "dma_cross_down_exit")][
+        "cooldown_scope"
+    ]
+
+    assert reference_rule("cross_down_exit").cooldown_keyed_by_trigger_symbol is True
+    assert (
+        compile_spec(parse_spec(rule_scoped)).rules[0].cooldown_keyed_by_trigger_symbol
+        is False
+    )
 
 
 def test_a_per_asset_cooldown_is_tracked_for_the_assets_that_crossed() -> None:

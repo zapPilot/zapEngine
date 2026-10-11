@@ -23,6 +23,7 @@ A strategy is one JSON document that spells out everything it does: no field has
 | `signals.dma.cross_on_touch` | boolean | Count a price that touches its DMA as a cross. *(tunable)* |
 | `signals.ratio` | object | The ETH/BTC ratio against its own 200-day moving average. |
 | `signals.ratio.cross_cooldown_days` | integer (>= 0, <= 365) | Days after a ratio rotation during which the next cross is ignored. *(tunable)* |
+| `guards` | array, always empty | Always empty. The format once had guards; the key stays so that the behavior hash of every locked spec stays what it was. |
 | `execution` | object | How a decision becomes trades. |
 | `execution.mode` | `"full_target"` | A matched rule moves the portfolio to its target in full. |
 
@@ -63,12 +64,14 @@ Fires on a day an asset crosses above its DMA. Under `equal_weight` the portfoli
 
 Rotates between BTC and ETH when the ETH/BTC ratio crosses its 200-day DMA.
 
+It has no cooldown of its own: every rotation starts the ratio signal's cross
+cooldown (`signals.ratio`), which is what holds the next rotation back.
+
 Fires when the ETH/BTC ratio crosses its own 200-day DMA. A cross up sweeps `cross_up.sources` into `cross_up.destination`, a cross down does the same with `cross_down`. It starts the ratio cross cooldown (`signals.ratio`).
 
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `id` | string `^[a-z][a-z0-9_]{2,47}$` | Name of the rule in decision traces. |
-| `cooldown_days` | integer (>= 0, <= 365) | Days the rule stays off after it trades. *(tunable)* |
 | `cross_up` | object | Move when the ratio crosses above its DMA (ETH is the stronger leg). |
 | `cross_up.sources` | array of `"SPY"` \| `"BTC"` \| `"ETH"` \| `"STABLE"` | Holdings swept into the destination. |
 | `cross_up.destination` | `"SPY"` \| `"BTC"` \| `"ETH"` \| `"STABLE"` | Holding that receives everything. |
@@ -145,38 +148,6 @@ Fires when an asset's fear/greed regime was in `from_regimes` the day before and
 | `proceeds.to[].asset` | `"SPY"` \| `"BTC"` \| `"ETH"` | Asset that receives part of the proceeds. |
 | `proceeds.to[].share` | number (> 0.0, <= 1.0) | Fraction of the proceeds that goes to the asset. *(tunable)* |
 
-### `technical_trim`
-
-Sells a slice of an asset above its DMA when a technical signal fires.
-
-A research kind: the reference uses none. Fires when `trigger` holds for an asset that is above its DMA, and sells `sell_step` from each such asset (of the portfolio, or of the position under relative `sizing`), routing the proceeds as `proceeds` says.
-
-| Field | Type | Meaning |
-| --- | --- | --- |
-| `id` | string `^[a-z][a-z0-9_]{2,47}$` | Name of the rule in decision traces. |
-| `cooldown_days` | integer (>= 0, <= 365) | Days the rule stays off after it trades. *(tunable)* |
-| `sell_step` | number (> 0.0, <= 1.0) | Share sold per matching asset: of the portfolio under absolute sizing, of the asset's own position under relative sizing. *(tunable)* |
-| `sizing` | object, `mode` is `"absolute"` \| `"relative"` | How `sell_step` is read: of the portfolio, or of the position. *(optional, default `{"mode": "absolute"}`)* |
-| `sizing.floor_weight` | number (>= 0.0, < 1.0) | With `mode` `"relative"`: Share of the portfolio the asset is never sold below. *(tunable)* |
-| `trigger` | object, one of the triggers below | The technical signal, read for each asset that is above its DMA. |
-| `proceeds` | object | Where the cash from the sales goes. |
-| `proceeds.to` | array of object | Assets that receive a share of the proceeds, in order. |
-| `proceeds.to[].asset` | `"SPY"` \| `"BTC"` \| `"ETH"` | Asset that receives part of the proceeds. |
-| `proceeds.to[].share` | number (> 0.0, <= 1.0) | Fraction of the proceeds that goes to the asset. *(tunable)* |
-
-### `technical_add`
-
-Buys into an asset above its DMA, out of stable, when a technical signal fires.
-
-A research kind: the reference uses none. Fires when `trigger` holds for an asset that is above its DMA, and buys `buy_step` of the portfolio into each such asset out of stable (scaled down together when stable is short).
-
-| Field | Type | Meaning |
-| --- | --- | --- |
-| `id` | string `^[a-z][a-z0-9_]{2,47}$` | Name of the rule in decision traces. |
-| `cooldown_days` | integer (>= 0, <= 365) | Days the rule stays off after it trades. *(tunable)* |
-| `buy_step` | number (> 0.0, <= 1.0) | Share of the portfolio bought per matching asset, out of stable. *(tunable)* |
-| `trigger` | object, one of the triggers below | The technical signal, read for each asset that is above its DMA. |
-
 ### `trend_dca_entry`
 
 Buys into an asset above its DMA in steps, out of stable, up to a weight cap.
@@ -190,156 +161,15 @@ Fires when an asset is above its DMA, the signal's cross cooldown no longer bars
 | `buy_step` | number (> 0.0, <= 1.0) | Share of the portfolio bought per matching asset, out of stable. *(tunable)* |
 | `max_weight` | number (> 0.0, <= 1.0) | Share of the portfolio an asset may reach through these purchases. *(tunable)* |
 
-## Triggers
-
-A `trigger` names a technical signal by its `signal` and gives the level it fires at. A rule reads it for each asset that is above its DMA, from that asset's own close history.
-
-### `rsi_bearish_divergence`
-
-Price makes a newer high while the trailing RSI fails to confirm it.
-
-The last 28 closes are split into an older and a newer 14-day segment. The newer high is at least 1% above the older one while the RSI(14) at it is at least 3 points lower. Both segments are already observed, so it never looks ahead.
-
-It has no fields.
-
-### `rsi_bullish_divergence`
-
-Price makes a newer low while the trailing RSI refuses to follow it down.
-
-The mirror image: the newer low is at least 1% below the older one while the RSI(14) at it is at least 3 points higher.
-
-It has no fields.
-
-### `rsi_overbought_turning_down`
-
-RSI(14) is overbought and its five-day slope has turned down.
-
-RSI(14) is at or above `rsi_at_least` and has fallen over the last five days.
-
-| Field | Type | Meaning |
-| --- | --- | --- |
-| `rsi_at_least` | number (> 0.0, < 100.0) | RSI(14) level at or above which the asset counts as overbought. *(tunable)* |
-
-### `rsi_oversold_recovering`
-
-RSI(14) is oversold and its five-day slope has turned up.
-
-RSI(14) is at or below `rsi_at_most` and has risen over the last five days.
-
-| Field | Type | Meaning |
-| --- | --- | --- |
-| `rsi_at_most` | number (> 0.0, < 100.0) | RSI(14) level at or below which the asset counts as oversold. *(tunable)* |
-
-### `macd_bearish_cross`
-
-The MACD(12, 26, 9) histogram crosses below zero today.
-
-The MACD(12, 26, 9) histogram was at or above zero yesterday and is below it today. Needs 35 closes of history.
-
-It has no fields.
-
-### `macd_bullish_cross`
-
-The MACD(12, 26, 9) histogram crosses above zero today.
-
-The MACD(12, 26, 9) histogram was at or below zero yesterday and is above it today. Needs 35 closes of history.
-
-It has no fields.
-
-### `momentum_breakdown`
-
-Short-term momentum has turned down while the longer trend still stands.
-
-The 30-day price change is below `short_momentum_below` while the 90-day price change is above `long_momentum_above`: a short-term reversal inside a longer trend. Needs 91 closes of history.
-
-| Field | Type | Meaning |
-| --- | --- | --- |
-| `short_momentum_below` | number (>= -1.0, <= 5.0) | 30-day price change must be below this (a fraction, 0.1 is 10%). *(tunable)* |
-| `long_momentum_above` | number (>= -1.0, <= 5.0) | 90-day price change must be above this (a fraction). *(tunable)* |
-
-### `volatility_spike`
-
-Annualized 20-day realized volatility is at or above the asset's level.
-
-The annualized volatility of the last 20 daily log returns is at or above the asset's level in `thresholds`.
-
-| Field | Type | Meaning |
-| --- | --- | --- |
-| `thresholds` | object | Annualized volatility per asset (0.8 is 80%). |
-| `thresholds.SPY` | number (> 0.0, <= 10.0) | Volatility at which SPY counts as spiking. *(tunable)* |
-| `thresholds.BTC` | number (> 0.0, <= 10.0) | Volatility at which BTC counts as spiking. *(tunable)* |
-| `thresholds.ETH` | number (> 0.0, <= 10.0) | Volatility at which ETH counts as spiking. *(tunable)* |
-
-### `bollinger_upper_band`
-
-The 20-day Bollinger z-score has reached the upper band.
-
-The 20-day Bollinger z-score (the close's distance from its 20-day mean, in standard deviations) is at or above `zscore_at_least`.
-
-| Field | Type | Meaning |
-| --- | --- | --- |
-| `zscore_at_least` | number (> 0.0, <= 10.0) | Standard deviations above the 20-day mean at which it fires. *(tunable)* |
-
-### `bollinger_lower_band`
-
-The 20-day Bollinger z-score has reached the lower band.
-
-The 20-day Bollinger z-score is at or below `zscore_at_most`, which is negative.
-
-| Field | Type | Meaning |
-| --- | --- | --- |
-| `zscore_at_most` | number (>= -10.0, < 0.0) | Standard deviations below the 20-day mean at which it fires. *(tunable)* |
-
-### `breakout_20d`
-
-Today's close is above the highest close of the 20 days before it.
-
-Today's close is above every close of the 20 days before it.
-
-It has no fields.
-
-### `breakdown_20d`
-
-Today's close is below the lowest close of the 20 days before it.
-
-Today's close is below every close of the 20 days before it.
-
-It has no fields.
-
-## Guards
-
-`trade_quota` turns the day into a hold when a trade-frequency limit is reached, whichever rule decided.
-
-### `trade_quota`
-
-Holds the portfolio instead of trading when a trade-frequency limit is hit.
-
-| Field | Type | Meaning |
-| --- | --- | --- |
-| `min_trade_interval_days` | integer (>= 1, <= 365) \| null | Least days between two trades; null for no limit. *(tunable)* |
-| `max_trades_7d` | integer (>= 1, <= 365) \| null | Most trades in any 7 days; null for no limit. *(tunable)* |
-| `max_trades_30d` | integer (>= 1, <= 365) \| null | Most trades in any 30 days; null for no limit. *(tunable)* |
-
 ## Overlays
 
-Overlays adjust the decision after the rules and guards have made it. They apply in the order listed, at most one of each kind.
-
-### `spy_latch`
-
-After SPY crosses up, parks fresh stable in SPY for a few days.
-
-When SPY crosses up it moves the stable already held into SPY, then keeps routing new stable into SPY for `follow_through_days`.
-
-| Field | Type | Meaning |
-| --- | --- | --- |
-| `id` | string `^[a-z][a-z0-9_]{2,47}$` | Name of the overlay in decision traces. |
-| `follow_through_days` | integer (>= 1, <= 90) | Days after the cross-up during which new stable goes to SPY. *(tunable)* |
+Overlays adjust the decision after the rules have made it. They apply in the order listed, at most one of each kind.
 
 ### `trend_guard`
 
 Keeps the portfolio out of assets that stay below their DMA, every day.
 
-Acts every day and has the last word. An asset counts as below its DMA once it has closed more than `below_dma_buffer` under it for `confirm_days` days in a row. `block_adds` undoes any purchase of such an asset (the cash stays in stable); `force_exit` also sells what is held of it. Because it looks at the level, not at the day of the cross, it holds whatever route a position took, and the trade quota guard does not hold a forced exit back.
+Acts every day and has the last word. An asset counts as below its DMA once it has closed more than `below_dma_buffer` under it for `confirm_days` days in a row. `block_adds` undoes any purchase of such an asset (the cash stays in stable); `force_exit` also sells what is held of it. Because it looks at the level, not at the day of the cross, it holds whatever route a position took.
 
 | Field | Type | Meaning |
 | --- | --- | --- |

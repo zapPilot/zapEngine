@@ -128,8 +128,8 @@ def structural_issues(
 ) -> list[SpecIssue]:
     """What makes ``candidate`` more than a simplification of ``reference``.
 
-    A structural change removes rules, overlays, guards, optional parameters or
-    list entries, or changes a categorical choice (an exit's cooldown scope, the
+    A structural change removes rules, overlays, optional parameters or list
+    entries, or changes a categorical choice (an exit's cooldown scope, the
     holdings a rotation sweeps, where proceeds go). It never adds a piece,
     changes a rule's kind or the order of what remains, and never moves a
     number: a tunable parameter on both sides keeps its value, and so does every

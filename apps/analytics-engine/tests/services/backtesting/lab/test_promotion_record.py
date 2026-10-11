@@ -38,7 +38,8 @@ COMPARISON = {
 
 def _candidate(**changes: Any):
     raw = reference_raw()
-    raw["id"] = "guarded"
+    # A candidate starts at version 1, as `spec new` writes it.
+    raw["id"], raw["version"] = "guarded", 1
     raw["description"] = "The reference with a force-exit trend guard."
     raw["overlays"] = [
         {
@@ -96,7 +97,7 @@ def test_a_record_holds_the_whole_decision() -> None:
     assert record["verdict"] == PROMOTABLE
     assert record["track"] == SEARCH
     assert record["candidate"]["ref"].startswith("guarded@1#")
-    assert record["reference"]["ref"] == "dma_fgi@1#a22bccfabb4b"
+    assert record["reference"]["ref"] == "dma_fgi@2#ffc3614028fb"
     assert record["policy"]["hash"] == load_policy().policy_hash
     assert record["evidence"] == {
         "bundle": BUNDLE,
@@ -141,9 +142,9 @@ def test_a_promotable_entry_says_what_to_do_with_the_reference() -> None:
     assert "- **Status**: active" in text
     assert "- **Commit**: pending local change (`promote guarded@1#" in text
     assert "ROI +3.50 pp, MaxDD +2.25 pp, Sharpe +0.25, trades 60 -> 52" in text
-    assert "versus dma_fgi@1#a22bccfabb4b on prod:2026-10-01-abc (500 days)" in text
+    assert "versus dma_fgi@2#ffc3614028fb on prod:2026-10-01-abc (500 days)" in text
     assert "2 of 2 gates pass, with 7 distinct candidates tried" in text
-    assert "version 2 and run `spec lock`" in text
+    assert "version 3 and run `spec lock`" in text
     assert "Warning" not in text
 
 

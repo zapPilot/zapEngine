@@ -107,7 +107,7 @@ export const CAPABILITIES = {
     label: 'On-chain rule check',
     status: CAPABILITY_STATUS['verifiable-rule'],
     detail:
-      'One of the six rules (cross-down exit) is compiled to Vyper on Arbitrum Sepolia with a pinned runtime codehash, so a recorded exit can be recomputed.',
+      'Version 1’s cross-down exit rule is compiled to Vyper on Arbitrum Sepolia with a pinned runtime codehash, so a recorded exit can be recomputed.',
   },
   withdrawals: {
     label: 'Withdrawals',

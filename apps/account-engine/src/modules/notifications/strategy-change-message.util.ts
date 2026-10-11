@@ -50,8 +50,6 @@ const REASON_LABELS: Record<string, string> = {
     'The ETH/BTC ratio crossed below its average, rotating the pair into BTC.',
   portfolio_eth_btc_ratio_rotation_to_eth:
     'The ETH/BTC ratio crossed above its average, rotating the pair into ETH.',
-  portfolio_fgi_downshift_dca_sell:
-    'Market sentiment fell out of greed, so risk was trimmed with a scheduled sell.',
 };
 
 /**

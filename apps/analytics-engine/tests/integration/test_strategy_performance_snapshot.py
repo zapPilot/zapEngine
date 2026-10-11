@@ -54,8 +54,7 @@ def test_every_registered_strategy_has_snapshot_entry() -> None:
     snapshot = load_snapshot()
     strategies = snapshot["strategies"]
     assert isinstance(strategies, dict)
-    deprecated = set(snapshot.get("deprecated_strategies", []))
-    expected = set(_default_strategy_universe()) | deprecated
+    expected = set(_default_strategy_universe())
     actual = set(strategies)
 
     assert actual == expected, (

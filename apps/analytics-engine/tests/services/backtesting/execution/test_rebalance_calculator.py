@@ -83,7 +83,6 @@ class TestCalculateCurrentAllocationFromContext:
             date=Mock(),
             price=5_000.0,
             sentiment=None,
-            price_history=[],
             portfolio=mock_portfolio,
         )
 
@@ -150,7 +149,6 @@ class TestCurrentAllocationFromContextEdgeCases:
             date=Mock(),
             price=100.0,
             sentiment=None,
-            price_history=[],
             portfolio=mock_portfolio,
         )
 
@@ -170,7 +168,6 @@ class TestCurrentAllocationFromContextEdgeCases:
             date=Mock(),
             price=5_000.0,
             sentiment=None,
-            price_history=[],
             portfolio=mock_portfolio,
         )
 
@@ -188,7 +185,6 @@ class TestCurrentAllocationFromContextEdgeCases:
             date=Mock(),
             price=100.0,
             sentiment=None,
-            price_history=[],
             portfolio=mock_portfolio,
         )
 
@@ -216,7 +212,6 @@ class TestCurrentAllocationFromContextEdgeCases:
             date=Mock(),
             price=100.0,
             sentiment=None,
-            price_history=[],
             portfolio=mock_portfolio,
         )
 
@@ -245,7 +240,6 @@ class TestCurrentAllocationFromContextEdgeCases:
             date=Mock(),
             price={"btc": 5_000.0},
             sentiment=None,
-            price_history=[],
             portfolio=mock_portfolio,
         )
 

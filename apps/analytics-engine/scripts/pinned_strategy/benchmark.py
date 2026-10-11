@@ -18,6 +18,8 @@ from scripts.pinned_strategy.touch_mode import cross_on_touch_mode
 from src.models.backtesting import BacktestCompareConfigV3, BacktestCompareRequestV3
 from src.services.backtesting.execution.compare import run_compare_v3_on_data
 from src.services.backtesting.lab.bundle import BundleError
+from src.services.backtesting.spec import StrategySpec, load_spec, parse_spec
+from src.services.backtesting.strategy_registry import resolve_spec_strategy_config
 
 
 def synthetic_history(days=500):
@@ -57,6 +59,20 @@ def synthetic_history(days=500):
     return prices, sentiments, start, start + timedelta(days=days - 1)
 
 
+def slice_spec() -> StrategySpec:
+    """The reference with the exit rule the deployed contract implements.
+
+    The contract was compiled from version 1's exit, which keeps one cooldown for
+    the whole rule. Since version 2 the reference keeps one per asset
+    (`cooldown_scope: "trigger_symbol"`), so the slice is checked against the
+    reference with that one field set back to `"rule"`.
+    """
+    raw = load_spec("reference/dma_fgi").model_dump(mode="json")
+    exit_rule = next(r for r in raw["rules"] if r["kind"] == "dma_cross_down_exit")
+    exit_rule["cooldown_scope"] = "rule"
+    return parse_spec(raw)
+
+
 def run_compare(history, touch):
     prices, sentiments, start, end = history
     request = BacktestCompareRequestV3(
@@ -70,8 +86,11 @@ def run_compare(history, touch):
             )
         ],
     )
+    resolved = resolve_spec_strategy_config(slice_spec(), config_id="slice")
     with cross_on_touch_mode(touch):
-        return run_compare_v3_on_data(prices, sentiments, request, start)
+        return run_compare_v3_on_data(
+            prices, sentiments, request, start, resolved_configs=[resolved]
+        )
 
 
 class PyEVMHost:

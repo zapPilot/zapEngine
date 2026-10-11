@@ -172,7 +172,7 @@ export function StrategyCalculator({
           of prices, call the contract, and see the allocation it returns.
         </p>
         <p className="calc-disclosure">
-          Research slice: 1 of 6 rules, not the production strategy
+          Research slice: version 1 exit rule, not the production strategy
         </p>
       </header>
       <ContractIdentityCard data={data} verification={verification} />
@@ -201,8 +201,8 @@ export function StrategyCalculator({
           <p>
             It does not authenticate price or DMA data, prior state, or
             production execution. The example discloses its state assumptions
-            and data provenance. This covers one of six rules and is not the
-            production strategy.
+            and data provenance. This covers version 1’s exit rule and is not
+            the production strategy.
           </p>
         </div>
       </section>

@@ -168,12 +168,9 @@ def test_a_broken_hard_invariant_is_named(
 REFERENCE = load_spec("reference/dma_fgi")
 # Which of the review's edits only simplify the reference, and what stops the others.
 QUEUE_VERDICTS: dict[str, set[str]] = {
-    "drop_fgi_downshift": set(),
     "one_ratio_rule": set(),
     "no_stable_sweep": set(),
-    "proceeds_to_stable": set(),
     "deploy_stable_on_cross_up": set(),
-    "per_asset_exit_cooldown": set(),
     "trend_guard": {"added_piece"},
     "relative_trims_with_a_rebuy": {"added_piece", "added_parameter"},
     "staged_entry": {"added_piece"},
@@ -322,7 +319,7 @@ def test_a_tier_removed_ahead_of_another_reads_as_moved_numbers() -> None:
 
 
 def test_the_structural_evidence_runs_both_specs_on_every_history() -> None:
-    candidate = _edited(QUEUE["drop_fgi_downshift"])
+    candidate = _edited(QUEUE["one_ratio_rule"])
     config = EvalConfig()
     suite = {
         ref: synthetic_bundle(ref)

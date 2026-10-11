@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -23,6 +24,7 @@ from tests.services.backtesting.spec.helpers import (
     REFERENCE_REF,
     reference_raw,
     rule_index,
+    with_fgi_downshift,
     with_value,
 )
 
@@ -73,13 +75,13 @@ def test_any_behavior_change_changes_the_hash(mutate: object) -> None:
 
 
 def test_the_hash_does_not_depend_on_how_numbers_or_sets_are_written() -> None:
-    raw = reference_raw()
+    raw = with_fgi_downshift(reference_raw())
     index = rule_index(raw, "dma_overextension_trim")
     raw["rules"][index]["fgi_multipliers"]["fear"] = 1
     downshift = rule_index(raw, "fgi_downshift_trim")
     raw["rules"][downshift]["to_regimes"] = ["extreme_fear", "fear", "neutral"]
 
-    assert _hash_of(raw) == _hash_of(reference_raw())
+    assert _hash_of(raw) == _hash_of(with_fgi_downshift(reference_raw()))
 
 
 def test_the_canonical_form_is_compact_sorted_and_leaves_out_the_metadata() -> None:
@@ -107,8 +109,14 @@ def test_lock_entries_round_trip_through_the_file(tmp_path: Path) -> None:
     assert path.read_text().endswith("}\n")
 
 
-def _locked(version: int = 1) -> dict[str, LockEntry]:
-    return {KEY: LockEntry(version, behavior_hash(load_spec(KEY)))}
+def _locked() -> dict[str, LockEntry]:
+    spec = load_spec(KEY)
+    return {KEY: LockEntry(spec.version, behavior_hash(spec))}
+
+
+def _bumped(raw: dict[str, Any]) -> dict[str, Any]:
+    raw["version"] += 1
+    return raw
 
 
 def test_an_unlocked_spec_is_reported() -> None:
@@ -122,8 +130,7 @@ def test_a_spec_matching_its_lock_is_clean() -> None:
 
 
 def test_a_version_bump_without_a_behavior_change_is_reported() -> None:
-    raw = reference_raw()
-    raw["version"] = 2
+    raw = _bumped(reference_raw())
 
     issues = lock_issues(KEY, parse_spec(raw), _locked())
 
@@ -139,8 +146,7 @@ def test_a_behavior_change_without_a_version_bump_is_reported() -> None:
 
 
 def test_a_bumped_but_unlocked_behavior_change_asks_for_a_lock() -> None:
-    raw = with_value(reference_raw(), ("signals", "warmup_days"), 15)
-    raw["version"] = 2
+    raw = _bumped(with_value(reference_raw(), ("signals", "warmup_days"), 15))
 
     issues = lock_issues(KEY, parse_spec(raw), _locked())
 
@@ -149,13 +155,15 @@ def test_a_bumped_but_unlocked_behavior_change_asks_for_a_lock() -> None:
 
 def test_locking_adds_or_updates_an_entry() -> None:
     spec = load_spec(KEY)
-    raw = with_value(reference_raw(), ("signals", "warmup_days"), 15)
-    raw["version"] = 2
-    bumped = parse_spec(raw)
+    bumped = parse_spec(
+        _bumped(with_value(reference_raw(), ("signals", "warmup_days"), 15))
+    )
 
     assert lock_spec(KEY, spec, {}) == _locked()
     assert lock_spec(KEY, spec, _locked()) == _locked()
-    assert lock_spec(KEY, bumped, _locked())[KEY] == LockEntry(2, behavior_hash(bumped))
+    assert lock_spec(KEY, bumped, _locked())[KEY] == LockEntry(
+        bumped.version, behavior_hash(bumped)
+    )
 
 
 def test_locking_refuses_to_hide_a_behavior_change() -> None:

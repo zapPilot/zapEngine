@@ -21,7 +21,6 @@ from src.services.backtesting.constants import (
     STRATEGY_DISPLAY_NAMES,
 )
 from src.services.backtesting.strategy_registry import (
-    get_strategy_recipe,
     list_strategy_recipes,
 )
 
@@ -67,8 +66,6 @@ TOLERANCE_ALIASES = {
     "trades": "trade_count",
     "trade_count": "trade_count",
 }
-EXCLUDED_DISPLAY_PREFIXES = ("[DEPRECATED] ", "[RESEARCH] ")
-DEPRECATED_STRATEGIES_FIELD = "deprecated_strategies"
 
 
 @dataclass(frozen=True)
@@ -88,22 +85,12 @@ class SnapshotCollection:
     compare_payload: dict[str, Any]
 
 
-def _is_excluded_strategy(strategy_id: str) -> bool:
-    try:
-        display_name = get_strategy_recipe(strategy_id).display_name
-    except ValueError:
-        display_name = STRATEGY_DISPLAY_NAMES.get(strategy_id, "")
-    return display_name.startswith(EXCLUDED_DISPLAY_PREFIXES)
-
-
-def _default_strategy_universe(*, exclude_deprecated: bool = False) -> list[str]:
+def _default_strategy_universe() -> list[str]:
     strategy_ids: list[str] = []
     seen: set[str] = set()
     for recipe in list_strategy_recipes():
         strategy_id = recipe.strategy_id
         if strategy_id in seen:
-            continue
-        if exclude_deprecated and _is_excluded_strategy(strategy_id):
             continue
         strategy_ids.append(strategy_id)
         seen.add(strategy_id)
@@ -115,15 +102,6 @@ def _load_snapshot(path: Path) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise ValueError("Strategy performance snapshot must be a JSON object")
     return payload
-
-
-def _snapshot_deprecated_strategies(snapshot: dict[str, Any] | None) -> set[str]:
-    if snapshot is None:
-        return set()
-    raw = snapshot.get(DEPRECATED_STRATEGIES_FIELD)
-    if not isinstance(raw, list):
-        return set()
-    return {strategy_id for strategy_id in raw if isinstance(strategy_id, str)}
 
 
 def _parse_tolerances(raw: str | None, base: dict[str, float]) -> dict[str, float]:
@@ -266,9 +244,8 @@ def _collect_snapshot_result(
     total_capital: float,
     tolerances: dict[str, float],
     show_progress: bool = True,
-    exclude_deprecated: bool = False,
 ) -> SnapshotCollection:
-    strategy_ids = _default_strategy_universe(exclude_deprecated=exclude_deprecated)
+    strategy_ids = _default_strategy_universe()
     start_date = _window_start(reference_date, window_days)
     if show_progress:
         print(
@@ -339,7 +316,6 @@ def collect_snapshot(
     total_capital: float,
     tolerances: dict[str, float],
     show_progress: bool = True,
-    exclude_deprecated: bool = False,
 ) -> dict[str, Any]:
     return _collect_snapshot_result(
         endpoint=endpoint,
@@ -349,7 +325,6 @@ def collect_snapshot(
         total_capital=total_capital,
         tolerances=tolerances,
         show_progress=show_progress,
-        exclude_deprecated=exclude_deprecated,
     ).snapshot
 
 
@@ -512,13 +487,11 @@ def _guard_committed_roi_shift(
         window_days=window_days,
         total_capital=float(total_capital),
         tolerances=tolerances,
-        exclude_deprecated=True,
     )
     rows = diff_snapshots(
         expected=expected,
         actual=replay.snapshot,
         tolerances=tolerances,
-        exclude_deprecated=True,
     )
     evidence = render_drift_table(rows).rstrip()
     if any(row.status != "OK" for row in rows):
@@ -564,16 +537,9 @@ def diff_snapshots(
     expected: dict[str, Any],
     actual: dict[str, Any],
     tolerances: dict[str, float],
-    exclude_deprecated: bool = False,
 ) -> list[DriftRow]:
     rows: list[DriftRow] = []
-    strategy_ids = _default_strategy_universe(exclude_deprecated=exclude_deprecated)
-    strategy_ids = [
-        strategy_id
-        for strategy_id in strategy_ids
-        if strategy_id not in _snapshot_deprecated_strategies(expected)
-    ]
-    for strategy_id in strategy_ids:
+    for strategy_id in _default_strategy_universe():
         for metric in METRIC_KEYS:
             expected_value = _snapshot_metric(expected, strategy_id, metric)
             actual_value = _snapshot_metric(actual, strategy_id, metric)
@@ -658,14 +624,6 @@ def _write_snapshot(path: Path, snapshot: dict[str, Any]) -> None:
     path.write_text(json.dumps(snapshot, indent=2) + "\n")
 
 
-def _merge_preserved_excluded_entries(
-    *,
-    existing: dict[str, Any] | None,
-    actual: dict[str, Any],
-) -> dict[str, Any]:
-    return actual
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--endpoint", default=DEFAULT_ENDPOINT)
@@ -715,15 +673,6 @@ def main() -> None:
         ),
     )
     parser.add_argument(
-        "--exclude-deprecated",
-        action=argparse.BooleanOptionalAction,
-        default=None,
-        help=(
-            "Exclude deprecated/research strategy recipes. Defaults on for "
-            "--check and off for --update-snapshot/diagnostic runs."
-        ),
-    )
-    parser.add_argument(
         "--no-progress",
         action="store_true",
         help="Disable stderr progress output.",
@@ -747,11 +696,6 @@ def main() -> None:
             total_capital_arg=args.total_capital,
             tolerance_arg=None if args.tolerance is None else str(args.tolerance),
         )
-    )
-    exclude_deprecated = (
-        bool(args.check)
-        if args.exclude_deprecated is None
-        else bool(args.exclude_deprecated)
     )
     if args.in_process:
         # Skip gracefully when DATABASE_READ_ONLY_URL is not configured.
@@ -781,7 +725,6 @@ def main() -> None:
                 total_capital=total_capital,
                 tolerances=tolerances,
                 show_progress=not bool(args.no_progress),
-                exclude_deprecated=exclude_deprecated,
             )
             if args.update_snapshot:
                 _guard_committed_roi_shift(
@@ -799,7 +742,6 @@ def main() -> None:
             total_capital=total_capital,
             tolerances=tolerances,
             show_progress=not bool(args.no_progress),
-            exclude_deprecated=exclude_deprecated,
         )
         if args.update_snapshot:
             _guard_committed_roi_shift(
@@ -828,12 +770,11 @@ def main() -> None:
             )
 
     if args.update_snapshot:
-        snapshot = _merge_preserved_excluded_entries(existing=expected, actual=actual)
         point_count = _regenerate_landing_equity_curve(
             compare_payload=collection.compare_payload,
-            snapshot=snapshot,
+            snapshot=actual,
         )
-        _write_snapshot(snapshot_path, snapshot)
+        _write_snapshot(snapshot_path, actual)
         print(f"Updated snapshot: {snapshot_path}")
         if point_count is not None:
             print(
@@ -850,7 +791,6 @@ def main() -> None:
         expected=expected,
         actual=actual,
         tolerances=tolerances,
-        exclude_deprecated=exclude_deprecated,
     )
     print(render_drift_table(rows), end="")
     if args.check and any(row.status != "OK" for row in rows):

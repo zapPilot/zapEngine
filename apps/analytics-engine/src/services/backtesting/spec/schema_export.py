@@ -24,7 +24,6 @@ SCHEMA_FILENAME = "strategy-spec.schema.json"
 VOCABULARY_FILENAME = "VOCABULARY.md"
 _JSON_SCHEMA_DIALECT = "https://json-schema.org/draft/2020-12/schema"
 _NOISE = frozenset({"title", "discriminator"})
-_TABLE_HEADER_ROWS = 2
 
 # What each kind does, in the terms an author needs. Fields are listed from the
 # models, so this only carries what a field description cannot.
@@ -67,18 +66,6 @@ KIND_SEMANTICS: dict[str, str] = {
         "before and is in `to_regimes` today. Sells `sell_step` from each such "
         "asset: of the portfolio, or of the position under relative `sizing`."
     ),
-    "technical_trim": (
-        "A research kind: the reference uses none. Fires when `trigger` holds "
-        "for an asset that is above its DMA, and sells `sell_step` from each "
-        "such asset (of the portfolio, or of the position under relative "
-        "`sizing`), routing the proceeds as `proceeds` says."
-    ),
-    "technical_add": (
-        "A research kind: the reference uses none. Fires when `trigger` holds "
-        "for an asset that is above its DMA, and buys `buy_step` of the "
-        "portfolio into each such asset out of stable (scaled down together "
-        "when stable is short)."
-    ),
     "trend_dca_entry": (
         "Fires when an asset is above its DMA, the signal's cross cooldown no "
         "longer bars entering it, it holds less than `max_weight` of the "
@@ -91,80 +78,19 @@ KIND_SEMANTICS: dict[str, str] = {
 
 # What each overlay does. Fields are listed from the models.
 OVERLAY_SEMANTICS: dict[str, str] = {
-    "spy_latch": (
-        "When SPY crosses up it moves the stable already held into SPY, then "
-        "keeps routing new stable into SPY for `follow_through_days`."
-    ),
     "trend_guard": (
         "Acts every day and has the last word. An asset counts as below its "
         "DMA once it has closed more than `below_dma_buffer` under it for "
         "`confirm_days` days in a row. `block_adds` undoes any purchase of such "
         "an asset (the cash stays in stable); `force_exit` also sells what is "
         "held of it. Because it looks at the level, not at the day of the "
-        "cross, it holds whatever route a position took, and the trade quota "
-        "guard does not hold a forced exit back."
+        "cross, it holds whatever route a position took."
     ),
 }
 
-# What each technical signal means. Fields are listed from the models.
-TRIGGER_SEMANTICS: dict[str, str] = {
-    "rsi_bearish_divergence": (
-        "The last 28 closes are split into an older and a newer 14-day "
-        "segment. The newer high is at least 1% above the older one while the "
-        "RSI(14) at it is at least 3 points lower. Both segments are already "
-        "observed, so it never looks ahead."
-    ),
-    "rsi_bullish_divergence": (
-        "The mirror image: the newer low is at least 1% below the older one "
-        "while the RSI(14) at it is at least 3 points higher."
-    ),
-    "rsi_overbought_turning_down": (
-        "RSI(14) is at or above `rsi_at_least` and has fallen over the last five days."
-    ),
-    "rsi_oversold_recovering": (
-        "RSI(14) is at or below `rsi_at_most` and has risen over the last five days."
-    ),
-    "macd_bearish_cross": (
-        "The MACD(12, 26, 9) histogram was at or above zero yesterday and is "
-        "below it today. Needs 35 closes of history."
-    ),
-    "macd_bullish_cross": (
-        "The MACD(12, 26, 9) histogram was at or below zero yesterday and is "
-        "above it today. Needs 35 closes of history."
-    ),
-    "momentum_breakdown": (
-        "The 30-day price change is below `short_momentum_below` while the "
-        "90-day price change is above `long_momentum_above`: a short-term "
-        "reversal inside a longer trend. Needs 91 closes of history."
-    ),
-    "volatility_spike": (
-        "The annualized volatility of the last 20 daily log returns is at or "
-        "above the asset's level in `thresholds`."
-    ),
-    "bollinger_upper_band": (
-        "The 20-day Bollinger z-score (the close's distance from its 20-day "
-        "mean, in standard deviations) is at or above `zscore_at_least`."
-    ),
-    "bollinger_lower_band": (
-        "The 20-day Bollinger z-score is at or below `zscore_at_most`, which "
-        "is negative."
-    ),
-    "breakout_20d": "Today's close is above every close of the 20 days before it.",
-    "breakdown_20d": "Today's close is below every close of the 20 days before it.",
-}
-
-_TRIGGER_INTRO = (
-    "A `trigger` names a technical signal by its `signal` and gives the level it "
-    "fires at. A rule reads it for each asset that is above its DMA, from that "
-    "asset's own close history."
-)
-_GUARD_SEMANTICS = (
-    "`trade_quota` turns the day into a hold when a trade-frequency limit is "
-    "reached, whichever rule decided."
-)
 _OVERLAY_INTRO = (
-    "Overlays adjust the decision after the rules and guards have made it. They "
-    "apply in the order listed, at most one of each kind."
+    "Overlays adjust the decision after the rules have made it. They apply in "
+    "the order listed, at most one of each kind."
 )
 
 
@@ -239,66 +165,32 @@ def render_vocabulary() -> str:
         "",
         "## Top level",
         "",
-        *_field_table(schema, skip={"rules", "guards", "overlays"}),
+        *_field_table(schema, skip={"rules", "overlays"}),
         "",
         "## Rules",
         "",
         str(schema["properties"]["rules"]["description"]),
         "",
     ]
-    rule_branches = schema["properties"]["rules"]["items"]["oneOf"]
-    for branch in rule_branches:
-        lines.extend(_kind_section(branch, KIND_SEMANTICS, "kind"))
-    lines.extend(
-        [
-            "## Triggers",
-            "",
-            _TRIGGER_INTRO,
-            "",
-        ]
-    )
-    for branch in _trigger_branches(rule_branches):
-        lines.extend(_kind_section(branch, TRIGGER_SEMANTICS, "signal"))
-    lines.extend(
-        [
-            "## Guards",
-            "",
-            _GUARD_SEMANTICS,
-            "",
-            *_kind_section(schema["properties"]["guards"]["items"], None, "kind"),
-            "## Overlays",
-            "",
-            _OVERLAY_INTRO,
-            "",
-        ]
-    )
-    for branch in schema["properties"]["overlays"]["items"]["oneOf"]:
-        lines.extend(_kind_section(branch, OVERLAY_SEMANTICS, "kind"))
+    for branch in _branches(schema["properties"]["rules"]["items"]):
+        lines.extend(_kind_section(branch, KIND_SEMANTICS))
+    lines.extend(["## Overlays", "", _OVERLAY_INTRO, ""])
+    for branch in _branches(schema["properties"]["overlays"]["items"]):
+        lines.extend(_kind_section(branch, OVERLAY_SEMANTICS))
     return "\n".join(lines).rstrip() + "\n"
 
 
-def _trigger_branches(rule_branches: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """The trigger union, which every rule kind that takes a trigger shares."""
-    unions = [
-        branch["properties"]["trigger"]["oneOf"]
-        for branch in rule_branches
-        if "trigger" in branch["properties"]
-    ]
-    assert unions and all(union == unions[0] for union in unions)
-    return list(unions[0])
+def _branches(items: dict[str, Any]) -> list[dict[str, Any]]:
+    """The kinds a list may hold: a ``oneOf`` union, or a single object."""
+    branches: list[dict[str, Any]] = items.get("oneOf", [items])
+    return branches
 
 
-def _kind_section(
-    branch: dict[str, Any],
-    semantics: dict[str, str] | None,
-    tag: str,
-) -> list[str]:
-    kind = branch["properties"][tag]["const"]
+def _kind_section(branch: dict[str, Any], semantics: dict[str, str]) -> list[str]:
+    kind = branch["properties"]["kind"]["const"]
     lines = [f"### `{kind}`", "", str(branch["description"]), ""]
-    if semantics is not None:
-        lines.extend([semantics[kind], ""])
-    table = _field_table(branch, skip={tag})
-    lines.extend(table if len(table) > _TABLE_HEADER_ROWS else ["It has no fields."])
+    lines.extend([semantics[kind], ""])
+    lines.extend(_field_table(branch, skip={"kind"}))
     lines.append("")
     return lines
 
@@ -340,7 +232,7 @@ def _children(node: dict[str, Any], path: str) -> list[tuple[str, str, str]]:
     if "properties" in node:
         return _flatten(node, f"{path}.", set())
     tag = _union_tag(node)
-    if tag is not None and tag != "signal":
+    if tag is not None:
         return _union_children(node["oneOf"], path, tag)
     item = node.get("items")
     if isinstance(item, dict):
@@ -397,8 +289,7 @@ def _type_label(node: dict[str, Any]) -> str:
         return " \\| ".join(f"`{json.dumps(value)}`" for value in node["enum"])
     if "oneOf" in node:
         tag = _union_tag(node)
-        if tag is None or tag == "signal":
-            return "object, one of the triggers below"
+        assert tag is not None, "every union in the spec is tagged"
         values = " \\| ".join(
             f"`{json.dumps(branch['properties'][tag]['const'])}`"
             for branch in node["oneOf"]
@@ -407,6 +298,8 @@ def _type_label(node: dict[str, Any]) -> str:
     if "anyOf" in node:
         return " \\| ".join(_type_label(option) for option in node["anyOf"])
     kind = node["type"]
+    if kind == "array" and node.get("maxItems") == 0:
+        return "array, always empty"
     if kind == "array":
         return f"array of {_type_label(node['items'])}"
     if kind in {"integer", "number"}:
@@ -433,7 +326,6 @@ __all__ = [
     "KIND_SEMANTICS",
     "OVERLAY_SEMANTICS",
     "SCHEMA_FILENAME",
-    "TRIGGER_SEMANTICS",
     "VOCABULARY_FILENAME",
     "render_schema",
     "render_vocabulary",

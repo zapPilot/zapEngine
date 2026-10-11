@@ -152,7 +152,13 @@ def test_a_spec_decides_the_warmup_window() -> None:
 def test_a_spec_strategy_runs_on_the_compiled_spec_with_fresh_rules() -> None:
     raw = load_spec("reference/dma_fgi").model_dump(mode="json")
     raw["overlays"] = [
-        {"kind": "spy_latch", "id": "spy_latch", "follow_through_days": 14}
+        {
+            "kind": "trend_guard",
+            "id": "trend_guard",
+            "mode": "force_exit",
+            "below_dma_buffer": 0.02,
+            "confirm_days": 3,
+        }
     ]
     resolved = resolve_spec_strategy_config(parse_spec(raw), config_id="spec-test")
 
@@ -162,5 +168,5 @@ def test_a_spec_strategy_runs_on_the_compiled_spec_with_fresh_rules() -> None:
     assert isinstance(first, RuleBasedPortfolioStrategy)
     assert isinstance(second, RuleBasedPortfolioStrategy)
     assert first.strategy_id == "spec-test"
-    assert [rule.name for rule in first.decision_policy.rules][-1] == "spy_latch"
+    assert [rule.name for rule in first.decision_policy.rules][-1] == "trend_guard"
     assert first.decision_policy.rules[-1] is not second.decision_policy.rules[-1]

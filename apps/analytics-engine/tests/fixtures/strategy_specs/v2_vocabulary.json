@@ -38,7 +38,6 @@
     {
       "kind": "ratio_cross_rotation",
       "id": "eth_btc_ratio_rotation",
-      "cooldown_days": 30,
       "cross_up": {
         "sources": ["BTC", "STABLE"],
         "destination": "ETH"
@@ -129,11 +128,6 @@
   ],
   "guards": [],
   "overlays": [
-    {
-      "kind": "spy_latch",
-      "id": "spy_latch",
-      "follow_through_days": 14
-    },
     {
       "kind": "trend_guard",
       "id": "trend_guard",

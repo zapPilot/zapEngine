@@ -106,7 +106,9 @@ class FlatMinimumState:
 class FlatMinimumSignalComponent(StatefulSignalComponent):
     """Three independent DMA signals for the flat minimum baseline."""
 
-    config: DmaGatedFgiConfig = field(default_factory=DmaGatedFgiConfig)
+    # Days a DMA cross blocks the opposite cross, for each asset observed.
+    cross_down_cooldown_days_by_symbol: Mapping[str, int]
+    cross_on_touch: bool = True
     ratio_cross_cooldown_days: int = 30
     signal_id: str = "dma_fgi_flat_minimum_signal"
     market_data_requirements: MarketDataRequirements = field(
@@ -122,8 +124,6 @@ class FlatMinimumSignalComponent(StatefulSignalComponent):
             required_aux_series=frozenset({ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES}),
         )
     )
-    warmup_lookback_days: int = 14
-    cross_down_cooldown_days_by_symbol: Mapping[str, int] | None = None
     _spy_dma_signal: DmaGatedFgiSignalComponent = field(init=False, repr=False)
     _btc_dma_signal: DmaGatedFgiSignalComponent = field(init=False, repr=False)
     _eth_dma_signal: DmaGatedFgiSignalComponent = field(init=False, repr=False)
@@ -265,16 +265,13 @@ class FlatMinimumSignalComponent(StatefulSignalComponent):
                 requires_sentiment=True,
                 required_price_features=frozenset({DMA_200_FEATURE}),
             ),
-            warmup_lookback_days=self.warmup_lookback_days,
         )
 
     def _config_for_symbol(self, symbol: str) -> DmaGatedFgiConfig:
-        if self.cross_down_cooldown_days_by_symbol is None:
-            return self.config
-        days = self.cross_down_cooldown_days_by_symbol.get(symbol)
-        if days is None:
-            return self.config
-        return replace(self.config, cross_cooldown_days=int(days))
+        return DmaGatedFgiConfig(
+            cross_cooldown_days=int(self.cross_down_cooldown_days_by_symbol[symbol]),
+            cross_on_touch=self.cross_on_touch,
+        )
 
     def _observe_ratio_state(
         self,
@@ -287,7 +284,7 @@ class FlatMinimumSignalComponent(StatefulSignalComponent):
         cross_event = detect_ratio_cross(
             prev_zone=self._last_ratio_zone,
             current_zone=ratio_zone,
-            cross_on_touch=self.config.cross_on_touch,
+            cross_on_touch=self.cross_on_touch,
         )
         cooldown_state = self._ratio_cooldown_state()
         return EthBtcRatioState(
@@ -398,7 +395,6 @@ def _build_asset_dma_context(
     return replace(
         context,
         price=float(price),
-        price_history=_asset_price_history(context=context, spec=spec),
         extra_data={
             **context.extra_data,
             DMA_200_FEATURE: float(dma_value),
@@ -418,19 +414,6 @@ def _resolve_asset_price(
     if spec.price_key == "btc" and context.price > 0.0:
         return float(context.price)
     return None
-
-
-def _asset_price_history(
-    *,
-    context: StrategyContext,
-    spec: FlatMinimumAssetSpec,
-) -> list[float]:
-    mapped_history = context.price_history_map.get(spec.price_key)
-    if mapped_history:
-        return list(mapped_history)
-    if spec.price_key == "btc":
-        return list(context.price_history)
-    return []
 
 
 def _price_above_dma(

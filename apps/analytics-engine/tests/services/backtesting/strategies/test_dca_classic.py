@@ -17,7 +17,6 @@ def _context(
         date=current_date,
         price=100.0,
         sentiment=None,
-        price_history=[100.0],
         portfolio=runtime_portfolio,
     )
 

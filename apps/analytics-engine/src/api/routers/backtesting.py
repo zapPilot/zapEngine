@@ -59,12 +59,15 @@ def list_backtesting_strategies_v3() -> BacktestStrategyCatalogResponseV3:
         "- BacktestResponse where `strategies` and `timeline[].strategies` are keyed by config_id."
     ),
 )
-async def compare_backtesting_configs_v3(
+def compare_backtesting_configs_v3(
     request: BacktestCompareRequestV3,
     service: BacktestingServiceDep,
 ) -> BacktestResponse:
+    # A plain ``def``: FastAPI runs it in its threadpool, so a backtest (database
+    # reads and seconds of CPU) does not hold the event loop the way an
+    # ``async def`` with synchronous work inside would.
     try:
-        return await service.run_compare_v3(request)
+        return service.run_compare_v3(request)
     except Exception as e:
         raise _build_backtest_http_error(e) from e
 

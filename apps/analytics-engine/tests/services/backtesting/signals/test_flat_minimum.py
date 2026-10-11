@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
+from typing import Any
 
 import pytest
 
@@ -8,20 +9,13 @@ from src.services.backtesting.decision import AllocationIntent
 from src.services.backtesting.execution.portfolio import Portfolio
 from src.services.backtesting.features import (
     DMA_200_FEATURE,
-    DMA_ASSET_FEATURE,
     ETH_BTC_RATIO_DMA_200_FEATURE,
     ETH_BTC_RATIO_FEATURE,
     ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES,
     ETH_DMA_200_FEATURE,
     SPY_DMA_200_FEATURE,
 )
-from src.services.backtesting.signals.dma_gated_fgi.component import (
-    DmaGatedFgiSignalComponent,
-)
-from src.services.backtesting.signals.dma_gated_fgi.types import (
-    DmaCooldownState,
-    DmaMarketState,
-)
+from src.services.backtesting.signals.dma_gated_fgi.config import DmaGatedFgiConfig
 from src.services.backtesting.signals.flat_minimum import (
     FlatMinimumSignalComponent,
     FlatMinimumState,
@@ -30,6 +24,15 @@ from src.services.backtesting.signals.flat_minimum import (
     build_initial_flat_minimum_asset_allocation,
 )
 from src.services.backtesting.strategies.base import StrategyContext
+from tests.services.backtesting.support.reference_rules import reference_signals
+
+
+def _component(**fields: Any) -> FlatMinimumSignalComponent:
+    """A flat-minimum signal with the reference spec's DMA cross cooldowns."""
+    return FlatMinimumSignalComponent(
+        cross_down_cooldown_days_by_symbol=reference_signals().dma_cross_cooldown_days,
+        **fields,
+    )
 
 
 def _context(
@@ -38,17 +41,14 @@ def _context(
     portfolio: Portfolio,
     ratio: float,
     ratio_dma: float,
-    price_history_map: dict[str, list[float]] | None = None,
 ) -> StrategyContext:
     prices = {"btc": 100.0, "eth": 100.0, "spy": 100.0}
     return StrategyContext(
         date=context_date,
         price=prices["btc"],
         sentiment={"label": "neutral", "value": 50},
-        price_history=[200.0] * 60,
         portfolio=portfolio,
         price_map=prices,
-        price_history_map=price_history_map or {},
         extra_data={
             DMA_200_FEATURE: 90.0,
             ETH_DMA_200_FEATURE: 90.0,
@@ -60,7 +60,7 @@ def _context(
 
 
 def test_signal_component_emits_ratio_state_with_cross_up() -> None:
-    component = FlatMinimumSignalComponent()
+    component = _component()
     portfolio = Portfolio.from_asset_allocation(
         10_000.0,
         {"btc": 0.30, "eth": 0.10, "spy": 0.30, "stable": 0.30},
@@ -89,107 +89,37 @@ def test_signal_component_emits_ratio_state_with_cross_up() -> None:
     assert state.eth_btc_ratio_state.actionable_cross_event == "cross_up"
 
 
-def test_signal_component_passes_asset_specific_price_history(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize(
+    ("cross_on_touch", "expected_cross"), [(True, "cross_up"), (False, None)]
+)
+def test_the_touch_setting_decides_whether_a_ratio_touching_its_dma_crosses(
+    cross_on_touch: bool,
+    expected_cross: str | None,
 ) -> None:
-    component = FlatMinimumSignalComponent()
+    component = _component(cross_on_touch=cross_on_touch)
     portfolio = Portfolio.from_asset_allocation(
         10_000.0,
         {"btc": 0.30, "eth": 0.10, "spy": 0.30, "stable": 0.30},
         {"btc": 100.0, "eth": 100.0, "spy": 100.0},
     )
-    observed_history: dict[str, list[float]] = {}
-
-    def observe_asset_context(
-        self: DmaGatedFgiSignalComponent,
-        context: StrategyContext,
-    ) -> DmaMarketState:
-        del self
-        symbol = str(context.extra_data[DMA_ASSET_FEATURE])
-        observed_history[symbol] = list(context.price_history)
-        dma_200 = float(context.extra_data[DMA_200_FEATURE])
-        return DmaMarketState(
-            signal_id="dma_gated_fgi",
-            dma_200=dma_200,
-            dma_distance=(context.price / dma_200) - 1.0,
-            zone="above",
-            cross_event=None,
-            actionable_cross_event=None,
-            cooldown_state=DmaCooldownState(False, 0, None),
-            fgi_value=50.0,
-            fgi_slope=0.0,
-            fgi_regime="neutral",
-            regime_source="label",
-            ath_event=None,
-            asset_symbol=symbol,
-        )
-
-    monkeypatch.setattr(
-        DmaGatedFgiSignalComponent,
-        "observe",
-        observe_asset_context,
+    below = _context(
+        context_date=date(2025, 1, 1), portfolio=portfolio, ratio=0.05, ratio_dma=0.06
     )
-    context = _context(
-        context_date=date(2025, 1, 2),
-        portfolio=portfolio,
-        ratio=0.07,
-        ratio_dma=0.06,
-        price_history_map={
-            "btc": [100.0] * 60,
-            "eth": [110.0] * 59 + [100.0],
-            "spy": [90.0] * 58 + [120.0, 100.0],
-        },
+    touching = _context(
+        context_date=date(2025, 1, 2), portfolio=portfolio, ratio=0.06, ratio_dma=0.06
     )
 
-    state = component.observe(context)
+    component.initialize(below)
+    component.warmup(below)
+    ratio_state = component.observe(touching).eth_btc_ratio_state
 
-    assert state.btc_dma_state is not None
-    assert state.eth_dma_state is not None
-    assert state.spy_dma_state is not None
-    assert observed_history == {
-        "BTC": [100.0] * 60,
-        "ETH": [110.0] * 59 + [100.0],
-        "SPY": [90.0] * 58 + [120.0, 100.0],
-    }
-
-
-def test_signal_component_derives_per_asset_technical_state() -> None:
-    component = FlatMinimumSignalComponent()
-    portfolio = Portfolio.from_asset_allocation(
-        10_000.0,
-        {"btc": 0.30, "eth": 0.10, "spy": 0.30, "stable": 0.30},
-        {"btc": 100.0, "eth": 100.0, "spy": 100.0},
-    )
-    context = _context(
-        context_date=date(2025, 1, 2),
-        portfolio=portfolio,
-        ratio=0.07,
-        ratio_dma=0.06,
-        price_history_map={
-            "btc": [100.0 + index for index in range(60)],
-            "eth": [100.0 - index * 0.5 for index in range(60)],
-            "spy": [100.0 + (index % 7) for index in range(60)],
-        },
-    )
-
-    state = component.observe(context)
-
-    assert state.btc_dma_state is not None
-    assert state.eth_dma_state is not None
-    assert state.spy_dma_state is not None
-    rsi_by_asset = {
-        "BTC": state.btc_dma_state.technical.rsi_14,
-        "ETH": state.eth_dma_state.technical.rsi_14,
-        "SPY": state.spy_dma_state.technical.rsi_14,
-    }
-    assert all(value is not None for value in rsi_by_asset.values())
-    assert len(set(rsi_by_asset.values())) == 3
-    assert state.btc_dma_state.technical.breakout_20d is True
-    assert state.eth_dma_state.technical.breakdown_20d is True
+    assert ratio_state is not None
+    assert ratio_state.zone == "at"
+    assert ratio_state.cross_event == expected_cross
 
 
 def test_signal_component_declares_ratio_price_features() -> None:
-    requirements = FlatMinimumSignalComponent().market_data_requirements
+    requirements = _component().market_data_requirements
 
     assert ETH_BTC_RATIO_FEATURE not in requirements.required_price_features
     assert ETH_BTC_RATIO_DMA_200_FEATURE not in requirements.required_price_features
@@ -208,17 +138,51 @@ def test_flat_minimum_state_rejects_unknown_asset_key() -> None:
         state_snapshot.dma_state_for("doge")
 
 
-def test_signal_component_symbol_config_falls_back_when_override_missing() -> None:
+def test_each_asset_gets_its_own_cooldown_and_the_touch_setting() -> None:
     component = FlatMinimumSignalComponent(
-        cross_down_cooldown_days_by_symbol={"BTC": 7}
+        cross_down_cooldown_days_by_symbol={"SPY": 3, "BTC": 4, "ETH": 5},
+        cross_on_touch=False,
     )
 
-    assert component._config_for_symbol("ETH") is component.config
-    assert component._config_for_symbol("BTC").cross_cooldown_days == 7
+    assert component._signal_for("spy").config == DmaGatedFgiConfig(
+        cross_cooldown_days=3, cross_on_touch=False
+    )
+    assert component._signal_for("btc").config == DmaGatedFgiConfig(
+        cross_cooldown_days=4, cross_on_touch=False
+    )
+    assert component._signal_for("eth").config == DmaGatedFgiConfig(
+        cross_cooldown_days=5, cross_on_touch=False
+    )
+
+
+def test_the_touch_setting_defaults_to_on() -> None:
+    component = _component()
+
+    assert component.cross_on_touch is True
+    assert component._config_for_symbol("BTC").cross_on_touch is True
+
+
+def test_a_symbol_without_a_cooldown_has_no_fallback() -> None:
+    component = _component()
+
+    with pytest.raises(KeyError, match="DOGE"):
+        component._config_for_symbol("DOGE")
+
+
+def test_every_observed_asset_needs_a_cooldown() -> None:
+    with pytest.raises(KeyError, match="ETH"):
+        FlatMinimumSignalComponent(
+            cross_down_cooldown_days_by_symbol={"SPY": 14, "BTC": 30}
+        )
+
+
+def test_the_cooldown_mapping_is_required() -> None:
+    with pytest.raises(TypeError, match="cross_down_cooldown_days_by_symbol"):
+        FlatMinimumSignalComponent()  # type: ignore[call-arg]
 
 
 def test_signal_component_reset_and_invalid_signal_key_contracts() -> None:
-    component = FlatMinimumSignalComponent()
+    component = _component()
     component._ratio_cooldown_remaining = 3
     component._ratio_cooldown_blocked_zone = "above"
 
@@ -264,7 +228,7 @@ def test_build_initial_flat_minimum_allocation_handles_zero_total_and_primary_bt
 
 
 def test_signal_component_handles_ratio_cooldown_and_empty_observation() -> None:
-    component = FlatMinimumSignalComponent(ratio_cross_cooldown_days=3)
+    component = _component(ratio_cross_cooldown_days=3)
     component._start_ratio_cooldown(None)
     assert component._ratio_cooldown_state().active is False
     component._start_ratio_cooldown("cross_up")
@@ -355,7 +319,7 @@ def _ratio_move(
 
 
 def test_an_intent_that_starts_the_ratio_cooldown_blocks_the_next_ratio_cross() -> None:
-    component = FlatMinimumSignalComponent(ratio_cross_cooldown_days=5)
+    component = _component(ratio_cross_cooldown_days=5)
     observed = _observed_ratio_cross_up(component)
 
     committed = component.apply_intent(
@@ -380,7 +344,7 @@ def test_an_intent_that_starts_the_ratio_cooldown_blocks_the_next_ratio_cross() 
 def test_a_ratio_named_intent_without_the_marker_does_not_start_the_cooldown(
     diagnostics: dict[str, object] | None,
 ) -> None:
-    component = FlatMinimumSignalComponent(ratio_cross_cooldown_days=5)
+    component = _component(ratio_cross_cooldown_days=5)
     observed = _observed_ratio_cross_up(component)
 
     committed = component.apply_intent(

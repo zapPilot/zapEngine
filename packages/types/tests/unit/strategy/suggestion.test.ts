@@ -127,7 +127,7 @@ describe('DailySuggestionResponseSchema', () => {
         config_id: 'cfg',
         config_display_name: 'Balanced',
         strategy_id: 'balanced',
-        spec_ref: 'reference/dma_fgi@1#a22bccfabb4b',
+        spec_ref: 'reference/dma_fgi@2#ffc3614028fb',
         action: {
           status: 'no_action',
           required: false,

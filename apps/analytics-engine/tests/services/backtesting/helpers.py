@@ -66,9 +66,7 @@ def snapshot(
     crypto_regime: str | None = None,
     cycle_open: dict[str, bool] | None = None,
     eth_btc_ratio_state: EthBtcRatioState | None = None,
-    last_trade_date: date | None = None,
     current_date: date | None = None,
-    trade_dates: tuple[date, ...] = (),
 ) -> PortfolioSnapshot:
     resolved_assets = assets or {
         "SPY": state(symbol="SPY"),
@@ -84,7 +82,5 @@ def snapshot(
         crypto_fgi_regime=crypto_regime,
         cycle_open_per_symbol=cycle_open or {},
         eth_btc_ratio_state=eth_btc_ratio_state,
-        last_trade_date=last_trade_date,
         current_date=current_date,
-        trade_dates=trade_dates,
     )

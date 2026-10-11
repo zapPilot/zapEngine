@@ -16,12 +16,12 @@ from tests.services.backtesting.spec.helpers import (
     with_value,
 )
 
-SPY_LATCH = {"kind": "spy_latch", "id": "spy_latch", "follow_through_days": 14}
-QUOTA = {
-    "kind": "trade_quota",
-    "min_trade_interval_days": 2,
-    "max_trades_7d": None,
-    "max_trades_30d": None,
+TREND_GUARD = {
+    "kind": "trend_guard",
+    "id": "trend_guard",
+    "mode": "block_adds",
+    "below_dma_buffer": 0.02,
+    "confirm_days": 3,
 }
 
 
@@ -83,20 +83,18 @@ def test_a_removed_rule_is_one_removal() -> None:
     changes = _changes(raw)
 
     assert [(item["pointer"], item["kind"]) for item in changes] == [
-        ("/rules[fgi_downshift_dca_sell]", "removed")
+        ("/rules[dma_overextension_dca_sell]", "removed")
     ]
-    assert changes[0]["before"]["kind"] == "fgi_downshift_trim"
+    assert changes[0]["before"]["kind"] == "dma_overextension_trim"
 
 
-def test_an_added_rule_and_overlay_and_guard() -> None:
+def test_an_added_rule_and_overlay() -> None:
     raw = reference_raw()
     raw["rules"].append({**raw["rules"][1], "id": "second_rebalance"})
-    raw["overlays"] = [SPY_LATCH]
-    raw["guards"] = [QUOTA]
+    raw["overlays"] = [TREND_GUARD]
 
     assert _pointers(raw) == [
-        ("/guards[trade_quota]", "added"),
-        ("/overlays[spy_latch]", "added"),
+        ("/overlays[trend_guard]", "added"),
         ("/rules[second_rebalance]", "added"),
     ]
 
@@ -181,7 +179,7 @@ def test_a_change_is_followed_to_the_first_day_it_decides_differently(bundle) ->
     assert result["roi_pp"] == pytest.approx(
         result["candidate"]["roi_percent"] - result["base"]["roi_percent"], abs=1e-5
     )
-    assert result["base"]["ref"].startswith("dma_fgi@1#")
+    assert result["base"]["ref"].startswith("dma_fgi@2#")
 
 
 def test_the_comparison_follows_the_window(bundle) -> None:

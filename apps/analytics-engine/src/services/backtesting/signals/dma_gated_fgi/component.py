@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from datetime import date
 
 from src.services.backtesting.decision import AllocationIntent
@@ -29,13 +29,9 @@ from src.services.backtesting.signals.dma_gated_fgi.types import (
     DmaMarketState,
     SignalId,
 )
-from src.services.backtesting.signals.technical import (
-    build_technical_signal_snapshot,
-)
 from src.services.backtesting.strategies.base import (
     StrategyContext,
 )
-from src.services.backtesting.utils import normalize_regime_label
 
 
 def _build_signal_observation(
@@ -68,7 +64,7 @@ def _build_signal_observation(
 class DmaGatedFgiSignalComponent(StatefulSignalComponent):
     """Stateful DMA signal component used by composed strategies."""
 
-    config: DmaGatedFgiConfig = field(default_factory=DmaGatedFgiConfig)
+    config: DmaGatedFgiConfig
     signal_id: SignalId = "dma_gated_fgi"
     market_data_requirements: MarketDataRequirements = field(
         default_factory=lambda: MarketDataRequirements(
@@ -76,11 +72,9 @@ class DmaGatedFgiSignalComponent(StatefulSignalComponent):
             required_price_features=frozenset({DMA_200_FEATURE}),
         )
     )
-    warmup_lookback_days: int = 14
 
     _runtime: DmaGatedFgiSignalRuntime = field(init=False, repr=False)
     _ath_tracker: ATHTracker = field(init=False, repr=False)
-    _regime_history: list[str] = field(default_factory=list, init=False, repr=False)
 
     def __post_init__(self) -> None:
         self._runtime = DmaGatedFgiSignalRuntime(config=self.config)
@@ -89,36 +83,20 @@ class DmaGatedFgiSignalComponent(StatefulSignalComponent):
     def reset(self) -> None:
         self._runtime.reset()
         self._ath_tracker = ATHTracker(cooldown_days=7)
-        self._regime_history = []
 
     def initialize(self, context: StrategyContext) -> None:
         self._ath_tracker.initialize_from_context(context)
 
     def warmup(self, context: StrategyContext) -> None:
-        sentiment = context.sentiment or {}
-        regime = normalize_regime_label(str(sentiment.get("label", "neutral")))
-        self._regime_history.append(regime)
-        self._runtime.warmup(
-            SignalContext.from_strategy_context(
-                context,
-                regime_history=self._regime_history,
-            )
-        )
+        self._runtime.warmup(SignalContext.from_strategy_context(context))
 
     def observe(self, context: StrategyContext) -> DmaMarketState:
         self._ath_tracker.process_ath_event(context)
         signal_context = SignalContext.from_strategy_context(
             context,
             ath_tracker=self._ath_tracker,
-            regime_history=self._regime_history,
         )
-        market_state = self._runtime.observe(signal_context)
-        market_state = replace(
-            market_state,
-            technical=build_technical_signal_snapshot(signal_context.price_history),
-        )
-        self._regime_history.append(market_state.fgi_regime)
-        return market_state
+        return self._runtime.observe(signal_context)
 
     # jscpd:ignore-start
     # Reason: component delegates runtime API with the same public signature.

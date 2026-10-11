@@ -7,6 +7,10 @@ from src.services.backtesting.signals.contracts import (
     SignalContext,
     SignalOutput,
 )
+from src.services.backtesting.signals.dma_gated_fgi.config import DmaGatedFgiConfig
+from src.services.backtesting.signals.dma_gated_fgi.runtime import (
+    DmaGatedFgiSignalRuntime,
+)
 from src.services.backtesting.signals.runtime import SignalRuntime
 
 
@@ -16,7 +20,6 @@ def test_signal_context_creation():
         date=date(2024, 1, 1),
         price=100.0,
         sentiment={"value": 50},
-        price_history=[90.0, 100.0],
         portfolio_value=1000.0,
     )
     assert ctx.date == date(2024, 1, 1)
@@ -29,7 +32,6 @@ class MockStrategyContext:
         self.date = date(2024, 1, 1)
         self.price = 100.0
         self.sentiment = {"value": 50}
-        self.price_history = [90.0, 100.0]
         self.extra_data = {}
         self.portfolio = self
 
@@ -47,16 +49,11 @@ def test_signal_context_from_strategy():
     strat_ctx = MockStrategyContext()
     ath_tracker = MockATHTracker()
 
-    ctx = SignalContext.from_strategy_context(
-        strat_ctx,
-        ath_tracker=ath_tracker,
-        regime_history=["neutral"],
-    )
+    ctx = SignalContext.from_strategy_context(strat_ctx, ath_tracker=ath_tracker)
 
     assert ctx.date == strat_ctx.date
     assert ctx.portfolio_value == 1000.0
     assert ctx.ath_event == "token_ath"
-    assert ctx.regime_history == ["neutral"]
 
 
 def test_signal_context_from_strategy_extra_data_defensive_copy():
@@ -123,27 +120,22 @@ def test_signal_output_is_frozen():
         signal.score = 0.5  # type: ignore[misc]
 
 
+def _dma_runtime() -> DmaGatedFgiSignalRuntime:
+    return DmaGatedFgiSignalRuntime(config=DmaGatedFgiConfig(cross_cooldown_days=30))
+
+
 def test_signal_runtime_protocol() -> None:
     """Test that the DMA signal runtime implements the runtime protocol."""
-    from src.services.backtesting.signals.dma_gated_fgi.runtime import (
-        DmaGatedFgiSignalRuntime,
-    )
-
-    assert isinstance(DmaGatedFgiSignalRuntime(), SignalRuntime)
+    assert isinstance(_dma_runtime(), SignalRuntime)
 
 
 def test_signal_runtime_observe_returns_dma_market_state() -> None:
-    from src.services.backtesting.signals.dma_gated_fgi.runtime import (
-        DmaGatedFgiSignalRuntime,
-    )
-
-    runtime = DmaGatedFgiSignalRuntime()
+    runtime = _dma_runtime()
     snapshot = runtime.observe(
         SignalContext(
             date=date(2024, 1, 1),
             price=100.0,
             sentiment={"label": "neutral", "value": 50},
-            price_history=[],
             portfolio_value=1000.0,
             extra_data={"dma_200": 100.0},
         )

@@ -127,7 +127,7 @@ class TestBlockedDays:
                 traded=False,
                 action="hold",
                 reason="regime_no_signal",
-                blocked_reason="trade_quota_min_interval_active",
+                blocked_reason="execution_blocked",
             ),
         )
 
@@ -135,36 +135,8 @@ class TestBlockedDays:
 
         assert response.action.status == "blocked"
         assert response.action.required is False
-        assert response.action.reason_code == "trade_quota_min_interval_active"
+        assert response.action.reason_code == "execution_blocked"
         assert response.action.transfers == []
-
-    def test_a_trade_quota_hold_decision_counts_as_blocked(self) -> None:
-        service, _replayer, _portfolios = build_service(
-            build_replay(
-                traded=False,
-                action="hold",
-                reason="trade_quota_max_trades_7d_reached",
-                rule_group="none",
-            ),
-        )
-
-        response = service.get_daily_suggestion(USER_ID)
-
-        assert response.action.status == "blocked"
-        assert response.action.reason_code == "trade_quota_max_trades_7d_reached"
-
-    def test_a_trade_quota_reason_on_a_real_trade_is_not_a_block(self) -> None:
-        service, _replayer, _portfolios = build_service(
-            build_replay(
-                traded=False,
-                action="buy",
-                reason="trade_quota_note_on_a_buy",
-            ),
-        )
-
-        response = service.get_daily_suggestion(USER_ID)
-
-        assert response.action.status == "no_action"
 
 
 class TestResponseContext:

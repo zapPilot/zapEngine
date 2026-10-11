@@ -175,9 +175,6 @@ def _match_for_snapshot(
 def _ratio_deviation(ratio_state: EthBtcRatioState | None) -> float | None:
     if ratio_state is None:
         return None
-    explicit = getattr(ratio_state, "deviation_from_dma_200", None)
-    if isinstance(explicit, int | float) and not isinstance(explicit, bool):
-        return float(explicit)
     if ratio_state.ratio_dma_200 <= 0.0:
         return None
     return (ratio_state.ratio - ratio_state.ratio_dma_200) / ratio_state.ratio_dma_200

@@ -32,7 +32,8 @@ export default function VerificationPage() {
         <h3>Strategy logic verification</h3>
         <p>
           Recompute one DMA exit using the research Vyper slice on Arbitrum
-          Sepolia. This covers one of six rules, not the production strategy.
+          Sepolia. This covers version 1’s exit rule, not the production
+          strategy.
         </p>
         <a href="/track-record/calculator/?date=2025-10-18">
           Open the On-chain Calculator →

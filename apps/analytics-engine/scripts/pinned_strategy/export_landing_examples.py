@@ -124,7 +124,7 @@ def replay(dates):
                         states,
                         obs_args(self.current),
                         epoch_day(snapshot.current_date),
-                        component.config.cross_on_touch,
+                        component.cross_on_touch,
                     )
                     allocation = [
                         decimal_value(snapshot.current_asset_allocation.get(key, 0))
@@ -164,7 +164,7 @@ def replay(dates):
                             "current": self.current,
                             "allocation": allocation,
                             "lastExecutedDay": epoch_day(self.last_execution),
-                            "crossOnTouch": component.config.cross_on_touch,
+                            "crossOnTouch": component.cross_on_touch,
                             "stateMode": "warmup" if use_warmup else "explicit",
                             "priorStates": [list(s) for s in self.before],
                             "expected": {

@@ -24,9 +24,6 @@ from src.services.backtesting.portfolio_rules.dma_overextension_dca_sell import 
 from src.services.backtesting.portfolio_rules.fgi_downshift_dca_sell import (
     FgiDownshiftDcaSellRule,
 )
-from src.services.backtesting.portfolio_rules.technical_experiments import (
-    TechnicalDcaSellRule,
-)
 from src.services.backtesting.portfolio_rules.trend_dca_entry import TrendDcaEntryRule
 from src.services.backtesting.portfolio_rules.trend_guard import TrendGuardRule
 from src.services.backtesting.sizing import FlatSizing, RelativeSizing
@@ -42,10 +39,27 @@ from tests.services.backtesting.spec.helpers import (
     issues_for,
     reference_raw,
     rule_index,
-    technical_rules,
     v2_raw,
+    with_fgi_downshift,
     with_value,
 )
+
+
+def _pre_knob_raw() -> dict[str, Any]:
+    """A spec that predates the knobs, with every kind one was added to.
+
+    The reference uses one knob since version 2 (its exit keeps a cooldown per
+    asset) and dropped the downshift trim, so this is the reference without the
+    exit's scope and with version 1's downshift trim.
+    """
+    raw = with_fgi_downshift(reference_raw())
+    del raw["rules"][rule_index(raw, "dma_cross_down_exit")]["cooldown_scope"]
+    return raw
+
+
+def _pre_knob_hash() -> str:
+    return behavior_hash(parse_spec(_pre_knob_raw()))
+
 
 # What a spec that predates the knobs would have to say, spelled out.
 SPELLED_DEFAULTS: list[Callable[[dict[str, Any]], None]] = [
@@ -101,41 +115,45 @@ def _pointers(raw: dict[str, Any]) -> list[tuple[str, str]]:
     return [(issue.pointer, issue.code) for issue in issues_for(raw)]
 
 
-def test_the_reference_canonical_form_mentions_none_of_the_later_knobs() -> None:
-    canonical = canonical_json(load_spec(REFERENCE_REF))
+LATER_KNOBS = (
+    "cooldown_scope",
+    "allocation",
+    "sizing",
+    "trend_dca_entry",
+    "trend_guard",
+)
 
-    for knob in (
-        "cooldown_scope",
-        "allocation",
-        "sizing",
-        "trend_dca_entry",
-        "trend_guard",
-    ):
-        assert knob not in canonical
+
+def test_the_canonical_form_mentions_only_the_knobs_a_spec_uses() -> None:
+    before = canonical_json(parse_spec(_pre_knob_raw()))
+    reference = canonical_json(load_spec(REFERENCE_REF))
+
+    assert [knob for knob in LATER_KNOBS if knob in before] == []
+    assert [knob for knob in LATER_KNOBS if knob in reference] == ["cooldown_scope"]
 
 
 @pytest.mark.parametrize("spell", SPELLED_DEFAULTS)
 def test_spelling_out_a_default_is_the_same_strategy(
     spell: Callable[[dict[str, Any]], None],
 ) -> None:
-    raw = reference_raw()
+    raw = _pre_knob_raw()
     spell(raw)
 
-    assert behavior_hash(parse_spec(raw)) == behavior_hash(load_spec(REFERENCE_REF))
+    assert behavior_hash(parse_spec(raw)) == _pre_knob_hash()
 
 
 @pytest.mark.parametrize("use", CHANGED_KNOBS)
 def test_using_a_knob_is_a_different_strategy(
     use: Callable[[dict[str, Any]], None],
 ) -> None:
-    raw = reference_raw()
+    raw = _pre_knob_raw()
     use(raw)
 
-    assert behavior_hash(parse_spec(raw)) != behavior_hash(load_spec(REFERENCE_REF))
+    assert behavior_hash(parse_spec(raw)) != _pre_knob_hash()
 
 
 def test_a_spec_that_omits_the_knobs_reads_them_at_their_defaults() -> None:
-    spec = load_spec(REFERENCE_REF)
+    spec = parse_spec(_pre_knob_raw())
     by_id = {rule.id: rule for rule in spec.rules}
 
     assert by_id["cross_down_exit"].cooldown_scope == "rule"
@@ -144,8 +162,10 @@ def test_a_spec_that_omits_the_knobs_reads_them_at_their_defaults() -> None:
     assert by_id["fgi_downshift_dca_sell"].sizing.mode == "absolute"
 
 
-def test_the_reference_compiles_to_the_rules_it_always_did() -> None:
-    rules = {rule.name: rule for rule in compile_spec(load_spec(REFERENCE_REF)).rules}
+def test_a_spec_that_omits_the_knobs_compiles_to_the_rules_it_always_did() -> None:
+    rules = {
+        rule.name: rule for rule in compile_spec(parse_spec(_pre_knob_raw())).rules
+    }
 
     exit_rule = rules["cross_down_exit"]
     assert isinstance(exit_rule, CrossDownExitRule)
@@ -182,19 +202,7 @@ def test_the_v2_fixture_compiles_every_knob_and_kind() -> None:
 def test_overlays_follow_the_rules_in_the_order_listed() -> None:
     names = [rule.name for rule in compile_spec(parse_spec(v2_raw())).rules]
 
-    assert names[-3:] == ["trend_dca_entry", "spy_latch", "trend_guard"]
-
-
-def test_a_technical_trim_can_be_sized_by_the_position() -> None:
-    raw = reference_raw()
-    trim = technical_rules()["rsi_bearish_divergence_dca_sell"]
-    trim["sizing"] = {"mode": "relative", "floor_weight": 0.2}
-    raw["rules"].append(trim)
-
-    rule = compile_spec(parse_spec(raw)).rules[-1]
-
-    assert isinstance(rule, TechnicalDcaSellRule)
-    assert rule.sizing == RelativeSizing(floor_weight=0.2)
+    assert names[-2:] == ["trend_dca_entry", "trend_guard"]
 
 
 def test_the_filled_form_of_a_spec_parses_back_to_the_same_strategy() -> None:
@@ -250,33 +258,33 @@ def test_the_trend_guard_refuses_out_of_range_values(
 ) -> None:
     raw = v2_raw()
 
-    with_value(raw, ("overlays", 1, field), value)
+    with_value(raw, ("overlays", 0, field), value)
 
-    assert _pointers(raw) == [(f"/overlays/1/{field}", code)]
+    assert _pointers(raw) == [(f"/overlays/0/{field}", code)]
 
 
-def test_an_unknown_overlay_kind_points_at_the_overlay() -> None:
+def test_an_unknown_overlay_kind_points_at_its_kind() -> None:
     raw = v2_raw()
 
-    with_value(raw, ("overlays", 1, "kind"), "moon_phase")
+    with_value(raw, ("overlays", 0, "kind"), "moon_phase")
 
-    assert _pointers(raw) == [("/overlays/1", "union_tag_invalid")]
+    assert _pointers(raw) == [("/overlays/0/kind", "literal_error")]
 
 
-def test_the_two_overlay_kinds_may_sit_together_but_not_twice() -> None:
+def test_an_overlay_kind_may_appear_only_once() -> None:
     assert issues_for(v2_raw()) == []
     raw = v2_raw()
-    raw["overlays"].append({**raw["overlays"][1], "id": "another_guard"})
+    raw["overlays"].append({**raw["overlays"][0], "id": "another_guard"})
 
-    assert _pointers(raw) == [("/overlays/2", "duplicate_overlay")]
+    assert _pointers(raw) == [("/overlays/1", "duplicate_overlay")]
 
 
 def test_an_overlay_cannot_reuse_a_rule_id() -> None:
     raw = v2_raw()
 
-    with_value(raw, ("overlays", 1, "id"), "trend_dca_entry")
+    with_value(raw, ("overlays", 0, "id"), "trend_dca_entry")
 
-    assert _pointers(raw) == [("/overlays/1/id", "duplicate_id")]
+    assert _pointers(raw) == [("/overlays/0/id", "duplicate_id")]
 
 
 @pytest.mark.parametrize(

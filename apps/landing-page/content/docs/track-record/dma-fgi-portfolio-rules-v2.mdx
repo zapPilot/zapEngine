@@ -1,25 +1,24 @@
 ---
-title: DMA/FGI Portfolio Rules v1 — previous reference strategy
-description: Specification of the reference strategy — signals, the six rules in priority order, guards, and how its backtest is computed.
+title: DMA/FGI Portfolio Rules v2 — reference strategy
+description: Specification of the reference strategy, version 2 — signals, the five rules in priority order, cooldowns, what changed from version 1, and how its backtest is computed.
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout';
 import { AssetLabel, AssetPairLabel } from '@/components/docs/AssetLabel';
 import { StatusBadge } from '@/components/StatusBadge';
 
-<Callout title="Superseded by version 2">
-  [Version 2](/docs/track-record/dma-fgi-portfolio-rules-v2) replaced this
-  version. It is kept for the record, and the on-chain research slice still
-  implements this version's cross-down exit.
-</Callout>
-
 ## Status
 
 **Strategy ID:** `dma_fgi_portfolio_rules`
 
-Version 1 was evaluated once a day on Zap Pilot-hosted servers, with the same advisory output as version 2: a target allocation and a decision packet, and nothing executed because a rule fired.
+<StatusBadge
+  capability="reference-strategy"
+  qualifier="daily · hosted · advisory"
+/>
 
-**Version 1** (`reference/dma_fgi@1#a22bccfabb4b`) was pinned by version and behavior hash, as version 2 is.
+The strategy is evaluated once a day on Zap Pilot-hosted servers. Its output is an advisory target allocation and a decision packet; nothing executes because a rule fired.
+
+**Version 2.** The spec is pinned by version and behavior hash, and every backtest and daily suggestion names the version that produced it (`reference/dma_fgi@2#ffc3614028fb`). You cannot hold a version fixed yet: the hosted service runs the current one <StatusBadge capability="strategy-versioning" />. [Version 1](/docs/track-record/dma-fgi-portfolio-rules-v1) is kept for the record.
 
 ## Philosophy
 
@@ -53,7 +52,7 @@ On each daily snapshot the strategy walks this list top-down. The first rule who
 
 ### 1. Cross-down exit
 
-When a risk asset closes below its 200-day average, the strategy moves out of that asset — and its peers in the same risk class — into the defensive leg, in full and immediately. This rule can be [recomputed on-chain](/docs/track-record/verifiable-strategy) for a recorded exit.
+When a risk asset closes below its 200-day average, the strategy moves out of that asset — and its peers in the same risk class — into stablecoins, in full and immediately. Each asset's exit has its own cooldown, so one asset's exit never holds back another's. Version 1's form of this rule, with one cooldown for the whole rule, can be [recomputed on-chain](/docs/track-record/verifiable-strategy) for a recorded exit.
 
 ### 2. Cross-up equal-weight
 
@@ -61,7 +60,7 @@ When one or more risk assets close back above the average, the strategy resets r
 
 ### 3. ETH/BTC ratio rotation
 
-When the ETH/BTC ratio crosses its own 200-day average, the crypto sleeve rotates fully to the stronger asset until the next ratio cross.
+When the ETH/BTC ratio crosses above its own 200-day average, BTC and stablecoins move into ETH; when it crosses below, ETH moves into BTC.
 
 ### 4. ETH/BTC deviation DCA
 
@@ -69,19 +68,25 @@ When ETH/BTC deviates far from its long-term mean, the strategy leans toward the
 
 ### 5. DMA overextension DCA sell
 
-When a risk asset trades far above its 200-day average, the strategy trims a small slice on each eligible day, moving the proceeds into the defensive and equity legs.
-
-### 6. FGI downshift DCA sell
-
-When sentiment moves out of greed into a more neutral or fearful regime, the strategy trims risk in small steps — dialing exposure back before the trend itself breaks.
+When a risk asset trades far above its 200-day average, the strategy trims a small slice into stablecoins on each eligible day. Greed lowers the bar, so the trims start sooner when sentiment is greedy.
 
 When no rule fires, the strategy **holds**. That is the common case.
 
-## Guards
+## Cooldowns
 
-- **Cross cooldown.** After an actionable cross, repeat cross actions are suppressed for 30 days (14 for the S&P 500 sleeve), tracked per asset.
-- **Rule cooldowns.** After a rule acts it cannot fire again for a fixed spacing: 7 days for the overextension and FGI-downshift sells, 14 days for ETH/BTC deviation steps (60 for the largest tier), and 30 days for cross-up and ETH/BTC rotation.
-- **Trade quota.** Minimum spacing between trades and rolling 7-day and 30-day caps were available, but off by default. They have since been removed.
+- **Cross cooldown.** After an actionable cross, repeat cross actions are suppressed for 30 days (14 for the S&P 500 sleeve), tracked per asset. A rotation starts the same 30-day cooldown on the ETH/BTC ratio.
+- **Rule cooldowns.** After a rule acts it cannot fire again for a fixed spacing: 30 days for each asset's exit and for cross-up, 7 days for the overextension sell, and 14 days for ETH/BTC deviation steps (60 for the largest tier). The ratio rotation has no cooldown of its own; the ratio's cross cooldown spaces it.
+
+## What changed from version 1
+
+Version 2 removes and re-routes; it moves no threshold, step or cooldown length.
+
+- **No FGI downshift sell.** Version 1's sixth rule trimmed risk when sentiment left greed. It is gone.
+- **Trims go to stablecoins only.** Version 1 bought the S&P 500 sleeve with half of every trim, even when the S&P 500 was the asset being trimmed, which left a run of shrinking orders.
+- **One exit cooldown per asset.** In version 1 one asset's exit started a 30-day cooldown for the whole rule, and another asset's cross-down inside it was dropped, not delayed.
+- **No cooldown on the ratio rotation.** Its 30 days changed no decision on any history the review ran: the ratio's own cross cooldown is as long and starts with every rotation.
+
+Because it moves no number, version 2 was promoted on the structural track: on recorded production data it could not trail version 1 by more than 2 points of ROI or 3 points of max drawdown, and over a fixed set of nine synthetic histories its median ROI and median drawdown could not be worse.
 
 ## Backtest method
 
@@ -101,4 +106,4 @@ The published backtest is hypothetical. It is recomputed daily over a rolling 50
 
 ## Status boundary
 
-These rules were evaluated daily and validated by backtests. They are not a claim of executed trades, a live account, automatic rebalancing, or an operating fallback policy. One rule, the cross-down exit, can be [recomputed on-chain](/docs/track-record/verifiable-strategy) as a research check <StatusBadge capability="verifiable-rule" />; the other five cannot.
+These rules are evaluated daily and validated by backtests. They are not a claim of executed trades, a live account, automatic rebalancing, or an operating fallback policy. The [on-chain research slice](/docs/track-record/verifiable-strategy) <StatusBadge capability="verifiable-rule" /> implements version 1's cross-down exit, which keeps one cooldown for the whole rule. No slice of version 2's per-asset exit cooldown is deployed, and the other four rules cannot be recomputed on-chain.

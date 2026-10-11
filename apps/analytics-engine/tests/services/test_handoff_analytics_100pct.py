@@ -13,7 +13,15 @@ from __future__ import annotations
 from datetime import UTC, date
 from typing import Any
 
-from tests.services.backtesting.support.reference_rules import reference_rule
+from src.services.backtesting.signals.dma_gated_fgi.config import DmaGatedFgiConfig
+from tests.services.backtesting.support.reference_rules import (
+    reference_rule,
+    reference_signals,
+)
+
+# The signal pieces take their cooldowns explicitly. None of these gap-fill tests
+# exercises one, so the reference spec's stand in (30 days for BTC and ETH).
+_DMA_CONFIG = DmaGatedFgiConfig(cross_cooldown_days=30)
 
 
 class TestWalletAttributionAggregatorGaps:
@@ -354,12 +362,11 @@ class TestRiskValidationEngineGaps:
         from src.services.backtesting.strategies.base import StrategyContext
 
         # Line signals/dma_gated_fgi/signal_engine.py:162 — missing dma_200 fails.
-        engine = DmaSignalEngine()
+        engine = DmaSignalEngine(config=_DMA_CONFIG)
         context = StrategyContext(
             date=date_cls(2026, 1, 2),
             price=100.0,
             sentiment=None,
-            price_history=[100.0],
             portfolio=Portfolio(spot_balance=1.0, stable_balance=100.0),
             extra_data={},
         )
@@ -372,7 +379,9 @@ class TestRiskValidationEngineGaps:
         )
 
         # Lines flat_minimum.py:237-239,243 — accessors before any observation.
-        signal = FlatMinimumSignalComponent()
+        signal = FlatMinimumSignalComponent(
+            cross_down_cooldown_days_by_symbol=reference_signals().dma_cross_cooldown_days
+        )
         assert signal.dma_state_for("btc") is None
         assert signal.latest_state is None
 
@@ -646,17 +655,17 @@ class TestEthBtcRuleGaps:
         )
         sym_snap = snapshot(eth_btc_ratio_state=bullish)
         assert _match_for_snapshot(sym_snap, rule=sym_off) is None
-        # An explicit deviation bypasses the ratio math.
-        explicit = EthBtcRatioState(
-            ratio=1.0,
-            ratio_dma_200=1.0,
-            zone="above",  # type: ignore[arg-type]
+        # The deviation is the ratio's distance from its 200-day average, relative to
+        # that average (a DMA of 2.0 rather than 1.0 tells it from a plain difference).
+        below = EthBtcRatioState(
+            ratio=1.5,
+            ratio_dma_200=2.0,
+            zone="below",  # type: ignore[arg-type]
             cross_event=None,
             actionable_cross_event=None,
             cooldown_state=cooldown,
         )
-        object.__setattr__(explicit, "deviation_from_dma_200", -0.7)
-        assert _ratio_deviation(explicit) == pytest.approx(-0.7)
+        assert _ratio_deviation(below) == pytest.approx(-0.25)
         # A non-positive DMA base yields no deviation.
         flat = EthBtcRatioState(
             ratio=1.0,
@@ -685,7 +694,7 @@ class TestFinalThreeLines:
         # Line signal_engine.py:162 — defensive None after require_dma extract.
         # _extract_state_inputs with require_dma=True normally raises first
         # (line 106), so force the defensive path by stubbing the extractor.
-        engine = DmaSignalEngine()
+        engine = DmaSignalEngine(config=_DMA_CONFIG)
         engine._extract_state_inputs = Mock(return_value=Mock(dma_200=None))
         with pytest.raises(SignalDataError, match="dma_200"):
             engine.build_market_state(Mock())
@@ -698,7 +707,9 @@ class TestFinalThreeLines:
         )
 
         # Line flat_minimum.py:239 — delegate to the latest snapshot state.
-        signal = FlatMinimumSignalComponent()
+        signal = FlatMinimumSignalComponent(
+            cross_down_cooldown_days_by_symbol=reference_signals().dma_cross_cooldown_days
+        )
         sentinel = Mock()
         state = Mock()
         state.dma_state_for.return_value = sentinel

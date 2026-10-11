@@ -37,8 +37,8 @@ LIVE = "live"
 DORMANT = "dormant"
 DEAD = "dead"
 UNPROBED = "unprobed"
-# Lists whose elements are named by their ``id`` (or ``kind``) in a pointer.
-_KEYED_LISTS = frozenset({"rules", "overlays", "guards"})
+# Lists whose elements are named by their ``id`` in a pointer.
+_KEYED_LISTS = frozenset({"rules", "overlays"})
 _DECIMALS = 6
 # How far a float at zero moves, as a share of the span its bounds allow (or of 1).
 _ZERO_STEP_SHARE = 0.1
@@ -82,8 +82,7 @@ def _is_tunable(info: FieldInfo) -> bool:
 
 def _element_path(prefix: str, name: str, index: int, item: BaseModel) -> str:
     if name in _KEYED_LISTS:
-        key = getattr(item, "id", None) or getattr(item, "kind", None)
-        return f"{prefix}/{name}[{key}]"
+        return f"{prefix}/{name}[{getattr(item, 'id', None)}]"
     return f"{prefix}/{name}/{index}"
 
 

@@ -100,7 +100,7 @@ describe('BacktestProof', () => {
       });
       expect(methodLink).toHaveAttribute(
         'href',
-        '/docs/track-record/dma-fgi-portfolio-rules-v1#backtest-method',
+        '/docs/track-record/dma-fgi-portfolio-rules-v2#backtest-method',
       );
     });
   });

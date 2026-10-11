@@ -441,36 +441,25 @@ def test_fetch_token_prices_reraises_on_strict_dma_error() -> None:
         )
 
 
-def test_fetch_sentiments_dedupes_to_latest_row_per_day() -> None:
-    sentiment_service = SimpleNamespace(
-        get_sentiment_history=MagicMock(
-            return_value=[
-                SimpleNamespace(
-                    timestamp=datetime(2025, 1, 1, 8, 0, tzinfo=UTC),
-                    value=20,
-                    status="Fear",
-                ),
-                SimpleNamespace(
-                    timestamp=datetime(2025, 1, 1, 12, 0, tzinfo=UTC),
-                    value=25,
-                    status="Extreme Fear",
-                ),
-                SimpleNamespace(
-                    timestamp=datetime(2025, 1, 2, 9, 0, tzinfo=UTC),
-                    value=70,
-                    status="Greed",
-                ),
-                SimpleNamespace(
-                    timestamp=datetime(2024, 12, 31, 23, 0, tzinfo=UTC),
-                    value=50,
-                    status="Neutral",
-                ),
-            ]
-        )
+def test_fetch_sentiments_keys_each_daily_row_by_its_utc_day() -> None:
+    """The query keeps one snapshot per UTC day; the provider only maps them."""
+    history = MagicMock(
+        return_value=[
+            SimpleNamespace(
+                timestamp=datetime(2025, 1, 1, 23, 50, tzinfo=UTC),
+                value=25,
+                status="Extreme Fear",
+            ),
+            SimpleNamespace(
+                timestamp=datetime(2025, 1, 2, 9, 0, tzinfo=UTC),
+                value=70,
+                status="Greed",
+            ),
+        ]
     )
     provider = BacktestDataProvider(
         token_price_service=SimpleNamespace(),
-        sentiment_service=sentiment_service,
+        sentiment_service=SimpleNamespace(get_sentiment_history=history),
     )
 
     result = provider.fetch_sentiments(
@@ -483,7 +472,7 @@ def test_fetch_sentiments_dedupes_to_latest_row_per_day() -> None:
             "date": date(2025, 1, 1),
             "value": 25,
             "label": "extreme_fear",
-            "timestamp": datetime(2025, 1, 1, 12, 0, tzinfo=UTC),
+            "timestamp": datetime(2025, 1, 1, 23, 50, tzinfo=UTC),
         },
         date(2025, 1, 2): {
             "date": date(2025, 1, 2),
@@ -492,6 +481,9 @@ def test_fetch_sentiments_dedupes_to_latest_row_per_day() -> None:
             "timestamp": datetime(2025, 1, 2, 9, 0, tzinfo=UTC),
         },
     }
+    history.assert_called_once_with(
+        hours=48, start_time=date(2025, 1, 1), end_time=date(2025, 1, 2)
+    )
 
 
 def test_fetch_sentiments_returns_empty_on_error() -> None:
@@ -593,38 +585,6 @@ def test_fetch_token_prices_reraises_when_feature_history_loaded() -> None:
                 required_price_features=frozenset({DMA_200_FEATURE})
             ),
         )
-
-
-def test_fetch_sentiments_skips_older_duplicate_for_same_day() -> None:
-    """Line 278: _should_replace_sentiment returns False for older candidate."""
-    sentiment_service = SimpleNamespace(
-        get_sentiment_history=MagicMock(
-            return_value=[
-                SimpleNamespace(
-                    timestamp=datetime(2025, 1, 1, 12, 0, tzinfo=UTC),
-                    value=25,
-                    status="Fear",
-                ),
-                SimpleNamespace(
-                    timestamp=datetime(2025, 1, 1, 8, 0, tzinfo=UTC),  # older → skip
-                    value=10,
-                    status="Extreme Fear",
-                ),
-            ]
-        )
-    )
-    provider = BacktestDataProvider(
-        token_price_service=SimpleNamespace(),
-        sentiment_service=sentiment_service,
-    )
-
-    result = provider.fetch_sentiments(
-        start_date=date(2025, 1, 1),
-        end_date=date(2025, 1, 1),
-    )
-
-    # The newer entry (value=25) should be kept, not the older (value=10)
-    assert result[date(2025, 1, 1)]["value"] == 25
 
 
 def test_feature_loader_raises_on_unsupported_price_feature() -> None:

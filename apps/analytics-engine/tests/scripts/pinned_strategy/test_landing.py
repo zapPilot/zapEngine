@@ -133,6 +133,7 @@ def test_exporter_replays_real_strategy_with_synthetic_test_inputs(
     from scripts.pinned_strategy.benchmark import run_compare
     from src.services.backtesting.lab.bundle import Bundle, build_manifest
     from src.services.backtesting.validation.event_histories import (
+        SPY_ABOVE,
         synthetic_event_history,
     )
     from tests.test_validation_events import EVENTS
@@ -140,6 +141,15 @@ def test_exporter_replays_real_strategy_with_synthetic_test_inputs(
     prices, sentiments, start, end = synthetic_event_history(
         next(e for e in EVENTS if e.id == "btc_cross_down_preserve_spy_2025_10_18")
     )
+    # Like the published example (SPY held 3.9% when BTC exited on 2025-10-18),
+    # SPY sits at its 10% trim threshold so it is trimmed down before the exit:
+    # the exporter compares the exit's target with the fill day's four-decimal
+    # allocation, and the slippage on the legs the exit sells rescales any
+    # sleeve it keeps by about 0.1% of that sleeve. The event markets keep SPY
+    # under the threshold, so the test puts it back.
+    for row in prices:
+        if row["prices"]["spy"] == SPY_ABOVE:
+            row["prices"]["spy"] = row["extra_data"]["spy_price"] = 110.0
     # The exit is decided on the last synthetic day and fills on the next bar, so
     # the history runs one day past it for the target to show up in the portfolio.
     fill_day = {**prices[-1], "date": end + timedelta(days=1)}

@@ -45,13 +45,6 @@ function suggestion(
             outer_dma_asset: 'btc',
             cooldown_active: true,
             cooldown_remaining_days: 3,
-            fgi_slope: -0.08,
-          },
-          spy_dma: {
-            dma_200: 615,
-            distance: -0.03,
-            cross_event: 'crossed_down',
-            cooldown_active: false,
           },
         },
       },
@@ -59,10 +52,6 @@ function suggestion(
       strategy: {
         details: {
           matched_rule_name: rule,
-          enabled: true,
-          trades_7d: 2,
-          max_trades_7d: 3,
-          next_trade_date: '2026-08-25',
         },
       },
     },
@@ -79,14 +68,15 @@ describe('daily suggestion Decision Packet', () => {
     expect(payload.message).toContain(
       'Ratio 0.03921 vs 200-DMA 0.03710 (+5.7%) — Crossed up',
     );
-    expect(payload.message).toContain('Trades 7d: 2/3 · next trade 2026-08-25');
+    // CHECKS carries exactly the FGI/regime and cooldown lines, nothing after.
+    expect(payload.message).toContain(
+      '*CHECKS*\nFGI 39 (Fear) · Regime 🟠 Fear\nCooldown: none\n\n[Open decision]',
+    );
     expect(payload.replyMarkup?.inline_keyboard[0]?.[0]?.text).toBe('☑️ Done');
   });
 
   it.each([
     ['cross_down_exit', 'BTC · 200-DMA 92000.00'],
-    ['spy_latch', 'SPY · 200-DMA 615.00'],
-    ['fgi_downshift_dca_sell', 'FGI slope -8.0%'],
     ['new_unknown_rule', 'Rule: New unknown rule'],
   ])('dispatches %s evidence', (rule, expected) => {
     expect(buildDecisionPacketMessage(suggestion(rule)).message).toContain(
@@ -96,8 +86,9 @@ describe('daily suggestion Decision Packet', () => {
 
   it('does not attach Done to blocked/no-action or oversized callbacks', () => {
     expect(
-      buildDecisionPacketMessage(suggestion('trade_quota', 'blocked'))
-        .replyMarkup,
+      buildDecisionPacketMessage(
+        suggestion('eth_btc_ratio_rotation', 'blocked'),
+      ).replyMarkup,
     ).toBeUndefined();
     const oversized = suggestion();
     oversized.config_id = 'x'.repeat(70);
@@ -183,6 +174,19 @@ describe('decision packet branch sweep', () => {
       }),
     );
     expect(message).toContain('Rule: Eth btc ratio rebalance');
+  });
+
+  it('locks absent strategy details', () => {
+    // Locks: triggerBlock/triggeredIndicator `details?.` nullish short-circuit —
+    // the rule falls back to reason_code and the cooldown to the DMA indicator.
+    const { message } = buildDecisionPacketMessage(
+      mutate((draft) => {
+        draft.context.strategy.details = null;
+      }),
+    );
+    expect(message).toContain('Rule: Eth btc ratio rebalance');
+    expect(message).not.toContain('200-DMA');
+    expect(message).toContain('Cooldown: active, 3d remaining');
   });
 
   it('locks absent ratio details for an eth_btc_ rule', () => {
@@ -290,11 +294,9 @@ describe('decision packet branch sweep', () => {
 
   it('locks macro fear-greed score/label overrides', () => {
     // Locks: `market?.macro_fear_greed?.score/label ?? …` left-defined
-    // outcomes in both fgiEvidence and checksBlock.
+    // outcomes in checksBlock.
     const { message } = buildDecisionPacketMessage(
       mutate((draft) => {
-        const details = draft.context.strategy.details;
-        if (details) details.matched_rule_name = 'fgi_downshift_dca_sell';
         draft.context.market = {
           macro_fear_greed: { score: 25, label: 'Extreme Fear' },
         };
@@ -315,32 +317,6 @@ describe('decision packet branch sweep', () => {
     expect(message).toContain('FGI unavailable · Regime ⚪ Weird regime');
   });
 
-  it('locks fgi evidence with missing score and slope', () => {
-    // Locks: fgiEvidence `score == null` true; `slope == null` true;
-    // `details?.dma?.fgi_slope` short-circuits.
-    const { message } = buildDecisionPacketMessage(
-      mutate((draft) => {
-        const details = draft.context.strategy.details;
-        if (details) details.matched_rule_name = 'fgi_downshift_dca_sell';
-        draft.context.signal.details = null;
-        draft.context.market = { sentiment: null, sentiment_label: null };
-      }),
-    );
-    expect(message).toContain('*TRIGGER*\nRule: Fgi downshift dca sell\n\n');
-  });
-
-  it('locks fgi evidence with a score but no label', () => {
-    // Locks: `label ? (label) : ''` false in fgiEvidence.
-    const { message } = buildDecisionPacketMessage(
-      mutate((draft) => {
-        const details = draft.context.strategy.details;
-        if (details) details.matched_rule_name = 'fgi_downshift_dca_sell';
-        draft.context.market = { sentiment: 10, sentiment_label: null };
-      }),
-    );
-    expect(message).toContain('FGI 10\nFGI slope -8.0%');
-  });
-
   it('locks active cooldown without remaining days', () => {
     // Locks: formatCooldown `cooldown_remaining_days == null` true → 'active'.
     const { message } = buildDecisionPacketMessage(
@@ -354,53 +330,6 @@ describe('decision packet branch sweep', () => {
       }),
     );
     expect(message).toContain('Cooldown: active\n');
-  });
-
-  it('locks quota when strategy details are unavailable', () => {
-    // Locks: formatQuota `details?.enabled == null` true → 'Quota: data unavailable'.
-    const { message } = buildDecisionPacketMessage(
-      mutate((draft) => {
-        draft.context.strategy.details = null;
-      }),
-    );
-    expect(message).toContain('Quota: data unavailable');
-  });
-
-  it.each([
-    [
-      { trades_7d: null, max_trades_7d: 3, next_trade_date: '2026-08-25' },
-      'Trades 7d: unavailable · next trade 2026-08-25',
-    ],
-    [{ trades_7d: 2, max_trades_7d: null }, 'Trades 7d: unavailable'],
-  ])('locks quota formatting for %j', (detailsPatch, expected) => {
-    // Locks: `trades_7d != null` false and `max_trades_7d != null` false.
-    const { message } = buildDecisionPacketMessage(
-      mutate((draft) => {
-        draft.context.strategy.details = {
-          matched_rule_name: 'eth_btc_ratio_rotation',
-          enabled: true,
-          ...detailsPatch,
-        };
-      }),
-    );
-    expect(message).toContain(expected);
-  });
-
-  it('locks quota without a next trade date', () => {
-    // Locks: `next_trade_date ? … : null` false.
-    const { message } = buildDecisionPacketMessage(
-      mutate((draft) => {
-        draft.context.strategy.details = {
-          matched_rule_name: 'eth_btc_ratio_rotation',
-          enabled: true,
-          trades_7d: 2,
-          max_trades_7d: 3,
-          next_trade_date: null,
-        };
-      }),
-    );
-    expect(message).toContain('Trades 7d: 2/3');
-    expect(message).not.toContain('next trade');
   });
 
   it('locks absent signal details for a ratio rule', () => {

@@ -31,7 +31,7 @@ KNOBS = (
     "--only",
     "/signals/ratio",
     "--only",
-    "/rules[cross_down_exit]",
+    STEP,
 )
 
 
@@ -115,7 +115,7 @@ def test_liveness_names_each_knob_and_fails_the_gate_on_a_dead_one(
     assert status == {
         "/signals/dma/cross_on_touch": "dormant",
         "/signals/ratio/cross_cooldown_days": "dead",
-        COOLDOWN: "live",
+        STEP: "live",
     }
     assert result["summary"] == {"live": 1, "dormant": 1, "dead": 1, "unprobed": 0}
     assert result["primary"] == [PRIMARY]
@@ -140,7 +140,7 @@ def test_liveness_passes_when_nothing_probed_is_dead(tmp_path: Path) -> None:
         "--stress",
         STRESS,
         "--only",
-        COOLDOWN,
+        STEP,
     )
 
     assert (code, out["ok"], out["warnings"]) == (0, True, [])
@@ -194,7 +194,7 @@ def test_liveness_is_noted_in_the_ledger(tmp_path: Path) -> None:
         "--stress",
         STRESS,
         "--only",
-        COOLDOWN,
+        STEP,
     )
 
     [entry] = [

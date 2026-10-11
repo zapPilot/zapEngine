@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import date
 
 import pytest
@@ -12,11 +13,18 @@ from src.services.backtesting.signals.dma_gated_fgi.component import (
 )
 from src.services.backtesting.signals.dma_gated_fgi.config import DmaGatedFgiConfig
 from src.services.backtesting.signals.dma_gated_fgi.errors import SignalDataError
+from src.services.backtesting.signals.dma_gated_fgi.runtime import (
+    DmaGatedFgiSignalRuntime,
+)
 from src.services.backtesting.signals.dma_gated_fgi.signal_engine import (
     DmaSignalEngine,
 )
 from src.services.backtesting.strategies.base import StrategyContext
 from tests.services.backtesting.helpers import state
+
+# Engines and components take their config explicitly. Tests that do not exercise
+# the cooldown use the reference spec's 30 days (its BTC and ETH cooldown).
+_CONFIG = DmaGatedFgiConfig(cross_cooldown_days=30)
 
 
 def _context(
@@ -27,7 +35,6 @@ def _context(
     dma_200: float | None = 50_000.0,
     ath_event: str | None = None,
     extra_data: dict[str, object] | None = None,
-    price_history: list[float] | None = None,
 ) -> SignalContext:
     resolved_extra_data = dict(extra_data or {})
     if dma_200 is not None:
@@ -36,7 +43,6 @@ def _context(
         date=date(2025, 1, day),
         price=price,
         sentiment=sentiment,
-        price_history=price_history or [50_000.0, price],
         portfolio_value=10_000.0,
         ath_event=ath_event,
         extra_data=resolved_extra_data,
@@ -54,14 +60,23 @@ def _strategy_context(
         date=date(2025, 1, day),
         price=price,
         sentiment=sentiment,
-        price_history=[50_000.0, price],
         portfolio=Portfolio(spot_balance=0.0, stable_balance=10_000.0),
         extra_data={"dma_200": dma_200},
     )
 
 
+@pytest.mark.parametrize(
+    "build",
+    [DmaSignalEngine, DmaGatedFgiSignalRuntime, DmaGatedFgiSignalComponent],
+)
+def test_signal_pieces_require_an_explicit_config(build: type) -> None:
+    # A strategy spec states the cooldown, so none of them may fall back to one.
+    with pytest.raises(TypeError, match="config"):
+        build()
+
+
 def test_signal_engine_builds_actionable_cross_after_dma_warmup() -> None:
-    engine = DmaSignalEngine(config=DmaGatedFgiConfig())
+    engine = DmaSignalEngine(config=_CONFIG)
     engine.warmup(
         _context(
             day=1,
@@ -84,7 +99,7 @@ def test_signal_engine_builds_actionable_cross_after_dma_warmup() -> None:
 
 
 def test_signal_engine_extracts_macro_fear_greed_state() -> None:
-    engine = DmaSignalEngine(config=DmaGatedFgiConfig())
+    engine = DmaSignalEngine(config=_CONFIG)
 
     market_state = engine.build_market_state(
         _context(
@@ -107,7 +122,7 @@ def test_signal_engine_extracts_macro_fear_greed_state() -> None:
 
 
 def test_signal_engine_uses_macro_label_not_score_threshold() -> None:
-    engine = DmaSignalEngine(config=DmaGatedFgiConfig())
+    engine = DmaSignalEngine(config=_CONFIG)
 
     market_state = engine.build_market_state(
         _context(
@@ -129,7 +144,7 @@ def test_signal_engine_uses_macro_label_not_score_threshold() -> None:
 
 
 def test_component_builds_signal_observation_for_cross_intent() -> None:
-    component = DmaGatedFgiSignalComponent()
+    component = DmaGatedFgiSignalComponent(config=_CONFIG)
     market_state = state(
         symbol="BTC",
         zone="above",
@@ -163,7 +178,7 @@ def test_component_builds_signal_observation_for_cross_intent() -> None:
 
 
 def test_component_warmup_observe_apply_and_reset_cycle() -> None:
-    component = DmaGatedFgiSignalComponent()
+    component = DmaGatedFgiSignalComponent(config=_CONFIG)
     warmup_context = _strategy_context(
         day=1,
         price=45_000.0,
@@ -249,7 +264,7 @@ def test_signal_engine_cooldown_transition_blocks_opposite_side() -> None:
 
 
 def test_signal_engine_missing_dma_strict_resolve_but_warmup_degrades() -> None:
-    engine = DmaSignalEngine()
+    engine = DmaSignalEngine(config=_CONFIG)
 
     engine.warmup(
         _context(
@@ -274,7 +289,7 @@ def test_signal_engine_missing_dma_strict_resolve_but_warmup_degrades() -> None:
 
 
 def test_signal_engine_cross_on_touch_disabled_requires_direct_cross_down() -> None:
-    engine = DmaSignalEngine(config=DmaGatedFgiConfig(cross_on_touch=False))
+    engine = DmaSignalEngine(config=replace(_CONFIG, cross_on_touch=False))
     engine.warmup(
         _context(
             day=1,
@@ -303,7 +318,7 @@ def test_signal_engine_cross_on_touch_disabled_requires_direct_cross_down() -> N
 
 
 def test_signal_engine_cross_on_touch_disabled_requires_direct_cross_up() -> None:
-    engine = DmaSignalEngine(config=DmaGatedFgiConfig(cross_on_touch=False))
+    engine = DmaSignalEngine(config=replace(_CONFIG, cross_on_touch=False))
     engine.warmup(
         _context(
             day=1,

@@ -238,14 +238,21 @@ and parameters validated against actual supported production contracts. Audit
 the four reported active parameter families before freezing a full Params ABI.
 
 Use chainId + address + runtime codehash + params hash for version identity, while
-separately addressing state provenance. The current slice is pure and undeployed.
+separately addressing state provenance. The current slice is pure, and it is
+deployed on Arbitrum Sepolia at `0x074A6d6497Af23158F946c7D571b1B627f3411Cd`
+(Sourcify-verified; `tests/fixtures/pinned_strategy/deployments.json` holds the
+transaction, block and runtime codehash).
 Vyper's lack of Python float arithmetic, checked uint256 intermediate products,
 fixed-width day fields and explicit struct ABI are the principal constraints.
 
-User decisions still required: live-state persistence gap, whether quota should
-remain in the complete kernel, and whether a hackathon demo uses a separately
-named subset. The five remaining rules, network deployment and demo remain out
-of scope.
+User decisions still required: the live-state persistence gap, and whether a
+hackathon demo uses a separately named subset. The trade quota no longer exists
+in the strategy, so the complete kernel has no quota to carry. Since reference
+version 2 the exit keeps one cooldown per asset (`cooldown_scope:
+"trigger_symbol"`); the deployed slice still implements version 1's exit, one
+cooldown for the whole rule, and `tests/scripts/pinned_strategy` checks it against
+the reference with that one field set back (`benchmark.slice_spec()`). A version 2
+slice, the other four rules and a mainnet deployment remain out of scope.
 
 Compiler/host references: [Vyper compilation](https://docs.vyperlang.org/en/stable/compiling-a-contract.html),
 [pyrevm API/source](https://github.com/paradigmxyz/pyrevm).

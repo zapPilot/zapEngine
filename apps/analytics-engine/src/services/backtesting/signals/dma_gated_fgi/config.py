@@ -11,8 +11,9 @@ class DmaGatedFgiConfig:
 
     Attributes:
         cross_cooldown_days: Days to ignore the opposite DMA side after a cross.
+            A strategy spec states it per asset, so it has no default.
         cross_on_touch: Treat touching DMA as a cross event.
     """
 
-    cross_cooldown_days: int = 30
+    cross_cooldown_days: int
     cross_on_touch: bool = True

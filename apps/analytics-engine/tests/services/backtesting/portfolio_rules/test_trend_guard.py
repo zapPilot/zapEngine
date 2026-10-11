@@ -152,7 +152,7 @@ def test_force_exit_keeps_the_label_of_the_rule_that_decided() -> None:
         {"btc": 0.0, "eth": 0.60, "spy": 0.20, "stable": 0.20},
         action="sell",
         reason="portfolio_eth_btc_ratio_rotation_to_eth",
-        diagnostics={"post_intent_adjustments": ["spy_latch_absorb_fresh_stable"]},
+        diagnostics={"post_intent_adjustments": ["an_earlier_adjustment"]},
     )
 
     adjusted = _adjust(rule, rotation, day)
@@ -164,7 +164,7 @@ def test_force_exit_keeps_the_label_of_the_rule_that_decided() -> None:
     assert adjusted.action == "sell"
     assert adjusted.diagnostics is not None
     assert adjusted.diagnostics["post_intent_adjustments"] == [
-        "spy_latch_absorb_fresh_stable",
+        "an_earlier_adjustment",
         "trend_guard_force_exit",
     ]
 

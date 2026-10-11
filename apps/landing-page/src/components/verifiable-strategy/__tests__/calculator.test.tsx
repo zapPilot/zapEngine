@@ -81,7 +81,7 @@ it('always identifies the research slice and shows honest undeployed state', () 
   render(<CalculatorPage />);
   expect(
     screen.getByText(
-      /Research slice: 1 of 6 rules, not the production strategy/,
+      /Research slice: version 1 exit rule, not the production strategy/,
     ),
   ).toBeInTheDocument();
   cleanup();

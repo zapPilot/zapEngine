@@ -198,10 +198,11 @@ class SentimentDatabaseService(QueryBackedMarketService):
         end_time: datetime | date | None = None,
     ) -> list[MarketSentimentResponse]:
         """
-        Get historical sentiment snapshots within the specified time range.
+        Get the latest sentiment snapshot of each UTC day in a time range.
 
-        Queries alpha_raw.sentiment_snapshots for all entries from the last
-        N hours, ordered by snapshot_time ASC.
+        Queries alpha_raw.sentiment_snapshots from the last N hours (or between
+        the bounds) and keeps one snapshot per UTC day, the latest, ordered by
+        day.
 
         Args:
             hours: Number of hours of history to retrieve when start_time is omitted.

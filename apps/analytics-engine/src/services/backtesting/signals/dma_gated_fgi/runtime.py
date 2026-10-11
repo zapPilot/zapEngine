@@ -23,7 +23,7 @@ from src.services.backtesting.signals.runtime import SignalRuntime
 class DmaGatedFgiSignalRuntime(SignalRuntime[DmaMarketState, DmaRuntimeDebugState]):
     """Runtime facade around the dedicated DMA market-state extractor."""
 
-    config: DmaGatedFgiConfig = field(default_factory=DmaGatedFgiConfig)
+    config: DmaGatedFgiConfig
     _signal_engine: DmaSignalEngine = field(init=False, repr=False)
 
     def __post_init__(self) -> None:

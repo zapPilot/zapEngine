@@ -23,7 +23,7 @@ it('numbers rules by priority without mutating catalog data', () => {
       index + 1,
     ]),
   );
-  expect(configs.portfolio_rules![0]?.name).toBe('fgi_downshift_dca_sell');
+  expect(configs.portfolio_rules![0]?.name).toBe('dma_overextension_dca_sell');
   expect(
     defaultPortfolioRules({ ...configs, portfolio_rules: undefined }),
   ).toEqual([]);
