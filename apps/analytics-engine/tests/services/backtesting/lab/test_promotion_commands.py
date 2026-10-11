@@ -15,7 +15,7 @@ from src.services.backtesting.lab.cli import main
 from src.services.backtesting.lab.ledger import LEDGER_FILENAME, Ledger
 from src.services.backtesting.lab.liveness import NoDaysError
 from src.services.backtesting.lab.policy import POLICY_PATH
-from src.services.backtesting.lab.promotion import OwnChecks
+from src.services.backtesting.lab.promotion import OwnChecks, StructuralEvidence
 from src.services.backtesting.spec import behavior_hash, load_spec, parse_spec
 from tests.services.backtesting.spec.helpers import reference_raw
 
@@ -577,3 +577,202 @@ def test_a_real_sweep_and_a_real_look_feed_a_promotion(
 
 def test_the_entry_is_dated_with_todays_date_in_utc() -> None:
     assert promotion_commands._today() == datetime.now(UTC).date()
+
+
+SHORT_SUITE = ["synthetic:regimes?seed=2&days=120", "synthetic:stress?seed=3&days=120"]
+
+
+@pytest.fixture()
+def structural_policy(tmp_path: Path) -> Path:
+    """The committed policy, willing to read synthetic data, with a short suite."""
+    raw = json.loads(POLICY_PATH.read_text())
+    raw["prerequisites"]["real_data_only"] = False
+    raw["structural"]["stress_suite"]["bundles"] = SHORT_SUITE
+    path = tmp_path / "structural_policy.json"
+    path.write_text(json.dumps(raw))
+    return path
+
+
+def _structural_candidate(tmp_path: Path, name: str, edit: Any) -> Path:
+    raw = reference_raw()
+    raw["id"] = name
+    edit(raw)
+    path = tmp_path / f"{name}.json"
+    path.write_text(json.dumps(raw))
+    return path
+
+
+def _without_downshift(raw: dict[str, Any]) -> None:
+    raw["rules"] = [r for r in raw["rules"] if r["id"] != "fgi_downshift_dca_sell"]
+
+
+def _tuned_exit(raw: dict[str, Any]) -> None:
+    next(r for r in raw["rules"] if r["id"] == "cross_down_exit")["cooldown_days"] = 21
+
+
+@pytest.fixture()
+def structural_stub(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+    """Passing structural evidence; ``calls`` records what the command asked for."""
+    calls: dict[str, Any] = {}
+
+    def fake(reference: Any, candidate: Any, **kwargs: Any) -> StructuralEvidence:
+        calls["specs"] = (reference.id, candidate.id)
+        calls["kwargs"] = kwargs
+        suite = kwargs["suite"]
+        return StructuralEvidence(
+            issues=[],
+            eval_config_hash=promotion_commands_canonical(),
+            real={"roi_pp": 1.0, "max_drawdown_pp": 0.5},
+            stress={
+                ref: {
+                    "base": {"roi_percent": 1.0, "max_drawdown_percent": -5.0},
+                    "candidate": {"roi_percent": 2.0, "max_drawdown_percent": -4.0},
+                }
+                for ref in suite
+            },
+        )
+
+    monkeypatch.setattr(promotion_commands, "structural_checks", fake)
+    return calls
+
+
+def test_a_structural_candidate_is_promoted_without_a_sweep_or_a_look(
+    tmp_path: Path,
+    structural_policy: Path,
+    own_checks_stub: dict[str, Any],
+    structural_stub: dict[str, Any],
+) -> None:
+    candidate = _structural_candidate(tmp_path, "no_downshift", _without_downshift)
+
+    code, out = _promote(
+        tmp_path, candidate, structural_policy, "--track", "structural"
+    )
+
+    result = out["result"]
+    assert (code, result["verdict"], result["track"]) == (0, "promotable", "structural")
+    assert [gate["name"] for gate in result["gates"]][-5:] == [
+        "structural_change",
+        "real_roi",
+        "real_drawdown",
+        "stress_median_roi",
+        "stress_median_drawdown",
+    ]
+    assert {gate["group"] for gate in result["gates"]} == {"prerequisite", "structural"}
+    assert result["evidence"]["sweep"] is None
+    assert result["evidence"]["holdout"] is None
+    assert sorted(result["evidence"]["structural"]["stress_suite"]) == sorted(
+        SHORT_SUITE
+    )
+    assert " on the structural track: " in result["log_entry"]
+    entries = Ledger(tmp_path / LEDGER_FILENAME).entries("promotion")
+    assert [(entry["track"], entry["verdict"]) for entry in entries] == [
+        ("structural", "promotable")
+    ]
+
+
+def test_the_structural_track_runs_the_policys_suite_against_the_real_comparison(
+    tmp_path: Path,
+    structural_policy: Path,
+    own_checks_stub: dict[str, Any],
+    structural_stub: dict[str, Any],
+) -> None:
+    candidate = _structural_candidate(tmp_path, "no_downshift", _without_downshift)
+
+    _, out = _promote(tmp_path, candidate, structural_policy, "--track", "structural")
+
+    assert structural_stub["specs"] == ("dma_fgi", "no_downshift")
+    kwargs = structural_stub["kwargs"]
+    assert list(kwargs["suite"]) == SHORT_SUITE
+    assert kwargs["real"] == out["result"]["comparison"]
+    assert kwargs["config"].as_dict() == promotion_commands.EvalConfig().as_dict()
+
+
+@pytest.mark.parametrize("flag", [["--sweep", SWEEP_ID], ["--lineage", LINEAGE]])
+def test_the_structural_track_refuses_search_evidence(
+    tmp_path: Path,
+    structural_policy: Path,
+    own_checks_stub: dict[str, Any],
+    flag: list[str],
+) -> None:
+    candidate = _structural_candidate(tmp_path, "no_downshift", _without_downshift)
+
+    code, out = _promote(
+        tmp_path, candidate, structural_policy, "--track", "structural", *flag
+    )
+
+    assert (code, out["result"]["code"]) == (2, "not_on_this_track")
+    assert flag[0] in out["result"]["message"]
+    assert "args" not in own_checks_stub
+
+
+def test_the_committed_policy_rejects_a_structural_candidate_on_synthetic_data(
+    tmp_path: Path, own_checks_stub: dict[str, Any], structural_stub: dict[str, Any]
+) -> None:
+    candidate = _structural_candidate(tmp_path, "no_downshift", _without_downshift)
+
+    code, out = _invoke(
+        tmp_path,
+        "promote",
+        "--track",
+        "structural",
+        "--spec",
+        str(candidate),
+        "--bundle",
+        BUNDLE,
+    )
+
+    gates = {gate["name"]: gate["status"] for gate in out["result"]["gates"]}
+    assert (code, out["result"]["verdict"]) == (1, "rejected")
+    assert gates["real_data_only"] == "fail"
+    assert list(structural_stub["kwargs"]["suite"]) == list(
+        json.loads(POLICY_PATH.read_text())["structural"]["stress_suite"]["bundles"]
+    )
+
+
+def test_a_candidate_that_moves_a_number_fails_the_structural_check(
+    tmp_path: Path, structural_policy: Path, own_checks_stub: dict[str, Any]
+) -> None:
+    candidate = _structural_candidate(tmp_path, "tuned_exit", _tuned_exit)
+
+    code, out = _promote(
+        tmp_path, candidate, structural_policy, "--track", "structural"
+    )
+
+    gate = next(
+        gate for gate in out["result"]["gates"] if gate["name"] == "structural_change"
+    )
+    assert (code, out["result"]["verdict"], gate["status"]) == (1, "rejected", "fail")
+    assert gate["value"] == ["/rules[cross_down_exit]/cooldown_days"]
+    assert out["result"]["evidence"]["structural"]["issues"][0]["code"] == (
+        "tuned_parameter"
+    )
+
+
+def test_the_structural_gates_read_the_numbers_the_runs_produced(
+    tmp_path: Path, structural_policy: Path, own_checks_stub: dict[str, Any]
+) -> None:
+    candidate = _structural_candidate(tmp_path, "no_downshift", _without_downshift)
+
+    _, out = _promote(tmp_path, candidate, structural_policy, "--track", "structural")
+
+    result = out["result"]
+    gates = {gate["name"]: gate for gate in result["gates"]}
+    assert gates["real_roi"]["value"] == result["comparison"]["roi_pp"]
+    assert gates["real_drawdown"]["value"] == result["comparison"]["max_drawdown_pp"]
+    suite = result["evidence"]["structural"]["stress_suite"]
+    assert sorted(suite) == sorted(SHORT_SUITE)
+
+    def median_edge(metric: str) -> float:
+        def median(side: str) -> float:
+            values = sorted(suite[ref][side][metric] for ref in SHORT_SUITE)
+            return (values[0] + values[1]) / 2
+
+        return median("candidate") - median("base")
+
+    # The record keeps six decimals.
+    assert gates["stress_median_roi"]["value"] == pytest.approx(
+        median_edge("roi_percent"), abs=1e-6
+    )
+    assert gates["stress_median_drawdown"]["value"] == pytest.approx(
+        median_edge("max_drawdown_percent"), abs=1e-6
+    )

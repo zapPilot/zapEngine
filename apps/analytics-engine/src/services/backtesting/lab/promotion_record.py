@@ -19,8 +19,10 @@ from src.services.backtesting.lab.promotion import (
     INSUFFICIENT,
     PASS,
     PROMOTABLE,
+    STRUCTURAL,
     SYNTHETIC,
     Gate,
+    StructuralEvidence,
 )
 from src.services.backtesting.lab.report import hash_of, normalize
 from src.services.backtesting.spec import StrategySpec, behavior_hash, spec_ref
@@ -45,10 +47,12 @@ def build_record(
     candidate: StrategySpec,
     reference: StrategySpec,
     policy: LoadedPolicy,
+    track: str,
     changes: Sequence[SpecChange],
     bundle: Mapping[str, Any],
     sweep: Mapping[str, Any] | None,
     look: Mapping[str, Any] | None,
+    structural: StructuralEvidence | None,
     comparison: Mapping[str, Any],
     ledger_candidates: int,
     gates: Sequence[Gate],
@@ -63,10 +67,20 @@ def build_record(
         "holdout": None
         if look is None
         else {"lineage": look["lineage"], "window": look["window"]},
+        "structural": None
+        if structural is None
+        else {
+            "issues": [dict(issue) for issue in structural.issues],
+            "stress_suite": {
+                ref: {side: dict(metrics) for side, metrics in sides.items()}
+                for ref, sides in structural.stress.items()
+            },
+        },
     }
     body = {
         "record_format": RECORD_FORMAT,
         "verdict": verdict,
+        "track": track,
         "candidate": _identity(candidate),
         "reference": _identity(reference),
         "policy": policy.as_dict(),
@@ -114,8 +128,9 @@ def _finding(record: Mapping[str, Any]) -> str:
     shown = ", ".join(f"`{pointer}`" for pointer in pointers[:CHANGES_SHOWN])
     more = len(pointers) - CHANGES_SHOWN
     tail = f" and {more} more" if more > 0 else ""
+    track = " on the structural track" if record["track"] == STRUCTURAL else ""
     return (
-        f"{candidate['ref']} against {reference['ref']}: {len(pointers)} "
+        f"{candidate['ref']} against {reference['ref']}{track}: {len(pointers)} "
         f"change(s) ({shown}{tail}). {candidate['description']}"
     )
 

@@ -24,6 +24,16 @@ happens in the lab, and the reference changes only through a promotion.
    policy is `src/config/strategies/PROMOTION_POLICY.json`, and the log entry
    it prints is the iteration log entry of the promotion.
 
+**The structural path.** A candidate that only simplifies the reference skips
+steps 3 to 5: it removes rules (the rest keep their order), overlays, guards,
+optional parameters or list entries, or changes a categorical choice (an exit's
+`cooldown_scope`, where proceeds go), and moves no number. Run steps 1 and 2,
+then `promote --track structural --bundle prod:latest` (no sweep, no lineage).
+It must not trail the reference on the real bundle by more than the policy's
+`structural.real_bundle` margins, nor in the median over its fixed synthetic
+suite, and it meets the same prerequisites. A candidate that moves any number,
+even alongside a simplification, takes the search path.
+
 ## Track B: the engine or the vocabulary changes
 
 A new rule kind or knob, a rule class, a signal, the executor. The behavior of

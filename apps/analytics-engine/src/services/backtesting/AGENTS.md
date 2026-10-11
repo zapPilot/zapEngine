@@ -38,6 +38,7 @@ Use `strategy-lab` (`COMMANDS.md`) and the agent skill `.agents/skills/strategy-
 ## Promoting a candidate
 
 - A reference changes only through a promotion. `strategy-lab promote` weighs a candidate against `src/config/strategies/PROMOTION_POLICY.json` (real data only, the default assumptions, no dead parameter, the validation events and golden pins, the walk-forward folds judged against the production reference, the deflated Sharpe, and the lineage's single holdout look) and writes `.lab/promotions/<id>.json`. Only a `promotable` verdict opens the pull request that bumps `reference/dma_fgi.json`.
+- A candidate that only simplifies the reference (it removes rules, overlays, guards or optional parameters, or changes a categorical choice, and moves no number) may take the structural track, `promote --track structural`: no sweep and no holdout look, the same prerequisites, and instead it must not trail the reference on the real bundle by more than the policy's `structural` margins, nor in the median over the policy's fixed synthetic suite. Moving any number is the search track.
 - The policy is the bar. Changing a threshold is a reviewed change of its own, never part of a promotion, and never done to make a candidate pass.
 
 ## Lab data
