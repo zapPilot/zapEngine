@@ -12,8 +12,8 @@ const MINUTE_MS = 60 * 1_000;
 // earlier run). Time spent QUEUED says nothing about build health, so the build
 // limit only starts once Vercel picks the deployment up; the overall limit
 // still bounds a queue that never drains.
-const BUILD_TIMEOUT_MS = 15 * MINUTE_MS;
-export const OVERALL_TIMEOUT_MS = 25 * MINUTE_MS;
+const BUILD_TIMEOUT_MS = 20 * MINUTE_MS;
+export const OVERALL_TIMEOUT_MS = 30 * MINUTE_MS;
 const FAILURE_STATES = new Set(['ERROR', 'CANCELED']);
 
 export async function deployVercelMain(input = {}) {

@@ -78,6 +78,15 @@ const copy = (id: FilmSceneId): FilmProps => ({
 
 const vo = (id: FilmSceneId) => voLines(FILM[id].lines);
 
+/** What every Kokode film shares: Adrian narrates English under Japanese captions. */
+export const KOKODE_FILM = {
+  fps: 30,
+  width: 1920,
+  height: 1080,
+  voice: { speed: 1, voice: 'adrian' },
+  captions: { lang: 'ja', relation: 'translation' },
+} as const;
+
 /**
  * The film. Change words in packages/kokode-story/src/film.ts; change timing
  * and cues here. Then `pnpm voiceover kokode-clinic` and
@@ -86,9 +95,7 @@ const vo = (id: FilmSceneId) => voLines(FILM[id].lines);
 export const storyboard = {
   id: 'kokode-clinic',
   poster: { scene: 'turn', at: 0.85 },
-  fps: 30,
-  width: 1920,
-  height: 1080,
+  ...KOKODE_FILM,
   maxSeconds: 90,
   transitionFrames: 12,
   leadIn: 14,
@@ -99,8 +106,6 @@ export const storyboard = {
     base: 1,
     ducked: 0.2,
   },
-  voice: { speed: 1, voice: 'adrian' },
-  captions: { lang: 'ja', relation: 'translation' },
   scenes: [
     {
       id: 'hook-patient',

@@ -6,7 +6,7 @@ import { CAPTION_PROFILES } from './captions';
 import { fullWidth } from './cjk';
 import { buildTimeline, readingRates } from './timeline';
 import type { SceneSpec } from './types';
-import { captionLangs, captionVersion } from './versions';
+import { captionLangs, captionTimelines, captionVersion } from './versions';
 import { VOICES } from './voices';
 
 const manifest = {
@@ -17,6 +17,17 @@ const manifest = {
 };
 
 describe('caption versions', () => {
+  it('builds one timeline per language on the same narration clock', () => {
+    const timelines = captionTimelines(storyboard, manifest);
+    expect(Object.keys(timelines)).toEqual(['ja', 'en', 'zh-Hant']);
+    expect(timelines.en).toEqual(
+      buildTimeline(captionVersion(storyboard, 'en'), manifest),
+    );
+    expect(timelines['zh-Hant'].durationInFrames).toBe(
+      timelines.ja.durationInFrames,
+    );
+  });
+
   it('lists versions in stable order, with a single default English version', () => {
     expect(captionLangs(storyboard)).toEqual(['ja', 'en', 'zh-Hant']);
     expect(captionLangs(calculator)).toEqual(['en']);

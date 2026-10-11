@@ -1,6 +1,7 @@
 import { tokens } from '@zapengine/design-tokens/tokens';
 import Slider from '@react-native-community/slider';
 import { Pause, Play } from 'lucide-react-native';
+import type { ReactNode } from 'react';
 import { View } from 'react-native';
 import {
   classroomLanguageLabel,
@@ -13,37 +14,45 @@ import { Tap } from '@/components/ui/Tap';
 import type { PodcastEpisode } from '@/integration/podcastFeed';
 import type { PodcastPlayer } from '@/integration/podcastPlayerTypes';
 import { useContentLanguage } from '@/providers/ContentLanguageProvider';
-import { cn } from '@/lib/cn';
 export function NowPlayingBar({
   player,
   onOpen,
   layout = 'bar',
+  controls,
 }: {
   player: PodcastPlayer;
   onOpen: (episode: PodcastEpisode) => void;
   layout?: 'bar' | 'card';
+  controls?: ReactNode;
 }) {
   const { t } = useContentLanguage();
   const episode = player.nowPlaying;
   if (episode === null) return null;
-  const duration = Math.floor(player.duration);
-  const currentTime = Math.min(Math.floor(player.currentTime), duration);
+  const duration = Number.isFinite(player.duration)
+    ? Math.max(0, player.duration)
+    : 0;
+  const currentTime = Number.isFinite(player.currentTime)
+    ? Math.max(0, player.currentTime)
+    : 0;
   return (
     <View
-      className={cn(
-        'border border-rule bg-sheet p-3',
-        layout === 'card' ? 'rounded-panel' : 'border-x-0',
-      )}
+      className={
+        layout === 'card'
+          ? 'bg-transparent'
+          : 'border border-x-0 border-rule bg-sheet p-3'
+      }
     >
       <View className="flex-row items-center gap-2">
-        <IconButton
-          icon={player.isPlaying ? Pause : Play}
-          tone="default"
-          onPress={() => player.toggle(episode)}
-          accessibilityLabel={
-            player.isPlaying ? t('common.pause') : t('common.play')
-          }
-        />
+        {layout === 'bar' ? (
+          <IconButton
+            icon={player.isPlaying ? Pause : Play}
+            tone="default"
+            onPress={() => player.toggle(episode)}
+            accessibilityLabel={
+              player.isPlaying ? t('common.pause') : t('common.play')
+            }
+          />
+        ) : null}
         <View className="min-w-0 flex-1">
           <Tap
             accessibilityRole="button"
@@ -54,7 +63,10 @@ export function NowPlayingBar({
             feedback="highlight"
             className="min-h-hit justify-center"
           >
-            <Text variant="label" numberOfLines={layout === 'card' ? 2 : 1}>
+            <Text
+              variant={layout === 'card' ? 'body-lg' : 'label'}
+              numberOfLines={layout === 'card' ? 3 : 1}
+            >
               {episode.title}
             </Text>
           </Tap>
@@ -69,14 +81,14 @@ export function NowPlayingBar({
       </View>
       <View className="mt-1 flex-row items-center gap-2">
         <Text variant="data" tone="muted">
-          {formatPodcastClock(player.currentTime)}
+          {formatPodcastClock(currentTime)}
         </Text>
         <Slider
           accessibilityLabel={t('common.seek')}
           disabled={duration <= 0}
           minimumValue={0}
           maximumValue={duration > 0 ? duration : 1}
-          value={currentTime}
+          value={duration > 0 ? Math.min(currentTime, duration) : 0}
           minimumTrackTintColor={tokens.mode.night['ink']}
           maximumTrackTintColor={tokens.mode.night['rule']}
           thumbTintColor={tokens.mode.night['ink']}
@@ -84,9 +96,22 @@ export function NowPlayingBar({
           style={{ flex: 1, height: tokens.size.hit }}
         />
         <Text variant="data" tone="muted">
-          {formatPodcastClock(player.duration)}
+          {duration > 0 ? formatPodcastClock(duration) : '—'}
         </Text>
       </View>
+      {layout === 'card' ? (
+        <View className="flex-row flex-wrap items-center justify-between gap-2">
+          <IconButton
+            icon={player.isPlaying ? Pause : Play}
+            tone="default"
+            onPress={() => player.toggle(episode)}
+            accessibilityLabel={
+              player.isPlaying ? t('common.pause') : t('common.play')
+            }
+          />
+          {controls}
+        </View>
+      ) : null}
     </View>
   );
 }

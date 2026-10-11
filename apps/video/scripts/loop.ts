@@ -5,6 +5,7 @@ import path from 'node:path';
 import { readSourceCommit } from '@zapengine/media-release';
 
 import { loopSchema } from '../src/music/loop';
+import { isLoopSpecId, LOOP_IDS, LOOP_SPECS } from '../src/music/specs';
 import { cliArgs } from './lib/args';
 import { cutLoop } from './lib/loop-job';
 import { publicDir, workspaceRoot } from './lib/paths';
@@ -16,15 +17,12 @@ const { values, positionals } = cliArgs(process.argv.slice(2), {
   take: { type: 'string' },
 });
 const [command, id] = positionals;
-if (
-  !['cut', 'accept'].includes(command ?? '') ||
-  !['gentle-88', 'drive-112'].includes(id ?? '')
-)
+if (!['cut', 'accept'].includes(command ?? '') || !isLoopSpecId(id))
   throw new Error(
-    'usage: pnpm --filter @zapengine/video loop cut|accept gentle-88|drive-112 [--candidates] [--start seconds] [--bars bars] [--take N]',
+    `usage: pnpm --filter @zapengine/video loop cut|accept ${LOOP_IDS.join('|')} [--candidates] [--start seconds] [--bars bars] [--take N]`,
   );
-const loopId = id as 'gentle-88' | 'drive-112';
-const sourceId = loopId === 'gentle-88' ? 'kokode-clinic' : 'calculator-pitch';
+const loopId = id;
+const spec = LOOP_SPECS[loopId];
 const target = path.join(publicDir, 'music', `${loopId}.mp3`);
 if (command === 'accept') {
   const metadata = loopSchema.parse(
@@ -44,15 +42,25 @@ if (command === 'accept') {
     JSON.stringify(loopSchema.parse(metadata), null, 2) + '\n',
   );
 } else {
-  const source = path.join(workspaceRoot, 'music/sources', `${sourceId}.mp3`);
+  const source = path.join(
+    workspaceRoot,
+    'music/sources',
+    `${spec.source}.mp3`,
+  );
   const take = values.take;
   if (take && (!Number.isInteger(Number(take)) || Number(take) < 1))
     throw new Error('--take must be positive');
   let file = take
     ? path.join(workspaceRoot, 'out', loopId, 'music', `take-${take}.raw.mp3`)
     : source;
+  // A take records its own request; a full paid source keeps its provenance beside it.
   const provenance = JSON.parse(
-    await readFile(source.replace('.mp3', '.json'), 'utf8'),
+    await readFile(
+      take
+        ? file.replace('.raw.mp3', '.request.json')
+        : source.replace('.mp3', '.json'),
+      'utf8',
+    ),
   );
   if (take && !values.candidates) {
     const hash = createHash('sha256')
@@ -87,8 +95,8 @@ if (command === 'accept') {
     candidates: values.candidates ?? false,
     start: values.start ? Number(values.start) : undefined,
     bars: values.bars ? Number(values.bars) : undefined,
-    bpm: loopId === 'gentle-88' ? 88 : 112,
-    end: loopId === 'gentle-88' ? 65 : 50,
+    bpm: spec.bpm,
+    end: spec.end,
   });
   // Only the selected clip/provenance enter git; listening previews remain in out/.
   if (!values.candidates) {

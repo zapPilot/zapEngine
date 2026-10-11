@@ -286,7 +286,9 @@ describe('usePodcastPlayer web media lifecycle', () => {
     act(() => harness.current().seek(-4));
     expect(element.currentTime).toBe(0);
     act(() => harness.current().seekRelative(8));
-    expect(element.currentTime).toBe(20);
+    // Relative seeking starts from the preceding absolute seek, even before
+    // a timeupdate event replaces the old 12-second UI snapshot.
+    expect(element.currentTime).toBe(8);
 
     act(() => harness.current().setSpeed(1.75));
     expect(speed.setSpeedForSection).toHaveBeenCalledWith('main', 1.75);
@@ -303,6 +305,9 @@ describe('usePodcastPlayer web media lifecycle', () => {
     await act(async () => harness.root.unmount());
     remotePlay?.();
     expect(element.play).toHaveBeenCalledTimes(2);
+    act(() => harness.current().seekRelative(10));
+    // A stale snapshot outliving unmount must not touch the released element.
+    expect(element.currentTime).toBe(8);
     harness.container.remove();
     active = null;
     expect(element.removeAttribute).toHaveBeenCalledWith('src');
@@ -569,4 +574,17 @@ describe('usePodcastPlayer web rejected play requests', () => {
     expect(harness.current().isPlaying).toBe(true);
     expect(reporting.reportHandledError).not.toHaveBeenCalled();
   });
+});
+
+it('applies consecutive relative seeks to the live audio position before timeupdate arrives', async () => {
+  const harness = await render();
+  const element = audio();
+  element.duration = 120;
+  element.currentTime = 93;
+  await act(async () => element.emit('timeupdate'));
+  act(() => {
+    harness.current().seekRelative(-15);
+    harness.current().seekRelative(30);
+  });
+  expect(element.currentTime).toBe(108);
 });

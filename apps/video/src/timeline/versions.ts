@@ -1,3 +1,5 @@
+import type { VoManifest } from './manifest';
+import { buildTimeline, type Timeline } from './timeline';
 import {
   CAPTION_LANGS,
   type CaptionLang,
@@ -34,5 +36,17 @@ export function captionVersion<Scene extends SceneSpec>(
         return { ...line, text, say: line.say ?? line.text };
       }),
     })),
+  };
+}
+
+/** One timeline per caption language; all share the narration and its timing. */
+export function captionTimelines<Scene extends SceneSpec>(
+  storyboard: Storyboard<Scene>,
+  manifest: VoManifest,
+): Record<CaptionLang, Timeline<Scene>> {
+  return {
+    ja: buildTimeline(captionVersion(storyboard, 'ja'), manifest),
+    en: buildTimeline(captionVersion(storyboard, 'en'), manifest),
+    'zh-Hant': buildTimeline(captionVersion(storyboard, 'zh-Hant'), manifest),
   };
 }

@@ -1,5 +1,4 @@
-import { type CSSProperties, type FC, useEffect, useState } from 'react';
-import { cancelRender, continueRender, delayRender } from 'remotion';
+import type { CSSProperties, FC } from 'react';
 
 import {
   NarratedVideo,
@@ -9,7 +8,7 @@ import { captionVersion } from '../../timeline/versions';
 import type { VideoProps } from '../metadata';
 import { timelines } from './assets';
 import { KokodeContext } from './context';
-import { fontFor } from './fonts';
+import { useLangFont } from './fonts';
 import { KokodeBackdrop } from './primitives/KokodeBackdrop';
 import { BoundaryScene } from './scenes/BoundaryScene';
 import { CtaScene } from './scenes/CtaScene';
@@ -50,20 +49,7 @@ export const KokodeClinic: FC<VideoProps> = (props) => (
 );
 
 const LocalizedClinic: FC<VideoProps> = ({ captions, music, lang }) => {
-  const [fontFamily, setFontFamily] = useState('sans-serif');
-  const [handle] = useState(() => delayRender('Load caption font'));
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const font = await fontFor(lang);
-        setFontFamily(font);
-        continueRender(handle);
-      } catch (error) {
-        cancelRender(error);
-      }
-    };
-    void load();
-  }, [lang, handle]);
+  const fontFamily = useLangFont(lang);
   return (
     <KokodeContext.Provider
       value={{ lang, story: filmStory(lang), fontFamily }}

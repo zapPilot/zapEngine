@@ -61,6 +61,7 @@ vi.mock('react-native-svg', () => ({
   Circle: () => <circle />,
 }));
 vi.mock('@/components/ui/ConfirmSheet', () => ({ ConfirmSheet: () => null }));
+vi.mock('@/components/ui/ActionSheet', () => ({ ActionSheet: () => null }));
 vi.mock('@react-native-community/slider', () => ({ default: () => null }));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0 }),

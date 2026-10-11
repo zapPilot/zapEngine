@@ -5,6 +5,7 @@ import {
   spanPhrases,
 } from './captions';
 import { readingUnits } from './cjk';
+import { beatAtOrAfter, framesPerBeat } from './grid';
 import type { VoManifest } from './manifest';
 import type { SceneSpec, Storyboard, VoLine } from './types';
 
@@ -78,6 +79,20 @@ function assertNoOverlap(voice: readonly VoicePlacement[]): void {
 }
 
 /**
+ * A scene's length from where its narration ends. On a beat grid the scene
+ * runs on until its successor can start on a beat.
+ */
+function sceneLength(
+  natural: number,
+  start: number,
+  overlap: number,
+  perBeat: number | undefined,
+): number {
+  if (perBeat === undefined) return natural;
+  return beatAtOrAfter(start + natural - overlap, perBeat) + overlap - start;
+}
+
+/**
  * Lays the storyboard on a frame clock. Scene length follows its narration
  * (lead-in + lines + gaps + tail), so editing a sentence re-times everything
  * after it; nothing else in the video hard-codes a frame number.
@@ -89,6 +104,9 @@ export function buildTimeline<Scene extends SceneSpec>(
   assertUniqueLineIds(storyboard.scenes);
   const { fps, transitionFrames } = storyboard;
   const profile = CAPTION_PROFILES[storyboard.captions?.lang ?? 'en'];
+  const perBeat = storyboard.beatGrid
+    ? framesPerBeat(storyboard.music.loop)
+    : undefined;
   const scenes: TimedScene<Scene>[] = [];
   const voice: VoicePlacement[] = [];
   const captions: CaptionCue[] = [];
@@ -116,10 +134,17 @@ export function buildTimeline<Scene extends SceneSpec>(
       if (lineIndex < spec.vo.length - 1) cursor += storyboard.gap;
     }
 
-    const durationInFrames = Math.max(
-      cursor + (spec.tail ?? storyboard.tail),
-      spec.minFrames ?? 0,
-      transitionFrames * 2,
+    const overlap =
+      index === storyboard.scenes.length - 1 ? 0 : transitionFrames;
+    const durationInFrames = sceneLength(
+      Math.max(
+        cursor + (spec.tail ?? storyboard.tail),
+        spec.minFrames ?? 0,
+        transitionFrames * 2,
+      ),
+      sceneStart,
+      overlap,
+      perBeat,
     );
     scenes.push({ spec, from: sceneStart, durationInFrames, beats });
 
@@ -145,8 +170,7 @@ export function buildTimeline<Scene extends SceneSpec>(
       }
     }
 
-    const isLast = index === storyboard.scenes.length - 1;
-    sceneStart += durationInFrames - (isLast ? 0 : transitionFrames);
+    sceneStart += durationInFrames - overlap;
   }
 
   assertNoOverlap(voice);

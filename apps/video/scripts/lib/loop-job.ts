@@ -90,7 +90,10 @@ async function renderLoop(
   target: string,
 ): Promise<void> {
   const periodFrames = Math.round(candidate.periodSeconds * 30),
-    crossfadeFrames = 6;
+    crossfadeFrames = 6,
+    // Rate correction resamples, which can drop a few trailing samples; one
+    // spare frame keeps period + crossfade covered. Beds and seams never read it.
+    spareFrames = 1;
   const rate = candidate.periodSeconds / (periodFrames / 30);
   if (Math.abs(rate - 1) > 0.002)
     throw new Error(
@@ -104,7 +107,9 @@ async function renderLoop(
     '-i',
     input.sourceFile,
     '-t',
-    String(candidate.periodSeconds + (crossfadeFrames / 30) * rate),
+    String(
+      candidate.periodSeconds + ((crossfadeFrames + spareFrames) / 30) * rate,
+    ),
     '-af',
     `asetrate=${48000 * rate},aresample=48000`,
     '-ac',

@@ -250,15 +250,15 @@ test('fails with the queue history when a deployment is still QUEUED at the over
     result,
     new RegExp(
       'Timed out waiting for Vercel deployment dpl_zap-engine-frontend for zap-engine-frontend: ' +
-        'still QUEUED after 25\\.0 min queued, 0\\.0 min building ' +
-        '\\(exceeded the 25-minute overall limit\\); ' +
+        'still QUEUED after 30\\.0 min queued, 0\\.0 min building ' +
+        '\\(exceeded the 30-minute overall limit\\); ' +
         'inspect https://vercel\\.com/inspect/dpl_zap-engine-frontend$',
     ),
   );
-  assert.equal(clock.now(), minutes(25));
+  assert.equal(clock.now(), minutes(30));
 });
 
-test('fails when a deployment is still building 15 minutes after it left the queue, counting INITIALIZING', async () => {
+test('fails when a deployment is still building 20 minutes after it left the queue, counting INITIALIZING', async () => {
   const { result, clock } = deploy({
     'zap-engine-frontend': [
       [0, 'QUEUED'],
@@ -269,9 +269,9 @@ test('fails when a deployment is still building 15 minutes after it left the que
 
   await assert.rejects(
     result,
-    /zap-engine-frontend: still BUILDING after 2\.0 min queued, 15\.0 min building \(exceeded the 15-minute build limit\); inspect https:\/\/vercel\.com\/inspect\/dpl_zap-engine-frontend$/,
+    /zap-engine-frontend: still BUILDING after 2\.0 min queued, 20\.0 min building \(exceeded the 20-minute build limit\); inspect https:\/\/vercel\.com\/inspect\/dpl_zap-engine-frontend$/,
   );
-  assert.equal(clock.now(), minutes(17));
+  assert.equal(clock.now(), minutes(22));
 });
 
 test('caps a long queue plus build at the overall limit', async () => {
@@ -284,9 +284,9 @@ test('caps a long queue plus build at the overall limit', async () => {
 
   await assert.rejects(
     result,
-    /zap-engine-frontend: still BUILDING after 12\.0 min queued, 13\.0 min building \(exceeded the 25-minute overall limit\)/,
+    /zap-engine-frontend: still BUILDING after 12\.0 min queued, 18\.0 min building \(exceeded the 30-minute overall limit\)/,
   );
-  assert.equal(clock.now(), minutes(25));
+  assert.equal(clock.now(), minutes(30));
 });
 
 test('re-reads the deployment at the deadline instead of failing on the last poll before it', async () => {

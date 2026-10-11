@@ -379,9 +379,12 @@ class QueryService:
         """Reset the class-level cache for testing purposes.
 
         This method is intended for use in test environments only.
-        It clears the cache and resets the initialization flag.
+        It rebinds the cache instead of clearing it: instances (and the
+        module-level singleton) keep the dict they were built with, so clearing
+        it in place would silently empty them. It also resets the initialization
+        flag so the next instance reloads the queries.
         """
-        cls._query_cache.clear()
+        cls._query_cache = {}
         cls._cache_initialized = False
 
 

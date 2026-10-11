@@ -16,8 +16,13 @@ import {
   INTEREST,
   LANDING,
   PARTNER_DECK,
+  PROMO,
+  PROMO_ORDER,
+  PROMO_UI,
 } from './index.js';
-import type { BeatId, Group } from './types.js';
+import type { FilmLine } from './film.js';
+import type { PromoScene } from './promo.js';
+import type { BeatId, DisclaimerId, Group } from './types.js';
 
 // Claim guardrails over every string the story exports. When one fails,
 // change the copy; do not widen the guardrail.
@@ -108,9 +113,14 @@ describe.each(LOCALES)('%s claim guardrails', (locale) => {
 
   it('mentions ChatGPT only in desiredWorld and experience', () => {
     const allowedBeats: readonly BeatId[] = ['desiredWorld', 'experience'];
-    const allowedScenes = FILM_ORDER.filter((scene) =>
-      scene.beats.some((beat) => allowedBeats.includes(beat)),
-    ).map((scene) => `FILM.${scene.id}.`);
+    const allowedScenes = [
+      ...FILM_ORDER.filter((scene) =>
+        scene.beats.some((beat) => allowedBeats.includes(beat)),
+      ).map((scene) => `FILM.${scene.id}.`),
+      ...PROMO_ORDER.filter((scene) =>
+        scene.beats.some((beat) => allowedBeats.includes(beat)),
+      ).map((scene) => `PROMO.${scene.id}.`),
+    ];
     const allowed = [
       ...allowedBeats.map((beat) => `BEATS.${beat}.`),
       ...allowedScenes,
@@ -182,6 +192,7 @@ describe('narrative', () => {
     DOCTOR_DECK,
     PARTNER_DECK,
     FILM_ORDER,
+    PROMO_ORDER,
   };
 
   it.each(Object.entries(sequences))(
@@ -256,34 +267,90 @@ describe('narrative', () => {
   });
 });
 
+/** Every narrated line: unique ids, Japanese caption, English voice, Chinese draft. */
+function expectNarration(lines: readonly FilmLine[]): void {
+  expect(new Set(lines.map((line) => line.id)).size).toBe(lines.length);
+  for (const line of lines) {
+    expect(JAPANESE.test(line.ja), line.id).toBe(true);
+    expect(JAPANESE.test(line.en), line.id).toBe(false);
+    expect(line['zh-Hant'], line.id).toBeTruthy();
+    expect(/[\u3040-\u30ff]/u.test(line['zh-Hant']), line.id).toBe(false);
+  }
+}
+
+/** Screens carry `imageNote`; a demo carries its disclaimers (draftOnly aside). */
+function expectNotes(
+  scenes: Readonly<Record<string, PromoScene>>,
+  imageNote: (scene: PromoScene) => DisclaimerId,
+): void {
+  for (const [id, scene] of Object.entries(scenes)) {
+    if (scene.screen !== 'title') {
+      expect(scene.notes, id).toContain(imageNote(scene));
+    }
+    for (const note of scene.demo === undefined
+      ? []
+      : DEMOS[scene.demo].disclaimers) {
+      if (note !== 'draftOnly') {
+        expect(scene.notes, id).toContain(note);
+      }
+    }
+  }
+}
+
 describe('film', () => {
   it('has a scene for every FILM_ORDER entry and nothing else', () => {
     expect(Object.keys(FILM)).toEqual(FILM_ORDER.map((scene) => scene.id));
   });
 
   it('provides three caption languages and English narration on every line', () => {
-    const lines = Object.values(FILM).flatMap((scene) => scene.lines);
-    expect(new Set(lines.map((line) => line.id)).size).toBe(lines.length);
-    for (const line of lines) {
-      expect(JAPANESE.test(line.ja), line.id).toBe(true);
-      expect(JAPANESE.test(line.en), line.id).toBe(false);
-      expect(line['zh-Hant'], line.id).toBeTruthy();
-      expect(/[\u3040-\u30ff]/u.test(line['zh-Hant']), line.id).toBe(false);
-    }
+    expectNarration(Object.values(FILM).flatMap((scene) => scene.lines));
   });
 
   it('notes the screen image and fictional data wherever the film shows them', () => {
-    for (const [id, scene] of Object.entries(FILM)) {
-      if (scene.screen !== 'title') {
-        expect(scene.notes, id).toContain('screenImage');
+    expectNotes(FILM, () => 'screenImage');
+  });
+});
+
+describe('promo', () => {
+  const lines = Object.values(PROMO).flatMap((scene) => scene.lines);
+  const filmLines = Object.values(FILM).flatMap((scene) => scene.lines);
+
+  it('has a scene for every PROMO_ORDER entry and nothing else', () => {
+    expect(Object.keys(PROMO)).toEqual(PROMO_ORDER.map((scene) => scene.id));
+    for (const [id, scene] of Object.entries(PROMO)) {
+      expect(scene.lines.length, id).toBeGreaterThan(0);
+    }
+  });
+
+  it('narrates in English with three caption languages, reusing the film words', () => {
+    expectNarration(lines);
+    for (const line of lines) {
+      const film = filmLines.find((candidate) => candidate.id === line.id);
+      if (film !== undefined) {
+        expect(line, line.id).toBe(film);
       }
-      if (scene.demo !== undefined) {
-        for (const note of DEMOS[scene.demo].disclaimers) {
-          if (note !== 'draftOnly') {
-            expect(scene.notes, id).toContain(note);
-          }
-        }
-      }
+    }
+    expect(lines.filter((line) => !filmLines.includes(line))).toHaveLength(1);
+  });
+
+  it('notes the screen image, the equipment image and fictional data wherever it shows them', () => {
+    expectNotes(PROMO, (scene) =>
+      scene.screen === 'hardware' ? 'hardwareImage' : 'screenImage',
+    );
+    expect(PROMO.turnkey.notes).toContain('hardwareImage');
+  });
+
+  it('tiles the four pilot workflows in every language', () => {
+    const workflows = INTEREST.map((option) => option.id).filter(
+      (id) => id !== 'other' && id !== 'partner',
+    );
+    for (const locale of LOCALES) {
+      const ui = storyFor(locale).PROMO_UI;
+      expect(
+        ui.tiles.map((tile) => tile.id),
+        locale,
+      ).toEqual(workflows);
+      expect(ui.pills, locale).toHaveLength(PROMO_UI.pills.length);
     }
   });
 });

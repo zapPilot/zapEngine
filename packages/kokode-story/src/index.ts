@@ -5,6 +5,10 @@ export { DISCLAIMERS, footnote } from './ja/disclaimers.js';
 export { FIGURES } from './ja/figures.js';
 export { FILM } from './film.js';
 export type { FilmLine, FilmScene, FilmScreen } from './film.js';
+export { PROMO } from './promo.js';
+export type { PromoScene, PromoScreen } from './promo.js';
+export { PROMO_UI } from './ja/promo.js';
+export type { PromoUi } from './ja/promo.js';
 export { FORM, INTEREST } from './ja/form.js';
 export type { InterestId } from './ja/form.js';
 export {
@@ -13,10 +17,23 @@ export {
   FILM_ORDER,
   LANDING,
   PARTNER_DECK,
+  PROMO_ORDER,
   REQUIRED_BEATS,
 } from './narrative.js';
-export type { FilmSceneId, LandingSectionId } from './narrative.js';
-export { FILM_LINK, META, NAV, NAV_CTA, SITE, SITE_URL } from './ja/site.js';
+export type {
+  FilmSceneId,
+  LandingSectionId,
+  PromoSceneId,
+} from './narrative.js';
+export {
+  FILM_LINK,
+  META,
+  NAV,
+  NAV_CTA,
+  PROMO_LINK,
+  SITE,
+  SITE_URL,
+} from './ja/site.js';
 export type { PageId, PageMeta } from './ja/site.js';
 export type {
   Action,

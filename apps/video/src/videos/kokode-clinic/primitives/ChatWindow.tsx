@@ -169,7 +169,9 @@ export const UserBubble: FC<{
   readonly text: string;
   readonly typeFrom: number;
   readonly variant: Variant;
-}> = ({ text, typeFrom, variant }) => {
+  /** Frames per character; the film types at TYPE_SPEED. */
+  readonly speed?: number;
+}> = ({ text, typeFrom, variant, speed = TYPE_SPEED }) => {
   const frame = useCurrentFrame();
   return (
     <div
@@ -183,7 +185,7 @@ export const UserBubble: FC<{
         ...enter(frame, typeFrom - 4, { duration: 8, distance: 10 }),
       }}
     >
-      {typedText(text, frame, typeFrom, TYPE_SPEED)}
+      {typedText(text, frame, typeFrom, speed)}
     </div>
   );
 };

@@ -116,6 +116,14 @@ it('writes selected clip provenance, linear mastering, seams and beds with pendi
     expect(metadata.source).toEqual(input.sourceMetadata);
     expect(mocks.run.mock.calls.flat(2).join(' ')).toContain('volume=0dB');
     expect(mocks.run.mock.calls.flat(2).join(' ')).not.toContain('loudnorm');
+    // Period + crossfade + one spare frame survive the rate-corrected resample.
+    const extract = mocks.run.mock.calls.find((call) =>
+      (call[0] as string[]).includes('-t'),
+    )![0] as string[];
+    expect(Number(extract[extract.indexOf('-t') + 1])).toBeCloseTo(
+      2 + 7 / 30,
+      9,
+    );
     expect(
       await readFile(input.target.replace('.mp3', '.bed.mp3'), 'utf8'),
     ).toBe('mp3');

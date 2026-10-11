@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { beatAtOrAfter, framesPerBeat } from './grid';
 import type { VoManifest } from './manifest';
 import {
   buildTimeline,
@@ -196,6 +197,34 @@ describe('buildTimeline', () => {
         to: 132,
       },
     ]);
+  });
+
+  it('ends every scene on the beat of the music when asked, hard cuts included', () => {
+    const scenes = [scene('a', ['One.']), scene('b', ['Two.']), scene('c', [])];
+    const voice = manifest({ 'a-0': 1, 'b-0': 1.3 });
+    const loose = buildTimeline(board(scenes, { transitionFrames: 0 }), voice);
+    const tight = buildTimeline(
+      board(scenes, { transitionFrames: 0, beatGrid: true }),
+      voice,
+    );
+    const perBeat = framesPerBeat('gentle-88');
+    for (const [index, timed] of tight.scenes.entries()) {
+      const end = timed.from + timed.durationInFrames;
+      expect(Math.abs(end / perBeat - Math.round(end / perBeat))).toBeLessThan(
+        0.5 / perBeat + 1e-9,
+      );
+      expect(timed.durationInFrames).toBeGreaterThanOrEqual(
+        loose.scenes[index]!.durationInFrames,
+      );
+      expect(
+        timed.durationInFrames - loose.scenes[index]!.durationInFrames,
+      ).toBeLessThan(perBeat + 1);
+    }
+    // Cross-faded scenes start their successor on the beat instead.
+    const faded = buildTimeline(board(scenes, { beatGrid: true }), voice);
+    expect(beatAtOrAfter(faded.scenes[1]!.from, perBeat)).toBe(
+      faded.scenes[1]!.from,
+    );
   });
 
   it('rejects duplicate line ids', () => {

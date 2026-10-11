@@ -1,13 +1,13 @@
 import { Icon } from '@/components/ui/Icon';
-import { Pause, Play } from 'lucide-react-native';
+import { useState } from 'react';
+import { ChevronDown, Pause, Play } from 'lucide-react-native';
 import { View } from 'react-native';
 import { Text } from '@/components/ui/Text';
 
 import { formatPodcastClock } from '@/components/podcast/episodeFormatters';
 import type { EpisodeSortDirection } from '@/components/podcast/episodeSorting';
-import { Card } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
-import { SegmentedControl } from '@/components/ui/SegmentedControl';
+import { ActionSheet } from '@/components/ui/ActionSheet';
+import { IconButton } from '@/components/ui/IconButton';
 import { Tap } from '@/components/ui/Tap';
 import type { PodcastEpisode } from '@/integration/podcastFeed';
 import type { TranslationKey } from '@/i18n/translations';
@@ -73,12 +73,14 @@ function resolveCopy(
 export function PlayUnheardButton({
   mode,
   target,
+  activeEpisode = null,
   direction,
   isPlaying,
   onDirectionChange,
   onPlay,
   onOpen,
 }: {
+  activeEpisode?: PodcastEpisode | null;
   mode: PlayUnheardMode;
   target: PodcastEpisode | null;
   direction: EpisodeSortDirection;
@@ -88,72 +90,80 @@ export function PlayUnheardButton({
   onOpen: () => void;
 }) {
   const { t } = useContentLanguage();
+  const [orderOpen, setOrderOpen] = useState(false);
   if (mode === 'empty') return null;
 
   const newestLabel = t('podcast.newest');
   const oldestLabel = t('podcast.oldest');
-  const directionOptions = [newestLabel, oldestLabel] as const;
+  const sameTarget =
+    target !== null &&
+    activeEpisode?.localizationId === target.localizationId &&
+    activeEpisode.languageCode === target.languageCode;
   const copy = resolveCopy(mode, target, direction, isPlaying, t);
 
-  const body = (
-    <>
-      <Text
-        className="mt-2 font-text-semibold text-heading leading-[26px] text-ink"
-        numberOfLines={2}
-      >
-        {copy.title}
-      </Text>
-      <Text className="font-text mt-1 text-caption leading-[19px] text-ink-2">
-        {copy.subtitle}
-      </Text>
-    </>
-  );
-
   return (
-    <View className="pt-3">
-      <Card className="p-4">
-        <View className="flex-row items-center justify-between gap-3">
-          <Text className="font-mono text-data uppercase tracking-[1.1px] text-ink">
-            {copy.eyebrow}
+    <View className="border-b border-rule py-1">
+      <View className="flex-row items-center justify-between gap-2">
+        <Text variant="caption" tone="muted">
+          {sameTarget ? t('common.episodeOrder') : copy.eyebrow}
+        </Text>
+        <Tap
+          accessibilityRole="button"
+          accessibilityLabel={t('common.episodeOrder')}
+          accessibilityState={{ expanded: orderOpen }}
+          onPress={() => setOrderOpen(true)}
+          className="min-h-hit flex-row items-center gap-1 px-2"
+        >
+          <Text variant="caption">
+            {direction === 'newest' ? newestLabel : oldestLabel}
           </Text>
-          <SegmentedControl
-            accessibilityLabel={t('common.episodeOrder')}
-            options={directionOptions.map((option) => ({
-              value: option,
-              label: option,
-              accessibilityLabel: option,
-            }))}
-            value={direction === 'newest' ? newestLabel : oldestLabel}
-            onChange={(value) =>
-              onDirectionChange(value === oldestLabel ? 'oldest' : 'newest')
-            }
+          <Icon icon={ChevronDown} size="xs" />
+        </Tap>
+      </View>
+      {!sameTarget ? (
+        <View className="flex-row items-center gap-2 pb-2">
+          <IconButton
+            icon={isPlaying ? Pause : Play}
+            accessibilityLabel={copy.buttonLabel}
+            onPress={onPlay}
           />
-        </View>
-        {target !== null ? (
           <Tap
             accessibilityRole="button"
-            accessibilityLabel={t('podcast.openEpisode', {
-              title: target.title,
-            })}
+            accessibilityLabel={
+              target === null
+                ? copy.title
+                : t('podcast.openEpisode', { title: target.title })
+            }
             onPress={onOpen}
+            className="min-h-hit min-w-0 flex-1 justify-center"
           >
-            {body}
+            <Text variant="body" numberOfLines={2}>
+              {copy.title}
+            </Text>
+            <Text variant="caption" tone="muted">
+              {copy.subtitle}
+            </Text>
           </Tap>
-        ) : (
-          body
-        )}
-
-        <View className="mt-3">
-          <Button accessibilityLabel={copy.buttonLabel} onPress={onPlay}>
-            {isPlaying ? (
-              <Icon icon={Pause} size="sm" tone="default" />
-            ) : (
-              <Icon icon={Play} size="sm" tone="default" />
-            )}
-            {copy.buttonLabel}
-          </Button>
         </View>
-      </Card>
+      ) : null}
+      <ActionSheet
+        visible={orderOpen}
+        onClose={() => setOrderOpen(false)}
+        title={t('common.episodeOrder')}
+        closeLabel={t('common.close')}
+        actions={[
+          {
+            id: 'newest',
+            label: newestLabel,
+            onPress: () => onDirectionChange('newest'),
+          },
+          {
+            id: 'oldest',
+            label: oldestLabel,
+            onPress: () => onDirectionChange('oldest'),
+          },
+        ]}
+      />
     </View>
   );
 }

@@ -287,6 +287,7 @@ export function ListenScreen() {
     return (
       <View>
         <PlayUnheardButton
+          activeEpisode={player.nowPlaying}
           mode={playback.mode}
           target={playbackTarget}
           direction={direction}
@@ -303,8 +304,6 @@ export function ListenScreen() {
             }
           }}
         />
-
-        {downloadedSection}
 
         {unheardEpisodes.length > 0 ? (
           <ExpandableSection
@@ -338,6 +337,8 @@ export function ListenScreen() {
             ) : null}
           </ExpandableSection>
         ) : null}
+
+        {downloadedSection}
 
         <View className="items-center pb-2 pt-6">
           <Button

@@ -5,6 +5,8 @@ import { shots as calculatorShots } from './calculator-pitch/shots';
 import { storyboard as calculatorStoryboard } from './calculator-pitch/storyboard';
 import { filmStory } from './kokode-clinic/story';
 import { storyboard as kokodeStoryboard } from './kokode-clinic/storyboard';
+import { promoStory } from './kokode-promo/story';
+import { storyboard as promoStoryboard } from './kokode-promo/storyboard';
 
 interface VideoEntry {
   readonly storyboard: Storyboard;
@@ -29,6 +31,12 @@ const catalog: Readonly<Record<string, VideoEntry>> = {
     storyboard: kokodeStoryboard,
     fingerprintSource: filmStory,
     captionLangs: captionLangs(kokodeStoryboard),
+  },
+  // The Kokode promo: drawn too, from the same story.
+  'kokode-promo': {
+    storyboard: promoStoryboard,
+    fingerprintSource: promoStory,
+    captionLangs: captionLangs(promoStoryboard),
   },
 };
 

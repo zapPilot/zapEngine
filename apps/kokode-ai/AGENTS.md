@@ -17,7 +17,7 @@ The workspace tests also cover the canonical root Edge Function handler.
 # Copy
 
 All copy lives in `packages/kokode-story/src/`: the landing page, `/pitch/`, `/pitch/partner/`
-and the apps/video `kokode-clinic` film render from it, each in the order of
+and the apps/video `kokode-clinic` and `kokode-promo` films render from it, each in the order of
 its own sequence in `packages/kokode-story/src/narrative.ts`. `src/site/` only renders.
 
 - Never write copy in `src/site/`, page scripts or the HTML shells;

@@ -1,7 +1,7 @@
 import type { FC } from 'react';
 import { useCurrentFrame } from 'remotion';
 
-import { glide } from '../../../primitives/motion';
+import { enter, glide } from '../../../primitives/motion';
 import { theme } from '../theme';
 
 // Placeholder line drawing (the same strokes as the site's demo figure). It
@@ -45,5 +45,24 @@ export const SketchCanvas: FC<{
         );
       })}
     </svg>
+  );
+};
+
+/** A demo step's label under its picture, arriving at `at`. */
+export const StepLabel: FC<{ readonly label: string; readonly at: number }> = ({
+  label,
+  at,
+}) => {
+  const frame = useCurrentFrame();
+  return (
+    <span
+      style={{
+        fontSize: 22,
+        color: theme.muted,
+        ...enter(frame, at, { distance: 8 }),
+      }}
+    >
+      {label}
+    </span>
   );
 };

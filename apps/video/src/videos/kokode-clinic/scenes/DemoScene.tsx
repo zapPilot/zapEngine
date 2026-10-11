@@ -17,7 +17,7 @@ import { Disclaimers } from '../primitives/Disclaimers';
 import { Headline } from '../primitives/Headline';
 import { Icon } from '../primitives/icons';
 import { DataFlow } from '../primitives/NetworkDiagram';
-import { SketchCanvas } from '../primitives/SketchCanvas';
+import { SketchCanvas, StepLabel } from '../primitives/SketchCanvas';
 import { Stage } from '../primitives/Stage';
 import { Swap } from '../primitives/Swap';
 import { theme } from '../theme';
@@ -101,17 +101,6 @@ const ImageDemo: FC<{ readonly scene: SceneOf<'demo-image'> }> = ({
   const slideFrom = cueAt(scene, props.slideCue);
   const demo = story.DEMOS.image;
   const [sketchStep = '', slideStep = ''] = demo.steps;
-  const step = (label: string, at: number) => (
-    <span
-      style={{
-        fontSize: 22,
-        color: theme.muted,
-        ...enter(frame, at, { distance: 8 }),
-      }}
-    >
-      {label}
-    </span>
-  );
   return (
     <Stage
       copy={
@@ -155,7 +144,7 @@ const ImageDemo: FC<{ readonly scene: SceneOf<'demo-image'> }> = ({
               >
                 <SketchCanvas from={sketchFrom} width={300} />
               </div>
-              {step(sketchStep, sketchFrom)}
+              <StepLabel label={sketchStep} at={sketchFrom} />
             </div>
             <span style={enter(frame, slideFrom - 6, { distance: 0 })}>
               <Icon name="arrow" size={40} color="#8e8e93" />
@@ -193,7 +182,7 @@ const ImageDemo: FC<{ readonly scene: SceneOf<'demo-image'> }> = ({
                 </div>
                 <SketchCanvas from={slideFrom - 60} width={160} />
               </div>
-              {step(slideStep, slideFrom)}
+              <StepLabel label={slideStep} at={slideFrom} />
             </div>
           </div>
         </ChatWindow>

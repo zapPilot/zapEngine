@@ -412,12 +412,22 @@ export function usePodcastPlayer(): PodcastPlayer {
     const target = clampPodcastPlaybackSeconds(fence.seconds, duration);
     const observedDuration = finiteSeconds(status.duration);
     const observedPosition = finiteSeconds(status.currentTime);
+    // The first hook update can arrive after playback has passed the seek
+    // target (500ms updates, versus the 250ms paused-position tolerance).
+    // After the handoff settles, confirm a moving clock against the live
+    // source instead of requiring it to revisit the original seek position.
+    const movingClockCaughtUp =
+      pendingHandoffRef.current === null &&
+      status.playing &&
+      currentStatus.playing &&
+      Number.isFinite(currentStatus.currentTime) &&
+      Math.abs(observedPosition - currentStatus.currentTime) <= 0.5;
     const statusCaughtUp =
       status.isLoaded &&
       currentStatus.isLoaded &&
       duration > 0 &&
       Math.abs(observedDuration - duration) < 0.5 &&
-      Math.abs(observedPosition - target) <= 0.25;
+      (Math.abs(observedPosition - target) <= 0.25 || movingClockCaughtUp);
     if (statusCaughtUp) {
       clockFenceRef.current = null;
       setHasPendingHandoff(false);
@@ -426,6 +436,7 @@ export function usePodcastPlayer(): PodcastPlayer {
     audioPlayer,
     handoffRevision,
     hasPendingHandoff,
+    status.playing,
     status.currentTime,
     status.duration,
     status.isLoaded,

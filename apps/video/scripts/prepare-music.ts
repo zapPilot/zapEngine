@@ -8,9 +8,18 @@ import { buildTimeline } from '../src/timeline/timeline';
 import { getVideo, videoIds } from '../src/videos/catalog';
 import { decodePcm, previewBed } from './lib/loop-job';
 import { publicDir, videoPaths } from './lib/paths';
+import { writeSfx } from './lib/sfx';
 import { writeWav } from './lib/wav';
-/** The real-song spike failed the frame-step envelope check: prepare smooth PCM beds. */
+
+let effects: Promise<void> | undefined;
+
+/**
+ * The real-song spike failed the frame-step envelope check: prepare smooth PCM
+ * beds. The synthesised sound effects every video shares are written once.
+ */
 export async function prepareMusic(id: string): Promise<void> {
+  effects ??= writeSfx(publicDir);
+  await effects;
   const { storyboard } = getVideo(id);
   const loop = musicLoop(storyboard.music.loop);
   const paths = videoPaths(id);

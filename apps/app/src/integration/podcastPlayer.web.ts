@@ -400,9 +400,10 @@ export function usePodcastPlayer(): PodcastPlayer {
 
   const seekRelative = useCallback(
     (deltaSeconds: number) => {
-      seek(currentTime + deltaSeconds);
+      const audio = audioRef.current;
+      if (audio !== null) seek(audio.currentTime + deltaSeconds);
     },
-    [currentTime, seek],
+    [seek],
   );
 
   // Setting speed writes only the CURRENT section's preference; classroom and

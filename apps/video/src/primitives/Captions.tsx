@@ -9,12 +9,14 @@ import { rise } from './motion';
 
 /**
  * Burned-in captions. Always on: judges and social feeds mostly watch muted.
- * `style` overrides the caption box, e.g. a font for another script.
+ * `style` overrides the caption box, e.g. a font for another script, and
+ * `placement` where the box sits in the frame.
  */
 export const Captions: React.FC<{
   readonly cues: readonly CaptionCue[];
   readonly style?: CSSProperties;
-}> = ({ cues, style }) => {
+  readonly placement?: CSSProperties;
+}> = ({ cues, style, placement }) => {
   const frame = useCurrentFrame();
   const cue = cues.find(
     (candidate) => frame >= candidate.from && frame < candidate.to,
@@ -27,6 +29,7 @@ export const Captions: React.FC<{
         alignItems: 'center',
         paddingBottom: 60,
         pointerEvents: 'none',
+        ...placement,
       }}
     >
       <div

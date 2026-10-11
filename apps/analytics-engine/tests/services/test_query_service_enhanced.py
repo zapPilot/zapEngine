@@ -101,6 +101,19 @@ class TestEnhancedQueryService:
         assert len(QueryService._query_cache) == 0
         assert QueryService._cache_initialized is False
 
+    def test_cache_reset_keeps_live_singleton_queries(self, monkeypatch):
+        """Resetting the test cache must not empty the singleton already using it."""
+        monkeypatch.setattr(
+            "src.services.shared.query_service._query_service_instance", None
+        )
+        singleton = get_query_service()
+
+        QueryService._reset_cache_for_testing()
+
+        assert singleton.queries
+        query_name = sorted(singleton.queries)[0]
+        assert singleton.get_query(query_name).strip()
+
     def test_fetch_time_range_query_builds_params(self):
         """fetch_time_range_query forwards normalized params to execute_query."""
         service = QueryService()
